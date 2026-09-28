@@ -1047,7 +1047,7 @@ The vendored tree must commit **unmodified** (`.claude/skills/**` is excluded fr
   - `UpsideDownView.MouseDelta turn(double dx, double dy, double rollDegrees)`, where `record MouseDelta(double dx, double dy)`.
   - `double strafe(double x, double rollDegrees)`: `x` if the roll is < 90° from upright, else `−x`.
 
-- [ ] **Step 1: Write the failing example tests**
+- [x] **Step 1: Write the failing example tests**
 
 `UpsideDownViewTest.java`:
 
@@ -1139,7 +1139,7 @@ class UpsideDownViewTest {
 }
 ```
 
-- [ ] **Step 2: Write the failing property tests**
+- [x] **Step 2: Write the failing property tests**
 
 `UpsideDownViewPropertiesTest.java`. The screen-relative property is derived from the camera, not from the implementation. `Camera.setRotation(yaw, pitch, roll)` builds `rotationYXZ(π − yaw, −pitch, −roll)`. In the unrolled screen basis (x = right, y = up), the rolled camera's right axis is `(cos r, −sin r)` and its up axis is `(sin r, cos r)`. Mouse `(dx, dy)` uses screen coordinates with y pointing down. `LocalPlayer.turn(dx', dy')` moves the gaze by `(dx', −dy')` in the unrolled basis.
 
@@ -1214,7 +1214,7 @@ class UpsideDownViewPropertiesTest {
 }
 ```
 
-- [ ] **Step 3: Add ArchUnit rule 2 (failing: the package doesn't exist yet)**
+- [x] **Step 3: Add ArchUnit rule 2 (failing: the package doesn't exist yet)**
 
 In `ArchitectureTest.java`, add `import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;` and:
 
@@ -1232,7 +1232,7 @@ In `ArchitectureTest.java`, add `import static com.tngtech.archunit.lang.syntax.
     }
 ```
 
-- [ ] **Step 4: Run the tests and watch them fail**
+- [x] **Step 4: Run the tests and watch them fail**
 
 ```bash
 ./gradlew test --console=plain
@@ -1240,7 +1240,7 @@ In `ArchitectureTest.java`, add `import static com.tngtech.archunit.lang.syntax.
 
 Expected: compilation FAILS (`UpsideDownView` does not exist).
 
-- [ ] **Step 5: Implement `UpsideDownView`**
+- [x] **Step 5: Implement `UpsideDownView`**
 
 ```java
 package io.github.willrieske.spellcraft.client.upsidedown;
@@ -1293,7 +1293,7 @@ public final class UpsideDownView {
 }
 ```
 
-- [ ] **Step 6: Run the tests and watch them pass**
+- [x] **Step 6: Run the tests and watch them pass**
 
 ```bash
 ./gradlew test --console=plain
@@ -1301,12 +1301,14 @@ public final class UpsideDownView {
 
 Expected: PASS for `UpsideDownViewTest` (8), `UpsideDownViewPropertiesTest` (5 properties, 1000 tries each) and `ArchitectureTest` (2).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/main/java/io/github/willrieske/spellcraft/client/upsidedown src/test/java
 git commit -m "feat: add pure Upside-Down view math with property and purity tests"
 ```
+
+> **As built (`51ba939`):** matches plan.
 
 ---
 
@@ -2828,10 +2830,154 @@ git commit -m "feat: keep mouse look screen-relative with a MouseHandler Mixin"
 **Files:**
 
 - Create: `docs/playtest-checklist.md`
-- Modify: `docs/mutation-testing.md` (fresh run), and this plan's `## Resume State
+- Modify: `docs/mutation-testing.md` (fresh run), and this plan's `## Resume State`
 
-- Last completed task: Task 4: Verify the hooks against decompiled sources; write CLAUDE.md; install the skills
-- Commit SHA: 8f2f61f
-- Checkboxes: 36/117 ticked
-- Next task: Task 5: UpsideDownView (pure math)
-- Known-failing tests / caveats: Tasks 1-4 complete and reviewed. Carry-forward facts (docs/api-notes.md): TestData is generic (Task 7 uses new TestData<>(...), compiles as planned); moveVector opens via the AT in Task 9 (no Mixin accessor); Items.MILK_BUCKET.finishUsingItem works on a server level (Task 7 valid). Skills vendored without scripts/. /review-plan Minors mostly unapplied. plan_end_gate.py not available in this repo (no full-suite backstop script).
+- [ ] **Step 1: Write the playtest checklist**
+
+`docs/playtest-checklist.md`:
+
+```markdown
+# Playtest checklist: Strength of Upside-Down
+
+Run `./gradlew runClient`. Create a Creative world (superflat is easiest) and take the
+*Scroll of Upside-Down* from the Tools & Utilities tab. Tick each item; record anything odd
+under **Findings** with what you did and what you saw.
+
+Config used below (all in one place): for the mid-roll items set the client config `transitionSeconds = 10` (the sideways point then lasts several seconds; at the default 1 s it is gone in half a second). For the "run out" item set the server config `durationSeconds` low. Restore the defaults afterwards (`transitionSeconds = 1.0`, `durationSeconds = 180`).
+
+## Cast and roll
+
+- [ ] Right-click: over ~1 s the view does a smooth half barrel roll; grass ends up across the top.
+- [ ] The effect icon (purple down-arrow) and a 3:00 countdown show in the HUD and inventory.
+- [ ] Sneak + right-click: the view keeps turning **the same way** back to upright (one full barrel roll overall), not back the way it came.
+- [ ] Right-click again during that roll-out: the roll reverses smoothly back to flipped, with no jump.
+- [ ] Recast while settled flipped: no animation; the countdown resets to 3:00.
+- [ ] Drink milk: the effect clears, then the view rolls out.
+- [ ] Let the effect run out (set `durationSeconds` low in the world's `serverconfig/spellcraft-server.toml` to save time): the view rolls out at the end.
+- [ ] Client config `transitionSeconds = 0`: flips snap instantly both ways.
+
+## Controls while flipped
+
+- [ ] Mouse right/left/up/down pans the view right/left/up/down **on screen**.
+- [ ] Mid-roll (around the sideways point), the mouse is still screen-relative. If it is mirrored only mid-roll, report "turn() sin sign". Do not just flip the sign in `turn` and its property test together: the property test shares the same axis assumption and would hide the error. Re-derive the axes from `Camera.setRotation` (docs/api-notes.md fact 1) first.
+- [ ] A/D move you left/right on screen; W/S unchanged.
+- [ ] During a roll, A/D swap exactly once (at the sideways point).
+- [ ] Creative flight: Space moves you **down** on screen (away from the grass), Shift moves you up; stopping flight, you fall **up** on screen toward the grass.
+
+## View
+
+- [ ] HUD, crosshair, chat and hotbar stay upright and unmoved.
+- [ ] Your hand and held item are unchanged (not flipped).
+- [ ] F5 behind and in front: the scene is rotated; you hang head-down from the grass. (Front view negates the roll in vanilla, so mouse and A/D compensation is exact only at 0° and 180° there; mid-roll front view is an accepted limitation. Note anything odd.)
+- [ ] Look nearly straight up and straight down (pitch near ±90°) while flipped: the view does not glitch or snap.
+- [ ] Mods > Spellcraft > Config: the server and client config screens open and show readable labels.
+- [ ] Turning quickly: no chunks popping in or out at the screen edges.
+
+## Sound
+
+- [ ] Flipped: a sound on your screen-left (e.g. a note block) plays in your left ear.
+- [ ] During the roll, stereo pans smoothly with the view.
+
+## Situations
+
+- [ ] Elytra while flipped: controllable. Note how it feels.
+- [ ] Boat while flipped: view flipped, controls usable.
+- [ ] Standard minecart: flip applies. (With the experimental new-minecart feature enabled the camera takes a different code path: the flip is not drawn and mouse/A/D stay normal, because the compensation follows what is drawn; known, see `docs/api-notes.md` fact 2.)
+- [ ] Nether portal mid-spell: you arrive still flipped, with no roll animation.
+- [ ] Die mid-spell: you respawn upright, with no animation.
+- [ ] Quit to title mid-spell and reload the world: flipped immediately, countdown continued.
+- [ ] Optional (Open to LAN + a second client): the other player sees nothing unusual — no particles, normal model.
+
+## Real profile
+
+- [ ] Copy `build/libs/spellcraft-1.0.0.jar` into `%APPDATA%\.minecraft\mods`, launch the NeoForge 26.3 profile, and cast once.
+
+## Findings
+
+(record here)
+```
+
+- [ ] **Step 2: Run every automated gate fresh**
+
+Do not run `clean`: it deletes `build/moddev` and Task 4's `build/mc-src`, and the next cold NeoForge setup takes 5–15 minutes, past the 10-minute Bash cap. Freshness comes from `--rerun-tasks` on the test task. Run the cold-prone commands in the background with a long timeout, one at a time:
+
+```bash
+./gradlew build --console=plain
+./gradlew test --rerun-tasks --console=plain
+./gradlew runGameTestServer --console=plain
+./gradlew runData --console=plain
+./gradlew pitest --console=plain
+./gradlew jacocoTestReport --console=plain
+pre-commit run --all-files
+```
+
+Expected: all PASS; 7 GameTests pass; `runData` exits 0 (it is the only headless check of client-dist code). Update `docs/mutation-testing.md` with today's PIT row. JaCoCo has no threshold; just confirm `build/reports/jacoco/test/html/index.html` exists and mention the pure-core line coverage in the handoff.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add docs/playtest-checklist.md docs/mutation-testing.md
+git commit -m "docs: add Upside-Down playtest checklist and final mutation-testing results"
+```
+
+- [ ] **Step 4: Hand the visual checks to Will**
+
+Report in chat: every gate result from Step 2 with its numbers, the Mixin headless outcome from Task 10, and the request: "Run `docs/playtest-checklist.md` via `./gradlew runClient`; the jar for the real-profile check is `build/libs/spellcraft-1.0.0.jar`." Do **not** tick playtest items yourself. Do **not** copy the jar into `%APPDATA%\.minecraft\mods`; that is Will's real game profile.
+
+- [ ] **Step 5: Update `## Resume State` in this plan and commit**
+
+---
+
+## Self-review (writing-plans checklist, done 2026-09-28)
+
+- **Spec coverage:**
+
+| Spec item | Task |
+|---|---|
+| §2 `Spell`, `SpellScrollItem` rules, creative tab | 8 |
+| §2 effect | 7 |
+| §2 server config | 8 |
+| §2 `UpsideDownView` | 5 |
+| §2 `UpsideDownRollState` | 6 |
+| §2 `ClientEvents` camera and movement | 9 |
+| §2 sound | Deviation 2, playtest |
+| §2 `MouseHandlerMixin` | 10 |
+| §2 client config | 9 |
+| §3 behaviour and edge cases | 6 (snap, reversal, direction), 9 (resync), 11 (playtest) |
+| §4 no own networking | 9 |
+| §4 Mixin `require = 1` | 10 |
+| §4 config ranges | 8, 9 |
+| §5 unit tests | 5, 6 |
+| §5 GameTests | 7, 8 |
+| §5 checklist | 11 |
+| §6 tooling | Before execution, 1 |
+| §6 skills and `CLAUDE.md` | 4 |
+| §6 gates table | 2, 3 |
+| §6 formatter hook | 3 |
+| §6 ArchUnit 1 / 2 | 2 / 5 |
+| §6 jqwik | 5, 6 |
+| §6 Mixin gap | 10 |
+| §6 cold build by hand | 1 |
+| §7 API drift | 4 |
+| §7 sound hook | Deviation 2, fact 3 |
+| §7 frustum culling | playtest |
+
+- **Placeholders:** none. The `<date>`/`<n>` cells in `api-notes.md`, `PROVENANCE.md` and `mutation-testing.md` are values the executor records from its own run.
+- **Type consistency:** `rollFor(double, double, double)`, `turn → MouseDelta`, `strafe(double, double)`, `tick(boolean, boolean, int)`, `rollDegrees(float)`, `renderedRoll()`, `transitionTicks()`, `ModEffects.UPSIDE_DOWN`, `ModItems.UPSIDE_DOWN_SCROLL` and the `ServerConfig.UPSIDE_DOWN_*` names match across Tasks 5–10.
+
+## Divergence index
+
+<!-- generated by plan_map.py --write-index; do not edit -->
+
+| Task | SHA | Divergence |
+|---|---|---|
+| 3 | `abfa98c` | `.claude/gate.json` uses `.\gradlew.bat` (not `gradlew.bat`) and the ~/.claude hook change is `868d7b5`; markdownlint MD049 fixed in the plan's generated as-built line and blank lines added to the spec (MD022/MD032/MD058); reason: `NoDefaultCurrentDirectoryInExePath=1` makes `cmd /c gradlew.bat` miss the wrapper in the cwd (gate blocked the first commit), and Step 4 permits Markdown-only fixes. |
+| 4 | `8f2f61f` | both skills were vendored without their `scripts/` directories (PROVENANCE.md records this and the dangling script mentions in `minecraft-testing`), and `CLAUDE.md` gained a "Reference docs" section of 13 links; reason: the skills' `check-build.sh` and `validate-test-layout.sh` do more than print reference text (Will's ruling: option (b), least privilege), and Will asked for the doc index. |
+
+## Resume State
+
+- Last completed task: Task 5: `UpsideDownView` (pure math) with properties and ArchUnit rule 2
+- Commit SHA: 51ba939
+- Checkboxes: 43/117 ticked
+- Next task: Task 6: UpsideDownRollState (pure state machine)
+- Known-failing tests / caveats: Tasks 1-5 complete and reviewed. Carry-forward: TestData generic (Task 7: new TestData<>(...)); moveVector via AT in Task 9; milk finishUsingItem valid (Task 7). Skills vendored without scripts/. Minors from /review-plan mostly unapplied. Optional hardening: archunit.properties archRule.failOnEmptyShould=true (Task 5 minor). No plan_end_gate.py in this repo.
