@@ -279,7 +279,7 @@ git commit -m "build: scaffold Spellcraft from the NeoForge 26.3 MDK"
 - Consumes: Task 1's classes.
 - Produces: `./gradlew build` = `spotlessCheck` + Error Prone/`-Xlint:all -Werror` compile + JUnit 5/jqwik/ArchUnit tests. `./gradlew pitest` targets the package `io.github.willrieske.spellcraft.client.upsidedown` (created in Task 5). `ArchitectureTest.PRODUCTION` is the imported production classes, which Task 5 reuses for rule 2.
 
-- [ ] **Step 1: Write the failing architecture test (rule 1)**
+- [x] **Step 1: Write the failing architecture test (rule 1)**
 
 `src/test/java/io/github/willrieske/spellcraft/ArchitectureTest.java`:
 
@@ -319,7 +319,7 @@ class ArchitectureTest {
 }
 ```
 
-- [ ] **Step 2: Replace `build.gradle` with the gated build**
+- [x] **Step 2: Replace `build.gradle` with the gated build**
 
 Full file:
 
@@ -488,7 +488,7 @@ idea {
 }
 ```
 
-- [ ] **Step 3: Add the test resource files**
+- [x] **Step 3: Add the test resource files**
 
 `src/test/resources/junit-platform.properties` (the tests are pure, so they can run concurrently):
 
@@ -503,7 +503,7 @@ junit.jupiter.execution.parallel.mode.default=concurrent
 resolveMissingDependenciesFromClassPath=false
 ```
 
-- [ ] **Step 4: Format, then run the build**
+- [x] **Step 4: Format, then run the build**
 
 ```bash
 ./gradlew spotlessApply --console=plain && ./gradlew build --console=plain
@@ -513,7 +513,7 @@ Expected: `BUILD SUCCESSFUL`, with `ArchitectureTest > commonCodeNeverReferences
 
 If the compile fails **only** on a `-Xlint` category that our code can't cause, add `'-Xlint:-<category>'` after `'-Xlint:all'` in `compilerArgs`, with a one-line comment naming the cause. Typical cases are `[processing]` from Error Prone's processor path and `[classfile]` from Minecraft jars. Never suppress `deprecation`, `removal`, `unchecked`, `rawtypes`, `cast`, `fallthrough` or `this-escape`; fix the code instead.
 
-- [ ] **Step 5: Prove rule 1 bites (then revert)**
+- [x] **Step 5: Prove rule 1 bites (then revert)**
 
 Create a throwaway common class that references client code:
 
@@ -530,12 +530,14 @@ EOF
 
 Expected: FAIL, with `ArchitectureTest` naming `ArchProbe` → `net.minecraft.client.Minecraft`. Delete the probe (`rm src/main/java/io/github/willrieske/spellcraft/ArchProbe.java`) and re-run `./gradlew test` → PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add build.gradle src/test src/main/java
 git commit -m "build: add Spotless, Error Prone, -Werror, JUnit/jqwik/ArchUnit, PIT and JaCoCo"
 ```
+
+> **As built (`96e7970`):** matches plan.
 
 ---
 
