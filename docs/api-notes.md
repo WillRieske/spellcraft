@@ -115,3 +115,23 @@ Verified as planned.
 Verified. `net/minecraft/world/entity/Entity.java:435-436`:
 `public boolean equals(Object obj) { return obj instanceof Entity entity ? entity.getId() == this.getId() : false; }`
 Player-identity checks need `==` with a `ReferenceEquality` suppression (plus a comment why).
+
+## 9. Mixin coverage (Task 10)
+
+Client Mixins are not exercised headlessly (runData does not load `MouseHandler`, checked 2026-09-28).
+`require = 1` makes a missing target fail at client startup; the playtest (`runClient`) is the check.
+
+Evidence: with `systemProperty 'mixin.debug.export', 'true'` temporarily added to `neoForge.runs.data`,
+`./gradlew runData` succeeded (Mixin ran with `Env=CLIENT`), then
+
+```text
+$ find . -path "*/.mixin.out/*" -name "MouseHandler.class" -not -path "./build/*"
+(no output)
+```
+
+The `build.gradle` change was reverted.
+
+`compatibilityLevel`: `JAVA_25` in `spellcraft.mixins.json` is accepted by Mixin 0.8.7 (debug log:
+"Compatibility level JAVA_25 specified by spellcraft.mixins.json is higher than the maximum level supported by
+this version of mixin (JAVA_13). Compatibility level set to JAVA_25"), so no fallback to `JAVA_21` was needed.
+`com.llamalad7.mixinextras` (0.5.5, bundled with NeoForge) resolves.
