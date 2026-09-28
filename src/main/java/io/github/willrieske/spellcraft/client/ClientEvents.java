@@ -35,9 +35,11 @@ public final class ClientEvents {
         Level lastLevel;
 
         double renderedRoll;
-        long tickCount;
-        long rollStampTick = Long.MIN_VALUE;
+        boolean stamped;
+        long rollStampNanos;
     }
+
+    private static final long STALE_AFTER_NANOS = 500_000_000L;
 
     private static final Tracker TRACKER = new Tracker();
 
@@ -46,11 +48,13 @@ public final class ClientEvents {
     /**
      * The roll most recently applied to the camera: what the player sees right now. The camera
      * event is not posted on every camera path (the experimental new-minecart lerp skips it), so a
-     * value older than 2 client ticks is stale and reads as 0: controls stay normal whenever the
-     * flip is not being drawn.
+     * value older than 500 ms of wall-clock time is stale and reads as 0. A frame gap under 500 ms
+     * keeps compensation; the camera event being absent for longer (e.g. the new-minecart lerp path)
+     * reads as not flipped, so controls stay normal whenever the flip is not being drawn.
      */
     public static double renderedRoll() {
-        return TRACKER.tickCount - TRACKER.rollStampTick <= 2 ? TRACKER.renderedRoll : 0.0;
+        boolean fresh = TRACKER.stamped && System.nanoTime() - TRACKER.rollStampNanos <= STALE_AFTER_NANOS;
+        return fresh ? TRACKER.renderedRoll : 0.0;
     }
 
     @SubscribeEvent
@@ -58,7 +62,6 @@ public final class ClientEvents {
     // (Entity.equals compares entity ids, which is not what we want here).
     @SuppressWarnings("ReferenceEquality")
     static void onClientTick(ClientTickEvent.Post event) {
-        TRACKER.tickCount++;
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null) {
             TRACKER.lastPlayer = null;
@@ -78,7 +81,8 @@ public final class ClientEvents {
     static void onComputeCameraAngles(ViewportEvent.ComputeCameraAngles event) {
         double roll = TRACKER.roll.rollDegrees(event.getPartialTick());
         TRACKER.renderedRoll = roll;
-        TRACKER.rollStampTick = TRACKER.tickCount;
+        TRACKER.rollStampNanos = System.nanoTime();
+        TRACKER.stamped = true;
         if (roll != 0.0) {
             // Add, don't replace: another mod's roll is preserved (spec §3).
             event.setRoll(event.getRoll() + (float) roll);
@@ -89,7 +93,7 @@ public final class ClientEvents {
     static void onMovementInput(MovementInputUpdateEvent event) {
         ClientInput input = event.getInput();
         Vec2 move = input.moveVector;
-        float strafe = (float) UpsideDownView.strafe(move.x, TRACKER.renderedRoll);
+        float strafe = (float) UpsideDownView.strafe(move.x, renderedRoll());
         if (strafe == move.x) {
             return; // not inverted, or not strafing
         }
