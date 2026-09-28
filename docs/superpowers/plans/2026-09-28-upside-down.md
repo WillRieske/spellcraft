@@ -40,7 +40,7 @@ Evidence came from NeoForge's `-sources.jar` and `-userdev.jar` patches, plus cl
 7. **Effect particles hidden** (`MobEffectInstance(..., visible = false, showIcon = true)`), so other players see nothing unusual. The spec implies this but doesn't say it.
 8. **Mouse formula sign.** Derived from `Camera.setRotation`'s `rotationYXZ(π − yaw, −pitch, −roll)`, the compensation is `dx' = dx·cos r − dy·sin r`, `dy' = dx·sin r + dy·cos r`. The spec calls this "rotate by −roll"; the two differ only in naming convention. 0° and 180° are sign-independent. The 90°/270° sign is pinned by a property test derived from the camera axes and confirmed in the playtest.
 9. **Creative tab:** the scroll goes in vanilla *Tools & Utilities*. **Art:** the scroll uses the vanilla paper model with an enchantment glint. The effect icon is a generated 18×18 arrow.
-10. **Commit gate command is `cmd /c gradlew.bat …`, not `gradlew.bat …`.** The gate resolves bare names with `shutil.which` from the hook's own cwd, which is not the repo. `cmd` resolves on PATH, and the gate then runs it in the repo root.
+10. **Commit gate command is `cmd /c .\gradlew.bat …`, not `gradlew.bat …`.** The gate resolves bare names with `shutil.which` from the hook's own cwd, which is not the repo. `cmd` resolves on PATH, and the gate then runs it in the repo root. The `.\` is needed because this machine sets `NoDefaultCurrentDirectoryInExePath=1`, so `cmd` does not search the current directory for a bare name.
 
 ## File Structure
 
@@ -556,7 +556,7 @@ git commit -m "build: add Spotless, Error Prone, -Werror, JUnit/jqwik/ArchUnit, 
 - Consumes: `./gradlew spotlessCheck`, `./gradlew build`, `./gradlew runGameTestServer` from Task 2.
 - Produces: commits gated locally and in CI. `format_file.formatter_for("<...>.java")` returns a Spotless IDE-hook argv for the nearest Gradle wrapper, or `None` if there is none.
 
-- [ ] **Step 1: Write the commit gate**
+- [x] **Step 1: Write the commit gate**
 
 `.claude/gate.json`:
 
@@ -569,7 +569,7 @@ git commit -m "build: add Spotless, Error Prone, -Werror, JUnit/jqwik/ArchUnit, 
 
 (`cmd /c` is deliberate; see Deviation 10. The gate runs each command with the repo root as cwd.)
 
-- [ ] **Step 2: Write gitlint and markdownlint configs**
+- [x] **Step 2: Write gitlint and markdownlint configs**
 
 `.gitlint` (copied from notes-manager):
 
@@ -615,7 +615,7 @@ types = fix,feat,docs,refactor,test,chore,build,ci,perf,revert
 }
 ```
 
-- [ ] **Step 3: Write the pre-commit config**
+- [x] **Step 3: Write the pre-commit config**
 
 `.pre-commit-config.yaml`:
 
@@ -663,7 +663,7 @@ repos:
         stages: [pre-push]
 ```
 
-- [ ] **Step 4: Install the hooks and run them on everything**
+- [x] **Step 4: Install the hooks and run them on everything**
 
 First append these lines to `.gitignore` (Task 2's test runs create an untracked `.jqwik-database`; `reviews/` and `.superpowers/` are review and SDD scratch; `.claude/worktrees/` holds worktrees):
 
@@ -687,7 +687,7 @@ pre-commit run --all-files
 
 Expected: `git ls-files -s gradlew` shows `100755`. Every hook `Passed`, or `Failed` → auto-fixed (re-stage anything a fixer rewrote). Re-run until all pass. If markdownlint flags the spec or this plan, fix the Markdown by hand (content unchanged) and re-run.
 
-- [ ] **Step 5: Prove gitlint rejects a non-conventional message**
+- [x] **Step 5: Prove gitlint rejects a non-conventional message**
 
 ```bash
 MSG="$(mktemp)"; printf 'Add stuff to the mod\n' > "$MSG"
@@ -696,7 +696,7 @@ pre-commit run gitlint --hook-stage commit-msg --commit-msg-filename "$MSG"
 
 Expected: `Failed`, with a `CT1` "Title does not start with one of fix, feat, …" violation.
 
-- [ ] **Step 6: Write CI**
+- [x] **Step 6: Write CI**
 
 `.github/workflows/ci.yml`:
 
@@ -736,7 +736,7 @@ jobs:
           gitlint --commits b441228..HEAD
 ```
 
-- [ ] **Step 7: Write the failing format-on-edit tests (in `~/.claude`)**
+- [x] **Step 7: Write the failing format-on-edit tests (in `~/.claude`)**
 
 Append to `~/.claude/hooks/tests/test_format_file.py`:
 
@@ -772,7 +772,7 @@ def test_java_without_gradle_wrapper_is_none(tmp_path):
     assert formatter_for(str(source)) is None
 ```
 
-- [ ] **Step 8: Run them and watch them fail**
+- [x] **Step 8: Run them and watch them fail**
 
 ```bash
 cd ~/.claude && python -m pytest hooks/tests/test_format_file.py -q -o pythonpath=hooks -p no:cacheprovider
@@ -780,7 +780,7 @@ cd ~/.claude && python -m pytest hooks/tests/test_format_file.py -q -o pythonpat
 
 Expected: the two new tests FAIL (`.java` is not in `_EXT`, so `formatter_for` returns `None`, and the first test's equality fails).
 
-- [ ] **Step 9: Implement the `.java` entry**
+- [x] **Step 9: Implement the `.java` entry**
 
 In `~/.claude/hooks/format_file.py`, add `import os` next to the other imports, add this function above `_EXT`:
 
@@ -812,7 +812,7 @@ and add this entry to `_EXT`:
     ".java": _gradle_spotless,
 ```
 
-- [ ] **Step 10: Run the hook tests and watch them pass**
+- [x] **Step 10: Run the hook tests and watch them pass**
 
 ```bash
 cd ~/.claude && python -m pytest hooks/tests -q -o pythonpath=hooks -p no:cacheprovider
@@ -820,14 +820,14 @@ cd ~/.claude && python -m pytest hooks/tests -q -o pythonpath=hooks -p no:cachep
 
 Expected: all pass.
 
-- [ ] **Step 11: Commit the hook change in `~/.claude`**
+- [x] **Step 11: Commit the hook change in `~/.claude`**
 
 ```bash
 git -C ~/.claude add hooks/format_file.py hooks/tests/test_format_file.py
 git -C ~/.claude commit -m "feat(hooks): format .java files via the project's Gradle Spotless IDE hook"
 ```
 
-- [ ] **Step 12: Commit the spellcraft side**
+- [x] **Step 12: Commit the spellcraft side**
 
 ```bash
 # Run from the repo root (this worktree); do not cd elsewhere.
@@ -836,6 +836,8 @@ git commit -m "ci: add commit gate, pre-commit hooks and GitHub Actions workflow
 ```
 
 Expected: the commit gate runs `spotlessCheck` and `build`, and pre-commit runs its hooks. Both pass. Note that `pre-push` and the CI `GameTests` step (`runGameTestServer`) fail until Task 7 registers the first GameTest. That's fine, because nothing is pushed in this plan. On a cold Gradle cache (the first run in a new worktree) the commit gate's `build` may exceed its 300 s timeout; run `./gradlew build` once by hand first.
+
+> **As built (`abfa98c`):** diverged — `.claude/gate.json` uses `.\gradlew.bat` (not `gradlew.bat`) and the ~/.claude hook change is `868d7b5`; markdownlint MD049 fixed in the plan's generated as-built line and blank lines added to the spec (MD022/MD032/MD058); reason: `NoDefaultCurrentDirectoryInExePath=1` makes `cmd /c gradlew.bat` miss the wrapper in the cwd (gate blocked the first commit), and Step 4 permits Markdown-only fixes.
 
 ---
 
@@ -2963,7 +2965,9 @@ Report in chat: every gate result from Step 2 with its numbers, the Mixin headle
 
 <!-- generated by plan_map.py --write-index; do not edit -->
 
-*No divergences recorded.*
+| Task | SHA | Divergence |
+|---|---|---|
+| 3 | `abfa98c` | `.claude/gate.json` uses `.\gradlew.bat` (not `gradlew.bat`) and the ~/.claude hook change is `868d7b5`; markdownlint MD049 fixed in the plan's generated as-built line and blank lines added to the spec (MD022/MD032/MD058); reason: `NoDefaultCurrentDirectoryInExePath=1` makes `cmd /c gradlew.bat` miss the wrapper in the cwd (gate blocked the first commit), and Step 4 permits Markdown-only fixes. |
 
 ## Resume State
 

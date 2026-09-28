@@ -1,2 +1,3 @@
 ba3f118 Task 1: cold build BUILD SUCCESSFUL (./gradlew build, 4m52s); review clean
 96e7970 Task 2: ./gradlew build SUCCESSFUL, ArchitectureTest 1/1; review clean
+abfa98c Task 3: hook tests RED->GREEN (150 passed), pre-commit --all-files pass, gitlint CT1 negative ok, gradlew 100755; review clean
