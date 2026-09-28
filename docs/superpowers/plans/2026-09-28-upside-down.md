@@ -2971,11 +2971,8 @@ Report in chat: every gate result from Step 2 with its numbers, the Mixin headle
 
 ## Resume State
 
-- **Last completed task:** none. The plan was just written and not yet reviewed.
-- **Commit:** the commit that adds this file (`docs: add Upside-Down implementation plan`).
-- **Checkboxes ticked:** none.
-- **Next:** run `/review-plan` on this file, then complete *Before execution (Will)*, then Task 1.
-- **Caveats:**
-  - As of 2026-09-28, JDK 25, `JAVA_HOME` and `gh` are not installed (`java` isn't on PATH; only a Java 8 JRE exists).
-  - The pre-push hook (`runGameTestServer`) fails until Task 7 registers a test.
-  - This session inspected the NeoForge `-sources`/`-userdev` jars and the Mojang `client.jar` in a scratch dir only. Nothing was installed.
+- Last completed task: Task 3: Repo hooks, commit gate, CI, and format-on-edit for Java
+- Commit SHA: 3d5b453
+- Checkboxes: 29/117 ticked
+- Next task: Task 4 (skill-install decision pending)
+- Known-failing tests / caveats: Task 4 implementer verified all 8 API rows (0 design-premise mismatches) and wrote UNCOMMITTED docs/api-notes.md; BLOCKED at Step 4/5: both vendored skills ship scripts (check-build.sh runs ./gradlew build; validate-test-layout.sh scans project files) that exceed the plan's reject rule. Needs Will: (a) install as-is, (b) omit scripts/ dirs + note in PROVENANCE.md, (c) drop skills. Then finish CLAUDE.md, commit. API notes for later tasks: TestData is generic (TestData<Holder<TestEnvironmentDefinition<?>>>) for Task 7; ClientInput.moveVector protected (Task 9 AT); no MilkBucketItem in 26.3 (Items.MILK_BUCKET + Consumables.MILK_BUCKET). Full-suite plan_end_gate not run (script absent in this repo). /review-plan Minors mostly unapplied.
