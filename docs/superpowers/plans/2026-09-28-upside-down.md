@@ -2992,7 +2992,7 @@ Report in chat: every gate result from Step 2 with its numbers, the Mixin headle
 ## Resume State
 
 - Last completed task: Task 10: Mouse compensation Mixin and the headless-apply check
-- Commit SHA: e1a4fe4
+- Commit SHA: c0cbc6b
 - Checkboxes: 79/117 ticked
-- Next task: Task 11: playtest checklist, final verification and handoff
-- Known-failing tests / caveats: Tasks 1-10 complete and reviewed. Task 11 is the last: playtest checklist, final gates, handoff to Will. The Mixin (Task 10) and all visual behaviour are unverified in a real client; only Will's runClient playtest checks them. Task 11 Step 2 must NOT run clean; run runData; GameTest log is 7 Spellcraft + 1 vanilla. Minors from /review-plan mostly unapplied. Deferred minors: T5 archunit failOnEmptyShould; T6 unreachable startRoll guard; T8 recast/cooldown semantics comment; T9 wasInWorld guard. TODO after plan: systematic-debugging on plan-truncation bug. No plan_end_gate.py in this repo.
+- Next task: Task 11 REVIEW + tick (implemented in c0cbc6b, not yet reviewed or ticked)
+- Known-failing tests / caveats: Tasks 1-10 complete and reviewed. Task 11 implemented in c0cbc6b (playtest checklist + all gates green per implementer: 32 tests, All 8 GameTests, runData 0, pitest 61/65, jacoco pure-core 96.6%, pre-commit ok); NOT yet reviewed/ticked; see task-11-report.md; the implementer may still have background work, so check the commit log before acting. Then: handoff message to Will, final Resume State, tick Task 11. Mixin and all visuals are unverified until Will's runClient playtest. Deferred minors: T5 archunit failOnEmptyShould; T6 unreachable startRoll guard; T8 recast/cooldown comment; T9 wasInWorld guard. TODO after plan: systematic-debugging on the plan-truncation bug (anchor on a line-start heading; assert a single match; refuse to save if lines are lost). Usage limit reached mid-run.
