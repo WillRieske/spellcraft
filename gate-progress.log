@@ -7,3 +7,4 @@ abfa98c Task 3: hook tests RED->GREEN (150 passed), pre-commit --all-files pass,
 2f6cc41 Task 7: RED compile fail -> GREEN 'All 3 required tests passed' (2 spellcraft + vanilla always_pass), build green; review clean
 2269195 Task 8: RED compile fail -> GREEN All 8 required tests passed (7+vanilla), build green, mutation check ok; review clean
 7c4629d Task 9: build green, runGameTestServer All 8 required, runData exit 0; fix round 1; review clean
+e1a4fe4 Task 10: build green, All 8 required GameTests, headless mixin check negative (documented), review clean

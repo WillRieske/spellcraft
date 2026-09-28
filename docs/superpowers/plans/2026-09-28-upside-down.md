@@ -2735,7 +2735,7 @@ git commit -m "feat: roll the camera and compensate strafe while Upside-Down is 
 
 - Consumes: `ClientEvents.renderedRoll()`, `UpsideDownView.turn(double, double, double) → MouseDelta`; fact 4 in `docs/api-notes.md`.
 
-- [ ] **Step 1: Write the Mixin**
+- [x] **Step 1: Write the Mixin**
 
 `client/mixin/MouseHandlerMixin.java`:
 
@@ -2775,7 +2775,7 @@ abstract class MouseHandlerMixin {
 }
 ```
 
-- [ ] **Step 2: Register the Mixin config**
+- [x] **Step 2: Register the Mixin config**
 
 `src/main/resources/spellcraft.mixins.json`:
 
@@ -2799,7 +2799,7 @@ In `src/main/templates/META-INF/neoforge.mods.toml`, uncomment the MDK's existin
 config="${mod_id}.mixins.json"
 ```
 
-- [ ] **Step 3: Run the build and the dedicated-server smoke test**
+- [x] **Step 3: Run the build and the dedicated-server smoke test**
 
 ```bash
 ./gradlew spotlessApply --console=plain && ./gradlew build --console=plain && ./gradlew runGameTestServer --console=plain
@@ -2807,7 +2807,7 @@ config="${mod_id}.mixins.json"
 
 Expected: both PASS. Client Mixins don't apply on a dedicated server, so this proves only that the config loads cleanly there.
 
-- [ ] **Step 4: Check whether the client data run applies the Mixin headlessly (spec §6 "Mixin gap")**
+- [x] **Step 4: Check whether the client data run applies the Mixin headlessly (spec §6 "Mixin gap")**
 
 Temporarily add `systemProperty 'mixin.debug.export', 'true'` inside `neoForge.runs.data { … }` in `build.gradle`, then:
 
@@ -2822,7 +2822,7 @@ Discard anything `runData` wrote under `src/generated` (do not commit it). `mixi
 - If `MouseHandler.class` is found, the Mixin applied headlessly. Keep the property, add a CI step `- name: Client Mixin applies (headless)` running `./gradlew runData --console=plain` followed by `test -f "$(find run -path '*.mixin.out*' -name MouseHandler.class | head -1)"`, and note "headless: yes" in `docs/api-notes.md`.
 - If it is **not** found (the likely outcome: data generation never constructs `MouseHandler`), revert the `build.gradle` change and add a "Mixin coverage" section to `docs/api-notes.md`: "Client Mixins are not exercised headlessly (runData does not load `MouseHandler`, checked <date>). `require = 1` makes a missing target fail at client startup; the playtest (`runClient`) is the check."
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main docs/api-notes.md build.gradle .github/workflows/ci.yml
@@ -2830,6 +2830,8 @@ git commit -m "feat: keep mouse look screen-relative with a MouseHandler Mixin"
 ```
 
 (Stage only the files you actually changed.)
+
+> **As built (`e1a4fe4`):** diverged — the headless check found no `MouseHandler.class`, so the `build.gradle` change was reverted, no CI step was added, and `docs/api-notes.md` gained a §9 'Mixin coverage' section; `spellcraft.mixins.json` has `compatibilityLevel` `JAVA_25` and no `defaultRequire`, and the MDK's existing `[[mixins]]` stub was uncommented rather than appended; reason: the brief's own decision rule for the not-found case, and the /review-plan fixes.
 
 ---
 
@@ -2985,11 +2987,12 @@ Report in chat: every gate result from Step 2 with its numbers, the Mixin headle
 | 7 | `2f6cc41` | the mock player is created with the deprecated-for-removal `makeMockServerPlayerInLevel()` under `@SuppressWarnings("removal")`, and only `spellcraft:shared` is registered (Task 8 adds `config_mutation`); reason: `makeMockServerPlayer(GameType)` has no connection so `addEffect` NPEs, and the brief's code registers only `shared`. The run counts 3 tests with vanilla's `minecraft:always_pass`. |
 | 8 | `2269195` | the creative-tab check uses `CreativeModeTabs.TOOLS_AND_UTILITIES.equals(event.getTabKey())` instead of `==`, and each mock-player GameTest carries `@SuppressWarnings("removal")`; reason: Error Prone ReferenceEquality fails the build under -Werror, and the mock-player helper is deprecated-for-removal (see Task 7). |
 | 9 | `7c4629d` | `renderedRoll()` uses a 500 ms wall-clock stale window (`System.nanoTime()` stamp, `STALE_AFTER_NANOS`, plus a `stamped` flag) instead of the plan's 2-client-tick window, and `onMovementInput` reads `renderedRoll()` instead of the raw field; reason: review fix round 1 — at low frame rates the 2-tick window zeroed compensation while the screen was still flipped, and the raw read bypassed the stale guard (the plan's code, changed at 1fc9a6c..7c4629d). |
+| 10 | `e1a4fe4` | the headless check found no `MouseHandler.class`, so the `build.gradle` change was reverted, no CI step was added, and `docs/api-notes.md` gained a §9 'Mixin coverage' section; `spellcraft.mixins.json` has `compatibilityLevel` `JAVA_25` and no `defaultRequire`, and the MDK's existing `[[mixins]]` stub was uncommented rather than appended; reason: the brief's own decision rule for the not-found case, and the /review-plan fixes. |
 
 ## Resume State
 
-- Last completed task: Task 9: Client flip — config, roll tracking, camera roll and strafe compensation
-- Commit SHA: 7c4629d
-- Checkboxes: 74/117 ticked
-- Next task: Task 10: mouse compensation Mixin and the headless-apply check
-- Known-failing tests / caveats: Tasks 1-9 complete and reviewed. Task 10 mixin must call ClientEvents.renderedRoll() (500 ms wall-clock stale window). runData is the only headless client-dist check; GameTest log counts 7 Spellcraft + 1 vanilla. mods.toml: uncomment the existing [[mixins]] stub if present; mixins.json compatibilityLevel JAVA_25 (fallback JAVA_21), no defaultRequire. Minors from /review-plan mostly unapplied. Deferred minors: T5 archunit failOnEmptyShould; T6 unreachable startRoll guard; T8 recast/cooldown semantics comment. TODO after plan: systematic-debugging on plan-truncation bug. No plan_end_gate.py in this repo.
+- Last completed task: Task 10: Mouse compensation Mixin and the headless-apply check
+- Commit SHA: e1a4fe4
+- Checkboxes: 79/117 ticked
+- Next task: Task 11: playtest checklist, final verification and handoff
+- Known-failing tests / caveats: Tasks 1-10 complete and reviewed. Task 11 is the last: playtest checklist, final gates, handoff to Will. The Mixin (Task 10) and all visual behaviour are unverified in a real client; only Will's runClient playtest checks them. Task 11 Step 2 must NOT run clean; run runData; GameTest log is 7 Spellcraft + 1 vanilla. Minors from /review-plan mostly unapplied. Deferred minors: T5 archunit failOnEmptyShould; T6 unreachable startRoll guard; T8 recast/cooldown semantics comment; T9 wasInWorld guard. TODO after plan: systematic-debugging on plan-truncation bug. No plan_end_gate.py in this repo.
