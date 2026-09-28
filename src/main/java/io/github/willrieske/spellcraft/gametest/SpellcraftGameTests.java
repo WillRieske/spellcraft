@@ -29,6 +29,19 @@ public final class SpellcraftGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> MILK_CLEARS_EFFECT =
             TEST_FUNCTIONS.register("milk_clears_effect", () -> UpsideDownGameTests::milkClearsTheEffect);
 
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> CAST_GRANTS_FULL_DURATION =
+            TEST_FUNCTIONS.register("cast_grants_full_duration", () -> UpsideDownGameTests::castGrantsTheFullDuration);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> RECAST_RESETS_DURATION =
+            TEST_FUNCTIONS.register("recast_resets_duration", () -> UpsideDownGameTests::recastResetsToTheFullDuration);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> SNEAK_CAST_ACTIVE_REMOVES =
+            TEST_FUNCTIONS.register(
+                    "sneak_cast_active_removes", () -> UpsideDownGameTests::sneakCastWhileActiveRemovesTheEffect);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> SNEAK_CAST_INACTIVE_CASTS =
+            TEST_FUNCTIONS.register(
+                    "sneak_cast_inactive_casts", () -> UpsideDownGameTests::sneakCastWhileInactiveCasts);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> CONFIG_IS_HONORED =
+            TEST_FUNCTIONS.register("config_is_honored", () -> UpsideDownGameTests::configValuesAreHonored);
+
     private SpellcraftGameTests() {}
 
     @SubscribeEvent
@@ -36,6 +49,14 @@ public final class SpellcraftGameTests {
         Holder<TestEnvironmentDefinition<?>> shared = event.registerEnvironment(Spellcraft.id("shared"));
         test(event, shared, EFFECT_IS_NEUTRAL_MARKER);
         test(event, shared, MILK_CLEARS_EFFECT);
+        test(event, shared, CAST_GRANTS_FULL_DURATION);
+        test(event, shared, RECAST_RESETS_DURATION);
+        test(event, shared, SNEAK_CAST_ACTIVE_REMOVES);
+        test(event, shared, SNEAK_CAST_INACTIVE_CASTS);
+        // Batches run one after another, so a separate environment isolates the config mutation.
+        Holder<TestEnvironmentDefinition<?>> configMutation =
+                event.registerEnvironment(Spellcraft.id("config_mutation"));
+        test(event, configMutation, CONFIG_IS_HONORED);
     }
 
     private static void test(
