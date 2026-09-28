@@ -1,5 +1,7 @@
 package io.github.willrieske.spellcraft;
 
+import io.github.willrieske.spellcraft.effect.ModEffects;
+import io.github.willrieske.spellcraft.gametest.SpellcraftGameTests;
 import net.minecraft.resources.Identifier;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -11,7 +13,8 @@ public final class Spellcraft {
     public static final String MODID = "spellcraft";
 
     public Spellcraft(IEventBus modEventBus, ModContainer modContainer) {
-        // Registrations are added by later tasks.
+        ModEffects.MOB_EFFECTS.register(modEventBus);
+        SpellcraftGameTests.TEST_FUNCTIONS.register(modEventBus);
     }
 
     public static Identifier id(String path) {
