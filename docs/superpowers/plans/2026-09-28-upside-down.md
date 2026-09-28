@@ -2525,7 +2525,7 @@ git commit -m "feat: add Upside-Down scroll with server config and cast-rule Gam
 
 These handlers are thin plumbing over the tested pure core. Their visible behaviour is verified by Will in Task 11's playtest; the automated gates here are compile, Error Prone, ArchUnit rule 1 (this code must stay under `client`), and a dedicated-server smoke run.
 
-- [ ] **Step 1: Write the client config**
+- [x] **Step 1: Write the client config**
 
 `client/ClientConfig.java`:
 
@@ -2560,7 +2560,7 @@ public final class ClientConfig {
 
 In `SpellcraftClient`'s constructor, add `container.registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);` (import `net.neoforged.fml.config.ModConfig`).
 
-- [ ] **Step 2: Open `ClientInput.moveVector` with an access transformer**
+- [x] **Step 2: Open `ClientInput.moveVector` with an access transformer**
 
 `src/main/resources/META-INF/accesstransformer.cfg` (NeoForge loads this default path automatically; fact 5):
 
@@ -2569,7 +2569,7 @@ In `SpellcraftClient`'s constructor, add `container.registerConfig(ModConfig.Typ
 public net.minecraft.client.player.ClientInput moveVector
 ```
 
-- [ ] **Step 3: Write the client event handlers**
+- [x] **Step 3: Write the client event handlers**
 
 `client/ClientEvents.java`:
 
@@ -2673,7 +2673,7 @@ public final class ClientEvents {
 }
 ```
 
-- [ ] **Step 4: Add the client config translations**
+- [x] **Step 4: Add the client config translations**
 
 The full `en_us.json` after this step (Task 8's file plus the three client keys):
 
@@ -2694,7 +2694,7 @@ The full `en_us.json` after this step (Task 8's file plus the three client keys)
 }
 ```
 
-- [ ] **Step 5: Run the build gate (compile, Error Prone, ArchUnit)**
+- [x] **Step 5: Run the build gate (compile, Error Prone, ArchUnit)**
 
 ```bash
 ./gradlew spotlessApply --console=plain && ./gradlew build --console=plain
@@ -2702,7 +2702,7 @@ The full `en_us.json` after this step (Task 8's file plus the three client keys)
 
 The first build after adding an access transformer re-applies it to Minecraft and can take several minutes, so run it in the background with a long timeout (not through the commit gate). Expected: PASS. If Error Prone flags something, fix the code. Suppress only with the check name and a comment explaining why (as done for `ReferenceEquality`).
 
-- [ ] **Step 6: Dedicated-server smoke test (client code must not load)**
+- [x] **Step 6: Dedicated-server smoke test (client code must not load)**
 
 ```bash
 ./gradlew runGameTestServer --console=plain
@@ -2711,12 +2711,14 @@ The first build after adding an access transformer re-applies it to Minecraft an
 
 Expected: 7 Spellcraft GameTests pass (the log counts 8 with vanilla's `minecraft:always_pass`). The GameTest server is a dedicated-server environment, so a stray client class reference would crash here with `NoClassDefFoundError`/`Attempted to load class ... for invalid dist`. `runData` is the only headless run that boots **client-dist** code (`ClientEvents`, `ClientConfig`, `SpellcraftClient`'s config registration): it must exit 0. An exception there during construction or config-spec building is a Task 9 bug, not something to ignore. If `runData` writes files under `src/generated`, discard them (`git status`, then delete or `git checkout --`); do not commit them.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/main
 git commit -m "feat: roll the camera and compensate strafe while Upside-Down is active"
 ```
+
+> **As built (`7c4629d`):** diverged — `renderedRoll()` uses a 500 ms wall-clock stale window (`System.nanoTime()` stamp, `STALE_AFTER_NANOS`, plus a `stamped` flag) instead of the plan's 2-client-tick window, and `onMovementInput` reads `renderedRoll()` instead of the raw field; reason: review fix round 1 — at low frame rates the 2-tick window zeroed compensation while the screen was still flipped, and the raw read bypassed the stale guard (the plan's code, changed at 1fc9a6c..7c4629d).
 
 ---
 
@@ -2982,11 +2984,12 @@ Report in chat: every gate result from Step 2 with its numbers, the Mixin headle
 | 6 | `541cf21` | `docs/mutation-testing.md` (with its first PIT row) was created in this task, though the Files list omits it; reason: Step 6 requires it. |
 | 7 | `2f6cc41` | the mock player is created with the deprecated-for-removal `makeMockServerPlayerInLevel()` under `@SuppressWarnings("removal")`, and only `spellcraft:shared` is registered (Task 8 adds `config_mutation`); reason: `makeMockServerPlayer(GameType)` has no connection so `addEffect` NPEs, and the brief's code registers only `shared`. The run counts 3 tests with vanilla's `minecraft:always_pass`. |
 | 8 | `2269195` | the creative-tab check uses `CreativeModeTabs.TOOLS_AND_UTILITIES.equals(event.getTabKey())` instead of `==`, and each mock-player GameTest carries `@SuppressWarnings("removal")`; reason: Error Prone ReferenceEquality fails the build under -Werror, and the mock-player helper is deprecated-for-removal (see Task 7). |
+| 9 | `7c4629d` | `renderedRoll()` uses a 500 ms wall-clock stale window (`System.nanoTime()` stamp, `STALE_AFTER_NANOS`, plus a `stamped` flag) instead of the plan's 2-client-tick window, and `onMovementInput` reads `renderedRoll()` instead of the raw field; reason: review fix round 1 — at low frame rates the 2-tick window zeroed compensation while the screen was still flipped, and the raw read bypassed the stale guard (the plan's code, changed at 1fc9a6c..7c4629d). |
 
 ## Resume State
 
-- Last completed task: Task 8: Server config, `Spell`, the scroll item and the cast-rule GameTests
-- Commit SHA: 2269195
-- Checkboxes: 67/117 ticked
-- Next task: Task 9: client flip (config, roll tracking, camera roll, strafe compensation)
-- Known-failing tests / caveats: Tasks 1-8 complete and reviewed. Task 9: ClientInput.moveVector via access transformer (no Mixin accessor); run runData as the only headless client-dist check; GameTest log counts Spellcraft tests + 1 vanilla always_pass (7+1). Formatter hook strips unresolved imports when a file is edited before its classes exist. Minors from /review-plan mostly unapplied. Deferred minors: archunit failOnEmptyShould (T5); unreachable guard in RollState.startRoll (T6); recast/cooldown semantics comment in SpellScrollItem, duration tests assume default config (T8). TODO after plan: systematic-debugging on plan-truncation bug. No plan_end_gate.py in this repo.
+- Last completed task: Task 9: Client flip — config, roll tracking, camera roll and strafe compensation
+- Commit SHA: 7c4629d
+- Checkboxes: 74/117 ticked
+- Next task: Task 10: mouse compensation Mixin and the headless-apply check
+- Known-failing tests / caveats: Tasks 1-9 complete and reviewed. Task 10 mixin must call ClientEvents.renderedRoll() (500 ms wall-clock stale window). runData is the only headless client-dist check; GameTest log counts 7 Spellcraft + 1 vanilla. mods.toml: uncomment the existing [[mixins]] stub if present; mixins.json compatibilityLevel JAVA_25 (fallback JAVA_21), no defaultRequire. Minors from /review-plan mostly unapplied. Deferred minors: T5 archunit failOnEmptyShould; T6 unreachable startRoll guard; T8 recast/cooldown semantics comment. TODO after plan: systematic-debugging on plan-truncation bug. No plan_end_gate.py in this repo.
