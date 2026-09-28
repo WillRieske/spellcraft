@@ -64,12 +64,17 @@ Verified.
   `net.neoforged.neoforge.client.ClientHooks.onMovementInputUpdate(this, this.input);`
   (`ClientHooks.java:474-475` posts `MovementInputUpdateEvent(player, input)`; event class at
   `net/neoforged/neoforge/client/event/MovementInputUpdateEvent.java:24`, `getInput()` line 36).
-- Note: `moveVector` is `protected` in `ClientInput`, so changing it from an event handler needs an accessor
-  (Mixin `@Accessor` or reflection-free workaround); `keyPresses` is public but is a record (`Input`), replace it whole.
+- `moveVector` is `protected` in `ClientInput`: open it with the access transformer per plan Task 9 Step 2
+  (`public net.minecraft.client.player.ClientInput moveVector` in `META-INF/accesstransformer.cfg`).
+  Do not add a Mixin accessor.
+- `keyPresses` is public and its type is a record: `net/minecraft/world/entity/player/Input.java:6`
+  `public record Input(boolean forward, boolean backward, boolean left, boolean right, boolean jump, boolean shift, boolean sprint)`,
+  so replace `keyPresses` whole with a new `Input`.
 
 ## 6. GameTest API (Task 7) - API shape
 
-Recorded with one difference from the plan text: `TestData` is generic.
+Recorded with one difference from the plan text: `TestData` is generic. Task 7 uses `new TestData<>(...)`
+(diamond), so the plan's existing code compiles unchanged.
 
 - `net/minecraft/gametest/framework/TestData.java:15` `public record TestData<EnvironmentType>(...)`.
 - `TestData.java:51` `public TestData(EnvironmentType environment, Identifier structure, int maxTicks, int setupTicks, boolean required)`
@@ -95,8 +100,15 @@ Verified as planned.
   (also `:65`, `:75` with particle args). Subclass to construct.
 - `MobEffectInstance.java:65` `public MobEffectInstance(Holder<MobEffect>, int duration, int amplifier, boolean ambient, boolean visible, boolean showIcon)`.
 - Milk: there is no `MilkBucketItem` class; milk is `Items.MILK_BUCKET` (`Items.java:1978-1980`) using
-  `DataComponents.CONSUMABLE` = `Consumables.MILK_BUCKET`. Consequence for any "milk clears effect" behaviour:
-  it goes through the consumable component, not an overridable `finishUsingItem` on a dedicated class.
+  `DataComponents.CONSUMABLE` = `Consumables.MILK_BUCKET`.
+- Task 7's call `Items.MILK_BUCKET.finishUsingItem(new ItemStack(Items.MILK_BUCKET), helper.getLevel(), player)`
+  works in 26.3, provided the level is a server level (`helper.getLevel()` is):
+  `Item.java:251-254` `finishUsingItem` reads `DataComponents.CONSUMABLE` and returns `consumable.onConsume(level, entity, itemStack)`;
+  `Consumable.java:86-88` runs each on-consume effect when `!level.isClientSide()`;
+  `Consumables.java:65` `MILK_BUCKET = defaultDrink().onConsume(ClearAllStatusEffectsConsumeEffect.INSTANCE).build()`;
+  `consume_effects/ClearAllStatusEffectsConsumeEffect.java:21-22` `apply` returns `user.removeAllEffects()`
+  (`LivingEntity.java:1000`, which returns false on the client). The `ServerPlayer` branch
+  (`Consumable.java:80-83`) only awards stats and triggers criteria.
 
 ## 8. Identity (Task 9/10)
 
