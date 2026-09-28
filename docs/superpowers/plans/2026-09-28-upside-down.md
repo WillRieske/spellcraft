@@ -1332,7 +1332,7 @@ git commit -m "feat: add pure Upside-Down view math with property and purity tes
 
 Tick semantics: while a roll is active, each tick first advances it, then compares the effect with the phase. An effect appearing (from `UPRIGHT` or `ROLLING_OUT`) starts `ROLLING_IN` toward 180° from the current angle. An effect disappearing (from `FLIPPED` or `ROLLING_IN`) starts `ROLLING_OUT` toward 360° if the current angle is ≥ 180°, else toward 0° (a reversal). A segment lasts `max(1, round(transitionTicks · |distance| / 180))` ticks. After a resync, the resync tick plus the next `SNAP_GRACE_TICKS − 1` ticks snap straight to `FLIPPED`/`UPRIGHT`.
 
-- [ ] **Step 1: Write the failing example tests**
+- [x] **Step 1: Write the failing example tests**
 
 `UpsideDownRollStateTest.java`:
 
@@ -1519,7 +1519,7 @@ class UpsideDownRollStateTest {
 }
 ```
 
-- [ ] **Step 2: Write the failing property tests**
+- [x] **Step 2: Write the failing property tests**
 
 `UpsideDownRollStatePropertiesTest.java`:
 
@@ -1606,7 +1606,7 @@ class UpsideDownRollStatePropertiesTest {
 }
 ```
 
-- [ ] **Step 3: Run the tests and watch them fail**
+- [x] **Step 3: Run the tests and watch them fail**
 
 ```bash
 ./gradlew test --console=plain
@@ -1614,7 +1614,7 @@ class UpsideDownRollStatePropertiesTest {
 
 Expected: compilation FAILS (`UpsideDownRollState` does not exist).
 
-- [ ] **Step 4: Implement `UpsideDownRollState`**
+- [x] **Step 4: Implement `UpsideDownRollState`**
 
 ```java
 package io.github.willrieske.spellcraft.client.upsidedown;
@@ -1718,7 +1718,7 @@ public final class UpsideDownRollState {
 }
 ```
 
-- [ ] **Step 5: Run the tests and watch them pass**
+- [x] **Step 5: Run the tests and watch them pass**
 
 ```bash
 ./gradlew test --console=plain
@@ -1726,7 +1726,7 @@ public final class UpsideDownRollState {
 
 Expected: PASS for `UpsideDownRollStateTest` (14), `UpsideDownRollStatePropertiesTest` (3) and all earlier tests.
 
-- [ ] **Step 6: Run mutation testing on the pure core and record survivors**
+- [x] **Step 6: Run mutation testing on the pure core and record survivors**
 
 ```bash
 ./gradlew pitest --console=plain
@@ -1744,12 +1744,14 @@ Scope: `io.github.willrieske.spellcraft.client.upsidedown.*`. Run: `./gradlew pi
 | <date> | <n>% | <n>% | <class:line — mutator — why it is equivalent, or "none"> |
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/main/java/io/github/willrieske/spellcraft/client/upsidedown src/test/java docs/mutation-testing.md CLAUDE.md
 git commit -m "feat: add pure roll state machine with reversal, snap and continuity tests"
 ```
+
+> **As built (`541cf21`):** diverged — `docs/mutation-testing.md` (with its first PIT row) was created in this task, though the Files list omits it; reason: Step 6 requires it.
 
 ---
 
@@ -2973,11 +2975,12 @@ Report in chat: every gate result from Step 2 with its numbers, the Mixin headle
 |---|---|---|
 | 3 | `abfa98c` | `.claude/gate.json` uses `.\gradlew.bat` (not `gradlew.bat`) and the ~/.claude hook change is `868d7b5`; markdownlint MD049 fixed in the plan's generated as-built line and blank lines added to the spec (MD022/MD032/MD058); reason: `NoDefaultCurrentDirectoryInExePath=1` makes `cmd /c gradlew.bat` miss the wrapper in the cwd (gate blocked the first commit), and Step 4 permits Markdown-only fixes. |
 | 4 | `8f2f61f` | both skills were vendored without their `scripts/` directories (PROVENANCE.md records this and the dangling script mentions in `minecraft-testing`), and `CLAUDE.md` gained a "Reference docs" section of 13 links; reason: the skills' `check-build.sh` and `validate-test-layout.sh` do more than print reference text (Will's ruling: option (b), least privilege), and Will asked for the doc index. |
+| 6 | `541cf21` | `docs/mutation-testing.md` (with its first PIT row) was created in this task, though the Files list omits it; reason: Step 6 requires it. |
 
 ## Resume State
 
-- Last completed task: Task 5: `UpsideDownView` (pure math) with properties and ArchUnit rule 2
-- Commit SHA: 51ba939
-- Checkboxes: 43/117 ticked
-- Next task: Task 6: UpsideDownRollState (pure state machine)
-- Known-failing tests / caveats: Tasks 1-5 complete and reviewed. Carry-forward: TestData generic (Task 7: new TestData<>(...)); moveVector via AT in Task 9; milk finishUsingItem valid (Task 7). Skills vendored without scripts/. Minors from /review-plan mostly unapplied. Optional hardening: archunit.properties archRule.failOnEmptyShould=true (Task 5 minor). No plan_end_gate.py in this repo.
+- Last completed task: Task 6: `UpsideDownRollState` (pure state machine)
+- Commit SHA: 541cf21
+- Checkboxes: 50/117 ticked
+- Next task: Task 7: UPSIDE_DOWN effect and GameTest harness
+- Known-failing tests / caveats: Tasks 1-6 complete and reviewed. Carry-forward: TestData generic (Task 7: new TestData<>(...)); moveVector via AT in Task 9; milk finishUsingItem valid (Task 7). Skills vendored without scripts/. Minors from /review-plan mostly unapplied. Deferred minors: archunit failOnEmptyShould (T5); unreachable zero-distance guard in UpsideDownRollState.startRoll could be deleted (T6). No plan_end_gate.py in this repo.
