@@ -1,5 +1,6 @@
 package io.github.willrieske.spellcraft;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
@@ -28,6 +29,18 @@ class ArchitectureTest {
                         "net.neoforged.neoforge.client..",
                         ROOT + ".client..")
                 .because("common classes load on dedicated servers, where client classes do not exist")
+                .check(PRODUCTION);
+    }
+
+    @Test
+    void upsideDownCoreIsPure() {
+        classes()
+                .that()
+                .resideInAPackage(ROOT + ".client.upsidedown..")
+                .should()
+                .onlyDependOnClassesThat()
+                .resideInAnyPackage("java..", ROOT + ".client.upsidedown..")
+                .because("the pure core must be unit-testable without Minecraft or NeoForge")
                 .check(PRODUCTION);
     }
 }
