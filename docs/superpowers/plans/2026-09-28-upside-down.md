@@ -1775,7 +1775,7 @@ git commit -m "feat: add pure roll state machine with reversal, snap and continu
 
 GameTests live in the main source set (NeoForge's standard layout). They register only when GameTests are enabled (`neoforge.enabledGameTestNamespaces`, dev runs), so shipping them is harmless.
 
-- [ ] **Step 1: Generate the GameTest structure and effect icon**
+- [x] **Step 1: Generate the GameTest structure and effect icon**
 
 Create `scripts/make_empty_structure.py`:
 
@@ -1894,7 +1894,7 @@ ls -la src/main/resources/data/spellcraft/structure/empty.nbt src/main/resources
 
 Expected: `empty.nbt` ≈ 110 bytes; `upside_down.png` ≈ 100 bytes.
 
-- [ ] **Step 2: Write the failing GameTests (effect rules)**
+- [x] **Step 2: Write the failing GameTests (effect rules)**
 
 `src/main/java/io/github/willrieske/spellcraft/gametest/UpsideDownGameTests.java`:
 
@@ -1985,7 +1985,7 @@ public final class SpellcraftGameTests {
 }
 ```
 
-- [ ] **Step 3: Run the GameTests and watch them fail**
+- [x] **Step 3: Run the GameTests and watch them fail**
 
 ```bash
 ./gradlew runGameTestServer --console=plain
@@ -1993,7 +1993,7 @@ public final class SpellcraftGameTests {
 
 Expected: compilation FAILS (`ModEffects` does not exist).
 
-- [ ] **Step 4: Implement the effect**
+- [x] **Step 4: Implement the effect**
 
 `src/main/java/io/github/willrieske/spellcraft/effect/MarkerEffect.java`:
 
@@ -2058,7 +2058,7 @@ The full `en_us.json` after this step (the previous file plus one key, with the 
 }
 ```
 
-- [ ] **Step 5: Run the GameTests and watch them pass**
+- [x] **Step 5: Run the GameTests and watch them pass**
 
 ```bash
 ./gradlew runGameTestServer --console=plain
@@ -2066,7 +2066,7 @@ The full `en_us.json` after this step (the previous file plus one key, with the 
 
 Expected: the log reports 2 required tests passed (e.g. `All 2 required tests passed`) and the task ends `BUILD SUCCESSFUL`. If a test fails, read its assertion message. A structure-load error means `empty.nbt` isn't at `data/spellcraft/structure/empty.nbt`.
 
-- [ ] **Step 6: Run the unit and architecture gate**
+- [x] **Step 6: Run the unit and architecture gate**
 
 ```bash
 ./gradlew spotlessApply --console=plain && ./gradlew build --console=plain
@@ -2074,12 +2074,14 @@ Expected: the log reports 2 required tests passed (e.g. `All 2 required tests pa
 
 Expected: PASS (ArchUnit rule 1 still holds: the GameTests and effect classes are common code).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add scripts src/main
 git commit -m "feat: add Upside-Down marker effect and the GameTest harness"
 ```
+
+> **As built (`2f6cc41`):** diverged — the mock player is created with the deprecated-for-removal `makeMockServerPlayerInLevel()` under `@SuppressWarnings("removal")`, and only `spellcraft:shared` is registered (Task 8 adds `config_mutation`); reason: `makeMockServerPlayer(GameType)` has no connection so `addEffect` NPEs, and the brief's code registers only `shared`. The run counts 3 tests with vanilla's `minecraft:always_pass`.
 
 ---
 
@@ -2481,7 +2483,7 @@ The full `en_us.json`:
 ./gradlew runGameTestServer --console=plain
 ```
 
-Expected: 7 required tests pass, `BUILD SUCCESSFUL`.
+Expected: 7 Spellcraft GameTests pass plus vanilla's `minecraft:always_pass` (the log says `All 8 required tests passed`), `BUILD SUCCESSFUL`.
 
 - [ ] **Step 8: Prove a GameTest bites (then revert)**
 
@@ -2705,7 +2707,7 @@ The first build after adding an access transformer re-applies it to Minecraft an
 ./gradlew runData --console=plain
 ```
 
-Expected: 7 tests pass. The GameTest server is a dedicated-server environment, so a stray client class reference would crash here with `NoClassDefFoundError`/`Attempted to load class ... for invalid dist`. `runData` is the only headless run that boots **client-dist** code (`ClientEvents`, `ClientConfig`, `SpellcraftClient`'s config registration): it must exit 0. An exception there during construction or config-spec building is a Task 9 bug, not something to ignore. If `runData` writes files under `src/generated`, discard them (`git status`, then delete or `git checkout --`); do not commit them.
+Expected: 7 Spellcraft GameTests pass (the log counts 8 with vanilla's `minecraft:always_pass`). The GameTest server is a dedicated-server environment, so a stray client class reference would crash here with `NoClassDefFoundError`/`Attempted to load class ... for invalid dist`. `runData` is the only headless run that boots **client-dist** code (`ClientEvents`, `ClientConfig`, `SpellcraftClient`'s config registration): it must exit 0. An exception there during construction or config-spec building is a Task 9 bug, not something to ignore. If `runData` writes files under `src/generated`, discard them (`git status`, then delete or `git checkout --`); do not commit them.
 
 - [ ] **Step 7: Commit**
 
@@ -2913,7 +2915,7 @@ Do not run `clean`: it deletes `build/moddev` and Task 4's `build/mc-src`, and t
 pre-commit run --all-files
 ```
 
-Expected: all PASS; 7 GameTests pass; `runData` exits 0 (it is the only headless check of client-dist code). Update `docs/mutation-testing.md` with today's PIT row. JaCoCo has no threshold; just confirm `build/reports/jacoco/test/html/index.html` exists and mention the pure-core line coverage in the handoff.
+Expected: all PASS; 7 Spellcraft GameTests pass (the log counts 8 with vanilla's `minecraft:always_pass`); `runData` exits 0 (it is the only headless check of client-dist code). Update `docs/mutation-testing.md` with today's PIT row. JaCoCo has no threshold; just confirm `build/reports/jacoco/test/html/index.html` exists and mention the pure-core line coverage in the handoff.
 
 - [ ] **Step 3: Commit**
 
@@ -2976,11 +2978,12 @@ Report in chat: every gate result from Step 2 with its numbers, the Mixin headle
 | 3 | `abfa98c` | `.claude/gate.json` uses `.\gradlew.bat` (not `gradlew.bat`) and the ~/.claude hook change is `868d7b5`; markdownlint MD049 fixed in the plan's generated as-built line and blank lines added to the spec (MD022/MD032/MD058); reason: `NoDefaultCurrentDirectoryInExePath=1` makes `cmd /c gradlew.bat` miss the wrapper in the cwd (gate blocked the first commit), and Step 4 permits Markdown-only fixes. |
 | 4 | `8f2f61f` | both skills were vendored without their `scripts/` directories (PROVENANCE.md records this and the dangling script mentions in `minecraft-testing`), and `CLAUDE.md` gained a "Reference docs" section of 13 links; reason: the skills' `check-build.sh` and `validate-test-layout.sh` do more than print reference text (Will's ruling: option (b), least privilege), and Will asked for the doc index. |
 | 6 | `541cf21` | `docs/mutation-testing.md` (with its first PIT row) was created in this task, though the Files list omits it; reason: Step 6 requires it. |
+| 7 | `2f6cc41` | the mock player is created with the deprecated-for-removal `makeMockServerPlayerInLevel()` under `@SuppressWarnings("removal")`, and only `spellcraft:shared` is registered (Task 8 adds `config_mutation`); reason: `makeMockServerPlayer(GameType)` has no connection so `addEffect` NPEs, and the brief's code registers only `shared`. The run counts 3 tests with vanilla's `minecraft:always_pass`. |
 
 ## Resume State
 
-- Last completed task: Task 6: `UpsideDownRollState` (pure state machine)
-- Commit SHA: 541cf21
-- Checkboxes: 50/117 ticked
-- Next task: Task 7: UPSIDE_DOWN effect and GameTest harness
-- Known-failing tests / caveats: Tasks 1-6 complete and reviewed. Carry-forward: TestData generic (Task 7: new TestData<>(...)); moveVector via AT in Task 9; milk finishUsingItem valid (Task 7). Skills vendored without scripts/. Minors from /review-plan mostly unapplied. Deferred minors: archunit failOnEmptyShould (T5); unreachable zero-distance guard in UpsideDownRollState.startRoll could be deleted (T6). No plan_end_gate.py in this repo.
+- Last completed task: Task 7: The `UPSIDE_DOWN` effect and the GameTest harness
+- Commit SHA: 2f6cc41
+- Checkboxes: 57/117 ticked
+- Next task: Task 8: server config, Spell, scroll item, cast-rule GameTests
+- Known-failing tests / caveats: Tasks 1-7 complete and reviewed. Later GameTest counts are Spellcraft tests + 1 vanilla always_pass. Task 8 must register the config_mutation environment. makeMockServerPlayerInLevel is deprecated-for-removal (suppressed). moveVector via AT in Task 9. Minors from /review-plan mostly unapplied. Deferred minors: archunit failOnEmptyShould (T5); unreachable guard in RollState.startRoll (T6). TODO after plan: systematic-debugging on plan-truncation bug. No plan_end_gate.py in this repo.
