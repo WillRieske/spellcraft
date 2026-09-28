@@ -140,6 +140,27 @@ The spell framework knows nothing about the flip, and the flip knows nothing abo
 - **Claude skills (project-local, committed in `.claude/skills/`):** `minecraft-modding` and `minecraft-testing` from [jahrome907/minecraft-agent-skills](https://github.com/jahrome907/minecraft-agent-skills) (MIT). Only these two of its 13 skills. Read and reviewed before install. Not used: chouzz/minecraft-mod-dev (overlaps; targets 1.21+) and Paper Plugin Dev (wrong platform).
 - **Project `CLAUDE.md`:** Gradle commands, Java 25, where the decompiled Minecraft sources live (read real vanilla code; don't guess APIs), and a rule that visual verification belongs to the human.
 
+### Quality gates
+
+These follow `~/.claude/development-methodology.md`.
+
+| Stage | Runs |
+|---|---|
+| Claude commit gate (`.claude/gate.json`, `gradlew.bat`) | `spotlessCheck` → `build`: Error Prone + `-Xlint:all -Werror`, and JUnit + jqwik + ArchUnit |
+| pre-commit | EOF/whitespace, `check-json`, `check-yaml`, `check-merge-conflict`, gitlint (conventional commits), markdownlint, `spotlessCheck` |
+| pre-push | `runGameTestServer` |
+| CI (GitHub Actions) | All of the above + Gradle wrapper validation |
+| On demand | PIT on the pure classes; JaCoCo report |
+
+- **Formatter:** Spotless with palantir-java-format. Add a `.java` entry to `~/.claude/hooks/format_file.py`.
+- **ArchUnit rules:**
+  1. Nothing outside `spellcraft.client` references `net.minecraft.client..` or our client package. A violation crashes dedicated servers.
+  2. `UpsideDownView` and `UpsideDownRollState` reference no `net.minecraft..` at all.
+- **jqwik property:** for any roll angle, `turn` maps mouse-right to screen-right.
+- **Mixin gap:** client Mixins don't load on the GameTest server. A plan task checks whether the client data-gen run applies them headlessly; if not, the playtest checklist covers them.
+- **Not used:** Checkstyle (duplicates the formatter), SpotBugs (overlaps Error Prone), SonarQube (overkill), NullAway (Minecraft code has no null annotations).
+- **First cold build** (Minecraft download and decompile) is run by hand before the gate goes live, because of the gate's 300 s per-command limit.
+
 ### Setup ownership
 | Step | Who |
 |---|---|
@@ -149,6 +170,7 @@ The spell framework knows nothing about the flip, and the flip knows nothing abo
 | Minecraft Development plugin | Claude via IntelliJ CLI (IDE closed) or Will via Settings → Plugins |
 | Open the project in IntelliJ | **Will** |
 | Review and install skills; write `CLAUDE.md` | Claude |
+| Wire the quality gates (Spotless, Error Prone, ArchUnit, jqwik, PIT, pre-commit, `gate.json`, CI) | Claude |
 | Create GitHub repo and push | Claude, only when Will asks |
 
 ### Loop
