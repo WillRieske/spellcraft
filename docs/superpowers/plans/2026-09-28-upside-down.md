@@ -2107,7 +2107,7 @@ git commit -m "feat: add Upside-Down marker effect and the GameTest harness"
   - `SpellScrollItem(Spell spell, Item.Properties properties)`, with `use(...)` implementing the cast rules
   - `ModItems.ITEMS`, `ModItems.UPSIDE_DOWN_SCROLL : DeferredItem<SpellScrollItem>`
 
-- [ ] **Step 1: Write the failing cast-rule GameTests**
+- [x] **Step 1: Write the failing cast-rule GameTests**
 
 Add to `UpsideDownGameTests.java` these imports:
 
@@ -2232,7 +2232,7 @@ and extend `register`:
     }
 ```
 
-- [ ] **Step 2: Run the GameTests and watch them fail**
+- [x] **Step 2: Run the GameTests and watch them fail**
 
 ```bash
 ./gradlew runGameTestServer --console=plain
@@ -2240,7 +2240,7 @@ and extend `register`:
 
 Expected: compilation FAILS (`ServerConfig`, `ModItems` do not exist).
 
-- [ ] **Step 3: Implement the server config**
+- [x] **Step 3: Implement the server config**
 
 `src/main/java/io/github/willrieske/spellcraft/config/ServerConfig.java`:
 
@@ -2282,7 +2282,7 @@ public final class ServerConfig {
 }
 ```
 
-- [ ] **Step 4: Implement `Spell`, `Spells`, `SpellScrollItem`, `ModItems`**
+- [x] **Step 4: Implement `Spell`, `Spells`, `SpellScrollItem`, `ModItems`**
 
 `spell/Spell.java`:
 
@@ -2404,7 +2404,7 @@ public final class ModItems {
 }
 ```
 
-- [ ] **Step 5: Wire registration, config and the creative tab into `Spellcraft`**
+- [x] **Step 5: Wire registration, config and the creative tab into `Spellcraft`**
 
 Full `Spellcraft.java`:
 
@@ -2448,7 +2448,7 @@ public final class Spellcraft {
 }
 ```
 
-- [ ] **Step 6: Add the item model and translations**
+- [x] **Step 6: Add the item model and translations**
 
 `src/main/resources/assets/spellcraft/items/upside_down_scroll.json`:
 
@@ -2477,7 +2477,7 @@ The full `en_us.json`:
 }
 ```
 
-- [ ] **Step 7: Run the GameTests and watch them pass**
+- [x] **Step 7: Run the GameTests and watch them pass**
 
 ```bash
 ./gradlew runGameTestServer --console=plain
@@ -2485,11 +2485,11 @@ The full `en_us.json`:
 
 Expected: 7 Spellcraft GameTests pass plus vanilla's `minecraft:always_pass` (the log says `All 8 required tests passed`), `BUILD SUCCESSFUL`.
 
-- [ ] **Step 8: Prove a GameTest bites (then revert)**
+- [x] **Step 8: Prove a GameTest bites (then revert)**
 
 Temporarily change `SpellScrollItem.cast` to pass `spell.durationTicks().getAsInt() / 2`, then run `./gradlew runGameTestServer`. Expected: FAIL, with `cast_grants_full_duration` (and others) reporting the duration mismatch. Undo the edit by hand (the file is not committed yet, so `git checkout` would not restore it) and re-run → PASS.
 
-- [ ] **Step 9: Run the full build gate**
+- [x] **Step 9: Run the full build gate**
 
 ```bash
 ./gradlew spotlessApply --console=plain && ./gradlew build --console=plain
@@ -2497,12 +2497,14 @@ Temporarily change `SpellScrollItem.cast` to pass `spell.durationTicks().getAsIn
 
 Expected: PASS.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/main
 git commit -m "feat: add Upside-Down scroll with server config and cast-rule GameTests"
 ```
+
+> **As built (`2269195`):** diverged — the creative-tab check uses `CreativeModeTabs.TOOLS_AND_UTILITIES.equals(event.getTabKey())` instead of `==`, and each mock-player GameTest carries `@SuppressWarnings("removal")`; reason: Error Prone ReferenceEquality fails the build under -Werror, and the mock-player helper is deprecated-for-removal (see Task 7).
 
 ---
 
@@ -2979,11 +2981,12 @@ Report in chat: every gate result from Step 2 with its numbers, the Mixin headle
 | 4 | `8f2f61f` | both skills were vendored without their `scripts/` directories (PROVENANCE.md records this and the dangling script mentions in `minecraft-testing`), and `CLAUDE.md` gained a "Reference docs" section of 13 links; reason: the skills' `check-build.sh` and `validate-test-layout.sh` do more than print reference text (Will's ruling: option (b), least privilege), and Will asked for the doc index. |
 | 6 | `541cf21` | `docs/mutation-testing.md` (with its first PIT row) was created in this task, though the Files list omits it; reason: Step 6 requires it. |
 | 7 | `2f6cc41` | the mock player is created with the deprecated-for-removal `makeMockServerPlayerInLevel()` under `@SuppressWarnings("removal")`, and only `spellcraft:shared` is registered (Task 8 adds `config_mutation`); reason: `makeMockServerPlayer(GameType)` has no connection so `addEffect` NPEs, and the brief's code registers only `shared`. The run counts 3 tests with vanilla's `minecraft:always_pass`. |
+| 8 | `2269195` | the creative-tab check uses `CreativeModeTabs.TOOLS_AND_UTILITIES.equals(event.getTabKey())` instead of `==`, and each mock-player GameTest carries `@SuppressWarnings("removal")`; reason: Error Prone ReferenceEquality fails the build under -Werror, and the mock-player helper is deprecated-for-removal (see Task 7). |
 
 ## Resume State
 
-- Last completed task: Task 7: The `UPSIDE_DOWN` effect and the GameTest harness
-- Commit SHA: 2f6cc41
-- Checkboxes: 57/117 ticked
-- Next task: Task 8: server config, Spell, scroll item, cast-rule GameTests
-- Known-failing tests / caveats: Tasks 1-7 complete and reviewed. Later GameTest counts are Spellcraft tests + 1 vanilla always_pass. Task 8 must register the config_mutation environment. makeMockServerPlayerInLevel is deprecated-for-removal (suppressed). moveVector via AT in Task 9. Minors from /review-plan mostly unapplied. Deferred minors: archunit failOnEmptyShould (T5); unreachable guard in RollState.startRoll (T6). TODO after plan: systematic-debugging on plan-truncation bug. No plan_end_gate.py in this repo.
+- Last completed task: Task 8: Server config, `Spell`, the scroll item and the cast-rule GameTests
+- Commit SHA: 2269195
+- Checkboxes: 67/117 ticked
+- Next task: Task 9: client flip (config, roll tracking, camera roll, strafe compensation)
+- Known-failing tests / caveats: Tasks 1-8 complete and reviewed. Task 9: ClientInput.moveVector via access transformer (no Mixin accessor); run runData as the only headless client-dist check; GameTest log counts Spellcraft tests + 1 vanilla always_pass (7+1). Formatter hook strips unresolved imports when a file is edited before its classes exist. Minors from /review-plan mostly unapplied. Deferred minors: archunit failOnEmptyShould (T5); unreachable guard in RollState.startRoll (T6); recast/cooldown semantics comment in SpellScrollItem, duration tests assume default config (T8). TODO after plan: systematic-debugging on plan-truncation bug. No plan_end_gate.py in this repo.

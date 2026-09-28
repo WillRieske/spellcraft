@@ -5,3 +5,4 @@ abfa98c Task 3: hook tests RED->GREEN (150 passed), pre-commit --all-files pass,
 51ba939 Task 5: UpsideDownViewTest 8/8, PropertiesTest 5/5, ArchitectureTest 2/2, build green; review clean
 541cf21 Task 6: RollStateTest 14/14, Properties 3/3, PIT 61/65 (4 equivalent survivors); review clean
 2f6cc41 Task 7: RED compile fail -> GREEN 'All 3 required tests passed' (2 spellcraft + vanilla always_pass), build green; review clean
+2269195 Task 8: RED compile fail -> GREEN All 8 required tests passed (7+vanilla), build green, mutation check ok; review clean
