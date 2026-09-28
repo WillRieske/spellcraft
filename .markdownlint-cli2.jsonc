@@ -1,0 +1,21 @@
+{
+  "config": {
+    "default": true,
+    // Specs/plans wrap prose loosely and hold long tables, URLs and code.
+    "MD013": false,
+    // Plans repeat step headings across tasks.
+    "MD024": { "siblings_only": true },
+    // Inline HTML appears in docs.
+    "MD033": false,
+    "MD029": { "style": "one_or_ordered" },
+    // Tables are written "| padded |" with "|---|" delimiter rows.
+    "MD060": { "style": "leading_and_trailing" }
+  },
+  "ignores": [
+    "build/**",
+    "run/**",
+    ".gradle/**",
+    // Vendored third-party skills (MIT): kept byte-identical to upstream.
+    ".claude/skills/**"
+  ]
+}

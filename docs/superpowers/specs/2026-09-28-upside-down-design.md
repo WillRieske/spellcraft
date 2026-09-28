@@ -28,12 +28,14 @@ Under the hood, the spell is a vanilla-style **status effect**. The server decid
 ## 1. Scope
 
 **In scope (MVP):**
+
 - A minimal spell framework (a `Spell` record and a generic scroll item), sized only to what Upside-Down needs.
 - The Upside-Down spell: status effect, scroll item, and the client-side flip with rolled transitions in and out.
 - Unit tests, GameTests, and a manual playtest checklist.
 - Dev-environment setup and the repo workflow (§6).
 
 **Out of scope (for now):**
+
 - Other spells, spell registries, mana or any other casting cost.
 - Crafting recipes (creative tab only).
 - Any change to physics or gravity.
@@ -83,6 +85,7 @@ The spell framework knows nothing about the flip, and the flip knows nothing abo
 ## 3. Behavior
 
 ### While active
+
 - **World:** rotated by `currentRoll` (180° once settled).
 - **Unchanged:** HUD, crosshair, chat, and your hand and held item. The hand has its own render pass, which the roll doesn't reach. That is correct here, because "you're upside-down too."
 - **Third person (F5):** the scene rotates, so you see yourself hanging head-down from the grass.
@@ -93,6 +96,7 @@ The spell framework knows nothing about the flip, and the flip knows nothing abo
 - **Sound:** stereo matches the screen. It switches at 90°.
 
 ### Edge cases
+
 | Situation | Behavior |
 |---|---|
 | Death | Effect cleared (vanilla); snaps upright on respawn. |
@@ -133,6 +137,7 @@ The spell framework knows nothing about the flip, and the flip knows nothing abo
 ## 6. Development environment and workflow
 
 ### Tooling
+
 - **JDK 25** (Temurin), installed alongside the existing Java 8. Gradle toolchains pick it per project.
 - **Project scaffold:** NeoForge's official ModDevGradle MDK template, cloned with git, with versions pinned exactly in `gradle.properties` to MC 26.3 / NeoForge 26.3.0.23-beta. It's a beta, so the version is pinned, not floating.
 - **IntelliJ IDEA 2026.2** + **Minecraft Development** plugin (Mixin and event awareness).
@@ -162,6 +167,7 @@ These follow `~/.claude/development-methodology.md`.
 - **First cold build** (Minecraft download and decompile) is run by hand before the gate goes live, because of the gate's 300 s per-command limit.
 
 ### Setup ownership
+
 | Step | Who |
 |---|---|
 | Install JDK 25 and `gh` (winget) | Claude, with approval |
@@ -174,6 +180,7 @@ These follow `~/.claude/development-methodology.md`.
 | Create GitHub repo and push | Claude, only when Will asks |
 
 ### Loop
+
 - `gradlew test` → `gradlew runGameTestServer` → `gradlew runClient` (playtest) → `gradlew build`. The jar goes into `%APPDATA%\.minecraft\mods` for a final check in the real NeoForge 26.3 profile.
 - Claude pipeline: this spec → `writing-plans` → `review-plan` → `executing-plans-will` (TDD for the pure classes) → `verification-before-completion` → `review-will` → `finishing-a-development-branch`. Claude runs tests and builds. Visual checks are handed to Will as "run the playtest checklist" steps.
 - Deferred until needed: the GitHub MCP plugin (`gh` suffices), karellen-lsp-mcp (only if API hunting gets slow), and a project `neoforge-conventions` skill (only once real gotchas accumulate).

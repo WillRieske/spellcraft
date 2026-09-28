@@ -1,0 +1,41 @@
+# One-time setup per clone:  pre-commit install   (run it from Git Bash: the local hooks need `sh` on PATH)
+# The local hooks use `language: system` + `sh ./gradlew`, NOT `language: script` + `gradlew`: on Windows
+# pre-commit parses the `#!/bin/sh` shebang and fails with `Executable /bin/sh not found`.
+# (default_install_hook_types installs the pre-commit, commit-msg and pre-push hooks.)
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+# Leave the MDK's wrapper files and the vendored third-party skills (Task 4) byte-identical to upstream.
+exclude: ^(gradlew(\.bat)?|gradle/wrapper/.*|\.claude/skills/.*)$
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-json
+      - id: check-yaml
+      - id: check-merge-conflict
+  - repo: https://github.com/jorisroovers/gitlint
+    rev: v0.19.1
+    hooks:
+      - id: gitlint
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.23.2
+    hooks:
+      - id: markdownlint-cli2
+  - repo: local
+    hooks:
+      - id: spotless-check
+        name: spotlessCheck
+        entry: sh ./gradlew
+        args: [spotlessCheck, --quiet]
+        language: system
+        pass_filenames: false
+        files: \.(java|gradle)$
+      - id: gametests
+        name: runGameTestServer
+        entry: sh ./gradlew
+        args: [runGameTestServer, --console=plain]
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

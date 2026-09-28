@@ -1,0 +1,13 @@
+[general]
+# Agent commits explain what/why at length — keep body rules loose.
+ignore = body-min-length,body-is-missing,body-max-line-length
+contrib = contrib-title-conventional-commits
+
+[title-max-length]
+line-length = 100
+
+[title-min-length]
+min-length = 12
+
+[contrib-title-conventional-commits]
+types = fix,feat,docs,refactor,test,chore,build,ci,perf,revert

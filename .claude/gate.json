@@ -1,0 +1,4 @@
+{
+  "format_check": [["cmd", "/c", ".\\gradlew.bat", "spotlessCheck", "--quiet"]],
+  "test": [["cmd", "/c", ".\\gradlew.bat", "build", "--quiet"]]
+}
