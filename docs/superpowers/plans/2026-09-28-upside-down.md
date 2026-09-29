@@ -2857,50 +2857,50 @@ Config used below (all in one place): for the mid-roll items set the client conf
 
 ## Cast and roll
 
-- [x] Right-click: over ~1 s the view does a smooth half barrel roll; grass ends up across the top.
-- [x] The effect icon (purple down-arrow) and a 3:00 countdown show in the HUD and inventory.
-- [x] Sneak + right-click: the view keeps turning **the same way** back to upright (one full barrel roll overall), not back the way it came.
-- [x] Right-click again during that roll-out: the roll reverses smoothly back to flipped, with no jump.
-- [x] Recast while settled flipped: no animation; the countdown resets to 3:00.
-- [x] Drink milk: the effect clears, then the view rolls out.
-- [x] Let the effect run out (set `durationSeconds` low in the world's `serverconfig/spellcraft-server.toml` to save time): the view rolls out at the end.
-- [x] Client config `transitionSeconds = 0`: flips snap instantly both ways.
+- [ ] Right-click: over ~1 s the view does a smooth half barrel roll; grass ends up across the top.
+- [ ] The effect icon (purple down-arrow) and a 3:00 countdown show in the HUD and inventory.
+- [ ] Sneak + right-click: the view keeps turning **the same way** back to upright (one full barrel roll overall), not back the way it came.
+- [ ] Right-click again during that roll-out: the roll reverses smoothly back to flipped, with no jump.
+- [ ] Recast while settled flipped: no animation; the countdown resets to 3:00.
+- [ ] Drink milk: the effect clears, then the view rolls out.
+- [ ] Let the effect run out (set `durationSeconds` low in the world's `serverconfig/spellcraft-server.toml` to save time): the view rolls out at the end.
+- [ ] Client config `transitionSeconds = 0`: flips snap instantly both ways.
 
 ## Controls while flipped
 
-- [x] Mouse right/left/up/down pans the view right/left/up/down **on screen**.
-- [x] Mid-roll (around the sideways point), the mouse is still screen-relative. If it is mirrored only mid-roll, report "turn() sin sign". Do not just flip the sign in `turn` and its property test together: the property test shares the same axis assumption and would hide the error. Re-derive the axes from `Camera.setRotation` (docs/api-notes.md fact 1) first.
-- [x] A/D move you left/right on screen; W/S unchanged.
-- [x] During a roll, A/D swap exactly once (at the sideways point).
-- [x] Creative flight: Space moves you **down** on screen (away from the grass), Shift moves you up; stopping flight, you fall **up** on screen toward the grass.
+- [ ] Mouse right/left/up/down pans the view right/left/up/down **on screen**.
+- [ ] Mid-roll (around the sideways point), the mouse is still screen-relative. If it is mirrored only mid-roll, report "turn() sin sign". Do not just flip the sign in `turn` and its property test together: the property test shares the same axis assumption and would hide the error. Re-derive the axes from `Camera.setRotation` (docs/api-notes.md fact 1) first.
+- [ ] A/D move you left/right on screen; W/S unchanged.
+- [ ] During a roll, A/D swap exactly once (at the sideways point).
+- [ ] Creative flight: Space moves you **down** on screen (away from the grass), Shift moves you up; stopping flight, you fall **up** on screen toward the grass.
 
 ## View
 
-- [x] HUD, crosshair, chat and hotbar stay upright and unmoved.
-- [x] Your hand and held item are unchanged (not flipped).
-- [x] F5 behind and in front: the scene is rotated; you hang head-down from the grass. (Front view negates the roll in vanilla, so mouse and A/D compensation is exact only at 0° and 180° there; mid-roll front view is an accepted limitation. Note anything odd.)
-- [x] Look nearly straight up and straight down (pitch near ±90°) while flipped: the view does not glitch or snap.
-- [x] Mods > Spellcraft > Config: the server and client config screens open and show readable labels.
-- [x] Turning quickly: no chunks popping in or out at the screen edges.
+- [ ] HUD, crosshair, chat and hotbar stay upright and unmoved.
+- [ ] Your hand and held item are unchanged (not flipped).
+- [ ] F5 behind and in front: the scene is rotated; you hang head-down from the grass. (Front view negates the roll in vanilla, so mouse and A/D compensation is exact only at 0° and 180° there; mid-roll front view is an accepted limitation. Note anything odd.)
+- [ ] Look nearly straight up and straight down (pitch near ±90°) while flipped: the view does not glitch or snap.
+- [ ] Mods > Spellcraft > Config: the server and client config screens open and show readable labels.
+- [ ] Turning quickly: no chunks popping in or out at the screen edges.
 
 ## Sound
 
-- [x] Flipped: a sound on your screen-left (e.g. a note block) plays in your left ear.
-- [x] During the roll, stereo pans smoothly with the view.
+- [ ] Flipped: a sound on your screen-left (e.g. a note block) plays in your left ear.
+- [ ] During the roll, stereo pans smoothly with the view.
 
 ## Situations
 
-- [x] Elytra while flipped: controllable. Note how it feels.
-- [x] Boat while flipped: view flipped, controls usable.
-- [x] Standard minecart: flip applies. (With the experimental new-minecart feature enabled the camera takes a different code path: the flip is not drawn and mouse/A/D stay normal, because the compensation follows what is drawn; known, see `docs/api-notes.md` fact 2.)
-- [x] Nether portal mid-spell: you arrive still flipped, with no roll animation.
-- [x] Die mid-spell: you respawn upright, with no animation.
-- [x] Quit to title mid-spell and reload the world: flipped immediately, countdown continued.
-- [x] Optional (Open to LAN + a second client): the other player sees nothing unusual — no particles, normal model.
+- [ ] Elytra while flipped: controllable. Note how it feels.
+- [ ] Boat while flipped: view flipped, controls usable.
+- [ ] Standard minecart: flip applies. (With the experimental new-minecart feature enabled the camera takes a different code path: the flip is not drawn and mouse/A/D stay normal, because the compensation follows what is drawn; known, see `docs/api-notes.md` fact 2.)
+- [ ] Nether portal mid-spell: you arrive still flipped, with no roll animation.
+- [ ] Die mid-spell: you respawn upright, with no animation.
+- [ ] Quit to title mid-spell and reload the world: flipped immediately, countdown continued.
+- [ ] Optional (Open to LAN + a second client): the other player sees nothing unusual — no particles, normal model.
 
 ## Real profile
 
-- [x] Copy `build/libs/spellcraft-1.0.0.jar` into `%APPDATA%\.minecraft\mods`, launch the NeoForge 26.3 profile, and cast once.
+- [ ] Copy `build/libs/spellcraft-1.0.0.jar` into `%APPDATA%\.minecraft\mods`, launch the NeoForge 26.3 profile, and cast once.
 
 ## Findings
 
@@ -2994,7 +2994,7 @@ Report in chat: every gate result from Step 2 with its numbers, the Mixin headle
 ## Resume State
 
 - Last completed task: Task 11: Playtest checklist, final verification and handoff
-- Commit SHA: 70eff44
-- Checkboxes: 113/117 ticked
+- Commit SHA: 2ebec5c plus the review-fix commit that follows it (`git log -1`)
+- Checkboxes: 84/117 ticked; the 29 playtest items in the checklist template are Will's to tick, and the template inside this plan stays unticked
 - Next task: none - plan complete; awaiting Will's runClient playtest (docs/playtest-checklist.md)
-- Known-failing tests / caveats: Mixin and all visuals unverified until the playtest. Post-plan: cooldown-gate GameTest `cast_refused_on_cooldown` added (9 GameTests). Deferred, not applied: T6 unreachable startRoll guard (documented equivalent mutants), T7 @SuppressWarnings("removal") (self-announcing under -Werror), T9 wasInWorld guard (behaviour change, needs playtest), T3 plan_map MD049 and format_file nit (outside repo).
+- Known-failing tests / caveats: Mixin and all visuals unverified until the playtest. Post-plan: cooldown-gate GameTest `cast_refused_on_cooldown` added (9 GameTests, all green; bite-proved 2026-09-28: bypassing the gate via `Item.use` fails it with "was 3600" and the `PASS` assertion). `archRule.failOnEmptyShould=true` is an explicit pin of ArchUnit's default, not a behaviour change (an empty rule package fails with or without it). Cooldown-gate fact recorded in api-notes §7. Deferred, not applied: T6 unreachable startRoll guard (documented equivalent mutants), T7 @SuppressWarnings("removal") (self-announcing under -Werror), T9 wasInWorld guard (behaviour change, needs playtest), T3 plan_map MD049 and format_file nit (outside repo).

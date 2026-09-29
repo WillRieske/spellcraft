@@ -99,6 +99,10 @@ Verified as planned.
 - `net/minecraft/world/effect/MobEffect.java:56` `protected MobEffect(MobEffectCategory category, int color)`
   (also `:65`, `:75` with particle args). Subclass to construct.
 - `MobEffectInstance.java:65` `public MobEffectInstance(Holder<MobEffect>, int duration, int amplifier, boolean ambient, boolean visible, boolean showIcon)`.
+- Cooldown gate: `ServerPlayerGameMode.java:352-359` `useItem` returns `InteractionResult.PASS` when
+  `player.getCooldowns().isOnCooldown(itemStack)` (`ItemCooldowns.java:17`), before `itemStack.use` (`:366`) runs. So
+  `Item.use` never sees a cast during a cooldown; the mod needs no cooldown check of its own. GameTests must go
+  through `player.gameMode.useItem` to exercise the gate; calling `Item.use` directly bypasses it.
 - Milk: there is no `MilkBucketItem` class; milk is `Items.MILK_BUCKET` (`Items.java:1978-1980`) using
   `DataComponents.CONSUMABLE` = `Consumables.MILK_BUCKET`.
 - Task 7's call `Items.MILK_BUCKET.finishUsingItem(new ItemStack(Items.MILK_BUCKET), helper.getLevel(), player)`

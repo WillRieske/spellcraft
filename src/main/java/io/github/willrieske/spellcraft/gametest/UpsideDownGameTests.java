@@ -6,10 +6,12 @@ import io.github.willrieske.spellcraft.spell.ModItems;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.neoforged.neoforge.common.ModConfigSpec;
 
 /** Server-rule GameTests for Strength of Upside-Down. Registered in {@link SpellcraftGameTests}. */
 public final class UpsideDownGameTests {
@@ -81,56 +83,67 @@ public final class UpsideDownGameTests {
     /** Mutates global server config, so it runs alone in the {@code config_mutation} batch. */
     @SuppressWarnings("removal")
     static void configValuesAreHonored(GameTestHelper helper) {
-        int savedDuration = ServerConfig.UPSIDE_DOWN_DURATION_SECONDS.getAsInt();
-        int savedCooldown = ServerConfig.UPSIDE_DOWN_COOLDOWN_SECONDS.getAsInt();
-        ServerConfig.UPSIDE_DOWN_DURATION_SECONDS.set(5);
-        ServerConfig.UPSIDE_DOWN_COOLDOWN_SECONDS.set(2);
-        try {
-            ServerPlayer player = helper.makeMockServerPlayerInLevel();
-            ItemStack scroll = useScroll(helper, player);
-            helper.assertValueEqual(
-                    requireEffect(helper, player).getDuration(), 5 * TICKS_PER_SECOND, "configured duration ticks");
-            helper.assertTrue(player.getCooldowns().isOnCooldown(scroll), "configured cooldown should apply");
-        } finally {
-            ServerConfig.UPSIDE_DOWN_DURATION_SECONDS.set(savedDuration);
-            ServerConfig.UPSIDE_DOWN_COOLDOWN_SECONDS.set(savedCooldown);
-        }
+        withConfig(
+                ServerConfig.UPSIDE_DOWN_DURATION_SECONDS,
+                5,
+                () -> withConfig(ServerConfig.UPSIDE_DOWN_COOLDOWN_SECONDS, 2, () -> {
+                    ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                    ItemStack scroll = useScroll(helper, player);
+                    helper.assertValueEqual(
+                            requireEffect(helper, player).getDuration(),
+                            5 * TICKS_PER_SECOND,
+                            "configured duration ticks");
+                    helper.assertTrue(player.getCooldowns().isOnCooldown(scroll), "configured cooldown should apply");
+                }));
         helper.succeed();
     }
 
     /**
      * The gate is vanilla's: {@code ServerPlayerGameMode.useItem} refuses a stack on cooldown before
-     * {@code Item.use} runs. Goes through it so a second cast during the cooldown is proven refused.
-     * Mutates global server config, so it runs alone in its own batch.
+     * {@code Item.use} runs (docs/api-notes.md §7). Goes through it so a second cast during the cooldown is
+     * proven refused. Mutates global server config, so it runs alone in its own batch.
      */
     @SuppressWarnings("removal")
     static void castIsRefusedDuringCooldown(GameTestHelper helper) {
-        int savedCooldown = ServerConfig.UPSIDE_DOWN_COOLDOWN_SECONDS.getAsInt();
-        ServerConfig.UPSIDE_DOWN_COOLDOWN_SECONDS.set(2);
-        try {
+        withConfig(ServerConfig.UPSIDE_DOWN_COOLDOWN_SECONDS, 2, () -> {
             ServerPlayer player = helper.makeMockServerPlayerInLevel();
-            ItemStack scroll = new ItemStack(ModItems.UPSIDE_DOWN_SCROLL.get());
-            player.setItemInHand(InteractionHand.MAIN_HAND, scroll);
+            ItemStack scroll = giveScroll(player);
             player.gameMode.useItem(player, helper.getLevel(), scroll, InteractionHand.MAIN_HAND);
             helper.assertTrue(player.getCooldowns().isOnCooldown(scroll), "precondition: first cast starts cooldown");
             // addEffect keeps the longer of two durations, so clear the first cast before planting a short one.
             player.removeEffect(ModEffects.UPSIDE_DOWN);
             player.addEffect(new MobEffectInstance(ModEffects.UPSIDE_DOWN, 40, 0, false, false, true));
-            player.gameMode.useItem(player, helper.getLevel(), scroll, InteractionHand.MAIN_HAND);
+            InteractionResult second =
+                    player.gameMode.useItem(player, helper.getLevel(), scroll, InteractionHand.MAIN_HAND);
+            helper.assertValueEqual(second, InteractionResult.PASS, "gate should refuse the use");
             helper.assertValueEqual(
                     requireEffect(helper, player).getDuration(), 40, "duration must not reset during cooldown");
-        } finally {
-            ServerConfig.UPSIDE_DOWN_COOLDOWN_SECONDS.set(savedCooldown);
-        }
+        });
         helper.succeed();
     }
 
-    private static ItemStack useScroll(GameTestHelper helper, ServerPlayer player) {
+    /** Runs {@code body} with a global server config value set to {@code temporary}, restoring it afterwards. */
+    private static void withConfig(ModConfigSpec.IntValue value, int temporary, Runnable body) {
+        int saved = value.getAsInt();
+        value.set(temporary);
+        try {
+            body.run();
+        } finally {
+            value.set(saved);
+        }
+    }
+
+    private static ItemStack giveScroll(ServerPlayer player) {
         ItemStack scroll = player.getItemInHand(InteractionHand.MAIN_HAND);
         if (!scroll.is(ModItems.UPSIDE_DOWN_SCROLL.get())) {
             scroll = new ItemStack(ModItems.UPSIDE_DOWN_SCROLL.get());
             player.setItemInHand(InteractionHand.MAIN_HAND, scroll);
         }
+        return scroll;
+    }
+
+    private static ItemStack useScroll(GameTestHelper helper, ServerPlayer player) {
+        ItemStack scroll = giveScroll(player);
         scroll.getItem().use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
         return scroll;
     }
