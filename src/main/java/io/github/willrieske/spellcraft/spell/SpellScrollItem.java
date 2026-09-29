@@ -43,6 +43,8 @@ public class SpellScrollItem extends Item {
         // remove/add pair, so the client sees no gap and stays flipped.
         player.addEffect(
                 new MobEffectInstance(spell.effect(), spell.durationTicks().getAsInt(), 0, false, false, true));
+        // Every cast, including a recast of an active spell, starts the scroll's cooldown; the
+        // default is 0, so it only bites when the server config sets one.
         int cooldown = spell.cooldownTicks().getAsInt();
         if (cooldown > 0) {
             player.getCooldowns().addCooldown(scroll, cooldown);
