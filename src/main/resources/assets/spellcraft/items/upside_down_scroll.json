@@ -1,6 +1,6 @@
 {
   "model": {
     "type": "minecraft:model",
-    "model": "minecraft:item/paper"
+    "model": "spellcraft:item/upside_down_scroll"
   }
 }

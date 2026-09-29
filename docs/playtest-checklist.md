@@ -8,6 +8,7 @@ Config used below (all in one place): for the mid-roll items set the client conf
 
 ## Cast and roll
 
+- [ ] The scroll's inventory/hotbar icon is a parchment with a purple down-arrow (not the plain paper item).
 - [ ] Right-click: over ~1 s the view does a smooth half barrel roll; grass ends up across the top.
 - [ ] The effect icon (purple down-arrow) and a 3:00 countdown show in the HUD and inventory.
 - [ ] Sneak + right-click: the view keeps turning **the same way** back to upright (one full barrel roll overall), not back the way it came.
