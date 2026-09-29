@@ -12,6 +12,7 @@ Config used below (all in one place): for the mid-roll items set the client conf
 - [ ] The effect icon (purple down-arrow) and a 3:00 countdown show in the HUD and inventory.
 - [ ] Sneak + right-click: the view keeps turning **the same way** back to upright (one full barrel roll overall), not back the way it came.
 - [ ] Right-click again during that roll-out: the roll reverses smoothly back to flipped, with no jump.
+- [ ] Sneak + right-click and re-cast only work with the scroll **in your hand** (dispel and reversal are scroll actions). With another item held (or empty hand) while flipped, sneak + right-click does nothing; the spell ends only by milk or expiry. Covered server-side by the `sneak_use_without_scroll_keeps_effect` GameTest.
 - [ ] Recast while settled flipped: no animation; the countdown resets to 3:00.
 - [ ] Drink milk: the effect clears, then the view rolls out.
 - [ ] Let the effect run out (set `durationSeconds` low in the world's `serverconfig/spellcraft-server.toml` to save time): the view rolls out at the end.

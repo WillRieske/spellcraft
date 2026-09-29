@@ -70,6 +70,19 @@ public final class UpsideDownGameTests {
         helper.succeed();
     }
 
+    /** Dispel is a scroll action: sneak-using anything else leaves an active spell running. */
+    @SuppressWarnings("removal")
+    static void sneakUseWithoutScrollKeepsTheEffect(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        useScroll(helper, player);
+        ItemStack paper = new ItemStack(Items.PAPER);
+        player.setItemInHand(InteractionHand.MAIN_HAND, paper);
+        player.setShiftKeyDown(true);
+        paper.getItem().use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
+        helper.assertTrue(player.hasEffect(ModEffects.UPSIDE_DOWN), "sneak-use of another item must not dispel");
+        helper.succeed();
+    }
+
     @SuppressWarnings("removal")
     static void sneakCastWhileInactiveCasts(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();

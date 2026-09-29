@@ -39,6 +39,10 @@ public final class SpellcraftGameTests {
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> SNEAK_CAST_INACTIVE_CASTS =
             TEST_FUNCTIONS.register(
                     "sneak_cast_inactive_casts", () -> UpsideDownGameTests::sneakCastWhileInactiveCasts);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> SNEAK_USE_WITHOUT_SCROLL =
+            TEST_FUNCTIONS.register(
+                    "sneak_use_without_scroll_keeps_effect",
+                    () -> UpsideDownGameTests::sneakUseWithoutScrollKeepsTheEffect);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> CONFIG_IS_HONORED =
             TEST_FUNCTIONS.register("config_is_honored", () -> UpsideDownGameTests::configValuesAreHonored);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> CAST_REFUSED_ON_COOLDOWN =
@@ -55,6 +59,7 @@ public final class SpellcraftGameTests {
         test(event, shared, RECAST_RESETS_DURATION);
         test(event, shared, SNEAK_CAST_ACTIVE_REMOVES);
         test(event, shared, SNEAK_CAST_INACTIVE_CASTS);
+        test(event, shared, SNEAK_USE_WITHOUT_SCROLL);
         // Batches run one after another, so a separate environment isolates the config mutation.
         Holder<TestEnvironmentDefinition<?>> configMutation =
                 event.registerEnvironment(Spellcraft.id("config_mutation"));
