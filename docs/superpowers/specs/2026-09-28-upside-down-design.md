@@ -4,6 +4,10 @@
 **Status:** Approved in brainstorming; awaiting written-spec review
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
 
+> **Partly superseded** by [`2026-09-29-infinity-design.md`](2026-09-29-infinity-design.md) §9:
+> scrolls are single-use and scribed at an enchanting table, dispel uses up a scroll, and the
+> cooldown config is gone.
+
 ## Summary
 
 Spellcraft is a NeoForge mod that adds spells. The first spell is **Strength of Upside-Down**.
