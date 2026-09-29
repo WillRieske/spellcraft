@@ -12,24 +12,45 @@ from pathlib import Path
 
 SIZE = 16
 CLEAR = (0, 0, 0, 0)
-OUTLINE = (98, 74, 46, 255)
-PARCHMENT = (238, 226, 190, 255)
-ROLL = (200, 166, 112, 255)
 INK = (127, 90, 240, 255)  # same purple as the effect icon
+
+# A diagonal sheet of paper (same silhouette as the vanilla paper item). Digits index PALETTE;
+# '.' is transparent.
+SHEET = [
+    "................",
+    "................",
+    ".........11.....",
+    "........1321....",
+    "......1124431...",
+    ".....134444426..",
+    "...112444444416.",
+    "..12344444444216",
+    ".12344444444436.",
+    "..623444444326..",
+    "...6234444366...",
+    "....6234356.....",
+    ".....62566......",
+    "......66........",
+    "................",
+    "................",
+]
+PALETTE = {
+    "1": (150, 118, 72, 255),  # rim
+    "2": (214, 190, 140, 255),
+    "3": (232, 214, 170, 255),
+    "4": (240, 228, 188, 255),  # fill
+    "5": (178, 148, 100, 255),
+    "6": (120, 92, 56, 255),  # shadow edge
+}
+# The down-arrow: a 2px shaft and a stepped head, all inside the sheet.
+ARROW = {(x, y) for y in range(4, 9) for x in (7, 8)}
+ARROW |= {(x, 8) for x in range(5, 11)} | {(x, 9) for x in range(6, 10)} | {(x, 10) for x in (7, 8)}
 
 
 def pixel(x: int, y: int) -> tuple[int, int, int, int]:
-    if 1 <= x <= 14 and 1 <= y <= 14:
-        if x in (1, 14) or y in (1, 14):
-            return OUTLINE
-        if y in (2, 13):  # rolled top and bottom edges
-            return ROLL
-        if 7 <= x <= 8 and 4 <= y <= 8:  # arrow shaft
-            return INK
-        if 8 <= y <= 11 and abs(x - 7.5) <= 11 - y:  # arrowhead
-            return INK
-        return PARCHMENT
-    return CLEAR
+    if (x, y) in ARROW:
+        return INK
+    return PALETTE.get(SHEET[y][x], CLEAR)
 
 
 def chunk(kind: bytes, data: bytes) -> bytes:
