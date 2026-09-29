@@ -2997,4 +2997,4 @@ Report in chat: every gate result from Step 2 with its numbers, the Mixin headle
 - Commit SHA: 70eff44
 - Checkboxes: 113/117 ticked
 - Next task: none - plan complete; awaiting Will's runClient playtest (docs/playtest-checklist.md)
-- Known-failing tests / caveats: Mixin and all visuals unverified until the playtest. Deferred, not applied: T6 unreachable startRoll guard (documented equivalent mutants), T7 @SuppressWarnings("removal") (self-announcing under -Werror), T8 cooldown-gate test, T9 wasInWorld guard (behaviour change, needs playtest), T3 plan_map MD049 and format_file nit (outside repo).
+- Known-failing tests / caveats: Mixin and all visuals unverified until the playtest. Post-plan: cooldown-gate GameTest `cast_refused_on_cooldown` added (9 GameTests). Deferred, not applied: T6 unreachable startRoll guard (documented equivalent mutants), T7 @SuppressWarnings("removal") (self-announcing under -Werror), T9 wasInWorld guard (behaviour change, needs playtest), T3 plan_map MD049 and format_file nit (outside repo).
