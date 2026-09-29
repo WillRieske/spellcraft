@@ -98,6 +98,33 @@ public final class UpsideDownGameTests {
         helper.succeed();
     }
 
+    /**
+     * The gate is vanilla's: {@code ServerPlayerGameMode.useItem} refuses a stack on cooldown before
+     * {@code Item.use} runs. Goes through it so a second cast during the cooldown is proven refused.
+     * Mutates global server config, so it runs alone in its own batch.
+     */
+    @SuppressWarnings("removal")
+    static void castIsRefusedDuringCooldown(GameTestHelper helper) {
+        int savedCooldown = ServerConfig.UPSIDE_DOWN_COOLDOWN_SECONDS.getAsInt();
+        ServerConfig.UPSIDE_DOWN_COOLDOWN_SECONDS.set(2);
+        try {
+            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+            ItemStack scroll = new ItemStack(ModItems.UPSIDE_DOWN_SCROLL.get());
+            player.setItemInHand(InteractionHand.MAIN_HAND, scroll);
+            player.gameMode.useItem(player, helper.getLevel(), scroll, InteractionHand.MAIN_HAND);
+            helper.assertTrue(player.getCooldowns().isOnCooldown(scroll), "precondition: first cast starts cooldown");
+            // addEffect keeps the longer of two durations, so clear the first cast before planting a short one.
+            player.removeEffect(ModEffects.UPSIDE_DOWN);
+            player.addEffect(new MobEffectInstance(ModEffects.UPSIDE_DOWN, 40, 0, false, false, true));
+            player.gameMode.useItem(player, helper.getLevel(), scroll, InteractionHand.MAIN_HAND);
+            helper.assertValueEqual(
+                    requireEffect(helper, player).getDuration(), 40, "duration must not reset during cooldown");
+        } finally {
+            ServerConfig.UPSIDE_DOWN_COOLDOWN_SECONDS.set(savedCooldown);
+        }
+        helper.succeed();
+    }
+
     private static ItemStack useScroll(GameTestHelper helper, ServerPlayer player) {
         ItemStack scroll = player.getItemInHand(InteractionHand.MAIN_HAND);
         if (!scroll.is(ModItems.UPSIDE_DOWN_SCROLL.get())) {

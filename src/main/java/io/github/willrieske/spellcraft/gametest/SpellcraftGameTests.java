@@ -41,6 +41,8 @@ public final class SpellcraftGameTests {
                     "sneak_cast_inactive_casts", () -> UpsideDownGameTests::sneakCastWhileInactiveCasts);
     private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> CONFIG_IS_HONORED =
             TEST_FUNCTIONS.register("config_is_honored", () -> UpsideDownGameTests::configValuesAreHonored);
+    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> CAST_REFUSED_ON_COOLDOWN =
+            TEST_FUNCTIONS.register("cast_refused_on_cooldown", () -> UpsideDownGameTests::castIsRefusedDuringCooldown);
 
     private SpellcraftGameTests() {}
 
@@ -57,6 +59,9 @@ public final class SpellcraftGameTests {
         Holder<TestEnvironmentDefinition<?>> configMutation =
                 event.registerEnvironment(Spellcraft.id("config_mutation"));
         test(event, configMutation, CONFIG_IS_HONORED);
+        Holder<TestEnvironmentDefinition<?>> cooldownMutation =
+                event.registerEnvironment(Spellcraft.id("cooldown_mutation"));
+        test(event, cooldownMutation, CAST_REFUSED_ON_COOLDOWN);
     }
 
     private static void test(
