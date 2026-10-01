@@ -150,11 +150,14 @@ $After = $Stamp.AddMinutes(5)
 
 Describe 'Get-Instances' {
     # Mock bodies run in the module's scope and cannot see this file's variables or functions, so the
-    # real-shaped command lines (doubled backslashes in the at tokens) are built inline with .Replace.
+    # real-shaped command lines (doubled backslashes in the at tokens) are built inline by doubling each backslash (via [char]92, so no literal doubled
+    # backslashes live in this file).
     Mock -ModuleName DeployTestEnv Get-CimInstance {
         $java = '"C:\Program Files\Eclipse Adoptium\jdk-25.0.4.101-hotspot\bin\java.exe"'
-        $client = '@' + 'C:\dev\spellcraft\build\moddev\clientRunVmArgs.txt'.Replace('\', '\')
-        $gametest = '@' + 'C:\dev\spellcraft\build\moddev\gameTestServerRunVmArgs.txt'.Replace('\', '\')
+        $bs = [string][char]92
+        $client = '@' + 'C:\dev\spellcraft\build\moddev\clientRunVmArgs.txt'.Replace($bs, $bs + $bs)
+        $gametest = '@' + 'C:\dev\spellcraft\build\moddev\gameTestServerRunVmArgs.txt'.Replace($bs, $bs + $bs)
+        if (-not ($client.Contains($bs + $bs) -and $gametest.Contains($bs + $bs))) { throw 'fixture lost its doubled backslashes' }
         @(
             [pscustomobject]@{ ProcessId = 101; CreationDate = [datetime]'2026-10-01 14:05:01'
                 CommandLine = "$java -cp C:\dev\spellcraft\build\moddev\artifacts\a.jar $client net.neoforged.devlaunch.Main" }
