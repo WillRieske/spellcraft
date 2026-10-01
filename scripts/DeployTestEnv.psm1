@@ -313,3 +313,139 @@ function Invoke-StopStep {
     }
     $allGone
 }
+
+$script:ExitOk = 0
+$script:ExitBuildFailed = 1
+$script:ExitGameTestsFailed = 2
+$script:ExitDeclined = 3
+$script:ExitClientDied = 4
+
+<#
+.SYNOPSIS
+    Start the dev client in a hidden Gradle launcher, logging to build\deploy\runClient.log.
+.PARAMETER RepoRoot
+    The repo root; the launcher runs there.
+.PARAMETER GraceSeconds
+    How long the launcher must stay alive to count as started.
+.PARAMETER Command
+    The command run inside cmd.exe; tests substitute a short-lived one.
+.OUTPUTS
+    An object with Started (false if the launcher exited within the grace period), ProcessId (of the cmd.exe wrapper, not the game JVM) and Log.
+#>
+function Start-DevClient {
+    param(
+        [Parameter(Mandatory)][string] $RepoRoot,
+        [int] $GraceSeconds = 15,
+        [string] $Command = '.\gradlew.bat runClient --console=plain'
+    )
+    $logDir = Join-Path $RepoRoot 'build\deploy'
+    New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+    $log = Join-Path $logDir 'runClient.log'
+    Add-Content -LiteralPath $log -Value "===== Deploy-TestEnv launch $(Get-Date -Format s) =====" -Encoding ASCII
+    # Start-Process (5.1) cannot send stdout and stderr to one file, nor append; cmd can.
+    # The hidden cmd has its own console, so closing this terminal does not kill the client.
+    $proc = Start-Process -FilePath 'cmd.exe' `
+        -ArgumentList "/d /c $Command >> build\deploy\runClient.log 2>&1" `
+        -WorkingDirectory $RepoRoot -WindowStyle Hidden -PassThru
+    $died = $proc.WaitForExit($GraceSeconds * 1000)
+    [pscustomobject]@{ Started = -not $died; ProcessId = $proc.Id; Log = $log }
+}
+
+<#
+.SYNOPSIS
+    Print one status line per instance, or 'No running <What>.'
+.PARAMETER Instances
+    Instances from Get-Instances.
+.PARAMETER BuildStampUtc
+    The build stamp (UTC) or $null.
+.PARAMETER What
+    Plural noun for the empty message, e.g. 'servers'.
+#>
+function Write-InstanceList {
+    param(
+        [AllowEmptyCollection()][object[]] $Instances = @(),
+        [AllowNull()] $BuildStampUtc,
+        [Parameter(Mandatory)][string] $What
+    )
+    if ($Instances.Count -eq 0) {
+        Write-Host "  No running $What."
+        return
+    }
+    foreach ($i in $Instances) {
+        Write-Host ('  ' + (Format-InstanceLine -Instance $i -BuildStampUtc $BuildStampUtc))
+    }
+}
+
+<#
+.SYNOPSIS
+    The deploy flow: build checks, server GameTests, then the dev client.
+.DESCRIPTION
+    Step 1 runs the commit-gate checks. Step 2 always runs the GameTests (stopping any GameTest
+    server and any stale dedicated server first, after y). Step 3 stops stale clients (after y)
+    and launches a client unless an up-to-date one already runs. Stopping is all-or-nothing: if
+    an instance is declined or does not exit, the flow stops, because all runs share run/.
+.PARAMETER RepoRoot
+    The repo root.
+.PARAMETER Build
+    Runs the build checks; returns only the Gradle exit code.
+.PARAMETER RunGameTests
+    Runs the GameTests; returns only the Gradle exit code.
+.PARAMETER LaunchClient
+    Starts the client; returns a Start-DevClient result.
+.OUTPUTS
+    [int] exit code: 0 ok, 1 build failed, 2 GameTests failed, 3 stop declined or failed, 4 client died.
+#>
+function Invoke-DeployFlow {
+    param(
+        [Parameter(Mandatory)][string] $RepoRoot,
+        [Parameter(Mandatory)][scriptblock] $Build,
+        [Parameter(Mandatory)][scriptblock] $RunGameTests,
+        [Parameter(Mandatory)][scriptblock] $LaunchClient
+    )
+    # Step 1: automated checks (the commit gate). No timeout: a cold run takes 5-15 min.
+    Write-Host '== Step 1: spotlessCheck build'
+    $code = & $Build
+    if ($code -ne 0) {
+        Write-Host "Build failed (gradlew exit $code)."
+        return $script:ExitBuildFailed
+    }
+    $stamp = Get-BuildStamp -RepoRoot $RepoRoot
+    Write-Host (Format-BuildStamp -BuildStampUtc $stamp)
+
+    # Step 2: server GameTests. Always run; a running server is not a passing test run.
+    Write-Host '== Step 2: server GameTests'
+    $servers = @(Get-Instances -RepoRoot $RepoRoot | Where-Object { $_.Kind -ne 'Client' })
+    Write-InstanceList -Instances $servers -BuildStampUtc $stamp -What 'servers'
+    $toStop = @(Select-InstancesToStop -Instances $servers -BuildStampUtc $stamp -Step Servers)
+    if (-not (Invoke-StopStep -ToStop $toStop -BuildStampUtc $stamp)) {
+        Write-Host 'Stopping here: an instance was declined or did not exit.'
+        return $script:ExitDeclined
+    }
+    $code = & $RunGameTests
+    if ($code -ne 0) {
+        Write-Host "GameTests failed (gradlew exit $code). Not launching the client."
+        return $script:ExitGameTestsFailed
+    }
+
+    # Step 3: dev client.
+    Write-Host '== Step 3: dev client'
+    $clients = @(Get-Instances -RepoRoot $RepoRoot | Where-Object { $_.Kind -eq 'Client' })
+    Write-InstanceList -Instances $clients -BuildStampUtc $stamp -What 'clients'
+    $toStop = @(Select-InstancesToStop -Instances $clients -BuildStampUtc $stamp -Step Client)
+    if (-not (Invoke-StopStep -ToStop $toStop -BuildStampUtc $stamp)) {
+        Write-Host 'Stopping here: an instance was declined or did not exit.'
+        return $script:ExitDeclined
+    }
+    if (Test-HasCurrentClient -Instances @(Get-Instances -RepoRoot $RepoRoot) -BuildStampUtc $stamp) {
+        Write-Host 'The running client already has the current build; not launching another.'
+        return $script:ExitOk
+    }
+    $launch = & $LaunchClient
+    if (-not $launch.Started) {
+        Write-Host "runClient exited within the grace period. Last lines of $($launch.Log):"
+        Get-Content -LiteralPath $launch.Log -Tail 40 | ForEach-Object { Write-Host $_ }
+        return $script:ExitClientDied
+    }
+    Write-Host "Client launching (wrapper PID $($launch.ProcessId); run -CheckOnly in a few seconds for the game process). Log: $($launch.Log)"
+    $script:ExitOk
+}

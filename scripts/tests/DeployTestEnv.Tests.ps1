@@ -479,3 +479,116 @@ Describe 'Invoke-StopStep' {
         Invoke-StopStep -ToStop @(New-Instance 'GameTestServer' $After 1) -BuildStampUtc $Stamp | Should Be $false
     }
 }
+
+Describe 'Start-DevClient' {
+    function New-RepoDir([string] $Name) {
+        $d = Join-Path $TestDrive $Name
+        New-Item -ItemType Directory -Path $d | Out-Null
+        $d
+    }
+
+    It 'reports a launch that dies within the grace period, and logs a header' {
+        $r = Start-DevClient -RepoRoot (New-RepoDir 'died') -GraceSeconds 10 -Command 'exit 1'
+        $r.Started | Should Be $false
+        (Get-Content -LiteralPath $r.Log -Raw) | Should Match 'Deploy-TestEnv launch'
+    }
+    It 'reports a launch that is still running after the grace period' {
+        $r = Start-DevClient -RepoRoot (New-RepoDir 'alive') -GraceSeconds 1 -Command 'ping -n 6 127.0.0.1'
+        try { $r.Started | Should Be $true }
+        finally { Stop-Process -Id $r.ProcessId -Force -ErrorAction SilentlyContinue }
+    }
+}
+
+Describe 'Invoke-DeployFlow' {
+    Mock -ModuleName DeployTestEnv Write-Host { }
+    Mock -ModuleName DeployTestEnv Get-Content { 'last log line' }
+    Mock -ModuleName DeployTestEnv Get-BuildStamp { [datetime]::SpecifyKind([datetime]'2026-10-01 12:00:00', 'Utc') }
+    Mock -ModuleName DeployTestEnv Stop-Instance { $true }
+    Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }
+    Mock -ModuleName DeployTestEnv Get-Instances { }
+
+    function New-Flow([int] $BuildExit = 0, [int] $TestsExit = 0, [bool] $Started = $true) {
+        $calls = New-Object System.Collections.ArrayList
+        @{
+            Calls        = $calls
+            Build        = { [void]$calls.Add('build'); $BuildExit }.GetNewClosure()
+            RunGameTests = { [void]$calls.Add('tests'); $TestsExit }.GetNewClosure()
+            LaunchClient = { [void]$calls.Add('launch'); [pscustomobject]@{ Started = $Started; ProcessId = 1; Log = 'x' } }.GetNewClosure()
+        }
+    }
+    function Invoke-Flow($Flow) {
+        Invoke-DeployFlow -RepoRoot 'C:\dev\spellcraft' -Build $Flow.Build -RunGameTests $Flow.RunGameTests -LaunchClient $Flow.LaunchClient
+    }
+
+    It 'runs build, GameTests, launch in order and exits 0' {
+        $f = New-Flow
+        Invoke-Flow $f | Should Be 0
+        ($f.Calls -join ',') | Should Be 'build,tests,launch'
+    }
+    It 'exits 1 after a failed build and runs nothing else' {
+        $f = New-Flow -BuildExit 1
+        Invoke-Flow $f | Should Be 1
+        ($f.Calls -join ',') | Should Be 'build'
+    }
+    It 'exits 2 after failed GameTests and does not launch' {
+        $f = New-Flow -TestsExit 1
+        Invoke-Flow $f | Should Be 2
+        ($f.Calls -join ',') | Should Be 'build,tests'
+    }
+    It 'exits 4 when the launch process died' {
+        $f = New-Flow -Started $false
+        Invoke-Flow $f | Should Be 4
+        ($f.Calls -join ',') | Should Be 'build,tests,launch'
+    }
+
+    Context 'a GameTest server is running' {
+        Mock -ModuleName DeployTestEnv Get-Instances {
+            [pscustomobject]@{ Kind = 'GameTestServer'; ProcessId = 8; StartTimeUtc = [datetime]::SpecifyKind([datetime]'2026-10-01 13:00:00', 'Utc') }
+        }
+
+        It 'exits 3 before the GameTests when the user declines' {
+            Mock -ModuleName DeployTestEnv Confirm-StopInstances { $false }
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 3
+            ($f.Calls -join ',') | Should Be 'build'
+        }
+        It 'exits 3 before the GameTests when it will not exit' {
+            Mock -ModuleName DeployTestEnv Stop-Instance { $false }
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 3
+            ($f.Calls -join ',') | Should Be 'build'
+        }
+        It 'stops it and goes on after y' {
+            Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }
+            Mock -ModuleName DeployTestEnv Stop-Instance { $true }
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 0
+            ($f.Calls -join ',') | Should Be 'build,tests,launch'
+        }
+    }
+
+    Context 'a stale client is running' {
+        Mock -ModuleName DeployTestEnv Get-Instances {
+            [pscustomobject]@{ Kind = 'Client'; ProcessId = 9; StartTimeUtc = [datetime]::SpecifyKind([datetime]'2026-10-01 11:00:00', 'Utc') }
+        }
+
+        It 'runs the GameTests beside it, then exits 3 when the user declines' {
+            Mock -ModuleName DeployTestEnv Confirm-StopInstances { $false }
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 3
+            ($f.Calls -join ',') | Should Be 'build,tests'
+        }
+    }
+
+    Context 'a current client is running' {
+        Mock -ModuleName DeployTestEnv Get-Instances {
+            [pscustomobject]@{ Kind = 'Client'; ProcessId = 9; StartTimeUtc = [datetime]::SpecifyKind([datetime]'2026-10-01 13:00:00', 'Utc') }
+        }
+
+        It 'exits 0 without launching another' {
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 0
+            ($f.Calls -join ',') | Should Be 'build,tests'
+        }
+    }
+}
