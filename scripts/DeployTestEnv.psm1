@@ -192,3 +192,99 @@ function Format-BuildStamp {
     if ($null -eq $BuildStampUtc) { return 'Build stamp: none (nothing built yet)' }
     'Build stamp: {0:yyyy-MM-dd HH:mm:ss}' -f $BuildStampUtc.ToLocalTime()
 }
+
+<#
+.SYNOPSIS
+    Whether the script can ask the user a question.
+.OUTPUTS
+    [bool]: false for a non-interactive host, redirected stdin or -NonInteractive.
+#>
+function Test-CanPrompt {
+    if (-not [Environment]::UserInteractive) { return $false }
+    if ([Console]::IsInputRedirected) { return $false }
+    $nonInteractive = @([Environment]::GetCommandLineArgs() | Where-Object { $_ -match '^-noni' })
+    $nonInteractive.Count -eq 0
+}
+
+<#
+.SYNOPSIS
+    List the instances that must stop and ask 'Stop them? [y/N]'.
+.PARAMETER Instances
+    The instances that must stop.
+.PARAMETER BuildStampUtc
+    The build stamp (UTC) or $null.
+.OUTPUTS
+    [bool]: true only for y or yes; false (without asking) when it cannot prompt.
+#>
+function Confirm-StopInstances {
+    param(
+        [AllowEmptyCollection()][object[]] $Instances = @(),
+        [AllowNull()] $BuildStampUtc
+    )
+    Write-Host 'These must stop before continuing (GameTest servers always; others because they are stale):'
+    Write-Host ('  ' + (Format-BuildStamp -BuildStampUtc $BuildStampUtc))
+    foreach ($i in $Instances) {
+        Write-Host ('  ' + (Format-InstanceLine -Instance $i -BuildStampUtc $BuildStampUtc))
+    }
+    if (-not (Test-CanPrompt)) {
+        Write-Host 'Cannot prompt (non-interactive run); treating the answer as N.'
+        return $false
+    }
+    $answer = Read-Host 'Stop them? [y/N]'
+    $answer -match '^(y|yes)$'
+}
+
+<#
+.SYNOPSIS
+    Stop one instance: a client is asked to close first, anything else (or a client that will not) is force-stopped.
+.DESCRIPTION
+    Only call after the user answered y (see Invoke-StopStep).
+.PARAMETER Instance
+    An instance from Get-Instances.
+.PARAMETER GraceSeconds
+    How long a client gets to close after CloseMainWindow() before it is forced.
+.OUTPUTS
+    [bool]: true once the process is confirmed gone, false if it is still alive after the forced stop.
+#>
+function Stop-Instance {
+    param(
+        [Parameter(Mandatory)] $Instance,
+        [int] $GraceSeconds = 20
+    )
+    $proc = Get-Process -Id $Instance.ProcessId -ErrorAction SilentlyContinue
+    if ($null -eq $proc) { return $true }
+    if ($Instance.Kind -eq 'Client' -and $proc.CloseMainWindow()) {
+        Write-Host "Asked client PID $($Instance.ProcessId) to close; waiting up to $GraceSeconds s."
+        if ($proc.WaitForExit($GraceSeconds * 1000)) { return $true }
+        Write-Host "Client PID $($Instance.ProcessId) did not exit in $GraceSeconds s; forcing it."
+    }
+    Stop-Process -Id $Instance.ProcessId -Force -ErrorAction SilentlyContinue
+    $proc.WaitForExit(10000)
+}
+
+<#
+.SYNOPSIS
+    Ask, then stop the instances that must stop.
+.PARAMETER ToStop
+    The instances that must stop; may be empty.
+.PARAMETER BuildStampUtc
+    The build stamp (UTC) or $null.
+.OUTPUTS
+    [bool]: true if nothing had to stop or all are confirmed gone; false if declined or any instance did not exit.
+#>
+function Invoke-StopStep {
+    param(
+        [AllowEmptyCollection()][object[]] $ToStop = @(),
+        [AllowNull()] $BuildStampUtc
+    )
+    if ($ToStop.Count -eq 0) { return $true }
+    if (-not (Confirm-StopInstances -Instances $ToStop -BuildStampUtc $BuildStampUtc)) { return $false }
+    $allGone = $true
+    foreach ($i in $ToStop) {
+        if (-not (Stop-Instance -Instance $i)) {
+            Write-Host "$($i.Kind) PID $($i.ProcessId) did not exit."
+            $allGone = $false
+        }
+    }
+    $allGone
+}

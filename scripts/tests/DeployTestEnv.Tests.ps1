@@ -257,3 +257,148 @@ Describe 'Format-InstanceLine and Format-BuildStamp' {
         Format-BuildStamp -BuildStampUtc $null | Should Be 'Build stamp: none (nothing built yet)'
     }
 }
+
+Describe 'Confirm-StopInstances' {
+    Mock -ModuleName DeployTestEnv Write-Host { }
+    $one = @(New-Instance 'Client' $Before 9)
+
+    Context 'when it cannot prompt' {
+        Mock -ModuleName DeployTestEnv Test-CanPrompt { $false }
+        Mock -ModuleName DeployTestEnv Read-Host { 'y' }
+
+        It 'declines without asking' {
+            Confirm-StopInstances -Instances $one -BuildStampUtc $Stamp | Should Be $false
+            Assert-MockCalled Read-Host -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+    }
+
+    Context 'when it can prompt' {
+        Mock -ModuleName DeployTestEnv Test-CanPrompt { $true }
+
+        It "treats 'y' as yes" {
+            Mock -ModuleName DeployTestEnv Read-Host { 'y' }
+            Confirm-StopInstances -Instances $one -BuildStampUtc $Stamp | Should Be $true
+        }
+        It "treats 'Y' as yes" {
+            Mock -ModuleName DeployTestEnv Read-Host { 'Y' }
+            Confirm-StopInstances -Instances $one -BuildStampUtc $Stamp | Should Be $true
+        }
+        It "treats 'yes' as yes" {
+            Mock -ModuleName DeployTestEnv Read-Host { 'yes' }
+            Confirm-StopInstances -Instances $one -BuildStampUtc $Stamp | Should Be $true
+        }
+        It 'treats Enter (empty) as no' {
+            Mock -ModuleName DeployTestEnv Read-Host { '' }
+            Confirm-StopInstances -Instances $one -BuildStampUtc $Stamp | Should Be $false
+        }
+        It "treats 'n' as no" {
+            Mock -ModuleName DeployTestEnv Read-Host { 'n' }
+            Confirm-StopInstances -Instances $one -BuildStampUtc $Stamp | Should Be $false
+        }
+        It "treats 'yep' as no (only y or yes)" {
+            Mock -ModuleName DeployTestEnv Read-Host { 'yep' }
+            Confirm-StopInstances -Instances $one -BuildStampUtc $Stamp | Should Be $false
+        }
+    }
+}
+
+Describe 'Stop-Instance' {
+    Mock -ModuleName DeployTestEnv Write-Host { }
+    Mock -ModuleName DeployTestEnv Stop-Process { }
+    # Fake processes: Mock bodies run in the module's scope and cannot see this file's variables,
+    # so each Context builds its own with literal return values.
+    $client = New-Instance 'Client' $Before 5
+    $server = New-Instance 'Server' $Before 6
+
+    Context 'when the process has already gone' {
+        Mock -ModuleName DeployTestEnv Get-Process { $null }
+
+        It 'does nothing and reports it gone' {
+            Stop-Instance -Instance $client | Should Be $true
+            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+    }
+
+    Context 'a client that closes when asked' {
+        Mock -ModuleName DeployTestEnv Get-Process {
+            $p = New-Object PSObject
+            $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { $true }
+            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $true }
+            $p
+        }
+
+        It 'is not force-killed' {
+            Stop-Instance -Instance $client | Should Be $true
+            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+    }
+
+    Context 'a client that is asked to close but does not exit in time' {
+        Mock -ModuleName DeployTestEnv Get-Process {
+            $p = New-Object PSObject
+            $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { $true }
+            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $false }
+            $p
+        }
+
+        It 'is force-killed once, and reported not gone if it never exits' {
+            Stop-Instance -Instance $client -GraceSeconds 1 | Should Be $false
+            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It
+        }
+    }
+
+    Context 'a client with no main window to close' {
+        Mock -ModuleName DeployTestEnv Get-Process {
+            $p = New-Object PSObject
+            $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { $false }
+            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $true }
+            $p
+        }
+
+        It 'is force-killed straight away' {
+            Stop-Instance -Instance $client | Should Be $true
+            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It
+        }
+    }
+
+    Context 'a server' {
+        Mock -ModuleName DeployTestEnv Get-Process {
+            $p = New-Object PSObject
+            # A server must never be sent CloseMainWindow: it throws if called.
+            $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { throw 'CloseMainWindow on a server' }
+            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $true }
+            $p
+        }
+
+        It 'is force-killed without CloseMainWindow' {
+            Stop-Instance -Instance $server | Should Be $true
+            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It
+        }
+    }
+}
+
+Describe 'Invoke-StopStep' {
+    Mock -ModuleName DeployTestEnv Stop-Instance { $true }
+
+    It 'succeeds without asking when nothing must stop' {
+        Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }
+        Invoke-StopStep -ToStop @() -BuildStampUtc $Stamp | Should Be $true
+        Assert-MockCalled Confirm-StopInstances -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+    }
+    It 'stops nothing and fails when declined' {
+        Mock -ModuleName DeployTestEnv Confirm-StopInstances { $false }
+        Invoke-StopStep -ToStop @(New-Instance 'Client' $Before) -BuildStampUtc $Stamp | Should Be $false
+        Assert-MockCalled Stop-Instance -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+    }
+    It 'stops each instance once after y' {
+        Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }
+        $two = @((New-Instance 'GameTestServer' $After 1), (New-Instance 'Server' $Before 2))
+        Invoke-StopStep -ToStop $two -BuildStampUtc $Stamp | Should Be $true
+        Assert-MockCalled Stop-Instance -ModuleName DeployTestEnv -Times 2 -Exactly -Scope It
+    }
+    It 'fails when an instance does not exit after y' {
+        Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }
+        Mock -ModuleName DeployTestEnv Stop-Instance { $false }
+        Invoke-StopStep -ToStop @(New-Instance 'GameTestServer' $After 1) -BuildStampUtc $Stamp | Should Be $false
+    }
+}
