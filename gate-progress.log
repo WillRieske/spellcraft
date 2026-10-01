@@ -21,3 +21,4 @@ b420f92 task 6: 6 python unittests OK, pre-commit incl. spell-icon-tests passed
 e898361 task 9: build green; runGameTestServer 26/26 passed
 293fb7b task 10: build green; runGameTestServer 37/37 passed
 641c61b task 11: build green; runGameTestServer 49/49 passed
+ef99bec task 12: build green; runData exit 0; runGameTestServer 49 required passed
