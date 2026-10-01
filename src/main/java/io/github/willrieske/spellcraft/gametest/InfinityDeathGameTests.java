@@ -6,6 +6,7 @@ import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.infinity.DeathStash;
 import io.github.willrieske.spellcraft.infinity.InfinityAbilitySync;
 import io.github.willrieske.spellcraft.infinity.InfinityAttachments;
+import io.github.willrieske.spellcraft.infinity.InfinityDeath;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.registries.Registries;
@@ -48,6 +49,10 @@ public final class InfinityDeathGameTests {
         SpellcraftGameTests.add(SHARED, "infinity_death_g9_stash_codec", InfinityDeathGameTests::g9StashCodec);
         SpellcraftGameTests.add(SHARED, "infinity_death_g10_nether", InfinityDeathGameTests::g10Nether);
         SpellcraftGameTests.add(SHARED, "infinity_death_g11_flying", InfinityDeathGameTests::g11Flying);
+        SpellcraftGameTests.add(
+                SHARED, "infinity_death_g12_occupied_slot", InfinityDeathGameTests::g12OccupiedSlotKeepsBoth);
+        SpellcraftGameTests.add(
+                SHARED, "infinity_death_g13_full_inventory", InfinityDeathGameTests::g13FullInventoryDrops);
     }
 
     /** Infinity; diamonds in hotbar 0, cobblestone in main slot 20, a shield in the offhand, helmet and boots worn. */
@@ -231,6 +236,53 @@ public final class InfinityDeathGameTests {
         helper.assertValueEqual(itemsNear(player), 0, "no item drops");
         ServerPlayer respawned = respawn(helper, player);
         helper.assertFalse(respawned.getAbilities().flying, "respawn grounded");
+        helper.succeed();
+    }
+
+    /** A stashed player whose only stashed item is 3 diamonds in hotbar 0, plus a fresh target player. */
+    private static ServerPlayer[] stashedAndTarget(GameTestHelper helper) {
+        ServerPlayer original = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        original.setData(
+                InfinityAttachments.STASH,
+                new DeathStash(List.of(new DeathStash.Entry(0, new ItemStack(Items.DIAMOND, 3)))));
+        ServerPlayer target = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        MockPlayers.moveIntoTest(helper, target);
+        return new ServerPlayer[] {original, target};
+    }
+
+    /** Another mod's Clone handler filled the slot first: its item stays and the restored stack goes elsewhere. */
+    static void g12OccupiedSlotKeepsBoth(GameTestHelper helper) {
+        ServerPlayer[] players = stashedAndTarget(helper);
+        Inventory inventory = players[1].getInventory();
+        inventory.setItem(0, new ItemStack(Items.EMERALD, 2));
+        InfinityDeath.restore(players[1], players[0]);
+        helper.assertTrue(inventory.getItem(0).is(Items.EMERALD), "the other mod's item stays put");
+        helper.assertValueEqual(inventory.getItem(0).getCount(), 2, "its count is intact");
+        helper.assertValueEqual(inventory.countItem(Items.DIAMOND), 3, "restored stack moved to a free slot");
+        helper.assertValueEqual(itemsNear(players[1]), 0, "nothing dropped while there was room");
+        helper.succeed();
+    }
+
+    /** No free slot either: the restored stack is dropped at the player instead of being lost. */
+    static void g13FullInventoryDrops(GameTestHelper helper) {
+        ServerPlayer[] players = stashedAndTarget(helper);
+        Inventory inventory = players[1].getInventory();
+        for (int i = 0; i < Inventory.INVENTORY_SIZE; i++) {
+            inventory.setItem(i, new ItemStack(Items.SHIELD)); // unstackable, so nothing has room
+        }
+        InfinityDeath.restore(players[1], players[0]);
+        helper.assertTrue(inventory.getItem(0).is(Items.SHIELD), "the occupant stays put");
+        helper.assertValueEqual(inventory.countItem(Items.DIAMOND), 0, "no room in the inventory");
+        int dropped =
+                players[1]
+                        .level()
+                        .getEntitiesOfClass(
+                                ItemEntity.class, players[1].getBoundingBox().inflate(NEAR))
+                        .stream()
+                        .filter(e -> e.getItem().is(Items.DIAMOND))
+                        .mapToInt(e -> e.getItem().getCount())
+                        .sum();
+        helper.assertValueEqual(dropped, 3, "the restored stack is dropped, not lost");
         helper.succeed();
     }
 }

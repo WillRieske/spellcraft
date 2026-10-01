@@ -7,6 +7,7 @@ import io.github.willrieske.spellcraft.spell.rules.DeathRule;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Prediction;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -70,7 +71,9 @@ public final class InfinityDeath {
 
     /**
      * Puts {@code original}'s death stash back into {@code target}'s inventory, then clears it. Never throws for a
-     * corrupt or out-of-range entry: logs a warning and skips it, so a bad stash can't crash the respawn.
+     * corrupt or out-of-range entry: logs a warning and skips it, so a bad stash can't crash the respawn. If the
+     * entry's slot is already occupied (another mod's Clone handler), the stack goes to the first free space
+     * instead, or is dropped at the player when the inventory is full.
      */
     public static void restore(Player target, Player original) {
         DeathStash stash = original.getData(InfinityAttachments.STASH);
@@ -87,7 +90,13 @@ public final class InfinityDeath {
                         entry.slot());
                 continue;
             }
-            inventory.setItem(entry.slot(), entry.stack().copy());
+            ItemStack stack = entry.stack().copy();
+            if (inventory.getItem(entry.slot()).isEmpty()) {
+                inventory.setItem(entry.slot(), stack);
+            } else if (!inventory.add(stack)) {
+                // Another mod's Clone handler filled the slot first: keep its item, never lose either one.
+                target.drop(stack, false, Prediction.SERVER_ONLY);
+            }
         }
         original.removeData(InfinityAttachments.STASH);
     }
