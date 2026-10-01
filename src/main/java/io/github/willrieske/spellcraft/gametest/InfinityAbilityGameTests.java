@@ -7,10 +7,13 @@ import io.github.willrieske.spellcraft.infinity.InfinityAttachments;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.protocol.game.ServerboundSetCreativeModeSlotPacket;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.entity.player.Abilities;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.storage.TagValueInput;
+import net.minecraft.world.level.storage.TagValueOutput;
 
 /** Ability-sync GameTests for Strength of Infinity. Registered in {@link SpellcraftGameTests}. */
 @SuppressWarnings("deprecation") // Every test asserts on Abilities#mayfly; see InfinityAbilitySync#sync for why.
@@ -28,6 +31,12 @@ public final class InfinityAbilityGameTests {
         SpellcraftGameTests.add(SHARED, "infinity_effect_clear_revokes", InfinityAbilityGameTests::effectClearRevokes);
         SpellcraftGameTests.add(SHARED, "infinity_mode_switch_resumes", InfinityAbilityGameTests::modeSwitchResumes);
         SpellcraftGameTests.add(SHARED, "infinity_leaves_other_flight", InfinityAbilityGameTests::leavesOtherFlight);
+        SpellcraftGameTests.add(
+                SHARED, "infinity_leaves_creative_alone", h -> leavesModeFlagsAlone(h, GameType.CREATIVE));
+        SpellcraftGameTests.add(
+                SHARED, "infinity_leaves_spectator_alone", h -> leavesModeFlagsAlone(h, GameType.SPECTATOR));
+        SpellcraftGameTests.add(
+                SHARED, "infinity_mark_survives_save", InfinityAbilityGameTests::grantedMarkSurvivesSave);
         SpellcraftGameTests.add(
                 SHARED, "infinity_creative_inventory_packet", InfinityAbilityGameTests::creativeInventoryPacket);
     }
@@ -80,6 +89,36 @@ public final class InfinityAbilityGameTests {
         player.getAbilities().mayfly = true; // as another mod would
         InfinityAbilitySync.sync(player);
         helper.assertTrue(player.getAbilities().mayfly, "unmarked flags are never touched");
+        helper.succeed();
+    }
+
+    /** Creative and spectator own their flags: with Infinity active the sync leaves them and sets no mark. */
+    private static void leavesModeFlagsAlone(GameTestHelper helper, GameType mode) {
+        ServerPlayer player = MockPlayers.inLevel(helper, mode);
+        Abilities abilities = player.getAbilities();
+        boolean mayfly = abilities.mayfly;
+        boolean instabuild = abilities.instabuild;
+        boolean invulnerable = abilities.invulnerable;
+        player.addEffect(InfinityGameTests.infinite());
+        InfinityAbilitySync.sync(player);
+        helper.assertFalse(player.getData(InfinityAttachments.GRANTED), "no mark in " + mode);
+        helper.assertValueEqual(abilities.mayfly, mayfly, "mayfly as vanilla");
+        helper.assertValueEqual(abilities.instabuild, instabuild, "instabuild as vanilla");
+        helper.assertValueEqual(abilities.invulnerable, invulnerable, "invulnerable as vanilla");
+        helper.succeed();
+    }
+
+    /** The mark is saved with the player: save a granted player, load it into a fresh one, and it reads granted. */
+    static void grantedMarkSurvivesSave(GameTestHelper helper) {
+        ServerPlayer player = granted(helper, GameType.SURVIVAL);
+        TagValueOutput output = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING, helper.getLevel().registryAccess());
+        player.saveWithoutId(output);
+        ServerPlayer loaded = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        helper.assertFalse(loaded.getData(InfinityAttachments.GRANTED), "precondition: a fresh player is unmarked");
+        loaded.load(TagValueInput.create(
+                ProblemReporter.DISCARDING, helper.getLevel().registryAccess(), output.buildResult()));
+        helper.assertTrue(loaded.getData(InfinityAttachments.GRANTED), "the mark survives a save and load");
         helper.succeed();
     }
 

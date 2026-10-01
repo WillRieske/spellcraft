@@ -4,6 +4,7 @@ import static io.github.willrieske.spellcraft.gametest.GameTestSupport.heldCount
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.hold;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.requireEffect;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.useHeld;
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.useHeldViaServer;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
 import io.github.willrieske.spellcraft.Spellcraft;
@@ -18,6 +19,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.DeathProtection;
@@ -35,6 +37,12 @@ public final class InfinityGameTests {
                 SHARED, "infinity_cast_in_adventure", h -> castIsInfiniteAndConsumes(h, GameType.ADVENTURE));
         SpellcraftGameTests.add(SHARED, "infinity_refused_in_creative", InfinityGameTests::refusedInCreative);
         SpellcraftGameTests.add(SHARED, "infinity_refused_while_active", InfinityGameTests::refusedWhileActive);
+        SpellcraftGameTests.add(
+                SHARED, "infinity_refused_in_creative_while_active", InfinityGameTests::refusedInCreativeWhileActive);
+        SpellcraftGameTests.add(
+                SHARED, "creative_use_via_server_shrinks_once", InfinityGameTests::creativeUseViaServerShrinksOnce);
+        SpellcraftGameTests.add(
+                SHARED, "milk_still_clears_without_infinity", InfinityGameTests::milkStillClearsWithoutInfinity);
         SpellcraftGameTests.add(SHARED, "infinity_milk_does_not_cure", InfinityGameTests::milkDoesNotCure);
         SpellcraftGameTests.add(SHARED, "infinity_totem_does_not_cure", InfinityGameTests::totemDoesNotCure);
         SpellcraftGameTests.add(SHARED, "infinity_effect_clear_removes", InfinityGameTests::effectClearRemoves);
@@ -79,6 +87,38 @@ public final class InfinityGameTests {
         helper.assertValueEqual(useHeld(helper, player), InteractionResult.FAIL, "sneak + use refused");
         helper.assertValueEqual(heldCount(player), 2, "refused scrolls are kept");
         helper.assertTrue(player.hasEffect(ModEffects.INFINITY), "Infinity can't be dispelled in game");
+        helper.succeed();
+    }
+
+    /**
+     * Both refusal reasons at once. The action-bar message goes out through a mock connection that discards packets,
+     * so it is not observable here: this pins FAIL and the kept scroll, and the message is a playtest item.
+     */
+    static void refusedInCreativeWhileActive(GameTestHelper helper) {
+        ServerPlayer player = MockPlayers.inLevel(helper, GameType.CREATIVE);
+        player.addEffect(infinite());
+        hold(player, new ItemStack(ModItems.INFINITY_SCROLL.get(), 2));
+        helper.assertValueEqual(useHeld(helper, player), InteractionResult.FAIL, "refused");
+        helper.assertValueEqual(heldCount(player), 2, "a refused scroll is kept");
+        helper.succeed();
+    }
+
+    /** Through the real server path, a creative player's scroll is still single-use (the stack shrinks by 1). */
+    static void creativeUseViaServerShrinksOnce(GameTestHelper helper) {
+        ServerPlayer player = MockPlayers.inLevel(helper, GameType.CREATIVE);
+        hold(player, new ItemStack(ModItems.UPSIDE_DOWN_SCROLL.get(), 2));
+        helper.assertTrue(useHeldViaServer(player) instanceof InteractionResult.Success, "use succeeded");
+        helper.assertValueEqual(heldCount(player), 1, "shrunk by exactly one");
+        helper.succeed();
+    }
+
+    /** The mixin's unchanged branch: with no Infinity, milk still clears every effect. */
+    static void milkStillClearsWithoutInfinity(GameTestHelper helper) {
+        ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        player.addEffect(new MobEffectInstance(ModEffects.UPSIDE_DOWN, 200));
+        player.addEffect(new MobEffectInstance(MobEffects.SPEED, 200));
+        Items.MILK_BUCKET.finishUsingItem(new ItemStack(Items.MILK_BUCKET), helper.getLevel(), player);
+        helper.assertTrue(player.getActiveEffects().isEmpty(), "milk clears all effects");
         helper.succeed();
     }
 

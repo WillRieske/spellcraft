@@ -38,6 +38,7 @@ public final class ScribingGameTests {
         SpellcraftGameTests.add(SHARED, "scribing_too_few_lapis", ScribingGameTests::tooFewLapis);
         SpellcraftGameTests.add(SHARED, "scribing_too_few_levels", ScribingGameTests::tooFewLevels);
         SpellcraftGameTests.add(SHARED, "scribing_instabuild_is_free", ScribingGameTests::instabuildIsFree);
+        SpellcraftGameTests.add(SHARED, "scribing_instabuild_keeps_lapis", ScribingGameTests::instabuildKeepsLapis);
         SpellcraftGameTests.add(SHARED, "scribing_book_still_enchants", ScribingGameTests::bookStillEnchants);
         SpellcraftGameTests.add(SHARED, "scribing_second_click_nothing", ScribingGameTests::secondClickDoesNothing);
         SpellcraftGameTests.add(SHARED, "scribing_no_enchanter_advancement", ScribingGameTests::noEnchanterAdvancement);
@@ -113,6 +114,17 @@ public final class ScribingGameTests {
         EnchantmentMenu menu = table(helper, player, new ItemStack(Items.PAPER), 0);
         helper.assertTrue(menu.clickMenuButton(player, 2), "vanilla waives the cost for instabuild");
         helper.assertTrue(isScroll(menu.getSlot(0).getItem()), "paper became a scroll");
+        helper.succeed();
+    }
+
+    /** The reason Scribing calls consume (not shrink): an instabuild player keeps their lapis. */
+    static void instabuildKeepsLapis(GameTestHelper helper) {
+        ServerPlayer player = scribe(helper, 0);
+        player.getAbilities().instabuild = true;
+        EnchantmentMenu menu = table(helper, player, new ItemStack(Items.PAPER), 3);
+        helper.assertTrue(menu.clickMenuButton(player, 2), "click accepted");
+        helper.assertTrue(isScroll(menu.getSlot(0).getItem()), "paper became a scroll");
+        helper.assertValueEqual(menu.getSlot(1).getItem().getCount(), 3, "lapis kept");
         helper.succeed();
     }
 

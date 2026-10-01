@@ -24,6 +24,14 @@ public final class GameTestSupport {
         return held.getItem().use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
     }
 
+    /**
+     * Uses the main-hand item through {@code ServerPlayerGameMode#useItem}, the path a real right-click packet takes
+     * (cooldown gate, creative handling and held-stack bookkeeping included), unlike {@link #useHeld}.
+     */
+    public static InteractionResult useHeldViaServer(ServerPlayer player) {
+        return player.gameMode.useItem(player, player.level(), player.getMainHandItem(), InteractionHand.MAIN_HAND);
+    }
+
     public static int heldCount(ServerPlayer player) {
         return player.getMainHandItem().getCount();
     }
