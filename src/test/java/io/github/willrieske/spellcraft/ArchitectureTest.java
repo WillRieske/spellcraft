@@ -43,4 +43,16 @@ class ArchitectureTest {
                 .because("the pure core must be unit-testable without Minecraft or NeoForge")
                 .check(PRODUCTION);
     }
+
+    @Test
+    void spellRulesCoreIsPure() {
+        classes()
+                .that()
+                .resideInAPackage(ROOT + ".spell.rules..")
+                .should()
+                .onlyDependOnClassesThat()
+                .resideInAnyPackage("java..", ROOT + ".spell.rules..")
+                .because("the business rules must be unit-testable without Minecraft or NeoForge")
+                .check(PRODUCTION);
+    }
 }
