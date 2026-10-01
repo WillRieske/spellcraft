@@ -1031,7 +1031,7 @@ git commit -m "feat(scripts): prompt before stopping instances, never stop witho
   - `Invoke-DeployFlow -RepoRoot <string> -Build <scriptblock> -RunGameTests <scriptblock> -LaunchClient <scriptblock>` -> `[int]` exit code (0-4, Global Constraints). `Build` and `RunGameTests` each return only a Gradle exit code; `LaunchClient` returns a `Start-DevClient` result. The delegates are what lets Pester drive the whole flow.
   - `scripts/Deploy-TestEnv.ps1 [-CheckOnly]`: a thin wrapper that supplies the real delegates and exits with the flow's code.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `scripts/tests/DeployTestEnv.Tests.ps1`. Delegates are closed over their results (`GetNewClosure()`) because they run inside the module.
 
@@ -1148,12 +1148,12 @@ Describe 'Invoke-DeployFlow' {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Path scripts/tests -EnableExit"`
 Expected: earlier tests pass; the new ones fail with `The term 'Start-DevClient' is not recognized` (and `Invoke-DeployFlow`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `scripts/DeployTestEnv.psm1`:
 
@@ -1295,12 +1295,12 @@ function Invoke-DeployFlow {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Path scripts/tests -EnableExit"`
 Expected: `Failed: 0`, exit 0. If an `Invoke-DeployFlow` test fails only because a mock body cannot see something, give the mock body literals (it runs in module scope).
 
-- [ ] **Step 5: Write the script**
+- [x] **Step 5: Write the script**
 
 Create `scripts/Deploy-TestEnv.ps1`:
 
@@ -1353,7 +1353,7 @@ $exitCode = Invoke-DeployFlow -RepoRoot $repoRoot `
 exit $exitCode
 ```
 
-- [ ] **Step 6: Verify `-CheckOnly` and the not-a-repo path**
+- [x] **Step 6: Verify `-CheckOnly` and the not-a-repo path**
 
 Make sure no instance is running (Task 1 step 1 snippet), then:
 
@@ -1373,7 +1373,7 @@ rm -rf "$SCR"
 
 Expected: `gradlew.bat not found in ...`, `exit=1`.
 
-- [ ] **Step 7: Run the unit tests and check ASCII**
+- [x] **Step 7: Run the unit tests and check ASCII**
 
 ```bash
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Path scripts/tests -EnableExit"
@@ -1382,12 +1382,14 @@ grep -n '[^ -~[:space:]]' scripts/*.ps1 scripts/*.psm1 scripts/tests/*.ps1 || ec
 
 Expected: `Failed: 0`; `ascii-ok`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add scripts/Deploy-TestEnv.ps1 scripts/DeployTestEnv.psm1 scripts/tests/DeployTestEnv.Tests.ps1
 git commit -m "feat(scripts): add Deploy-TestEnv script with -CheckOnly"
 ```
+
+> **As built (`8ab4345`):** matches plan.
 
 ---
 
