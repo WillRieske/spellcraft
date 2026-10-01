@@ -22,5 +22,12 @@ public final class InfinityAttachments {
                     .serialize(Codec.BOOL.fieldOf("granted"))
                     .build());
 
+    /** The death stash (spec §4). Read from the dead player on clone, so it needs no copy-on-death. */
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<DeathStash>> STASH = ATTACHMENT_TYPES.register(
+            "infinity_death_stash",
+            () -> AttachmentType.builder(() -> DeathStash.EMPTY)
+                    .serialize(DeathStash.CODEC)
+                    .build());
+
     private InfinityAttachments() {}
 }

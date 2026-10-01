@@ -32,6 +32,8 @@ public final class MockPlayers {
         // The channel installs the connection as its handler; packets sent to the mock go nowhere.
         new EmbeddedChannel(connection);
         level.getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
+        // Until the client reports it has loaded, ServerPlayer#isInvulnerableTo is true: damage and kill() do nothing.
+        player.connection.markClientLoaded();
         player.setGameMode(mode);
         return player;
     }

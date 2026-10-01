@@ -42,6 +42,7 @@ public final class SpellcraftGameTests {
         UpsideDownGameTests.registerAll();
         InfinityGameTests.registerAll();
         InfinityAbilityGameTests.registerAll();
+        InfinityDeathGameTests.registerAll();
     }
 
     private SpellcraftGameTests() {}

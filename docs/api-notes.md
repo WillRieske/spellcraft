@@ -195,6 +195,12 @@ Verified 2026-09-29. `build/nf-src` has no `EffectCure`/`EffectCures`/`fillEffec
   (`CommonListenerCookie.createInitial`, `Connection(PacketFlow.SERVERBOUND)`, `EmbeddedChannel`,
   `PlayerList.placeNewPlayer`) without the override, then calls `setGameMode`.
 - `ServerPlayer.teleportTo(ServerLevel, x, y, z, Set<Relative>, yRot, xRot, resetCamera)` (`:1824`).
+- A mock player is invulnerable (damage and `kill()` do nothing) until `connection.markClientLoaded()`:
+  `ServerPlayer.isInvulnerableTo` (`:1375`) is true while `!connection.hasClientLoaded()`. `MockPlayers.inLevel`
+  calls it. After a dimension change also call `player.hasChangedDimension()` (clears `isChangingDimension`,
+  same check) and `markClientLoaded()` again before killing.
+- `PlayerList.respawn(dead, false, RemovalReason.KILLED)` works for mock players and fires `PlayerEvent.Clone`
+  (Infinity death GameTests G2-G6, G10, G11 use it; no fallback needed).
 
 ## 15. Enchanting table (scribing task)
 
