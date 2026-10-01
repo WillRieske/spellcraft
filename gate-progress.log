@@ -12,3 +12,4 @@ e1a4fe4 Task 10: build green, All 8 required GameTests, headless mixin check neg
 review-fix Post-plan review fixes: build green, All 9 required GameTests, cast_refused_on_cooldown bite-proved (3600 vs 40), failOnEmptyShould proved redundant pin
 db85395 task 1: docs-only; build green (baseline 27s), markdownlint+gitlint pass
 d8cc856 task 2: build green, 73 tests, 0 failures
+71a4424 task 3: build green, commit gate passed
