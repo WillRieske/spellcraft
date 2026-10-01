@@ -1545,3 +1545,11 @@ Also report that exit 4 (client launch died within 15 s) is covered by Pester te
 | 2 | `843ea82` | `Get-InstanceKind` collapses doubled backslashes and matches `@<root>\build\moddev\<run>(VmArgs\|ProgramArgs).txt` (anchored on the root), and the fixtures use the doubled-backslash `@` tokens recorded in the spec; reason: Task 1's live-run finding (see Task 1's note). |
 | 4 | `560e6e8` | `Stop-Instance` also has a PID-reuse guard (a process whose start time differs from the instance's by more than 5 s counts as already gone) and treats an `InvalidOperationException` from `CloseMainWindow()` as gone; `Test-CanPrompt` has child-`powershell` tests; reason: task-review findings (PID reuse could stop an unrelated process during a long prompt; safety invariants were unproven by the plan's tests). |
 | 6 | `0625b85` | Step 11 (the interactive N/y prompt checks) is handed to Will rather than proven, and exit 4 is covered by Pester only; reason: the prompt needs a real console and the plan itself assigns it to Will (spec item 6). |
+
+## Resume State
+
+- Last completed task: Task 6: End-to-end verification and docs
+- Commit SHA: af50129
+- Checkboxes: 45/45 ticked
+- Next task: none (plan complete)
+- Known-failing tests / caveats: Plan complete. Open for Will (Task 6 step 11, needs a real console; a stale client is left running): 1) run scripts\Deploy-TestEnv.ps1, answer N: expect exit 3 and the client still open; 2) same, answer y: expect the window to close on its own, then a new client; 3) -CheckOnly: new client up to date. Exit 4 is Pester-covered only. Backstop: scripts/plan_end_gate.py does not exist in this repo, so the full gradlew build and Pester (77 pass) were run instead. Work is on branch worktree-deploy-test-env (not merged); run /review-will, then finish the branch.
