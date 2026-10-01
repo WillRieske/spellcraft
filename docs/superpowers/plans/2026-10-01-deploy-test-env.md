@@ -79,7 +79,7 @@ No code. The design relies on facts that can only be seen on a live run. If step
 
 - Produces: the exact client and GameTest-server command-line shapes (path separator, quoting, `@` argument files), which Task 2 uses verbatim as test fixtures.
 
-- [ ] **Step 0: Commit the pending spec fixes first**
+- [x] **Step 0: Commit the pending spec fixes first**
 
 `git status --short docs/superpowers/specs/2026-10-01-deploy-test-env-design.md`. If it shows a modified file (status `M` in the second column), the spec carries an earlier review rewrite that is not Task 1's. Commit it on its own so step 10's commit holds only the recorded facts:
 
@@ -90,7 +90,7 @@ git commit -m "docs: apply review fixes to the deploy-test-env spec"
 
 If the file is clean, skip this step.
 
-- [ ] **Step 1: Make sure nothing is running and the build is warm**
+- [x] **Step 1: Make sure nothing is running and the build is warm**
 
 PowerShell:
 
@@ -102,7 +102,7 @@ Expected: no output. If a client is running, ask Will to quit it from the game m
 
 Then, in Bash: `./gradlew build --console=plain` with `run_in_background: true` (a cold build takes 5-15 min; see `CLAUDE.md`). Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 2: Record the GameTest server's command line**
+- [x] **Step 2: Record the GameTest server's command line**
 
 In Bash, start `./gradlew runGameTestServer --console=plain` with `run_in_background: true`. Then, in PowerShell:
 
@@ -123,7 +123,7 @@ foreach ($x in $p) {
 
 Expected: one process with `@C:\dev\spellcraft\build\moddev\gameTestServerRunVmArgs.txt` (or similar) in its arguments. If nothing matches within 5 min, print every `java.exe` command line (`Get-CimInstance Win32_Process -Filter "Name='java.exe'" | Select-Object -Expand CommandLine`) and record what the game process actually looks like. Wait for the background GameTest run to finish; expected exit 0.
 
-- [ ] **Step 3: Check the build stamp is not moved by a run**
+- [x] **Step 3: Check the build stamp is not moved by a run**
 
 PowerShell, before and after another `./gradlew runGameTestServer --console=plain`:
 
@@ -133,7 +133,7 @@ Get-ChildItem build\classes\java\main, build\resources\main -Recurse -File | Sor
 
 Expected: the same file and time both times. If the run moves the stamp, stop and report: every instance would always look stale.
 
-- [ ] **Step 4: Record the client's command line**
+- [x] **Step 4: Record the client's command line**
 
 In Bash, start `./gradlew runClient --console=plain` with `run_in_background: true` (a game window opens on Will's screen). Run the step 2 snippet with `gameTestServerRun` replaced by `clientRun`. Expected: `@...\build\moddev\clientRunVmArgs.txt`. Then confirm the client's start time is later than the stamp from step 3:
 
@@ -142,11 +142,11 @@ $c = Get-CimInstance Win32_Process -Filter "Name='java.exe'" | Where-Object { $_
 $c.CreationDate.ToUniversalTime()
 ```
 
-- [ ] **Step 5: GameTests while the client runs**
+- [x] **Step 5: GameTests while the client runs**
 
 With the client from step 4 still running: `./gradlew runGameTestServer --console=plain`. Expected: exit 0, `BUILD SUCCESSFUL`. Both write `run/logs/latest.log`; a log4j rollover warning is acceptable, a failed test or crash is not. If it fails, **stop and report**.
 
-- [ ] **Step 6: Rebuild while the client runs**
+- [x] **Step 6: Rebuild while the client runs**
 
 With the client still running, add a comment line at the top of `src/main/java/io/github/willrieske/spellcraft/gametest/UpsideDownGameTests.java` (after the `package` line: `// deploy-script spike`), then:
 
@@ -163,7 +163,7 @@ git checkout -- src/main/java/io/github/willrieske/spellcraft/gametest/UpsideDow
 
 Re-run the step 3 stamp snippet: it must now be later than the client's start time from step 4 (the client is stale). If the build failed on a locked file, **stop and report**.
 
-- [ ] **Step 7: Find the dedicated server's argument-file names without launching it**
+- [x] **Step 7: Find the dedicated server's argument-file names without launching it**
 
 ```bash
 ./gradlew tasks --all --console=plain | grep -i '^prepare'
@@ -171,7 +171,7 @@ Re-run the step 3 stamp snippet: it must now be later than the client's start ti
 
 Run the task that prepares the `server` run (expected name `prepareServerRun`), then `ls build/moddev`. Expected: `serverRunVmArgs.txt` and `serverRunProgramArgs.txt` next to the client ones. Do not run `runServer` (it needs the EULA accepted).
 
-- [ ] **Step 8: Close the client the way the script will**
+- [x] **Step 8: Close the client the way the script will**
 
 ```powershell
 $c = Get-CimInstance Win32_Process -Filter "Name='java.exe'" | Where-Object { $_.CommandLine -like '*\build\moddev\clientRun*' }
@@ -183,7 +183,7 @@ $sw = [Diagnostics.Stopwatch]::StartNew()
 
 Expected: `True` and `Exited: True` within 20 s. If it does not exit, record that. Do not force it; ask Will to quit from the game menu.
 
-- [ ] **Step 9: Write the facts into the spec**
+- [x] **Step 9: Write the facts into the spec**
 
 Replace the line `Filled in by the plan's Task 1.` under `## Verified launch facts` with a dated list (`Verified 2026-10-..:`), one bullet each:
 
@@ -195,12 +195,14 @@ Replace the line `Filled in by the plan's Task 1.` under `## Verified launch fac
 - Rebuilding while the client runs works and makes it stale (step 6).
 - `CloseMainWindow()` result and seconds to exit (step 8).
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add docs/superpowers/specs/2026-10-01-deploy-test-env-design.md
 git commit -m "docs: record verified dev-run facts in the deploy-script spec"
 ```
+
+> **As built (`0f56792`):** diverged — the `@` argument-file tokens in the real process command lines use DOUBLED backslashes (`@C:\\dev\\...\\build\\moddev\\clientRunVmArgs.txt`), so the plan's `*\build\moddev\clientRun*` match would not match; the java path is the only quoted token; reason: observed on the live run, recorded in the spec's Verified launch facts (matching in Tasks 2-3 must normalize `\\` to `\` or match the doubled form).
 
 ---
 
@@ -1522,3 +1524,11 @@ Report, and do not claim it done: the interactive prompt needs a real console. A
 3. `-CheckOnly`: the new client is `up to date`.
 
 Also report that exit 4 (client launch died within 15 s) is covered by Pester tests (`Start-DevClient -Command 'exit 1'` and the mocked flow), not by a real crashed Minecraft launch.
+
+## Divergence index
+
+<!-- generated by plan_map.py --write-index; do not edit -->
+
+| Task | SHA | Divergence |
+|---|---|---|
+| 1 | `0f56792` | the `@` argument-file tokens in the real process command lines use DOUBLED backslashes (`@C:\\dev\\...\\build\\moddev\\clientRunVmArgs.txt`), so the plan's `*\build\moddev\clientRun*` match would not match; the java path is the only quoted token; reason: observed on the live run, recorded in the spec's Verified launch facts (matching in Tasks 2-3 must normalize `\\` to `\` or match the doubled form). |
