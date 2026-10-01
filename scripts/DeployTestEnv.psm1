@@ -253,7 +253,32 @@ function Stop-Instance {
     )
     $proc = Get-Process -Id $Instance.ProcessId -ErrorAction SilentlyContinue
     if ($null -eq $proc) { return $true }
-    if ($Instance.Kind -eq 'Client' -and $proc.CloseMainWindow()) {
+    # PID reuse guard: the PID may now belong to an unrelated process. Never stop one whose start
+    # time differs from the instance's by more than 5 s.
+    try {
+        $drift = [math]::Abs(($proc.StartTime.ToUniversalTime() - $Instance.StartTimeUtc).TotalSeconds)
+        if ($drift -gt 5) {
+            Write-Host "PID $($Instance.ProcessId) now belongs to a different process (start time differs); treating $($Instance.Kind) as gone."
+            return $true
+        }
+    } catch {
+        # StartTime unreadable (access denied or exited meanwhile): fall through to the normal path.
+        Write-Verbose "Could not read the start time of PID $($Instance.ProcessId): $_"
+    }
+    $closeRequested = $false
+    if ($Instance.Kind -eq 'Client') {
+        try {
+            $closeRequested = $proc.CloseMainWindow()
+        } catch {
+            # PowerShell wraps exceptions from .NET method calls, so look at the inner one too.
+            # InvalidOperationException means the process exited meanwhile: it is gone.
+            for ($ex = $_.Exception; $null -ne $ex; $ex = $ex.InnerException) {
+                if ($ex -is [System.InvalidOperationException]) { return $true }
+            }
+            throw
+        }
+    }
+    if ($closeRequested) {
         Write-Host "Asked client PID $($Instance.ProcessId) to close; waiting up to $GraceSeconds s."
         if ($proc.WaitForExit($GraceSeconds * 1000)) { return $true }
         Write-Host "Client PID $($Instance.ProcessId) did not exit in $GraceSeconds s; forcing it."

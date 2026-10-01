@@ -302,11 +302,26 @@ Describe 'Confirm-StopInstances' {
     }
 }
 
+Describe 'Test-CanPrompt' {
+    # Run in a child powershell so the real host state is exercised without touching this session.
+    $modulePath = (Resolve-Path (Join-Path $PSScriptRoot '..\DeployTestEnv.psm1')).Path
+
+    It 'is false under -NonInteractive' {
+        $out = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Import-Module '$modulePath' -Force; [string](Test-CanPrompt)"
+        ($out | Select-Object -Last 1) | Should Be 'False'
+    }
+    It 'is false when stdin is redirected' {
+        $out = '' | & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Import-Module '$modulePath' -Force; [string](Test-CanPrompt)"
+        ($out | Select-Object -Last 1) | Should Be 'False'
+    }
+}
+
 Describe 'Stop-Instance' {
     Mock -ModuleName DeployTestEnv Write-Host { }
     Mock -ModuleName DeployTestEnv Stop-Process { }
     # Fake processes: Mock bodies run in the module's scope and cannot see this file's variables,
-    # so each Context builds its own with literal return values.
+    # so each Context builds its own with literal values. StartTime matches $Before (11:55 UTC)
+    # unless a test says otherwise; WaitForExit records its millisecond argument in $global:WaitMs.
     $client = New-Instance 'Client' $Before 5
     $server = New-Instance 'Server' $Before 6
 
@@ -319,60 +334,122 @@ Describe 'Stop-Instance' {
         }
     }
 
-    Context 'a client that closes when asked' {
+    Context 'when the PID now belongs to a different process (PID reuse)' {
         Mock -ModuleName DeployTestEnv Get-Process {
             $p = New-Object PSObject
-            $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { $true }
+            $p | Add-Member -MemberType NoteProperty -Name StartTime -Value ([datetime]::SpecifyKind([datetime]'2026-10-01 14:00:00', 'Utc').ToLocalTime())
+            $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { throw 'CloseMainWindow on a reused PID' }
             $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $true }
             $p
         }
 
-        It 'is not force-killed' {
+        It 'treats the instance as gone and touches nothing' {
             Stop-Instance -Instance $client | Should Be $true
             Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+    }
+
+    Context 'when the start time is within the tolerance of the instance start' {
+        Mock -ModuleName DeployTestEnv Get-Process {
+            $p = New-Object PSObject
+            $p | Add-Member -MemberType NoteProperty -Name StartTime -Value ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:03', 'Utc').ToLocalTime())
+            $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { $false }
+            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $true }
+            $p
+        }
+
+        It 'is the same process and gets stopped' {
+            Stop-Instance -Instance $client | Should Be $true
+            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $Id -eq 5 -and $Force }
+        }
+    }
+
+    Context 'a client that closes when asked' {
+        Mock -ModuleName DeployTestEnv Get-Process {
+            $p = New-Object PSObject
+            $p | Add-Member -MemberType NoteProperty -Name StartTime -Value ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc').ToLocalTime())
+            $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { $true }
+            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $global:WaitMs += $ms; $true }
+            $p
+        }
+
+        It 'is not force-killed and waits 20 s by default' {
+            $global:WaitMs = @()
+            Stop-Instance -Instance $client | Should Be $true
+            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+            ($global:WaitMs -join ',') | Should Be '20000'
+        }
+        It 'waits GraceSeconds * 1000 ms for a custom grace' {
+            $global:WaitMs = @()
+            Stop-Instance -Instance $client -GraceSeconds 7 | Should Be $true
+            ($global:WaitMs -join ',') | Should Be '7000'
         }
     }
 
     Context 'a client that is asked to close but does not exit in time' {
         Mock -ModuleName DeployTestEnv Get-Process {
             $p = New-Object PSObject
+            $p | Add-Member -MemberType NoteProperty -Name StartTime -Value ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc').ToLocalTime())
             $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { $true }
-            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $false }
+            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $global:WaitMs += $ms; $false }
             $p
         }
 
         It 'is force-killed once, and reported not gone if it never exits' {
+            $global:WaitMs = @()
             Stop-Instance -Instance $client -GraceSeconds 1 | Should Be $false
-            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It
+            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $Id -eq 5 -and $Force }
+            ($global:WaitMs -join ',') | Should Be '1000,10000'
         }
     }
 
     Context 'a client with no main window to close' {
         Mock -ModuleName DeployTestEnv Get-Process {
             $p = New-Object PSObject
+            $p | Add-Member -MemberType NoteProperty -Name StartTime -Value ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc').ToLocalTime())
             $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { $false }
+            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $global:WaitMs += $ms; $true }
+            $p
+        }
+
+        It 'is force-killed straight away and waits 10 s for it to go' {
+            $global:WaitMs = @()
+            Stop-Instance -Instance $client | Should Be $true
+            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $Id -eq 5 -and $Force }
+            ($global:WaitMs -join ',') | Should Be '10000'
+        }
+    }
+
+    Context 'a client that exits between Get-Process and CloseMainWindow' {
+        Mock -ModuleName DeployTestEnv Get-Process {
+            $p = New-Object PSObject
+            $p | Add-Member -MemberType NoteProperty -Name StartTime -Value ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc').ToLocalTime())
+            $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { throw (New-Object System.InvalidOperationException 'exited') }
             $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $true }
             $p
         }
 
-        It 'is force-killed straight away' {
+        It 'counts as gone' {
             Stop-Instance -Instance $client | Should Be $true
-            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It
+            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
         }
     }
 
     Context 'a server' {
         Mock -ModuleName DeployTestEnv Get-Process {
             $p = New-Object PSObject
+            $p | Add-Member -MemberType NoteProperty -Name StartTime -Value ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc').ToLocalTime())
             # A server must never be sent CloseMainWindow: it throws if called.
             $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { throw 'CloseMainWindow on a server' }
-            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $true }
+            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $global:WaitMs += $ms; $true }
             $p
         }
 
         It 'is force-killed without CloseMainWindow' {
+            $global:WaitMs = @()
             Stop-Instance -Instance $server | Should Be $true
-            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It
+            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $Id -eq 6 -and $Force }
+            ($global:WaitMs -join ',') | Should Be '10000'
         }
     }
 }
