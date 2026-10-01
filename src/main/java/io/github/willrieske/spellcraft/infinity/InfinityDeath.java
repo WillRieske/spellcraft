@@ -81,6 +81,9 @@ public final class InfinityDeath {
             return;
         }
         Inventory inventory = target.getInventory();
+        // Pass 1 fills every free target slot; pass 2 relocates the leftovers. Relocating inside pass 1 could take a
+        // free slot that a later entry owns and push that entry out of place too.
+        List<ItemStack> leftovers = new ArrayList<>();
         for (DeathStash.Entry entry : stash.entries()) {
             if (entry.slot() < 0 || entry.slot() >= inventory.getContainerSize()) {
                 LOGGER.warn(
@@ -93,8 +96,14 @@ public final class InfinityDeath {
             ItemStack stack = entry.stack().copy();
             if (inventory.getItem(entry.slot()).isEmpty()) {
                 inventory.setItem(entry.slot(), stack);
-            } else if (!inventory.add(stack)) {
-                // Another mod's Clone handler filled the slot first: keep its item, never lose either one.
+            } else {
+                leftovers.add(stack); // another mod's Clone handler filled the slot first
+            }
+        }
+        for (ItemStack stack : leftovers) {
+            // Inventory#add deletes what doesn't fit when the player has infinite materials (creative), so those
+            // players get the drop directly: never lose either item.
+            if (target.hasInfiniteMaterials() || !inventory.add(stack)) {
                 target.drop(stack, false, Prediction.SERVER_ONLY);
             }
         }

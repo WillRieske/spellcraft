@@ -53,6 +53,12 @@ public final class InfinityDeathGameTests {
                 SHARED, "infinity_death_g12_occupied_slot", InfinityDeathGameTests::g12OccupiedSlotKeepsBoth);
         SpellcraftGameTests.add(
                 SHARED, "infinity_death_g13_full_inventory", InfinityDeathGameTests::g13FullInventoryDrops);
+        SpellcraftGameTests.add(
+                SHARED,
+                "infinity_death_g14_collision_in_place",
+                InfinityDeathGameTests::g14CollisionKeepsOtherEntriesInPlace);
+        SpellcraftGameTests.add(
+                SHARED, "infinity_death_g15_creative_full", InfinityDeathGameTests::g15CreativeFullInventoryDrops);
     }
 
     /** Infinity; diamonds in hotbar 0, cobblestone in main slot 20, a shield in the offhand, helmet and boots worn. */
@@ -260,6 +266,52 @@ public final class InfinityDeathGameTests {
         helper.assertValueEqual(inventory.getItem(0).getCount(), 2, "its count is intact");
         helper.assertValueEqual(inventory.countItem(Items.DIAMOND), 3, "restored stack moved to a free slot");
         helper.assertValueEqual(itemsNear(players[1]), 0, "nothing dropped while there was room");
+        helper.succeed();
+    }
+
+    /** A collision on entry 0 must not push entry 1 out of its own slot (relocated stacks wait for pass 2). */
+    static void g14CollisionKeepsOtherEntriesInPlace(GameTestHelper helper) {
+        ServerPlayer original = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        original.setData(
+                InfinityAttachments.STASH,
+                new DeathStash(List.of(
+                        new DeathStash.Entry(0, new ItemStack(Items.DIAMOND, 3)),
+                        new DeathStash.Entry(1, new ItemStack(Items.GOLD_INGOT, 5)))));
+        ServerPlayer target = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        MockPlayers.moveIntoTest(helper, target);
+        Inventory inventory = target.getInventory();
+        inventory.setItem(0, new ItemStack(Items.EMERALD, 2));
+        InfinityDeath.restore(target, original);
+        helper.assertTrue(inventory.getItem(0).is(Items.EMERALD), "the occupant is untouched");
+        helper.assertTrue(inventory.getItem(1).is(Items.GOLD_INGOT), "entry 1 is still in its own slot");
+        helper.assertValueEqual(inventory.getItem(1).getCount(), 5, "entry 1 count");
+        helper.assertValueEqual(inventory.countItem(Items.DIAMOND), 3, "the displaced stack is not lost");
+        helper.succeed();
+    }
+
+    /** A creative target's {@code Inventory#add} would delete what doesn't fit; it must be dropped instead. */
+    static void g15CreativeFullInventoryDrops(GameTestHelper helper) {
+        ServerPlayer original = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        original.setData(
+                InfinityAttachments.STASH,
+                new DeathStash(List.of(new DeathStash.Entry(0, new ItemStack(Items.DIAMOND, 3)))));
+        ServerPlayer target = MockPlayers.inLevel(helper, GameType.CREATIVE);
+        MockPlayers.moveIntoTest(helper, target);
+        Inventory inventory = target.getInventory();
+        for (int i = 0; i < Inventory.INVENTORY_SIZE; i++) {
+            inventory.setItem(i, new ItemStack(Items.SHIELD));
+        }
+        InfinityDeath.restore(target, original);
+        int dropped =
+                target
+                        .level()
+                        .getEntitiesOfClass(
+                                ItemEntity.class, target.getBoundingBox().inflate(NEAR))
+                        .stream()
+                        .filter(e -> e.getItem().is(Items.DIAMOND))
+                        .mapToInt(e -> e.getItem().getCount())
+                        .sum();
+        helper.assertValueEqual(dropped, 3, "dropped, not deleted");
         helper.succeed();
     }
 
