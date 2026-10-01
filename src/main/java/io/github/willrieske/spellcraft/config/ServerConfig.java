@@ -9,7 +9,6 @@ public final class ServerConfig {
     private static final int MAX_SECONDS = 1_000_000;
 
     public static final ModConfigSpec.IntValue UPSIDE_DOWN_DURATION_SECONDS;
-    public static final ModConfigSpec.IntValue UPSIDE_DOWN_COOLDOWN_SECONDS;
     public static final ModConfigSpec SPEC;
 
     static {
@@ -17,8 +16,6 @@ public final class ServerConfig {
         builder.push("upsideDown");
         UPSIDE_DOWN_DURATION_SECONDS = builder.comment("How long Strength of Upside-Down lasts, in seconds.")
                 .defineInRange("durationSeconds", 180, 1, MAX_SECONDS);
-        UPSIDE_DOWN_COOLDOWN_SECONDS = builder.comment("Scroll cooldown after casting, in seconds. 0 = none.")
-                .defineInRange("cooldownSeconds", 0, 0, MAX_SECONDS);
         builder.pop();
         SPEC = builder.build();
     }
@@ -27,9 +24,5 @@ public final class ServerConfig {
 
     public static int upsideDownDurationTicks() {
         return UPSIDE_DOWN_DURATION_SECONDS.getAsInt() * TICKS_PER_SECOND;
-    }
-
-    public static int upsideDownCooldownTicks() {
-        return UPSIDE_DOWN_COOLDOWN_SECONDS.getAsInt() * TICKS_PER_SECOND;
     }
 }

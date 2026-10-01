@@ -1,6 +1,7 @@
 {
   "item.spellcraft.upside_down_scroll": "Scroll of Upside-Down",
   "effect.spellcraft.upside_down": "Strength of Upside-Down",
+  "message.spellcraft.scroll_not_needed": "Scroll not needed; already have effect!",
 
   "spellcraft.configuration.title": "Spellcraft Configs",
   "spellcraft.configuration.section.spellcraft.server.toml": "Spellcraft Server Configs",
@@ -9,6 +10,5 @@
   "spellcraft.configuration.section.spellcraft.client.toml.title": "Spellcraft Client Configs",
   "spellcraft.configuration.upsideDown": "Strength of Upside-Down",
   "spellcraft.configuration.durationSeconds": "Duration (seconds)",
-  "spellcraft.configuration.cooldownSeconds": "Cooldown (seconds)",
   "spellcraft.configuration.transitionSeconds": "Roll transition (seconds)"
 }

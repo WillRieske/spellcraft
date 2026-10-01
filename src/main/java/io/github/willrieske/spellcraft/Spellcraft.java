@@ -4,6 +4,7 @@ import io.github.willrieske.spellcraft.config.ServerConfig;
 import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.gametest.SpellcraftGameTests;
 import io.github.willrieske.spellcraft.spell.ModItems;
+import io.github.willrieske.spellcraft.spell.SpellScrollItem;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.neoforged.bus.api.IEventBus;
@@ -11,6 +12,7 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+import net.neoforged.neoforge.registries.DeferredItem;
 
 /** Common (both-sides) entry point. Registers everything the server needs. */
 @Mod(Spellcraft.MODID)
@@ -31,7 +33,9 @@ public final class Spellcraft {
 
     private static void addToCreativeTabs(BuildCreativeModeTabContentsEvent event) {
         if (CreativeModeTabs.TOOLS_AND_UTILITIES.equals(event.getTabKey())) {
-            event.accept(ModItems.UPSIDE_DOWN_SCROLL);
+            for (DeferredItem<SpellScrollItem> scroll : ModItems.scrolls()) {
+                event.accept(scroll);
+            }
         }
     }
 }
