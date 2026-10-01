@@ -1,6 +1,8 @@
 {
   "item.spellcraft.upside_down_scroll": "Scroll of Upside-Down",
+  "item.spellcraft.infinity_scroll": "Scroll of Infinity",
   "effect.spellcraft.upside_down": "Strength of Upside-Down",
+  "effect.spellcraft.infinity": "Strength of Infinity",
   "message.spellcraft.scroll_not_needed": "Scroll not needed; already have effect!",
 
   "spellcraft.configuration.title": "Spellcraft Configs",

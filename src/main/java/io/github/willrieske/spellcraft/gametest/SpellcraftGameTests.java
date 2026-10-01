@@ -40,6 +40,7 @@ public final class SpellcraftGameTests {
 
     static {
         UpsideDownGameTests.registerAll();
+        InfinityGameTests.registerAll();
     }
 
     private SpellcraftGameTests() {}

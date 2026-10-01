@@ -14,8 +14,14 @@ public final class Spells {
             SpellDeclarations.UPSIDE_DOWN,
             ServerConfig::upsideDownDurationTicks);
 
+    public static final Spell INFINITY = new Spell(
+            Spellcraft.id(SpellDeclarations.INFINITY.name()),
+            ModEffects.INFINITY,
+            SpellDeclarations.INFINITY,
+            Spell.INFINITE);
+
     /** Every spell, in declaration order (creative tab, scribing). */
-    public static final List<Spell> ALL = List.of(UPSIDE_DOWN);
+    public static final List<Spell> ALL = List.of(UPSIDE_DOWN, INFINITY);
 
     private Spells() {}
 }

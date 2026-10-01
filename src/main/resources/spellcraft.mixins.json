@@ -1,8 +1,7 @@
 {
   "required": true,
-  "package": "io.github.willrieske.spellcraft.client.mixin",
-  "mixins": [],
-  "client": ["MouseHandlerMixin"],
+  "package": "io.github.willrieske.spellcraft.mixin",
+  "mixins": ["ClearAllStatusEffectsConsumeEffectMixin"],
   "compatibilityLevel": "JAVA_25",
   "minVersion": "0.8"
 }
