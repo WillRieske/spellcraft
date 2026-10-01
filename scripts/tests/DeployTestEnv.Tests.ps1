@@ -548,15 +548,19 @@ Describe 'Invoke-DeployFlow' {
 
         It 'exits 3 before the GameTests when the user declines' {
             Mock -ModuleName DeployTestEnv Confirm-StopInstances { $false }
+            Mock -ModuleName DeployTestEnv Stop-Instance { $true }
             $f = New-Flow
             Invoke-Flow $f | Should Be 3
             ($f.Calls -join ',') | Should Be 'build'
+            Assert-MockCalled Stop-Instance -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
         }
         It 'exits 3 before the GameTests when it will not exit' {
+            Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }
             Mock -ModuleName DeployTestEnv Stop-Instance { $false }
             $f = New-Flow
             Invoke-Flow $f | Should Be 3
             ($f.Calls -join ',') | Should Be 'build'
+            Assert-MockCalled Stop-Instance -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It
         }
         It 'stops it and goes on after y' {
             Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }
@@ -564,6 +568,31 @@ Describe 'Invoke-DeployFlow' {
             $f = New-Flow
             Invoke-Flow $f | Should Be 0
             ($f.Calls -join ',') | Should Be 'build,tests,launch'
+            Assert-MockCalled Stop-Instance -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It
+        }
+    }
+
+    Context 'a stale dedicated server is running' {
+        Mock -ModuleName DeployTestEnv Get-Instances {
+            [pscustomobject]@{ Kind = 'Server'; ProcessId = 7; StartTimeUtc = [datetime]::SpecifyKind([datetime]'2026-10-01 11:00:00', 'Utc') }
+        }
+
+        It 'exits 3 before the GameTests when the user declines' {
+            Mock -ModuleName DeployTestEnv Confirm-StopInstances { $false }
+            Mock -ModuleName DeployTestEnv Stop-Instance { $true }
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 3
+            ($f.Calls -join ',') | Should Be 'build'
+            Assert-MockCalled Stop-Instance -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+        It 'stops it before the GameTests after y' {
+            Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }
+            Mock -ModuleName DeployTestEnv Stop-Instance { [void]$global:DeployTestCalls.Add('stop'); $true }
+            $f = New-Flow
+            $global:DeployTestCalls = $f.Calls
+            Invoke-Flow $f | Should Be 0
+            ($f.Calls -join ',') | Should Be 'build,stop,tests,launch'
+            Assert-MockCalled Stop-Instance -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $Instance.ProcessId -eq 7 }
         }
     }
 
@@ -574,9 +603,27 @@ Describe 'Invoke-DeployFlow' {
 
         It 'runs the GameTests beside it, then exits 3 when the user declines' {
             Mock -ModuleName DeployTestEnv Confirm-StopInstances { $false }
+            Mock -ModuleName DeployTestEnv Stop-Instance { $true }
             $f = New-Flow
             Invoke-Flow $f | Should Be 3
             ($f.Calls -join ',') | Should Be 'build,tests'
+            Assert-MockCalled Stop-Instance -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+        It 'exits 3 when the client will not exit, without launching' {
+            Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }
+            Mock -ModuleName DeployTestEnv Stop-Instance { $false }
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 3
+            ($f.Calls -join ',') | Should Be 'build,tests'
+            Assert-MockCalled Stop-Instance -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It
+        }
+        It 'stops it after y, then launches a fresh client' {
+            Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }
+            Mock -ModuleName DeployTestEnv Stop-Instance { $true }
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 0
+            ($f.Calls -join ',') | Should Be 'build,tests,launch'
+            Assert-MockCalled Stop-Instance -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $Instance.ProcessId -eq 9 }
         }
     }
 
