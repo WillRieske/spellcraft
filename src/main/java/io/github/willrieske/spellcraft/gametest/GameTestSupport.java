@@ -1,7 +1,12 @@
 package io.github.willrieske.spellcraft.gametest;
 
+import io.netty.channel.embedded.EmbeddedChannel;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.core.Holder;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -30,6 +35,23 @@ public final class GameTestSupport {
      */
     public static InteractionResult useHeldViaServer(ServerPlayer player) {
         return player.gameMode.useItem(player, player.level(), player.getMainHandItem(), InteractionHand.MAIN_HAND);
+    }
+
+    /**
+     * Empties the mock player's outbound packet buffer (its connection is an {@code EmbeddedChannel}, see
+     * {@link MockPlayers}) and returns the action-bar messages it held.
+     */
+    public static List<Component> drainActionBar(ServerPlayer player) {
+        List<Component> messages = new ArrayList<>();
+        EmbeddedChannel channel =
+                (EmbeddedChannel) player.connection.getConnection().channel();
+        Object packet;
+        while ((packet = channel.readOutbound()) != null) {
+            if (packet instanceof ClientboundSystemChatPacket chat && chat.overlay()) {
+                messages.add(chat.content());
+            }
+        }
+        return messages;
     }
 
     public static int heldCount(ServerPlayer player) {

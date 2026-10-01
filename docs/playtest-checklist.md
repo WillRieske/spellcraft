@@ -87,6 +87,7 @@ Use a **Survival** world. Take the Scroll of Infinity from Tools & Utilities in 
 - [ ] Put paper and lapis in an enchanting table: three options show as usable, with 1/2/3 costs and the usual enchanting-script text.
 - [ ] Hover each: the tooltip says "Scribe a random scroll", "25% / 50% / 75% chance of an extreme-tier spell", then the lapis and level cost (red when you're short). If the tooltip is vanilla's plain text instead, the client Mixin did not apply.
 - [ ] Click one: the paper turns into a scroll, the lapis and levels are taken, the enchanting sound plays.
+- [ ] Hover each option row at its very top and bottom edge: the tooltip appears for the row you are on and not the neighbouring one.
 - [ ] A book still enchants normally.
 - [ ] With Infinity on (creative inventory), scribing costs nothing.
 

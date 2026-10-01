@@ -1,5 +1,6 @@
 package io.github.willrieske.spellcraft.gametest;
 
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.drainActionBar;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.heldCount;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.hold;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.requireEffect;
@@ -10,11 +11,15 @@ import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARE
 import io.github.willrieske.spellcraft.Spellcraft;
 import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.spell.ModItems;
+import io.github.willrieske.spellcraft.spell.SpellScrollItem;
 import io.github.willrieske.spellcraft.spell.Spells;
 import io.github.willrieske.spellcraft.spell.rules.SpellDeclarations;
 import io.github.willrieske.spellcraft.spell.rules.SpellRules;
+import java.util.List;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.effect.MobEffectCategory;
@@ -90,16 +95,20 @@ public final class InfinityGameTests {
         helper.succeed();
     }
 
-    /**
-     * Both refusal reasons at once. The action-bar message goes out through a mock connection that discards packets,
-     * so it is not observable here: this pins FAIL and the kept scroll, and the message is a playtest item.
-     */
+    /** Both refusal reasons at once: FAIL, the scroll kept, and the action-bar message sent. */
     static void refusedInCreativeWhileActive(GameTestHelper helper) {
         ServerPlayer player = MockPlayers.inLevel(helper, GameType.CREATIVE);
         player.addEffect(infinite());
         hold(player, new ItemStack(ModItems.INFINITY_SCROLL.get(), 2));
+        drainActionBar(player); // discard what joining the level sent
         helper.assertValueEqual(useHeld(helper, player), InteractionResult.FAIL, "refused");
         helper.assertValueEqual(heldCount(player), 2, "a refused scroll is kept");
+        List<Component> messages = drainActionBar(player);
+        helper.assertValueEqual(messages.size(), 1, "one action-bar message");
+        helper.assertTrue(
+                messages.get(0).getContents() instanceof TranslatableContents contents
+                        && contents.getKey().equals(SpellScrollItem.REFUSED_KEY),
+                "the 'scroll not needed' message");
         helper.succeed();
     }
 
