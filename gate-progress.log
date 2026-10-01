@@ -15,3 +15,4 @@ task2 843ea82 Pester 22/22 pass; gate build green
 task3 577e300 Pester 40/40 pass; gate build green
 task4 560e6e8 Pester 62/62 pass; gate build green
 task5 8ab4345 Pester 77/77 pass; gate build green
+task6 0625b85 live E2E steps 1-7,10 ok; Pester 77/77; docs gate green

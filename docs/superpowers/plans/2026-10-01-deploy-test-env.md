@@ -1406,7 +1406,7 @@ Runs the spec's verification plan on the real machine, then documents the comman
 
 - Consumes: `scripts/Deploy-TestEnv.ps1` (Task 5) and, directly in step 7, `Get-Instances` (Task 3) and `Stop-Instance` (Task 4).
 
-- [ ] **Step 1: Nothing running (spec item 1)**
+- [x] **Step 1: Nothing running (spec item 1)**
 
 ```bash
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Deploy-TestEnv.ps1 -CheckOnly < /dev/null; echo "exit=$?"
@@ -1414,7 +1414,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Deploy-TestEnv.ps1 -
 
 Expected: `No running instances.`, `exit=0`.
 
-- [ ] **Step 2: Step 1 failure exits 1 (spec item 2)**
+- [x] **Step 2: Step 1 failure exits 1 (spec item 2)**
 
 Break formatting without committing: in `src/main/java/io/github/willrieske/spellcraft/gametest/UpsideDownGameTests.java`, method `effectIsANeutralMarker`, indent `helper.succeed();` by 12 spaces instead of 8. Then:
 
@@ -1425,7 +1425,7 @@ git checkout -- src/main/java/io/github/willrieske/spellcraft/gametest/UpsideDow
 
 Expected: `spotlessCheck` fails, `Build failed`, `exit=1`; no step 2 header printed.
 
-- [ ] **Step 3: GameTest failure exits 2 and no client launches (spec item 2)**
+- [x] **Step 3: GameTest failure exits 2 and no client launches (spec item 2)**
 
 In `effectIsANeutralMarker`, replace `helper.succeed();` with `helper.fail("deliberate deploy-script check");` (correct indentation, so spotless passes). Then:
 
@@ -1437,7 +1437,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Deploy-TestEnv.ps1 -
 
 Expected: build passes, `runGameTestServer` reports the failing test, `GameTests failed ... Not launching the client.`, `exit=2`. The `-CheckOnly` afterwards shows `No running instances.`
 
-- [ ] **Step 4: Full run launches the client (spec item 3)**
+- [x] **Step 4: Full run launches the client (spec item 3)**
 
 ```bash
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Deploy-TestEnv.ps1 < /dev/null; echo "exit=$?"
@@ -1457,7 +1457,7 @@ $out
 
 Expected: a `Client ... up to date` line. Also confirm the log has Gradle output: `Get-Content build\deploy\runClient.log -Tail 5`.
 
-- [ ] **Step 5: Touching a class makes the client stale (spec item 4)**
+- [x] **Step 5: Touching a class makes the client stale (spec item 4)**
 
 ```powershell
 $f = Get-ChildItem build\classes\java\main -Recurse -File | Select-Object -First 1
@@ -1467,7 +1467,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Deploy-TestEnv.ps1 -
 
 Expected: the same client PID, now `stale`.
 
-- [ ] **Step 6: Re-run non-interactively: GameTests run beside the client, then exit 3 (spec item 5)**
+- [x] **Step 6: Re-run non-interactively: GameTests run beside the client, then exit 3 (spec item 5)**
 
 ```bash
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Deploy-TestEnv.ps1 < /dev/null; echo "exit=$?"
@@ -1476,7 +1476,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Deploy-TestEnv.ps1 -
 
 Expected: the build passes. Whether or not Gradle rewrites the touched class, its time stays later than the client's start, so the client stays stale; GameTests pass with the client running; step 3 lists the client as stale, prints `Cannot prompt (non-interactive run); treating the answer as N.`, `exit=3`. The `-CheckOnly` afterwards still lists the client (same PID), proving the decline stopped nothing.
 
-- [ ] **Step 7: Stop the client with `Stop-Instance`**
+- [x] **Step 7: Stop the client with `Stop-Instance`**
 
 This is the code the `y` answer runs:
 
@@ -1491,7 +1491,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Deploy-TestEnv.ps1 -
 
 Expected: `Asked client PID N to close`, no "forcing it" line, then `No running instances.`
 
-- [ ] **Step 8: Document the command**
+- [x] **Step 8: Document the command**
 
 In `CLAUDE.md`, replace the `runGameTestServer` row (its "until Task 7" note is stale: GameTests are registered) and add two rows after the `runClient` row:
 
@@ -1512,18 +1512,18 @@ Run `powershell -ExecutionPolicy Bypass -File scripts\Deploy-TestEnv.ps1` (check
 
 Keep the rest of that paragraph's line wrapping as it is.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add CLAUDE.md docs/playtest-checklist.md
 git commit -m "docs: document the Deploy-TestEnv script"
 ```
 
-- [ ] **Step 10: Leave Will a running, stale client**
+- [x] **Step 10: Leave Will a running, stale client**
 
 Step 7 closed the client, so rebuild the state the handover needs. Run the full script as in step 4 (`< /dev/null`; expect `exit=0`) and poll for the client as in step 4. Then touch a class as in step 5 and confirm with `-CheckOnly` that the client is `stale`. Leave it running.
 
-- [ ] **Step 11: Hand over to Will (spec item 6)**
+- [x] **Step 11: Hand over to Will (spec item 6)**
 
 Report, and do not claim it done: the interactive prompt needs a real console. Ask Will to run, in a PowerShell window (the client from step 10 is open and stale):
 
@@ -1532,6 +1532,8 @@ Report, and do not claim it done: the interactive prompt needs a real console. A
 3. `-CheckOnly`: the new client is `up to date`.
 
 Also report that exit 4 (client launch died within 15 s) is covered by Pester tests (`Start-DevClient -Command 'exit 1'` and the mocked flow), not by a real crashed Minecraft launch.
+
+> **As built (`0625b85`):** diverged — Step 11 (the interactive N/y prompt checks) is handed to Will rather than proven, and exit 4 is covered by Pester only; reason: the prompt needs a real console and the plan itself assigns it to Will (spec item 6).
 
 ## Divergence index
 
@@ -1542,3 +1544,4 @@ Also report that exit 4 (client launch died within 15 s) is covered by Pester te
 | 1 | `0f56792` | the `@` argument-file tokens in the real process command lines use DOUBLED backslashes (`@C:\\dev\\...\\build\\moddev\\clientRunVmArgs.txt`), so the plan's `*\build\moddev\clientRun*` match would not match; the java path is the only quoted token; reason: observed on the live run, recorded in the spec's Verified launch facts (matching in Tasks 2-3 must normalize `\\` to `\` or match the doubled form). |
 | 2 | `843ea82` | `Get-InstanceKind` collapses doubled backslashes and matches `@<root>\build\moddev\<run>(VmArgs\|ProgramArgs).txt` (anchored on the root), and the fixtures use the doubled-backslash `@` tokens recorded in the spec; reason: Task 1's live-run finding (see Task 1's note). |
 | 4 | `560e6e8` | `Stop-Instance` also has a PID-reuse guard (a process whose start time differs from the instance's by more than 5 s counts as already gone) and treats an `InvalidOperationException` from `CloseMainWindow()` as gone; `Test-CanPrompt` has child-`powershell` tests; reason: task-review findings (PID reuse could stop an unrelated process during a long prompt; safety invariants were unproven by the plan's tests). |
+| 6 | `0625b85` | Step 11 (the interactive N/y prompt checks) is handed to Will rather than proven, and exit 4 is covered by Pester only; reason: the prompt needs a real console and the plan itself assigns it to Will (spec item 6). |
