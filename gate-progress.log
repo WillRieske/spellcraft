@@ -13,3 +13,4 @@ review-fix Post-plan review fixes: build green, All 9 required GameTests, cast_r
 db85395 task 1: docs-only; build green (baseline 27s), markdownlint+gitlint pass
 d8cc856 task 2: build green, 73 tests, 0 failures
 71a4424 task 3: build green, commit gate passed
+abd37e2 task 4: build green, commit gate passed
