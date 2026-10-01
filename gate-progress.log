@@ -11,3 +11,4 @@ e1a4fe4 Task 10: build green, All 8 required GameTests, headless mixin check neg
 70eff44 Plan close-out: minors T5/T8 applied, build green (32 tests); Task 11 review clean (checklist verbatim vs plan; gates per implementer report c0cbc6b)
 review-fix Post-plan review fixes: build green, All 9 required GameTests, cast_refused_on_cooldown bite-proved (3600 vs 40), failOnEmptyShould proved redundant pin
 task1 0f56792 docs-only (spec facts); gradlew build green at baseline 8a3aab5; Pester n/a
+task2 843ea82 Pester 22/22 pass; gate build green

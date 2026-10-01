@@ -221,7 +221,7 @@ git commit -m "docs: record verified dev-run facts in the deploy-script spec"
   - `Get-BuildStamp -RepoRoot <string>` -> `[datetime]` (UTC) or `$null`.
   - `Get-Verdict -StartTimeUtc <datetime> -BuildStampUtc <datetime|null>` -> `'UpToDate'` or `'Stale'`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `scripts/tests/DeployTestEnv.Tests.ps1`. The fixture lines below assume the shape `java.exe @<root>\build\moddev\<run>RunVmArgs.txt net.neoforged.devlaunch.Main @<root>\build\moddev\<run>RunProgramArgs.txt`. **Before writing them, compare with the spec's "Verified launch facts" and copy the real shape** (quoting, separators, extra tokens), keeping `$Root` substituted in.
 
@@ -341,12 +341,12 @@ Describe 'Get-Verdict' {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Path scripts/tests -EnableExit"`
 Expected: FAIL. `Import-Module` reports the module was not loaded, and the tests fail with `The term 'Get-InstanceKind' is not recognized`.
 
-- [ ] **Step 3: Write the module**
+- [x] **Step 3: Write the module**
 
 Create `scripts/DeployTestEnv.psm1`:
 
@@ -435,12 +435,12 @@ function Get-Verdict {
 
 If Task 1 recorded `/` or doubled `\\` separators in the command line, normalise first in `Get-InstanceKind`: add `$CommandLine = $CommandLine -replace '/', '\' -replace '\\\\', '\'` after the null check (and the same for `$RepoRoot`), and add a test with the recorded form.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Path scripts/tests -EnableExit"`
 Expected: `Tests Passed: 18, Failed: 0`, exit 0.
 
-- [ ] **Step 5: Check ASCII and commit**
+- [x] **Step 5: Check ASCII and commit**
 
 ```bash
 grep -n '[^ -~[:space:]]' scripts/DeployTestEnv.psm1 scripts/tests/DeployTestEnv.Tests.ps1 || echo ascii-ok
@@ -449,6 +449,8 @@ git commit -m "feat(scripts): classify dev-run instances and compute the build s
 ```
 
 Expected: `ascii-ok`, then the commit gate passes.
+
+> **As built (`843ea82`):** diverged — `Get-InstanceKind` collapses doubled backslashes and matches `@<root>\build\moddev\<run>(VmArgs|ProgramArgs).txt` (anchored on the root), and the fixtures use the doubled-backslash `@` tokens recorded in the spec; reason: Task 1's live-run finding (see Task 1's note).
 
 ---
 
@@ -1532,3 +1534,4 @@ Also report that exit 4 (client launch died within 15 s) is covered by Pester te
 | Task | SHA | Divergence |
 |---|---|---|
 | 1 | `0f56792` | the `@` argument-file tokens in the real process command lines use DOUBLED backslashes (`@C:\\dev\\...\\build\\moddev\\clientRunVmArgs.txt`), so the plan's `*\build\moddev\clientRun*` match would not match; the java path is the only quoted token; reason: observed on the live run, recorded in the spec's Verified launch facts (matching in Tasks 2-3 must normalize `\\` to `\` or match the doubled form). |
+| 2 | `843ea82` | `Get-InstanceKind` collapses doubled backslashes and matches `@<root>\build\moddev\<run>(VmArgs\|ProgramArgs).txt` (anchored on the root), and the fixtures use the doubled-backslash `@` tokens recorded in the spec; reason: Task 1's live-run finding (see Task 1's note). |
