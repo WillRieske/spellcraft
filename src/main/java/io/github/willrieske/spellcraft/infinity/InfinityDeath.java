@@ -71,9 +71,11 @@ public final class InfinityDeath {
 
     /**
      * Puts {@code original}'s death stash back into {@code target}'s inventory, then clears it. Never throws for a
-     * corrupt or out-of-range entry: logs a warning and skips it, so a bad stash can't crash the respawn. If the
-     * entry's slot is already occupied (another mod's Clone handler), the stack goes to the first free space
-     * instead, or is dropped at the player when the inventory is full.
+     * corrupt or out-of-range entry: logs a warning and discards it, so a bad stash can't crash the respawn. Works in
+     * two passes: first every entry whose slot is free goes back in place; then each entry whose slot another mod's
+     * Clone handler already filled is added to the first free space, or dropped at the player when the inventory
+     * is full. A creative target ({@code hasInfiniteMaterials}) always drops such leftovers, because
+     * {@link Inventory#add} would delete them.
      */
     public static void restore(Player target, Player original) {
         DeathStash stash = original.getData(InfinityAttachments.STASH);
@@ -87,7 +89,7 @@ public final class InfinityDeath {
         for (DeathStash.Entry entry : stash.entries()) {
             if (entry.slot() < 0 || entry.slot() >= inventory.getContainerSize()) {
                 LOGGER.warn(
-                        "Dropping stashed {} for {}: slot {} is out of range",
+                        "Discarding stashed {} for {}: slot {} is out of range",
                         entry.stack(),
                         target.getPlainTextName(),
                         entry.slot());

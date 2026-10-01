@@ -29,7 +29,8 @@ public final class MockPlayers {
         ServerPlayer player =
                 new ServerPlayer(level.getServer(), level, cookie.gameProfile(), cookie.clientInformation());
         Connection connection = new Connection(PacketFlow.SERVERBOUND);
-        // The channel installs the connection as its handler; packets sent to the mock go nowhere.
+        // The channel installs the connection as its handler; packets sent to the mock queue in its outbound buffer
+        // (read by GameTestSupport.drainActionBar).
         new EmbeddedChannel(connection);
         level.getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
         // Until the client reports it has loaded, ServerPlayer#isInvulnerableTo is true: damage and kill() do nothing.
