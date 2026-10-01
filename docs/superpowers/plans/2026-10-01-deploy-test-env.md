@@ -737,7 +737,7 @@ git commit -m "feat(scripts): find running instances and choose which must stop"
   - `Stop-Instance -Instance <object> [-GraceSeconds 20]` -> `[bool]`, true once the process is confirmed gone: client -> `CloseMainWindow()`, wait, then `Stop-Process -Force`; server -> `Stop-Process -Force`. Already gone -> true, nothing called. A process still alive after the forced stop and a 10 s wait -> false.
   - `Invoke-StopStep -ToStop <object[]> -BuildStampUtc <datetime|null>` -> `[bool]`: true if nothing to stop or all confirmed gone after `y`; false if declined or any instance did not exit (the caller must not go on: all runs share `run/`).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `scripts/tests/DeployTestEnv.Tests.ps1`:
 
@@ -890,12 +890,12 @@ Describe 'Invoke-StopStep' {
 
 `Assert-MockCalled` counts across the whole `Describe`/`Context` by default in Pester 3.4; `-Scope It` keeps each count to its own test.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Path scripts/tests -EnableExit"`
 Expected: earlier tests pass. The new ones fail with `Could not find Command Test-CanPrompt` (or `Confirm-StopInstances`, `Stop-Instance`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `scripts/DeployTestEnv.psm1`:
 
@@ -997,18 +997,20 @@ function Invoke-StopStep {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Path scripts/tests -EnableExit"`
 Expected: `Failed: 0`, exit 0.
 
-- [ ] **Step 5: Check ASCII and commit**
+- [x] **Step 5: Check ASCII and commit**
 
 ```bash
 grep -n '[^ -~[:space:]]' scripts/DeployTestEnv.psm1 scripts/tests/DeployTestEnv.Tests.ps1 || echo ascii-ok
 git add scripts/DeployTestEnv.psm1 scripts/tests/DeployTestEnv.Tests.ps1
 git commit -m "feat(scripts): prompt before stopping instances, never stop without y"
 ```
+
+> **As built (`560e6e8`):** diverged — `Stop-Instance` also has a PID-reuse guard (a process whose start time differs from the instance's by more than 5 s counts as already gone) and treats an `InvalidOperationException` from `CloseMainWindow()` as gone; `Test-CanPrompt` has child-`powershell` tests; reason: task-review findings (PID reuse could stop an unrelated process during a long prompt; safety invariants were unproven by the plan's tests).
 
 ---
 
@@ -1537,3 +1539,4 @@ Also report that exit 4 (client launch died within 15 s) is covered by Pester te
 |---|---|---|
 | 1 | `0f56792` | the `@` argument-file tokens in the real process command lines use DOUBLED backslashes (`@C:\\dev\\...\\build\\moddev\\clientRunVmArgs.txt`), so the plan's `*\build\moddev\clientRun*` match would not match; the java path is the only quoted token; reason: observed on the live run, recorded in the spec's Verified launch facts (matching in Tasks 2-3 must normalize `\\` to `\` or match the doubled form). |
 | 2 | `843ea82` | `Get-InstanceKind` collapses doubled backslashes and matches `@<root>\build\moddev\<run>(VmArgs\|ProgramArgs).txt` (anchored on the root), and the fixtures use the doubled-backslash `@` tokens recorded in the spec; reason: Task 1's live-run finding (see Task 1's note). |
+| 4 | `560e6e8` | `Stop-Instance` also has a PID-reuse guard (a process whose start time differs from the instance's by more than 5 s counts as already gone) and treats an `InvalidOperationException` from `CloseMainWindow()` as gone; `Test-CanPrompt` has child-`powershell` tests; reason: task-review findings (PID reuse could stop an unrelated process during a long prompt; safety invariants were unproven by the plan's tests). |
