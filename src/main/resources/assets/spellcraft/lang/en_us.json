@@ -14,5 +14,7 @@
   "spellcraft.configuration.scribing": "Scribing",
   "spellcraft.configuration.topTierChancePercent": "Extreme-tier chance per option (%)",
   "spellcraft.configuration.durationSeconds": "Duration (seconds)",
-  "spellcraft.configuration.transitionSeconds": "Roll transition (seconds)"
+  "spellcraft.configuration.transitionSeconds": "Roll transition (seconds)",
+  "container.spellcraft.scribe": "Scribe a random scroll",
+  "container.spellcraft.scribe.chance": "%s%% chance of an extreme-tier spell"
 }
