@@ -159,4 +159,47 @@ Item 3 confirms the process exists, not that the game renders. Visuals stay with
 
 ## Verified launch facts
 
-Filled in by the plan's Task 1.
+Verified 2026-10-01 on this machine (Windows 11, Windows PowerShell 5.1, Java 25 Temurin). Paths
+were observed in a git worktree, so `<root>` below is `C:\dev\spellcraft\.claude\worktrees\deploy-test-env`;
+the shape matters, not the root. In the main checkout `<root>` is `C:\dev\spellcraft`.
+
+- **Client command line** (`Win32_Process.CommandLine`, one java.exe, about 16.9k characters).
+  The java path is double-quoted; everything after it is unquoted. In order:
+  `"C:\Program Files\Eclipse Adoptium\jdk-25.0.4.101-hotspot\bin\java.exe"`
+  `-Dfml.modFolders=spellcraft%%<root>\build\classes\java\main;spellcraft%%<root>\build\resources\main`
+  (single backslashes), then the VM-args file, then `-Dfile.encoding=UTF-8 ...`, then
+  `-cp <long classpath>` (single backslashes; it contains `<root>\build\moddev\artifacts\minecraft-patched-...jar`),
+  then the main class `net.neoforged.devlaunch.Main`, then the program-args file. The two `@` tokens
+  have **doubled backslashes**, unquoted, with no spaces:
+  `@C:\dev\spellcraft\.claude\worktrees\deploy-test-env\build\moddev\clientRunVmArgs.txt`
+  and `@C:\dev\spellcraft\.claude\worktrees\deploy-test-env\build\moddev\clientRunProgramArgs.txt`
+  (generally `@<root with every \ doubled>\build\moddev\clientRunVmArgs.txt`). The command line
+  ends with the program-args `@` token. The program-args file names the real main class
+  (`net.neoforged.fml.startup.Client`).
+- **GameTest server command line**: the same shape with `@...\build\moddev\gameTestServerRunVmArgs.txt`
+  and `@...\build\moddev\gameTestServerRunProgramArgs.txt`; main class `net.neoforged.devlaunch.Main`
+  (the program-args file names `net.neoforged.fml.startup.GameTestServer`).
+- **Matching trap (Task 2 must handle):** a plain match on `\build\moddev\gameTestServerRun` or
+  `<root>\build\moddev\clientRun` does **not** match, because the `@` tokens use doubled backslashes
+  (`\build\moddev\`). Only the classpath and `-Dfml.modFolders` use single backslashes, and neither
+  of those contains `clientRun...` or `gameTestServerRun...`. The match must normalize `\` to `\`
+  (or match `\build\moddev\clientRunProgramArgs`) and anchor on `<root>` the same way. The
+  classpath substring `<root>\build\moddev\artifacts\` also appears in every instance, so
+  `\build\moddev\` alone cannot tell the kinds apart. `Select-String` for `serverRunProgramArgs`
+  also matches inside `gameTestServerRunProgramArgs`, so anchor on the preceding `\`.
+  The Gradle wrapper process (`gradle-wrapper.jar runClient ...`) and the Gradle daemon are also
+  `java.exe`; neither contains `@...moddev...` tokens, so they are not instances.
+- **Dedicated server (inferred, not launched: EULA)**: `prepareServerRun` writes
+  `build/moddev/serverRunVmArgs.txt` and `build/moddev/serverRunProgramArgs.txt` (main class
+  `net.neoforged.fml.startup.Server`, argument `--nogui`), so its command line should carry
+  `@...\build\moddev\serverRunVmArgs.txt` and `@...\build\moddev\serverRunProgramArgs.txt`.
+- **A run does not move the build stamp.** Newest file under `build\classes\java\main` and
+  `build\resources\main` stayed `Spellcraft.class` at 2026-10-01 23:04:57 UTC across two
+  `runGameTestServer` runs (and the client launch).
+- **GameTests pass while the client runs**: `runGameTestServer` exited 0 with the client open
+  ("All 10 required tests passed", `BUILD SUCCESSFUL`); no rollover warning or crash.
+- **Rebuilding while the client runs works and makes it stale**: `./gradlew classes` after a source
+  edit and again after restoring it both ended `BUILD SUCCESSFUL`, with no file-in-use error. The
+  stamp moved to 2026-10-01 23:15:33 UTC, later than the client's start time of 23:14:24 UTC.
+- **`CloseMainWindow()` closes the client**: it returned `True` and the process exited within 1 s
+  (`WaitForExit` returned `True`).
