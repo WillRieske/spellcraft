@@ -15,3 +15,4 @@ d8cc856 task 2: build green, 73 tests, 0 failures
 71a4424 task 3: build green, commit gate passed
 abd37e2 task 4: build green, commit gate passed
 9bd2d6c task 5: build green, commit gate passed
+b420f92 task 6: 6 python unittests OK, pre-commit incl. spell-icon-tests passed
