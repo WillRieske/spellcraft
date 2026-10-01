@@ -86,3 +86,109 @@ function Get-Verdict {
     if ($null -eq $BuildStampUtc) { return 'Stale' }
     if ($StartTimeUtc -gt $BuildStampUtc) { 'UpToDate' } else { 'Stale' }
 }
+
+<#
+.SYNOPSIS
+    List this repo's running dev instances (client, GameTest server, dedicated server).
+.PARAMETER RepoRoot
+    The repo root.
+.OUTPUTS
+    Zero or more objects with Kind, ProcessId and StartTimeUtc. Wrap the call in @(...).
+#>
+function Get-Instances {
+    param([Parameter(Mandatory)][string] $RepoRoot)
+    foreach ($p in @(Get-CimInstance -ClassName Win32_Process -Filter "Name='java.exe'")) {
+        $kind = Get-InstanceKind -CommandLine $p.CommandLine -RepoRoot $RepoRoot
+        if ($null -eq $kind) { continue }
+        [pscustomobject]@{
+            Kind         = $kind
+            ProcessId    = [int]$p.ProcessId
+            StartTimeUtc = $p.CreationDate.ToUniversalTime()
+        }
+    }
+}
+
+<#
+.SYNOPSIS
+    Pick the instances that must stop before the given step.
+.PARAMETER Instances
+    Instances from Get-Instances.
+.PARAMETER BuildStampUtc
+    The build stamp (UTC) or $null.
+.PARAMETER Step
+    'Servers': every GameTestServer plus stale Servers. 'Client': stale Clients.
+.OUTPUTS
+    The instances to stop; may be none.
+#>
+function Select-InstancesToStop {
+    param(
+        [AllowEmptyCollection()][object[]] $Instances = @(),
+        [AllowNull()] $BuildStampUtc,
+        [Parameter(Mandatory)][ValidateSet('Servers', 'Client')][string] $Step
+    )
+    foreach ($i in $Instances) {
+        $stale = (Get-Verdict -StartTimeUtc $i.StartTimeUtc -BuildStampUtc $BuildStampUtc) -eq 'Stale'
+        $mustStop = switch ($Step) {
+            # A running GameTest server is another test run in progress; it shares run/gametestserver.
+            'Servers' { ($i.Kind -eq 'GameTestServer') -or ($i.Kind -eq 'Server' -and $stale) }
+            'Client' { $i.Kind -eq 'Client' -and $stale }
+        }
+        if ($mustStop) { $i }
+    }
+}
+
+<#
+.SYNOPSIS
+    Whether an up-to-date client is already running.
+.PARAMETER Instances
+    Instances from Get-Instances.
+.PARAMETER BuildStampUtc
+    The build stamp (UTC) or $null.
+.OUTPUTS
+    [bool]
+#>
+function Test-HasCurrentClient {
+    param(
+        [AllowEmptyCollection()][object[]] $Instances = @(),
+        [AllowNull()] $BuildStampUtc
+    )
+    foreach ($i in $Instances) {
+        if ($i.Kind -eq 'Client' -and (Get-Verdict -StartTimeUtc $i.StartTimeUtc -BuildStampUtc $BuildStampUtc) -eq 'UpToDate') {
+            return $true
+        }
+    }
+    $false
+}
+
+<#
+.SYNOPSIS
+    One status line for an instance: kind, PID, local start time, verdict.
+.PARAMETER Instance
+    An instance from Get-Instances.
+.PARAMETER BuildStampUtc
+    The build stamp (UTC) or $null.
+.OUTPUTS
+    [string]
+#>
+function Format-InstanceLine {
+    param(
+        [Parameter(Mandatory)] $Instance,
+        [AllowNull()] $BuildStampUtc
+    )
+    $verdict = if ((Get-Verdict -StartTimeUtc $Instance.StartTimeUtc -BuildStampUtc $BuildStampUtc) -eq 'UpToDate') { 'up to date' } else { 'stale' }
+    '{0,-15} PID {1,-6} started {2:yyyy-MM-dd HH:mm:ss}  {3}' -f $Instance.Kind, $Instance.ProcessId, $Instance.StartTimeUtc.ToLocalTime(), $verdict
+}
+
+<#
+.SYNOPSIS
+    The build stamp as a status line, in local time.
+.PARAMETER BuildStampUtc
+    The build stamp (UTC) or $null.
+.OUTPUTS
+    [string]
+#>
+function Format-BuildStamp {
+    param([AllowNull()] $BuildStampUtc)
+    if ($null -eq $BuildStampUtc) { return 'Build stamp: none (nothing built yet)' }
+    'Build stamp: {0:yyyy-MM-dd HH:mm:ss}' -f $BuildStampUtc.ToLocalTime()
+}

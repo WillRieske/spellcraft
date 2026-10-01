@@ -139,3 +139,118 @@ Describe 'Get-Verdict' {
         Get-Verdict -StartTimeUtc $stamp -BuildStampUtc $null | Should Be 'Stale'
     }
 }
+
+function New-Instance([string] $Kind, [datetime] $StartTimeUtc, [int] $ProcessId = 1) {
+    [pscustomobject]@{ Kind = $Kind; ProcessId = $ProcessId; StartTimeUtc = $StartTimeUtc }
+}
+
+$Stamp = [datetime]::SpecifyKind([datetime]'2026-10-01 12:00:00', 'Utc')
+$Before = $Stamp.AddMinutes(-5)
+$After = $Stamp.AddMinutes(5)
+
+Describe 'Get-Instances' {
+    # Mock bodies run in the module's scope and cannot see this file's variables or functions, so the
+    # real-shaped command lines (doubled backslashes in the at tokens) are built inline with .Replace.
+    Mock -ModuleName DeployTestEnv Get-CimInstance {
+        $java = '"C:\Program Files\Eclipse Adoptium\jdk-25.0.4.101-hotspot\bin\java.exe"'
+        $client = '@' + 'C:\dev\spellcraft\build\moddev\clientRunVmArgs.txt'.Replace('\', '\')
+        $gametest = '@' + 'C:\dev\spellcraft\build\moddev\gameTestServerRunVmArgs.txt'.Replace('\', '\')
+        @(
+            [pscustomobject]@{ ProcessId = 101; CreationDate = [datetime]'2026-10-01 14:05:01'
+                CommandLine = "$java -cp C:\dev\spellcraft\build\moddev\artifacts\a.jar $client net.neoforged.devlaunch.Main" }
+            [pscustomobject]@{ ProcessId = 102; CreationDate = [datetime]'2026-10-01 14:06:00'
+                CommandLine = "$java -cp gradle-daemon-main.jar org.gradle.launcher.daemon.bootstrap.GradleDaemon 9.2.1" }
+            [pscustomobject]@{ ProcessId = 103; CreationDate = [datetime]'2026-10-01 14:07:00'; CommandLine = $null }
+            [pscustomobject]@{ ProcessId = 104; CreationDate = [datetime]'2026-10-01 14:08:00'
+                CommandLine = "$java -cp C:\dev\spellcraft\build\moddev\artifacts\a.jar $gametest net.neoforged.devlaunch.Main" }
+        )
+    }
+
+    $result = @(Get-Instances -RepoRoot 'C:\dev\spellcraft')
+
+    It 'asks CIM for java.exe processes only' {
+        Assert-MockCalled Get-CimInstance -ModuleName DeployTestEnv -Times 1 -Exactly -ParameterFilter { $Filter -eq "Name='java.exe'" }
+    }
+    It 'keeps only this repo''s dev runs' {
+        $result.Count | Should Be 2
+        $result[0].Kind | Should Be 'Client'
+        $result[0].ProcessId | Should Be 101
+        $result[1].Kind | Should Be 'GameTestServer'
+        $result[1].ProcessId | Should Be 104
+    }
+    It 'converts the start time to UTC' {
+        $result[0].StartTimeUtc | Should Be ([datetime]'2026-10-01 14:05:01').ToUniversalTime()
+        $result[0].StartTimeUtc.Kind | Should Be 'Utc'
+    }
+}
+
+Describe 'Get-Instances with nothing running' {
+    Mock -ModuleName DeployTestEnv Get-CimInstance { }
+
+    It 'returns nothing' {
+        @(Get-Instances -RepoRoot 'C:\dev\spellcraft').Count | Should Be 0
+    }
+}
+
+Describe 'Select-InstancesToStop' {
+    It 'stops every GameTest server before the tests, even an up-to-date one' {
+        $r = @(Select-InstancesToStop -Instances @(New-Instance 'GameTestServer' $After 7) -BuildStampUtc $Stamp -Step Servers)
+        $r.Count | Should Be 1
+        $r[0].ProcessId | Should Be 7
+    }
+    It 'stops a stale dedicated server but leaves an up-to-date one' {
+        $all = @((New-Instance 'Server' $Before 1), (New-Instance 'Server' $After 2))
+        $r = @(Select-InstancesToStop -Instances $all -BuildStampUtc $Stamp -Step Servers)
+        $r.Count | Should Be 1
+        $r[0].ProcessId | Should Be 1
+    }
+    It 'leaves clients alone in the server step' {
+        @(Select-InstancesToStop -Instances @(New-Instance 'Client' $Before) -BuildStampUtc $Stamp -Step Servers).Count | Should Be 0
+    }
+    It 'stops stale clients only in the client step' {
+        $all = @((New-Instance 'Client' $Before 1), (New-Instance 'Client' $After 2), (New-Instance 'GameTestServer' $Before 3))
+        $r = @(Select-InstancesToStop -Instances $all -BuildStampUtc $Stamp -Step Client)
+        $r.Count | Should Be 1
+        $r[0].ProcessId | Should Be 1
+    }
+    It 'treats every client as stale when there is no build stamp' {
+        @(Select-InstancesToStop -Instances @(New-Instance 'Client' $After) -BuildStampUtc $null -Step Client).Count | Should Be 1
+    }
+    It 'returns nothing for no instances' {
+        @(Select-InstancesToStop -Instances @() -BuildStampUtc $Stamp -Step Client).Count | Should Be 0
+    }
+}
+
+Describe 'Test-HasCurrentClient' {
+    It 'is true when an up-to-date client runs' {
+        Test-HasCurrentClient -Instances @(New-Instance 'Client' $After) -BuildStampUtc $Stamp | Should Be $true
+    }
+    It 'is false when only a stale client runs' {
+        Test-HasCurrentClient -Instances @(New-Instance 'Client' $Before) -BuildStampUtc $Stamp | Should Be $false
+    }
+    It 'is false when only an up-to-date server runs' {
+        Test-HasCurrentClient -Instances @(New-Instance 'Server' $After) -BuildStampUtc $Stamp | Should Be $false
+    }
+    It 'is false when nothing runs' {
+        Test-HasCurrentClient -Instances @() -BuildStampUtc $Stamp | Should Be $false
+    }
+}
+
+Describe 'Format-InstanceLine and Format-BuildStamp' {
+    $startUtc = ([datetime]'2026-10-01 14:05:01').ToUniversalTime()
+
+    It 'shows kind, PID, local start time and up to date' {
+        $line = Format-InstanceLine -Instance (New-Instance 'Client' $startUtc 4242) -BuildStampUtc $startUtc.AddMinutes(-1)
+        $line | Should Match '^Client\s+PID 4242\s+started 2026-10-01 14:05:01  up to date$'
+    }
+    It 'shows stale' {
+        $line = Format-InstanceLine -Instance (New-Instance 'GameTestServer' $startUtc 7) -BuildStampUtc $startUtc.AddMinutes(1)
+        $line | Should Match '^GameTestServer\s+PID 7\s+started 2026-10-01 14:05:01  stale$'
+    }
+    It 'shows the stamp in local time' {
+        Format-BuildStamp -BuildStampUtc $startUtc | Should Be 'Build stamp: 2026-10-01 14:05:01'
+    }
+    It 'says when nothing has been built' {
+        Format-BuildStamp -BuildStampUtc $null | Should Be 'Build stamp: none (nothing built yet)'
+    }
+}
