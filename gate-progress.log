@@ -23,3 +23,4 @@ e898361 task 9: build green; runGameTestServer 26/26 passed
 641c61b task 11: build green; runGameTestServer 49/49 passed
 ef99bec task 12: build green; runData exit 0; runGameTestServer 49 required passed
 182ec4a task 13: build green 129 unit tests; runGameTestServer 49 required passed (48 ours); runData green; python unittest 6 OK; PIT 97% (115/119), coverage 94% (116/123)
+b289f62 fix pass (post-plan): build green 137 unit tests; runGameTestServer 60 required passed (59 ours); items from deferred minors fixed incl. two-pass restore
