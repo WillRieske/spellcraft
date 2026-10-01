@@ -31,6 +31,12 @@ repos:
         language: system
         pass_filenames: false
         files: \.(java|gradle)$
+      - id: spell-icon-tests
+        name: spell icon tests
+        entry: python -m unittest discover -s scripts -p "test_*.py"
+        language: system
+        pass_filenames: false
+        files: ^(scripts/(spell_icons|test_spell_icons)\.py|src/main/resources/assets/spellcraft/textures/)
       - id: gametests
         name: runGameTestServer
         entry: sh ./gradlew

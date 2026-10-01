@@ -19,6 +19,8 @@ Run from the repo root. In the Bash tool use `./gradlew`; in PowerShell use `.\g
 | `./gradlew runClient` | Dev client, for Will's playtest only |
 | `./gradlew pitest` | Mutation testing of the pure core (on demand) |
 | `./gradlew test jacocoTestReport` | Coverage report (on demand) |
+| `python scripts/spell_icons.py` | Regenerate every spell's scroll and effect icon (one glyph per spell) |
+| `python -m unittest discover -s scripts -p "test_*.py"` | Icon-script tests (also a pre-commit hook) |
 
 A cold build (fresh clone, cleared Gradle cache, or a NeoForge bump) takes 5–15 min. Run it
 by hand in the background, never through the commit gate (300 s limit).
