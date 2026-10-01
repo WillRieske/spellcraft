@@ -14,9 +14,11 @@ Run from the repo root. In the Bash tool use `./gradlew`; in PowerShell use `.\g
 | `./gradlew test` | Unit tests: JUnit 5 + jqwik + ArchUnit (seconds) |
 | `./gradlew build` | spotlessCheck + Error Prone/`-Xlint:all -Werror` + tests + jar |
 | `./gradlew spotlessApply` | Format (palantir-java-format) |
-| `./gradlew runGameTestServer` | GameTests (server rules); non-zero exit on failure. Fails with 0 GameTests until Task 7 registers the first; expected |
+| `./gradlew runGameTestServer` | GameTests (server rules); non-zero exit on failure |
 | `./gradlew runData` | Headless client-dist boot (loads client classes and config specs); the only automated check of client code |
 | `./gradlew runClient` | Dev client, for Will's playtest only |
+| `powershell -ExecutionPolicy Bypass -File scripts\Deploy-TestEnv.ps1` | Gate checks + GameTests, then launch the dev client (or keep a current one); asks before stopping a stale one. `-CheckOnly`: status only. Exit codes in the script header |
+| `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Path scripts/tests -EnableExit"` | Deploy-script unit tests (Pester 3.4; by hand, not in CI) |
 | `./gradlew pitest` | Mutation testing of the pure core (on demand) |
 | `./gradlew test jacocoTestReport` | Coverage report (on demand) |
 

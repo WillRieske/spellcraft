@@ -1,6 +1,6 @@
 # Playtest checklist: Strength of Upside-Down
 
-Run `./gradlew runClient`. Create a Creative world (superflat is easiest) and take the
+Run `powershell -ExecutionPolicy Bypass -File scripts\Deploy-TestEnv.ps1` (checks, GameTests, then the client), or `./gradlew runClient`. Create a Creative world (superflat is easiest) and take the
 *Scroll of Upside-Down* from the Tools & Utilities tab. Tick each item; record anything odd
 under **Findings** with what you did and what you saw.
 
