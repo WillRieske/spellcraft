@@ -10,3 +10,4 @@ abfa98c Task 3: hook tests RED->GREEN (150 passed), pre-commit --all-files pass,
 e1a4fe4 Task 10: build green, All 8 required GameTests, headless mixin check negative (documented), review clean
 70eff44 Plan close-out: minors T5/T8 applied, build green (32 tests); Task 11 review clean (checklist verbatim vs plan; gates per implementer report c0cbc6b)
 review-fix Post-plan review fixes: build green, All 9 required GameTests, cast_refused_on_cooldown bite-proved (3600 vs 40), failOnEmptyShould proved redundant pin
+db85395 task 1: docs-only; build green (baseline 27s), markdownlint+gitlint pass
