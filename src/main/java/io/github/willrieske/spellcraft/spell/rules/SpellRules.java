@@ -22,6 +22,9 @@ public record SpellRules(String name, SpellTier tier, Recast recast, boolean dis
 
     public SpellRules {
         Objects.requireNonNull(name, "name");
+        if (!name.matches("[a-z0-9_]+")) {
+            throw new IllegalArgumentException("name must match [a-z0-9_]+ (it is a resource path): " + name);
+        }
         Objects.requireNonNull(tier, "tier");
         Objects.requireNonNull(recast, "recast");
     }

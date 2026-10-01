@@ -45,7 +45,11 @@ class CastRulesTest {
         "INFINITY,    true,  true,  SPECTATOR, REFUSE",
     })
     void decidesEveryCase(String spell, boolean sneaking, boolean active, PlayerMode mode, CastOutcome expected) {
-        SpellRules rules = spell.equals("INFINITY") ? SpellDeclarations.INFINITY : SpellDeclarations.UPSIDE_DOWN;
+        SpellRules rules = switch (spell) {
+            case "INFINITY" -> SpellDeclarations.INFINITY;
+            case "UPSIDE_DOWN" -> SpellDeclarations.UPSIDE_DOWN;
+            default -> throw new IllegalArgumentException("unknown spell in the CSV: " + spell);
+        };
         assertThat(CastRules.decide(rules, new Caster(sneaking, active, mode))).isEqualTo(expected);
     }
 

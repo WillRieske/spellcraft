@@ -1,9 +1,11 @@
 package io.github.willrieske.spellcraft.spell.rules;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.willrieske.spellcraft.spell.rules.InfinityAbilities.Action;
 import io.github.willrieske.spellcraft.spell.rules.InfinityAbilities.State;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
@@ -33,5 +35,12 @@ class InfinityAbilitiesTest {
             PlayerMode mode, boolean hasInfinity, boolean marked, boolean mayfly, boolean instabuild, Action expected) {
         assertThat(InfinityAbilities.decide(new State(mode, hasInfinity, marked, mayfly, instabuild)))
                 .isEqualTo(expected);
+    }
+
+    @Test
+    void stateRequiresAMode() {
+        assertThatThrownBy(() -> new State(null, true, false, false, false))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("mode");
     }
 }
