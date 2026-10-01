@@ -14,7 +14,7 @@ Run from the repo root. In the Bash tool use `./gradlew`; in PowerShell use `.\g
 | `./gradlew test` | Unit tests: JUnit 5 + jqwik + ArchUnit (seconds) |
 | `./gradlew build` | spotlessCheck + Error Prone/`-Xlint:all -Werror` + tests + jar |
 | `./gradlew spotlessApply` | Format (palantir-java-format) |
-| `./gradlew runGameTestServer` | GameTests (server rules and common Mixins); non-zero exit on failure. Fails with 0 GameTests until Task 7 registers the first; expected |
+| `./gradlew runGameTestServer` | GameTests (server rules and common Mixins); non-zero exit on failure. |
 | `./gradlew runData` | Headless client-dist boot (loads client classes and config specs); the only automated check of client code |
 | `./gradlew runClient` | Dev client, for Will's playtest only |
 | `./gradlew pitest` | Mutation testing of the pure core (on demand) |

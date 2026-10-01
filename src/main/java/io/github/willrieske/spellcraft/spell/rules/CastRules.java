@@ -10,7 +10,7 @@ public final class CastRules {
      *
      * @param rules the spell's business rules
      * @param caster the player's current sneak, effect and mode state
-     * @return the outcome to apply and the feedback to give
+     * @return the outcome to apply; {@link CastOutcome#REFUSE} keeps the scroll
      */
     public static CastOutcome decide(SpellRules rules, Caster caster) {
         if (caster.mode() == PlayerMode.CREATIVE && rules.redundantInCreative()) {
