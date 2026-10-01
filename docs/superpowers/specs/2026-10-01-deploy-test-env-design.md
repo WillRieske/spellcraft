@@ -171,19 +171,19 @@ the shape matters, not the root. In the main checkout `<root>` is `C:\dev\spellc
   `-cp <long classpath>` (single backslashes; it contains `<root>\build\moddev\artifacts\minecraft-patched-...jar`),
   then the main class `net.neoforged.devlaunch.Main`, then the program-args file. The two `@` tokens
   have **doubled backslashes**, unquoted, with no spaces:
-  `@C:\dev\spellcraft\.claude\worktrees\deploy-test-env\build\moddev\clientRunVmArgs.txt`
-  and `@C:\dev\spellcraft\.claude\worktrees\deploy-test-env\build\moddev\clientRunProgramArgs.txt`
-  (generally `@<root with every \ doubled>\build\moddev\clientRunVmArgs.txt`). The command line
+  `@C:\\dev\\spellcraft\\.claude\\worktrees\\deploy-test-env\\build\\moddev\\clientRunVmArgs.txt`
+  and `@C:\\dev\\spellcraft\\.claude\\worktrees\\deploy-test-env\\build\\moddev\\clientRunProgramArgs.txt`
+  (generally `@<root with every \ doubled>\\build\\moddev\\clientRunVmArgs.txt`). The command line
   ends with the program-args `@` token. The program-args file names the real main class
   (`net.neoforged.fml.startup.Client`).
-- **GameTest server command line**: the same shape with `@...\build\moddev\gameTestServerRunVmArgs.txt`
-  and `@...\build\moddev\gameTestServerRunProgramArgs.txt`; main class `net.neoforged.devlaunch.Main`
+- **GameTest server command line**: the same shape with `@...\\build\\moddev\\gameTestServerRunVmArgs.txt`
+  and `@...\\build\\moddev\\gameTestServerRunProgramArgs.txt`; main class `net.neoforged.devlaunch.Main`
   (the program-args file names `net.neoforged.fml.startup.GameTestServer`).
 - **Matching trap (Task 2 must handle):** a plain match on `\build\moddev\gameTestServerRun` or
   `<root>\build\moddev\clientRun` does **not** match, because the `@` tokens use doubled backslashes
-  (`\build\moddev\`). Only the classpath and `-Dfml.modFolders` use single backslashes, and neither
-  of those contains `clientRun...` or `gameTestServerRun...`. The match must normalize `\` to `\`
-  (or match `\build\moddev\clientRunProgramArgs`) and anchor on `<root>` the same way. The
+  (`\\build\\moddev\\`). Only the classpath and `-Dfml.modFolders` use single backslashes, and neither
+  of those contains `clientRun...` or `gameTestServerRun...`. The match must normalize `\\` to `\`
+  (or match `\\build\\moddev\\clientRunProgramArgs`) and anchor on `<root>` the same way. The
   classpath substring `<root>\build\moddev\artifacts\` also appears in every instance, so
   `\build\moddev\` alone cannot tell the kinds apart. `Select-String` for `serverRunProgramArgs`
   also matches inside `gameTestServerRunProgramArgs`, so anchor on the preceding `\`.
@@ -192,7 +192,7 @@ the shape matters, not the root. In the main checkout `<root>` is `C:\dev\spellc
 - **Dedicated server (inferred, not launched: EULA)**: `prepareServerRun` writes
   `build/moddev/serverRunVmArgs.txt` and `build/moddev/serverRunProgramArgs.txt` (main class
   `net.neoforged.fml.startup.Server`, argument `--nogui`), so its command line should carry
-  `@...\build\moddev\serverRunVmArgs.txt` and `@...\build\moddev\serverRunProgramArgs.txt`.
+  `@...\\build\\moddev\\serverRunVmArgs.txt` and `@...\\build\\moddev\\serverRunProgramArgs.txt`.
 - **A run does not move the build stamp.** Newest file under `build\classes\java\main` and
   `build\resources\main` stayed `Spellcraft.class` at 2026-10-01 23:04:57 UTC across two
   `runGameTestServer` runs (and the client launch).
