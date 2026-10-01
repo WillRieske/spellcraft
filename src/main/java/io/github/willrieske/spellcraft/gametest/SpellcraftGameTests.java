@@ -43,6 +43,7 @@ public final class SpellcraftGameTests {
         InfinityGameTests.registerAll();
         InfinityAbilityGameTests.registerAll();
         InfinityDeathGameTests.registerAll();
+        ScribingGameTests.registerAll();
     }
 
     private SpellcraftGameTests() {}

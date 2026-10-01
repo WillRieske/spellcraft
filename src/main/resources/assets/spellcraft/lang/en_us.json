@@ -11,6 +11,8 @@
   "spellcraft.configuration.section.spellcraft.client.toml": "Spellcraft Client Configs",
   "spellcraft.configuration.section.spellcraft.client.toml.title": "Spellcraft Client Configs",
   "spellcraft.configuration.upsideDown": "Strength of Upside-Down",
+  "spellcraft.configuration.scribing": "Scribing",
+  "spellcraft.configuration.topTierChancePercent": "Extreme-tier chance per option (%)",
   "spellcraft.configuration.durationSeconds": "Duration (seconds)",
   "spellcraft.configuration.transitionSeconds": "Roll transition (seconds)"
 }

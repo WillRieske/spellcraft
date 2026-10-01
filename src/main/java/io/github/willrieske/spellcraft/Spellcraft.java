@@ -4,8 +4,10 @@ import io.github.willrieske.spellcraft.config.ServerConfig;
 import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.gametest.SpellcraftGameTests;
 import io.github.willrieske.spellcraft.infinity.InfinityAttachments;
+import io.github.willrieske.spellcraft.scribing.Scribing;
 import io.github.willrieske.spellcraft.spell.ModItems;
 import io.github.willrieske.spellcraft.spell.SpellScrollItem;
+import io.github.willrieske.spellcraft.spell.rules.ScrollDraw;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.neoforged.bus.api.IEventBus;
@@ -27,6 +29,7 @@ public final class Spellcraft {
         SpellcraftGameTests.TEST_FUNCTIONS.register(modEventBus);
         modEventBus.addListener(Spellcraft::addToCreativeTabs);
         modContainer.registerConfig(ModConfig.Type.SERVER, ServerConfig.SPEC);
+        ScrollDraw.requireCandidates(Scribing.candidates());
     }
 
     public static Identifier id(String path) {
