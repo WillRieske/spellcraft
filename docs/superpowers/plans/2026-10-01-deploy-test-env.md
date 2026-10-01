@@ -717,7 +717,7 @@ git add scripts/DeployTestEnv.psm1 scripts/tests/DeployTestEnv.Tests.ps1
 git commit -m "feat(scripts): find running instances and choose which must stop"
 ```
 
-> **As built (`577e300`):** matches plan. (Fixtures use the real doubled-backslash `@` shape per Task 1's note; Pester total is 40 because Task 2 left 22 tests, not the 18 the brief assumed.)
+> **As built (`577e300`):** matches plan.
 
 ---
 
