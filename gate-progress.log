@@ -12,3 +12,4 @@ e1a4fe4 Task 10: build green, All 8 required GameTests, headless mixin check neg
 review-fix Post-plan review fixes: build green, All 9 required GameTests, cast_refused_on_cooldown bite-proved (3600 vs 40), failOnEmptyShould proved redundant pin
 task1 0f56792 docs-only (spec facts); gradlew build green at baseline 8a3aab5; Pester n/a
 task2 843ea82 Pester 22/22 pass; gate build green
+task3 577e300 Pester 40/40 pass; gate build green

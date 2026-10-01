@@ -471,7 +471,7 @@ Expected: `ascii-ok`, then the commit gate passes.
   - `Format-InstanceLine -Instance <object> -BuildStampUtc <datetime|null>` -> `'<Kind padded 15> PID <pid padded 6> started yyyy-MM-dd HH:mm:ss  up to date|stale'` (local time).
   - `Format-BuildStamp -BuildStampUtc <datetime|null>` -> `'Build stamp: yyyy-MM-dd HH:mm:ss'` (local) or `'Build stamp: none (nothing built yet)'`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `scripts/tests/DeployTestEnv.Tests.ps1`. Mock bodies run in the module's scope and cannot see this file's variables, so they use literal strings.
 
@@ -587,12 +587,12 @@ Describe 'Format-InstanceLine and Format-BuildStamp' {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Path scripts/tests -EnableExit"`
 Expected: the Task 2 tests pass. The new ones fail with `The term 'Get-Instances' is not recognized` (Pester 3.4 also refuses to mock in a module whose function is missing), and similar for the other new functions.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `scripts/DeployTestEnv.psm1`:
 
@@ -704,18 +704,20 @@ function Format-BuildStamp {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Path scripts/tests -EnableExit"`
 Expected: `Failed: 0`, exit 0 (36 tests in total).
 
-- [ ] **Step 5: Check ASCII and commit**
+- [x] **Step 5: Check ASCII and commit**
 
 ```bash
 grep -n '[^ -~[:space:]]' scripts/DeployTestEnv.psm1 scripts/tests/DeployTestEnv.Tests.ps1 || echo ascii-ok
 git add scripts/DeployTestEnv.psm1 scripts/tests/DeployTestEnv.Tests.ps1
 git commit -m "feat(scripts): find running instances and choose which must stop"
 ```
+
+> **As built (`577e300`):** matches plan. (Fixtures use the real doubled-backslash `@` shape per Task 1's note; Pester total is 40 because Task 2 left 22 tests, not the 18 the brief assumed.)
 
 ---
 
