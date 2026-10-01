@@ -3,6 +3,7 @@ package io.github.willrieske.spellcraft;
 import io.github.willrieske.spellcraft.config.ServerConfig;
 import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.gametest.SpellcraftGameTests;
+import io.github.willrieske.spellcraft.infinity.InfinityAttachments;
 import io.github.willrieske.spellcraft.spell.ModItems;
 import io.github.willrieske.spellcraft.spell.SpellScrollItem;
 import net.minecraft.resources.Identifier;
@@ -22,6 +23,7 @@ public final class Spellcraft {
     public Spellcraft(IEventBus modEventBus, ModContainer modContainer) {
         ModEffects.MOB_EFFECTS.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
+        InfinityAttachments.ATTACHMENT_TYPES.register(modEventBus);
         SpellcraftGameTests.TEST_FUNCTIONS.register(modEventBus);
         modEventBus.addListener(Spellcraft::addToCreativeTabs);
         modContainer.registerConfig(ModConfig.Type.SERVER, ServerConfig.SPEC);
