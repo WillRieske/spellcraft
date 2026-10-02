@@ -23,6 +23,30 @@ function New-RunLine([string] $RepoRoot, [string] $Run) {
     "$Java $fml $vm -Dfile.encoding=UTF-8 $cp net.neoforged.devlaunch.Main $prog"
 }
 
+# A fake System.Diagnostics.Process for Get-Process mocks. Global, because Mock bodies run in the
+# module's scope and cannot see this file's functions. WaitForExit records its argument in
+# $global:WaitMs and Kill counts in $global:Kills.
+function global:New-FakeProcess {
+    param(
+        [datetime] $StartUtc = [datetime]::MinValue,
+        [switch] $StartUnreadable,
+        [scriptblock] $OnClose = { $false },
+        [bool] $Exits = $true,
+        [scriptblock] $OnKill = { $global:Kills++ }
+    )
+    $p = New-Object PSObject
+    $p | Add-Member -MemberType NoteProperty -Name Handle -Value ([IntPtr]1)
+    if ($StartUnreadable) {
+        $p | Add-Member -MemberType ScriptProperty -Name StartTime -Value { throw (New-Object System.ComponentModel.Win32Exception 5) }
+    } else {
+        $p | Add-Member -MemberType NoteProperty -Name StartTime -Value $StartUtc.ToLocalTime()
+    }
+    $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value $OnClose
+    $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value ({ param($ms) $global:WaitMs += $ms; $Exits }.GetNewClosure())
+    $p | Add-Member -MemberType ScriptMethod -Name Kill -Value $OnKill
+    $p
+}
+
 $ClientLine = New-RunLine $Root 'clientRun'
 $GameTestLine = New-RunLine $Root 'gameTestServerRun'
 $ServerLine = New-RunLine $Root 'serverRun'
@@ -78,6 +102,63 @@ Describe 'Get-InstanceKind' {
         $line = "$Java @$Root\build\moddev\clientRunVmArgs.txt net.neoforged.devlaunch.Main @$Root\build\moddev\clientRunProgramArgs.txt"
         Get-InstanceKind -CommandLine $line -RepoRoot $Root | Should Be 'Client'
     }
+    It 'accepts a repo root with forward slashes or a trailing slash' {
+        Get-InstanceKind -CommandLine $ClientLine -RepoRoot 'C:/dev/spellcraft' | Should Be 'Client'
+        Get-InstanceKind -CommandLine $ClientLine -RepoRoot 'C:/dev/spellcraft/' | Should Be 'Client'
+    }
+    # Built from [char]92 so no literal doubled backslash lives in this file.
+    $Unc = [string][char]92 + '\server\share\spellcraft'
+    It 'matches a repo on a UNC share' {
+        Get-InstanceKind -CommandLine (New-RunLine $Unc 'clientRun') -RepoRoot $Unc | Should Be 'Client'
+    }
+    It 'does not let a UNC root match a drive path with the same folders' {
+        Get-InstanceKind -CommandLine (New-RunLine 'C:\server\share\spellcraft' 'clientRun') -RepoRoot $Unc | Should BeNullOrEmpty
+    }
+    It 'matches any of several root forms' {
+        $line = New-RunLine 'D:\real\spellcraft' 'gameTestServerRun'
+        Get-InstanceKind -CommandLine $line -RepoRoot @($Root, 'D:\real\spellcraft') | Should Be 'GameTestServer'
+    }
+    It 'only counts the path as an at token, not as a plain argument' {
+        $line = "$Java -Dspellcraft.args=$Root\build\moddev\clientRunVmArgs.txt net.neoforged.devlaunch.Main"
+        Get-InstanceKind -CommandLine $line -RepoRoot $Root | Should BeNullOrEmpty
+    }
+}
+
+Describe 'Get-RepoRootForms' {
+    It 'returns the given path first, and nothing else for a missing one' {
+        $missing = Join-Path $TestDrive 'missing'
+        $forms = @(Get-RepoRootForms -RepoRoot $missing)
+        $forms.Count | Should Be 1
+        $forms[0] | Should Be $missing
+    }
+    It 'adds the real location behind a junction' {
+        $real = Join-Path $TestDrive 'real'
+        New-Item -ItemType Directory -Path $real | Out-Null
+        $link = Join-Path $TestDrive 'link'
+        cmd /c mklink /J "$link" "$real" | Out-Null
+        $forms = @(Get-RepoRootForms -RepoRoot $link)
+        $forms[0] | Should Be $link
+        # TestDrive may itself sit under a short (8.3) or linked temp path, so compare final forms.
+        $forms -contains (@(Get-RepoRootForms -RepoRoot $real) | Select-Object -Last 1) | Should Be $true
+    }
+    $longDir = Join-Path $TestDrive 'a long directory name'
+    New-Item -ItemType Directory -Path $longDir | Out-Null
+    $shortDir = (New-Object -ComObject Scripting.FileSystemObject).GetFolder($longDir).ShortPath
+    It 'adds the long form of an 8.3 short path' -Skip:($shortDir -eq $longDir -or $shortDir -notmatch '~') {
+        $forms = @(Get-RepoRootForms -RepoRoot $shortDir)
+        $forms[0] | Should Be $shortDir
+        @($forms | Where-Object { $_ -like '*a long directory name' }).Count | Should BeGreaterThan 0
+    }
+    # Java's canonical path (which Gradle writes) expands 8.3 names but keeps a junction, so the
+    # long-but-unresolved form is needed on its own, not just the final one.
+    $longLink = Join-Path $TestDrive 'a long link name'
+    cmd /c mklink /J "$longLink" "$longDir" | Out-Null
+    $shortLink = (New-Object -ComObject Scripting.FileSystemObject).GetFolder($longLink).ShortPath
+    It 'keeps the junction in the long form of a short path through it' -Skip:($shortLink -eq $longLink -or $shortLink -notmatch '~') {
+        $forms = @(Get-RepoRootForms -RepoRoot $shortLink)
+        @($forms | Where-Object { $_ -like '*a long link name' }).Count | Should Be 1
+        @($forms | Where-Object { $_ -like '*a long directory name' }).Count | Should Be 1
+    }
 }
 
 Describe 'Get-BuildStamp' {
@@ -90,6 +171,11 @@ Describe 'Get-BuildStamp' {
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Path) | Out-Null
         Set-Content -LiteralPath $Path -Value 'x' -Encoding ASCII
         (Get-Item -LiteralPath $Path).LastWriteTimeUtc = $WriteTimeUtc
+    }
+    # Directories count toward the stamp, and creating files sets their write time to now, so
+    # fixtures set every directory under build\ to a known time after creating the files.
+    function Set-DirTimes([string] $Repo, [datetime] $WriteTimeUtc) {
+        Get-ChildItem -LiteralPath (Join-Path $Repo 'build') -Recurse -Directory | ForEach-Object { $_.LastWriteTimeUtc = $WriteTimeUtc }
     }
     $old = [datetime]::SpecifyKind([datetime]'2026-10-01 10:00:00', 'Utc')
     $new = [datetime]::SpecifyKind([datetime]'2026-10-01 11:30:00', 'Utc')
@@ -107,6 +193,7 @@ Describe 'Get-BuildStamp' {
         $repo = New-Repo 'built'
         New-File (Join-Path $repo 'build\classes\java\main\io\A.class') $old
         New-File (Join-Path $repo 'build\resources\main\assets\spellcraft\lang\en_us.json') $new
+        Set-DirTimes $repo $old
         Get-BuildStamp -RepoRoot $repo | Should Be $new
     }
     It 'ignores the jar and test outputs' {
@@ -114,12 +201,39 @@ Describe 'Get-BuildStamp' {
         New-File (Join-Path $repo 'build\classes\java\main\A.class') $old
         New-File (Join-Path $repo 'build\libs\spellcraft-1.0.0.jar') $new
         New-File (Join-Path $repo 'build\classes\java\test\ATest.class') $new
+        Set-DirTimes $repo $old
+        (Get-Item -LiteralPath (Join-Path $repo 'build\libs')).LastWriteTimeUtc = $new
+        (Get-Item -LiteralPath (Join-Path $repo 'build\classes\java\test')).LastWriteTimeUtc = $new
         Get-BuildStamp -RepoRoot $repo | Should Be $old
     }
     It 'works with only one of the two directories present' {
         $repo = New-Repo 'classesonly'
         New-File (Join-Path $repo 'build\classes\java\main\A.class') $old
+        Set-DirTimes $repo $old
         Get-BuildStamp -RepoRoot $repo | Should Be $old
+    }
+    It 'counts a directory written after the newest file, at any depth' {
+        $repo = New-Repo 'dirnewer'
+        New-File (Join-Path $repo 'build\classes\java\main\io\A.class') $old
+        Set-DirTimes $repo $old
+        (Get-Item -LiteralPath (Join-Path $repo 'build\classes\java\main\io')).LastWriteTimeUtc = $new
+        Get-BuildStamp -RepoRoot $repo | Should Be $new
+    }
+    It 'counts an output directory itself' {
+        $repo = New-Repo 'topdir'
+        New-File (Join-Path $repo 'build\resources\main\a.json') $old
+        Set-DirTimes $repo $old
+        (Get-Item -LiteralPath (Join-Path $repo 'build\resources\main')).LastWriteTimeUtc = $new
+        Get-BuildStamp -RepoRoot $repo | Should Be $new
+    }
+    It 'moves forward, not back, when the newest class is deleted' {
+        $repo = New-Repo 'deleted'
+        New-File (Join-Path $repo 'build\classes\java\main\A.class') $old
+        New-File (Join-Path $repo 'build\classes\java\main\B.class') $new
+        Set-DirTimes $repo $old
+        $before = Get-BuildStamp -RepoRoot $repo
+        Remove-Item -LiteralPath (Join-Path $repo 'build\classes\java\main\B.class')
+        Get-BuildStamp -RepoRoot $repo | Should BeGreaterThan $before
     }
 }
 
@@ -152,6 +266,8 @@ Describe 'Get-Instances' {
     # Mock bodies run in the module's scope and cannot see this file's variables or functions, so the
     # real-shaped command lines (doubled backslashes in the at tokens) are built inline by doubling each backslash (via [char]92, so no literal doubled
     # backslashes live in this file).
+    Mock -ModuleName DeployTestEnv Get-RepoRootForms { , @($RepoRoot) }
+    Mock -ModuleName DeployTestEnv Get-Process { New-FakeProcess -StartUtc ([datetime]'2026-10-01 14:05:01').ToUniversalTime() }
     Mock -ModuleName DeployTestEnv Get-CimInstance {
         $java = '"C:\Program Files\Eclipse Adoptium\jdk-25.0.4.101-hotspot\bin\java.exe"'
         $bs = [string][char]92
@@ -181,19 +297,40 @@ Describe 'Get-Instances' {
         $result[1].Kind | Should Be 'GameTestServer'
         $result[1].ProcessId | Should Be 104
     }
-    It 'converts the start time to UTC' {
+    It 'takes the start time from the process, in UTC' {
         $result[0].StartTimeUtc | Should Be ([datetime]'2026-10-01 14:05:01').ToUniversalTime()
         $result[0].StartTimeUtc.Kind | Should Be 'Utc'
+        Assert-MockCalled Get-Process -ModuleName DeployTestEnv -Times 1 -ParameterFilter { $Id -eq 101 }
+    }
+    It 'matches against every form of the repo root' {
+        Assert-MockCalled Get-RepoRootForms -ModuleName DeployTestEnv -Times 1 -Exactly -ParameterFilter { $RepoRoot -eq 'C:\dev\spellcraft' }
     }
 }
 
-Describe 'Get-Instances with an unknown start time' {
-    Mock -ModuleName DeployTestEnv Write-Host { }
+Describe 'Get-Instances with an alternative root form' {
+    Mock -ModuleName DeployTestEnv Get-RepoRootForms { , @('S:\', 'C:\dev\spellcraft') }
+    Mock -ModuleName DeployTestEnv Get-Process { New-FakeProcess -StartUtc ([datetime]'2026-10-01 14:05:01').ToUniversalTime() }
     Mock -ModuleName DeployTestEnv Get-CimInstance {
         $bs = [string][char]92
         $client = '@' + 'C:\dev\spellcraft\build\moddev\clientRunVmArgs.txt'.Replace($bs, $bs + $bs)
-        [pscustomobject]@{ ProcessId = 105; CreationDate = $null
-            CommandLine = "java.exe -cp C:\dev\spellcraft\build\moddev\artifacts\a.jar $client net.neoforged.devlaunch.Main" }
+        [pscustomobject]@{ ProcessId = 106; CommandLine = "java.exe $client net.neoforged.devlaunch.Main" }
+    }
+
+    It 'finds a run that names the root in its other form' {
+        $result = @(Get-Instances -RepoRoot 'S:\')
+        $result.Count | Should Be 1
+        $result[0].ProcessId | Should Be 106
+    }
+}
+
+Describe 'Get-Instances when the start time cannot be read' {
+    Mock -ModuleName DeployTestEnv Write-Host { }
+    Mock -ModuleName DeployTestEnv Get-RepoRootForms { , @($RepoRoot) }
+    Mock -ModuleName DeployTestEnv Get-Process { New-FakeProcess -StartUnreadable }
+    Mock -ModuleName DeployTestEnv Get-CimInstance {
+        $bs = [string][char]92
+        $client = '@' + 'C:\dev\spellcraft\build\moddev\clientRunVmArgs.txt'.Replace($bs, $bs + $bs)
+        [pscustomobject]@{ ProcessId = 105; CommandLine = "java.exe -cp C:\dev\spellcraft\build\moddev\artifacts\a.jar $client net.neoforged.devlaunch.Main" }
     }
 
     $result = @(Get-Instances -RepoRoot 'C:\dev\spellcraft')
@@ -203,6 +340,55 @@ Describe 'Get-Instances with an unknown start time' {
     }
     It 'says which instance it skipped' {
         Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Times 1 -Exactly -ParameterFilter { "$Object" -match 'Client PID 105' }
+    }
+}
+
+Describe 'Get-Instances when the process exits before its start time is read' {
+    Mock -ModuleName DeployTestEnv Write-Host { }
+    Mock -ModuleName DeployTestEnv Get-RepoRootForms { , @($RepoRoot) }
+    Mock -ModuleName DeployTestEnv Get-Process { }
+    Mock -ModuleName DeployTestEnv Get-CimInstance {
+        $bs = [string][char]92
+        $client = '@' + 'C:\dev\spellcraft\build\moddev\clientRunVmArgs.txt'.Replace($bs, $bs + $bs)
+        [pscustomobject]@{ ProcessId = 107; CommandLine = "java.exe $client net.neoforged.devlaunch.Main" }
+    }
+
+    It 'leaves it out silently' {
+        @(Get-Instances -RepoRoot 'C:\dev\spellcraft').Count | Should Be 0
+        Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+    }
+}
+
+Describe 'Get-Instances across the end of daylight saving' {
+    # Two UTC instants one hour apart that show the same local wall-clock time: the repeated hour
+    # when clocks go back. Found by search, so the test follows this machine's time zone.
+    $ambiguous = $null
+    $t = [datetime]::SpecifyKind([datetime]'2026-01-01', 'Utc')
+    while ($t.Year -eq 2026 -and $null -eq $ambiguous) {
+        if ([datetime]::FromFileTime($t.ToFileTimeUtc()) -eq [datetime]::FromFileTime($t.AddHours(1).ToFileTimeUtc())) { $ambiguous = $t }
+        $t = $t.AddHours(1)
+    }
+    $global:DstFirst = $ambiguous
+
+    Mock -ModuleName DeployTestEnv Get-RepoRootForms { , @($RepoRoot) }
+    # Process.StartTime is DateTime.FromFileTime(creation time): local, and it remembers which of
+    # the two repeated hours it is.
+    Mock -ModuleName DeployTestEnv Get-Process {
+        $p = New-Object PSObject
+        $p | Add-Member -MemberType NoteProperty -Name StartTime -Value ([datetime]::FromFileTime($global:DstFirst.AddHours($Id[0] - 201).ToFileTimeUtc()))
+        $p
+    }
+    Mock -ModuleName DeployTestEnv Get-CimInstance {
+        $bs = [string][char]92
+        $client = '@' + 'C:\dev\spellcraft\build\moddev\clientRunVmArgs.txt'.Replace($bs, $bs + $bs)
+        [pscustomobject]@{ ProcessId = 201; CommandLine = "java.exe $client x" }
+        [pscustomobject]@{ ProcessId = 202; CommandLine = "java.exe $client x" }
+    }
+
+    It 'keeps the two repeated hours apart' -Skip:($null -eq $ambiguous) {
+        $result = @(Get-Instances -RepoRoot 'C:\dev\spellcraft')
+        $result[0].StartTimeUtc | Should Be $global:DstFirst
+        $result[1].StartTimeUtc | Should Be $global:DstFirst.AddHours(1)
     }
 }
 
@@ -314,22 +500,58 @@ Describe 'Confirm-StopInstances' {
             Mock -ModuleName DeployTestEnv Read-Host { 'n' }
             Confirm-StopInstances -Instances $one -BuildStampUtc $Stamp | Should Be $false
         }
-        It "treats 'yep' as no (only y or yes)" {
-            Mock -ModuleName DeployTestEnv Read-Host { 'yep' }
+        # Only the whole answer counts: these pin both anchors of the match.
+        foreach ($no in @('yep', 'nay', 'okay', ' y', 'y ', 'yes please')) {
+            It "treats '$no' as no (only y or yes)" {
+                $global:Answer = $no
+                Mock -ModuleName DeployTestEnv Read-Host { $global:Answer }
+                Confirm-StopInstances -Instances $one -BuildStampUtc $Stamp | Should Be $false
+            }
+        }
+        It 'treats a prompt the host refuses as no, without throwing' {
+            Mock -ModuleName DeployTestEnv Read-Host { throw 'Windows PowerShell is in NonInteractive mode.' }
             Confirm-StopInstances -Instances $one -BuildStampUtc $Stamp | Should Be $false
+            Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Times 1 -Scope It -ParameterFilter { "$Object" -match 'treating the answer as N' }
         }
     }
 }
 
-Describe 'Test-CanPrompt' {
-    # Run in a child powershell so the real host state is exercised without touching this session.
-    $modulePath = (Resolve-Path (Join-Path $PSScriptRoot '..\DeployTestEnv.psm1')).Path
+Describe 'Test-CanPromptWith' {
+    $plain = @('powershell.exe', '-ExecutionPolicy', 'Bypass', '-File', 'scripts\Deploy-TestEnv.ps1')
 
-    It 'is false under -NonInteractive' {
-        $out = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Import-Module '$modulePath' -Force; [string](Test-CanPrompt)"
-        ($out | Select-Object -Last 1) | Should Be 'False'
+    It 'is true for an interactive console with no -NonInteractive' {
+        Test-CanPromptWith -UserInteractive $true -InputRedirected $false -CommandLineArgs $plain | Should Be $true
+    }
+    It 'is false for a non-interactive host' {
+        Test-CanPromptWith -UserInteractive $false -InputRedirected $false -CommandLineArgs $plain | Should Be $false
     }
     It 'is false when stdin is redirected' {
+        Test-CanPromptWith -UserInteractive $true -InputRedirected $true -CommandLineArgs $plain | Should Be $false
+    }
+    # Every spelling powershell.exe accepts (checked on Windows PowerShell 5.1).
+    foreach ($flag in @('-NonInteractive', '-noni', '-NONI', '-nonin', '/noni', '/NonInteractive')) {
+        It "is false under $flag" {
+            Test-CanPromptWith -UserInteractive $true -InputRedirected $false -CommandLineArgs (@('powershell.exe', $flag) + $plain[1..4]) | Should Be $false
+        }
+    }
+    It 'is not fooled by -NoProfile or -NoLogo' {
+        Test-CanPromptWith -UserInteractive $true -InputRedirected $false -CommandLineArgs @('powershell.exe', '-NoProfile', '-NoLogo', '-File', 'x.ps1') | Should Be $true
+    }
+}
+
+Describe 'Test-CanPrompt' {
+    It 'passes the real host state to Test-CanPromptWith' {
+        Mock -ModuleName DeployTestEnv Test-CanPromptWith { $true }
+        Test-CanPrompt | Should Be $true
+        Assert-MockCalled Test-CanPromptWith -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter {
+            $UserInteractive -eq [Environment]::UserInteractive -and
+            $InputRedirected -eq [Console]::IsInputRedirected -and
+            ($CommandLineArgs -join ' ') -eq ([Environment]::GetCommandLineArgs() -join ' ')
+        }
+    }
+    It 'is false end to end when stdin is redirected' {
+        # A child powershell, so the real host state is exercised without touching this session.
+        $modulePath = (Resolve-Path (Join-Path $PSScriptRoot '..\DeployTestEnv.psm1')).Path
         $out = '' | & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Import-Module '$modulePath' -Force; [string](Test-CanPrompt)"
         ($out | Select-Object -Last 1) | Should Be 'False'
     }
@@ -338,142 +560,206 @@ Describe 'Test-CanPrompt' {
 Describe 'Stop-Instance' {
     Mock -ModuleName DeployTestEnv Write-Host { }
     Mock -ModuleName DeployTestEnv Stop-Process { }
-    # Fake processes: Mock bodies run in the module's scope and cannot see this file's variables,
-    # so each Context builds its own with literal values. StartTime matches $Before (11:55 UTC)
-    # unless a test says otherwise; WaitForExit records its millisecond argument in $global:WaitMs.
+    # Fake processes come from New-FakeProcess. Mock bodies cannot see this file's variables, so
+    # each Context writes its start time literally: 11:55:00 UTC is $Before, the instances' start.
     $client = New-Instance 'Client' $Before 5
     $server = New-Instance 'Server' $Before 6
+    function Reset-Counters { $global:WaitMs = @(); $global:Kills = 0 }
 
     Context 'when the process has already gone' {
         Mock -ModuleName DeployTestEnv Get-Process { $null }
 
         It 'does nothing and reports it gone' {
+            Reset-Counters
             Stop-Instance -Instance $client | Should Be $true
-            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+            $global:Kills | Should Be 0
         }
     }
 
-    Context 'when the PID now belongs to a different process (PID reuse)' {
+    Context 'when the PID now belongs to a process started 2 h later (PID reuse)' {
         Mock -ModuleName DeployTestEnv Get-Process {
-            $p = New-Object PSObject
-            $p | Add-Member -MemberType NoteProperty -Name StartTime -Value ([datetime]::SpecifyKind([datetime]'2026-10-01 14:00:00', 'Utc').ToLocalTime())
-            $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { throw 'CloseMainWindow on a reused PID' }
-            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $true }
-            $p
+            New-FakeProcess -StartUtc ([datetime]::SpecifyKind([datetime]'2026-10-01 14:00:00', 'Utc')) -OnClose { throw 'CloseMainWindow on a reused PID' }
         }
 
         It 'treats the instance as gone and touches nothing' {
+            Reset-Counters
             Stop-Instance -Instance $client | Should Be $true
-            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+            $global:Kills | Should Be 0
+        }
+    }
+
+    Context 'when the PID now belongs to a process started 6 s later' {
+        Mock -ModuleName DeployTestEnv Get-Process {
+            New-FakeProcess -StartUtc ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:06', 'Utc')) -OnClose { throw 'CloseMainWindow on a reused PID' }
+        }
+
+        It 'is just past the 5 s tolerance: treated as gone, not touched' {
+            Reset-Counters
+            Stop-Instance -Instance $client | Should Be $true
+            $global:Kills | Should Be 0
+        }
+    }
+
+    Context 'when the start time is exactly 5 s from the instance start' {
+        Mock -ModuleName DeployTestEnv Get-Process { New-FakeProcess -StartUtc ([datetime]::SpecifyKind([datetime]'2026-10-01 11:54:55', 'Utc')) }
+
+        It 'is still the same process and gets stopped' {
+            Reset-Counters
+            Stop-Instance -Instance $client | Should Be $true
+            $global:Kills | Should Be 1
         }
     }
 
     Context 'when the start time is within the tolerance of the instance start' {
-        Mock -ModuleName DeployTestEnv Get-Process {
-            $p = New-Object PSObject
-            $p | Add-Member -MemberType NoteProperty -Name StartTime -Value ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:03', 'Utc').ToLocalTime())
-            $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { $false }
-            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $true }
-            $p
-        }
+        Mock -ModuleName DeployTestEnv Get-Process { New-FakeProcess -StartUtc ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:03', 'Utc')) }
 
         It 'is the same process and gets stopped' {
+            Reset-Counters
             Stop-Instance -Instance $client | Should Be $true
-            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $Id -eq 5 -and $Force }
+            $global:Kills | Should Be 1
+        }
+    }
+
+    Context 'when the start time cannot be read and the process is still there' {
+        Mock -ModuleName DeployTestEnv Get-Process { New-FakeProcess -StartUnreadable }
+
+        It 'stops nothing and reports it not gone' {
+            Reset-Counters
+            Stop-Instance -Instance $server | Should Be $false
+            $global:Kills | Should Be 0
+            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+            Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Times 1 -Scope It -ParameterFilter { "$Object" -match 'not stopping it' }
+        }
+    }
+
+    Context 'when the start time cannot be read because the process just exited' {
+        Mock -ModuleName DeployTestEnv Get-Process {
+            $global:GetProcessCalls++
+            if ($global:GetProcessCalls -eq 1) { New-FakeProcess -StartUnreadable }
+        }
+
+        It 'reports it gone and stops nothing' {
+            Reset-Counters
+            $global:GetProcessCalls = 0
+            Stop-Instance -Instance $server | Should Be $true
+            $global:Kills | Should Be 0
         }
     }
 
     Context 'a client that closes when asked' {
-        Mock -ModuleName DeployTestEnv Get-Process {
-            $p = New-Object PSObject
-            $p | Add-Member -MemberType NoteProperty -Name StartTime -Value ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc').ToLocalTime())
-            $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { $true }
-            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $global:WaitMs += $ms; $true }
-            $p
-        }
+        Mock -ModuleName DeployTestEnv Get-Process { New-FakeProcess -StartUtc ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc')) -OnClose { $true } }
 
-        It 'is not force-killed and waits 20 s by default' {
-            $global:WaitMs = @()
+        It 'is not killed and waits 20 s by default' {
+            Reset-Counters
             Stop-Instance -Instance $client | Should Be $true
-            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+            $global:Kills | Should Be 0
             ($global:WaitMs -join ',') | Should Be '20000'
         }
         It 'waits GraceSeconds * 1000 ms for a custom grace' {
-            $global:WaitMs = @()
+            Reset-Counters
             Stop-Instance -Instance $client -GraceSeconds 7 | Should Be $true
             ($global:WaitMs -join ',') | Should Be '7000'
         }
     }
 
     Context 'a client that is asked to close but does not exit in time' {
-        Mock -ModuleName DeployTestEnv Get-Process {
-            $p = New-Object PSObject
-            $p | Add-Member -MemberType NoteProperty -Name StartTime -Value ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc').ToLocalTime())
-            $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { $true }
-            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $global:WaitMs += $ms; $false }
-            $p
-        }
+        Mock -ModuleName DeployTestEnv Get-Process { New-FakeProcess -StartUtc ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc')) -OnClose { $true } -Exits $false }
 
-        It 'is force-killed once, and reported not gone if it never exits' {
-            $global:WaitMs = @()
+        It 'is killed once through its handle, and reported not gone if it never exits' {
+            Reset-Counters
             Stop-Instance -Instance $client -GraceSeconds 1 | Should Be $false
-            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $Id -eq 5 -and $Force }
+            $global:Kills | Should Be 1
+            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
             ($global:WaitMs -join ',') | Should Be '1000,10000'
         }
     }
 
     Context 'a client with no main window to close' {
-        Mock -ModuleName DeployTestEnv Get-Process {
-            $p = New-Object PSObject
-            $p | Add-Member -MemberType NoteProperty -Name StartTime -Value ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc').ToLocalTime())
-            $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { $false }
-            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $global:WaitMs += $ms; $true }
-            $p
-        }
+        Mock -ModuleName DeployTestEnv Get-Process { New-FakeProcess -StartUtc ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc')) }
 
-        It 'is force-killed straight away and waits 10 s for it to go' {
-            $global:WaitMs = @()
+        It 'is killed straight away and waits 10 s for it to go' {
+            Reset-Counters
             Stop-Instance -Instance $client | Should Be $true
-            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $Id -eq 5 -and $Force }
+            $global:Kills | Should Be 1
             ($global:WaitMs -join ',') | Should Be '10000'
         }
     }
 
     Context 'a client that exits between Get-Process and CloseMainWindow' {
         Mock -ModuleName DeployTestEnv Get-Process {
-            $p = New-Object PSObject
-            $p | Add-Member -MemberType NoteProperty -Name StartTime -Value ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc').ToLocalTime())
-            $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { throw (New-Object System.InvalidOperationException 'exited') }
-            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $true }
-            $p
+            New-FakeProcess -StartUtc ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc')) -OnClose { throw (New-Object System.InvalidOperationException 'exited') }
         }
 
         It 'counts as gone' {
+            Reset-Counters
             Stop-Instance -Instance $client | Should Be $true
-            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+            $global:Kills | Should Be 0
+        }
+    }
+
+    Context 'a server that exits just before the kill' {
+        Mock -ModuleName DeployTestEnv Get-Process {
+            New-FakeProcess -StartUtc ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc')) -OnKill { throw (New-Object System.InvalidOperationException 'exited') }
+        }
+
+        It 'counts as gone' {
+            Reset-Counters
+            Stop-Instance -Instance $server | Should Be $true
+        }
+    }
+
+    Context 'a server that cannot be killed (access denied)' {
+        Mock -ModuleName DeployTestEnv Get-Process {
+            New-FakeProcess -StartUtc ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc')) -OnKill { throw (New-Object System.ComponentModel.Win32Exception 5) }
+        }
+
+        It 'throws, for Invoke-StopStep to report' {
+            Reset-Counters
+            { Stop-Instance -Instance $server } | Should Throw
         }
     }
 
     Context 'a server' {
         Mock -ModuleName DeployTestEnv Get-Process {
-            $p = New-Object PSObject
-            $p | Add-Member -MemberType NoteProperty -Name StartTime -Value ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc').ToLocalTime())
             # A server must never be sent CloseMainWindow: it throws if called.
-            $p | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { throw 'CloseMainWindow on a server' }
-            $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($ms) $global:WaitMs += $ms; $true }
-            $p
+            New-FakeProcess -StartUtc ([datetime]::SpecifyKind([datetime]'2026-10-01 11:55:00', 'Utc')) -OnClose { throw 'CloseMainWindow on a server' }
         }
 
-        It 'is force-killed without CloseMainWindow' {
-            $global:WaitMs = @()
+        It 'is killed without CloseMainWindow' {
+            Reset-Counters
             Stop-Instance -Instance $server | Should Be $true
-            Assert-MockCalled Stop-Process -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $Id -eq 6 -and $Force }
+            $global:Kills | Should Be 1
             ($global:WaitMs -join ',') | Should Be '10000'
         }
     }
 }
 
+Describe 'Stop-Instance on real processes' {
+    Mock -ModuleName DeployTestEnv Write-Host { }
+    function Start-Victim {
+        $p = Start-Process -FilePath 'ping.exe' -ArgumentList '-n 60 127.0.0.1' -WindowStyle Hidden -PassThru
+        New-Instance 'Server' $p.StartTime.ToUniversalTime() $p.Id
+    }
+
+    It 'kills the process it was given' {
+        $victim = Start-Victim
+        try {
+            Stop-Instance -Instance $victim | Should Be $true
+            Get-Process -Id $victim.ProcessId -ErrorAction SilentlyContinue | Should BeNullOrEmpty
+        } finally { Stop-Process -Id $victim.ProcessId -Force -ErrorAction SilentlyContinue }
+    }
+    It 'leaves alone a process whose start time is 6 s off' {
+        $victim = Start-Victim
+        try {
+            $victim.StartTimeUtc = $victim.StartTimeUtc.AddSeconds(-6)
+            Stop-Instance -Instance $victim | Should Be $true
+            Get-Process -Id $victim.ProcessId -ErrorAction SilentlyContinue | Should Not BeNullOrEmpty
+        } finally { Stop-Process -Id $victim.ProcessId -Force -ErrorAction SilentlyContinue }
+    }
+}
+
 Describe 'Invoke-StopStep' {
+    Mock -ModuleName DeployTestEnv Write-Host { }
     Mock -ModuleName DeployTestEnv Stop-Instance { $true }
 
     It 'succeeds without asking when nothing must stop' {
@@ -496,6 +782,14 @@ Describe 'Invoke-StopStep' {
         Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }
         Mock -ModuleName DeployTestEnv Stop-Instance { $false }
         Invoke-StopStep -ToStop @(New-Instance 'GameTestServer' $After 1) -BuildStampUtc $Stamp | Should Be $false
+    }
+    It 'fails, without throwing, when stopping an instance throws, and still tries the others' {
+        Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }
+        Mock -ModuleName DeployTestEnv Stop-Instance { if ($Instance.ProcessId -eq 1) { throw 'Access is denied' } else { $true } }
+        $two = @((New-Instance 'GameTestServer' $After 1), (New-Instance 'Server' $Before 2))
+        Invoke-StopStep -ToStop $two -BuildStampUtc $Stamp | Should Be $false
+        Assert-MockCalled Stop-Instance -ModuleName DeployTestEnv -Times 2 -Exactly -Scope It
+        Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Times 1 -Scope It -ParameterFilter { "$Object" -match 'Could not stop GameTestServer PID 1: Access is denied' }
     }
 }
 
@@ -581,6 +875,13 @@ Describe 'Invoke-DeployFlow' {
             Invoke-Flow $f | Should Be 3
             ($f.Calls -join ',') | Should Be 'build'
             Assert-MockCalled Stop-Instance -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It
+        }
+        It 'exits 3, not 1, when stopping it throws' {
+            Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }
+            Mock -ModuleName DeployTestEnv Stop-Instance { throw 'Access is denied' }
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 3
+            ($f.Calls -join ',') | Should Be 'build'
         }
         It 'stops it and goes on after y' {
             Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }

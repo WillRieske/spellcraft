@@ -7,7 +7,7 @@
     Gradle steps. Running instances that must stop are stopped only after a y; non-interactive runs answer N.
     Exit codes: 0 ok (client launched or already current); 1 not in a repo or the build failed;
     2 GameTests failed; 3 an instance had to stop and the user declined, could not be asked, or it did
-    not exit; 4 the client launch process died within 15 s.
+    not exit or could not be stopped; 4 the client launch process died within 15 s.
 .PARAMETER CheckOnly
     Print the build stamp and the running instances with their verdicts, then exit 0.
     Builds, stops and launches nothing.

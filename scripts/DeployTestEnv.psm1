@@ -11,12 +11,35 @@ $script:BuildOutputDirs = @('build\classes\java\main', 'build\resources\main')
 # ModDevGradle passes '@<repo>\build\moddev\<run>RunVmArgs.txt' (and ProgramArgs) to java.exe, with
 # every backslash DOUBLED in these tokens (spec: "Verified launch facts"). Matching is on the '@'
 # token only: the -cp classpath contains '<repo>\build\moddev\artifacts\' for every instance and
-# cannot tell kinds apart. The '\' before the run name keeps 'serverRun' from matching inside
+# cannot tell kinds apart. The separator before the run name keeps 'serverRun' from matching inside
 # 'gameTestServerRun'; the '<repo>' anchor ignores other checkouts and nested worktrees.
 $script:RunKinds = @{
     'clientrun'         = 'Client'
     'gametestserverrun' = 'GameTestServer'
     'serverrun'         = 'Server'
+}
+
+# One '\' or '/', and a run of them. Built from [char]92 so the source never holds a literal
+# doubled backslash that an editor or shell could silently collapse.
+$script:SepChar = '[/' + [regex]::Escape([string][char]92) + ']'
+$script:SepPattern = $script:SepChar + '+'
+
+<#
+.SYNOPSIS
+    A regex for a path in which any run of '\' or '/' matches any other run.
+.DESCRIPTION
+    So doubled backslashes, forward slashes and a trailing separator all compare equal. A UNC
+    path (two leading separators) must still start with two or more.
+.PARAMETER Path
+    The path.
+.OUTPUTS
+    [string] regex, without anchors.
+#>
+function ConvertTo-PathPattern {
+    param([Parameter(Mandatory)][string] $Path)
+    $parts = @($Path -split $script:SepPattern | Where-Object { $_ -ne '' } | ForEach-Object { [regex]::Escape($_) })
+    $prefix = if ($Path -match ('^' + $script:SepChar + '{2}')) { $script:SepChar + '{2,}' } else { '' }
+    $prefix + ($parts -join $script:SepPattern)
 }
 
 <#
@@ -25,35 +48,114 @@ $script:RunKinds = @{
 .PARAMETER CommandLine
     The process command line; null or empty (CIM hides some) yields $null.
 .PARAMETER RepoRoot
-    The repo root; only runs whose '@' argument files sit under '<RepoRoot>\build\moddev\' match.
+    The repo root, or several spellings of it (see Get-RepoRootForms); only runs whose '@'
+    argument files sit under '<RepoRoot>\build\moddev\' match.
 .OUTPUTS
     'Client', 'GameTestServer', 'Server' or $null.
 #>
 function Get-InstanceKind {
     param(
         [AllowNull()][AllowEmptyString()][string] $CommandLine,
-        [Parameter(Mandatory)][string] $RepoRoot
+        [Parameter(Mandatory)][string[]] $RepoRoot
     )
     if ([string]::IsNullOrEmpty($CommandLine)) { return $null }
-    # Collapse doubled backslashes to single ones. Built from [char]92 so the source never holds a
-    # literal doubled backslash that an editor or shell could silently collapse.
-    $bs = [string][char]92
-    $line = $CommandLine.Replace($bs + $bs, $bs)
-    $root = $RepoRoot.TrimEnd([char]92).Replace($bs + $bs, $bs)
-    $pattern = '@' + [regex]::Escape($root + $bs + 'build' + $bs + 'moddev' + $bs) +
-        '(clientRun|gameTestServerRun|serverRun)(VmArgs|ProgramArgs)\.txt'
-    $m = [regex]::Match($line, $pattern, 'IgnoreCase')
-    if (-not $m.Success) { return $null }
-    $script:RunKinds[$m.Groups[1].Value.ToLowerInvariant()]
+    foreach ($root in $RepoRoot) {
+        $pattern = '@' + (ConvertTo-PathPattern -Path $root) + $script:SepPattern + 'build' +
+            $script:SepPattern + 'moddev' + $script:SepPattern +
+            '(clientRun|gameTestServerRun|serverRun)(VmArgs|ProgramArgs)\.txt'
+        $m = [regex]::Match($CommandLine, $pattern, 'IgnoreCase')
+        if ($m.Success) { return $script:RunKinds[$m.Groups[1].Value.ToLowerInvariant()] }
+    }
+    $null
 }
 
 <#
 .SYNOPSIS
-    Time of the newest compiled class or processed resource.
+    The spellings of the repo root a dev run's command line may use.
+.DESCRIPTION
+    Gradle may write the root in a different form from the one this script was started with:
+    long instead of 8.3 short names, or the real location behind a junction or subst drive.
+    Returns the given path, its long-name form and its final (link-resolved) form, without
+    duplicates. A form Windows cannot produce is left out.
 .PARAMETER RepoRoot
     The repo root.
 .OUTPUTS
-    [datetime] (UTC), or $null when nothing has been built.
+    [string[]], the given path first.
+#>
+function Get-RepoRootForms {
+    param([Parameter(Mandatory)][string] $RepoRoot)
+    if (-not ('DeployTestEnv.NativePath' -as [type])) {
+        Add-Type -TypeDefinition $script:NativePathSource
+    }
+    $forms = New-Object System.Collections.Generic.List[string]
+    $forms.Add($RepoRoot)
+    $final = [DeployTestEnv.NativePath]::FinalPath($RepoRoot)
+    if ($final) {
+        # Drop the long-path prefix: '<sep><sep>?<sep>UNC<sep>server' becomes '<sep><sep>server',
+        # '<sep><sep>?<sep>C:' becomes 'C:'.
+        $bs = [string][char]92
+        $longPrefix = $bs + $bs + '?' + $bs
+        if ($final.StartsWith($longPrefix + 'UNC' + $bs)) { $final = $bs + $bs + $final.Substring(8) }
+        elseif ($final.StartsWith($longPrefix)) { $final = $final.Substring(4) }
+    }
+    foreach ($form in @([DeployTestEnv.NativePath]::LongPath($RepoRoot), $final)) {
+        if ($form -and -not ($forms -contains $form)) { $forms.Add($form) }
+    }
+    $forms.ToArray()
+}
+
+$script:NativePathSource = @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
+
+namespace DeployTestEnv {
+    public static class NativePath {
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern uint GetLongPathNameW(string shortPath, StringBuilder longPath, uint size);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern SafeFileHandle CreateFileW(string name, uint access, uint share, IntPtr security,
+            uint disposition, uint flags, IntPtr template);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern uint GetFinalPathNameByHandleW(SafeFileHandle file, StringBuilder path, uint size, uint flags);
+
+        // Null when Windows cannot expand it.
+        public static string LongPath(string path) {
+            var sb = new StringBuilder(1024);
+            uint n = GetLongPathNameW(path, sb, (uint)sb.Capacity);
+            return (n == 0 || n >= sb.Capacity) ? null : sb.ToString();
+        }
+
+        // The path with junctions, symlinks and subst drives resolved, still carrying the
+        // long-path prefix (see Get-RepoRootForms); null when Windows cannot.
+        public static string FinalPath(string path) {
+            const uint OPEN_EXISTING = 3, FILE_FLAG_BACKUP_SEMANTICS = 0x02000000, SHARE_ALL = 7;
+            using (var h = CreateFileW(path, 0, SHARE_ALL, IntPtr.Zero, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, IntPtr.Zero)) {
+                if (h.IsInvalid) return null;
+                var sb = new StringBuilder(1024);
+                uint n = GetFinalPathNameByHandleW(h, sb, (uint)sb.Capacity, 0);
+                if (n == 0 || n >= sb.Capacity) return null;
+                return sb.ToString();
+            }
+        }
+    }
+}
+'@
+
+<#
+.SYNOPSIS
+    Time of the newest change to the compiled classes or processed resources.
+.DESCRIPTION
+    The newest write time of any file or directory in the output directories, the directories
+    included. Directories count because deleting a file (an incremental compile removing a
+    class) changes only its directory's write time.
+.PARAMETER RepoRoot
+    The repo root.
+.OUTPUTS
+    [datetime] (UTC), or $null when nothing has been built (no files).
 #>
 function Get-BuildStamp {
     param([Parameter(Mandatory)][string] $RepoRoot)
@@ -61,11 +163,9 @@ function Get-BuildStamp {
         ForEach-Object { Join-Path $RepoRoot $_ } |
         Where-Object { Test-Path -LiteralPath $_ -PathType Container })
     if ($dirs.Count -eq 0) { return $null }
-    $newest = Get-ChildItem -LiteralPath $dirs -Recurse -File |
-        Sort-Object LastWriteTimeUtc -Descending |
-        Select-Object -First 1
-    if ($null -eq $newest) { return $null }
-    $newest.LastWriteTimeUtc
+    $items = @(Get-Item -LiteralPath $dirs) + @(Get-ChildItem -LiteralPath $dirs -Recurse)
+    if (-not ($items | Where-Object { -not $_.PSIsContainer })) { return $null }
+    ($items | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).LastWriteTimeUtc
 }
 
 <#
@@ -94,22 +194,31 @@ function Get-Verdict {
     The repo root.
 .OUTPUTS
     Zero or more objects with Kind, ProcessId and StartTimeUtc. Wrap the call in @(...).
-    A dev run whose start time CIM does not report is skipped, with a line saying so.
+    A dev run whose start time cannot be read is skipped, with a line saying so.
 #>
 function Get-Instances {
     param([Parameter(Mandatory)][string] $RepoRoot)
+    $roots = Get-RepoRootForms -RepoRoot $RepoRoot
     foreach ($p in @(Get-CimInstance -ClassName Win32_Process -Filter "Name='java.exe'")) {
-        $kind = Get-InstanceKind -CommandLine $p.CommandLine -RepoRoot $RepoRoot
+        $kind = Get-InstanceKind -CommandLine $p.CommandLine -RepoRoot $roots
         if ($null -eq $kind) { continue }
-        # Without a start time neither the verdict nor Stop-Instance's PID-reuse guard can work.
-        if ($null -eq $p.CreationDate) {
-            Write-Host "$kind PID $($p.ProcessId) has no start time (CIM hid it); skipping it. Stop it by hand if it gets in the way."
+        # The start time comes from the process, not CIM's CreationDate: Process.StartTime keeps
+        # the UTC instant, so a start in the repeated hour at the end of daylight saving converts
+        # back correctly, and Stop-Instance's PID-reuse guard compares the same clock.
+        $proc = Get-Process -Id $p.ProcessId -ErrorAction SilentlyContinue
+        if ($null -eq $proc) { continue }
+        try {
+            $startUtc = $proc.StartTime.ToUniversalTime()
+        } catch {
+            if (Test-IsExitedError -ErrorRecord $_) { continue }
+            # Without a start time neither the verdict nor Stop-Instance's PID-reuse guard can work.
+            Write-Host "$kind PID $($p.ProcessId) has no readable start time ($($_.Exception.Message)); skipping it. Stop it by hand if it gets in the way."
             continue
         }
         [pscustomobject]@{
             Kind         = $kind
             ProcessId    = [int]$p.ProcessId
-            StartTimeUtc = $p.CreationDate.ToUniversalTime()
+            StartTimeUtc = $startUtc
         }
     }
 }
@@ -201,15 +310,58 @@ function Format-BuildStamp {
 
 <#
 .SYNOPSIS
+    Whether a question can be asked, given the host state.
+.PARAMETER UserInteractive
+    [Environment]::UserInteractive.
+.PARAMETER InputRedirected
+    [Console]::IsInputRedirected.
+.PARAMETER CommandLineArgs
+    [Environment]::GetCommandLineArgs().
+.OUTPUTS
+    [bool]: false for a non-interactive host, redirected stdin, or -NonInteractive in any
+    spelling powershell.exe accepts ('-noni' to '-NonInteractive', also with '/').
+#>
+function Test-CanPromptWith {
+    param(
+        [Parameter(Mandatory)][bool] $UserInteractive,
+        [Parameter(Mandatory)][bool] $InputRedirected,
+        [AllowEmptyCollection()][string[]] $CommandLineArgs = @()
+    )
+    if (-not $UserInteractive) { return $false }
+    if ($InputRedirected) { return $false }
+    $nonInteractive = @($CommandLineArgs | Where-Object { $_ -match '^[-/]noni' })
+    $nonInteractive.Count -eq 0
+}
+
+<#
+.SYNOPSIS
     Whether the script can ask the user a question.
 .OUTPUTS
-    [bool]: false for a non-interactive host, redirected stdin or -NonInteractive.
+    [bool]: see Test-CanPromptWith.
 #>
 function Test-CanPrompt {
-    if (-not [Environment]::UserInteractive) { return $false }
-    if ([Console]::IsInputRedirected) { return $false }
-    $nonInteractive = @([Environment]::GetCommandLineArgs() | Where-Object { $_ -match '^-noni' })
-    $nonInteractive.Count -eq 0
+    Test-CanPromptWith -UserInteractive ([Environment]::UserInteractive) `
+        -InputRedirected ([Console]::IsInputRedirected) `
+        -CommandLineArgs ([Environment]::GetCommandLineArgs())
+}
+
+<#
+.SYNOPSIS
+    Whether an error says the process has already exited.
+.DESCRIPTION
+    PowerShell wraps exceptions from .NET method and property calls, so the inner ones are
+    checked too. Process members throw InvalidOperationException once the process has exited.
+.PARAMETER ErrorRecord
+    The caught error ($_).
+.OUTPUTS
+    [bool]
+#>
+function Test-IsExitedError {
+    param([Parameter(Mandatory)] $ErrorRecord)
+    for ($ex = $ErrorRecord.Exception; $null -ne $ex; $ex = $ex.InnerException) {
+        if ($ex -is [System.InvalidOperationException]) { return $true }
+    }
+    $false
 }
 
 <#
@@ -236,7 +388,13 @@ function Confirm-StopInstances {
         Write-Host 'Cannot prompt (non-interactive run); treating the answer as N.'
         return $false
     }
-    $answer = Read-Host 'Stop them? [y/N]'
+    try {
+        $answer = Read-Host 'Stop them? [y/N]'
+    } catch {
+        # Backstop for a host Test-CanPrompt did not recognise as non-interactive.
+        Write-Host "Cannot prompt ($($_.Exception.Message)); treating the answer as N."
+        return $false
+    }
     $answer -match '^(y|yes)$'
 }
 
@@ -250,7 +408,8 @@ function Confirm-StopInstances {
 .PARAMETER GraceSeconds
     How long a client gets to close after CloseMainWindow() before it is forced.
 .OUTPUTS
-    [bool]: true once the process is confirmed gone, false if it is still alive after the forced stop.
+    [bool]: true once the process is confirmed gone (or the PID is now another process's), false
+    if it is still alive after the forced stop or its identity cannot be checked.
 #>
 function Stop-Instance {
     param(
@@ -259,38 +418,50 @@ function Stop-Instance {
     )
     $proc = Get-Process -Id $Instance.ProcessId -ErrorAction SilentlyContinue
     if ($null -eq $proc) { return $true }
-    # PID reuse guard: the PID may now belong to an unrelated process. Never stop one whose start
-    # time differs from the instance's by more than 5 s.
     try {
-        $drift = [math]::Abs(($proc.StartTime.ToUniversalTime() - $Instance.StartTimeUtc).TotalSeconds)
+        # Pin the process: while this handle is open Windows cannot hand the PID to a new process,
+        # so the identity check below and the kill act on the same process.
+        try {
+            [void]$proc.Handle
+            $startUtc = $proc.StartTime.ToUniversalTime()
+        } catch {
+            if (Test-IsExitedError -ErrorRecord $_) { return $true }
+            if ($null -eq (Get-Process -Id $Instance.ProcessId -ErrorAction SilentlyContinue)) { return $true }
+            Write-Host "Cannot check that PID $($Instance.ProcessId) is still that $($Instance.Kind) ($($_.Exception.Message)); not stopping it."
+            return $false
+        }
+        # PID reuse guard: the PID may now belong to an unrelated process. Never stop one whose
+        # start time differs from the instance's by more than 5 s.
+        $drift = [math]::Abs(($startUtc - $Instance.StartTimeUtc).TotalSeconds)
         if ($drift -gt 5) {
             Write-Host "PID $($Instance.ProcessId) now belongs to a different process (start time differs); treating $($Instance.Kind) as gone."
             return $true
         }
-    } catch {
-        # StartTime unreadable (access denied or exited meanwhile): fall through to the normal path.
-        Write-Verbose "Could not read the start time of PID $($Instance.ProcessId): $_"
-    }
-    $closeRequested = $false
-    if ($Instance.Kind -eq 'Client') {
-        try {
-            $closeRequested = $proc.CloseMainWindow()
-        } catch {
-            # PowerShell wraps exceptions from .NET method calls, so look at the inner one too.
-            # InvalidOperationException means the process exited meanwhile: it is gone.
-            for ($ex = $_.Exception; $null -ne $ex; $ex = $ex.InnerException) {
-                if ($ex -is [System.InvalidOperationException]) { return $true }
+        $closeRequested = $false
+        if ($Instance.Kind -eq 'Client') {
+            try {
+                $closeRequested = $proc.CloseMainWindow()
+            } catch {
+                if (Test-IsExitedError -ErrorRecord $_) { return $true }
+                throw
             }
+        }
+        if ($closeRequested) {
+            Write-Host "Asked client PID $($Instance.ProcessId) to close; waiting up to $GraceSeconds s."
+            if ($proc.WaitForExit($GraceSeconds * 1000)) { return $true }
+            Write-Host "Client PID $($Instance.ProcessId) did not exit in $GraceSeconds s; forcing it."
+        }
+        try {
+            # Through the pinned handle, not Stop-Process -Id, which would look the PID up again.
+            $proc.Kill()
+        } catch {
+            if (Test-IsExitedError -ErrorRecord $_) { return $true }
             throw
         }
+        $proc.WaitForExit(10000)
+    } finally {
+        if ($proc -is [System.IDisposable]) { $proc.Dispose() }
     }
-    if ($closeRequested) {
-        Write-Host "Asked client PID $($Instance.ProcessId) to close; waiting up to $GraceSeconds s."
-        if ($proc.WaitForExit($GraceSeconds * 1000)) { return $true }
-        Write-Host "Client PID $($Instance.ProcessId) did not exit in $GraceSeconds s; forcing it."
-    }
-    Stop-Process -Id $Instance.ProcessId -Force -ErrorAction SilentlyContinue
-    $proc.WaitForExit(10000)
 }
 
 <#
@@ -312,7 +483,14 @@ function Invoke-StopStep {
     if (-not (Confirm-StopInstances -Instances $ToStop -BuildStampUtc $BuildStampUtc)) { return $false }
     $allGone = $true
     foreach ($i in $ToStop) {
-        if (-not (Stop-Instance -Instance $i)) {
+        try {
+            $gone = Stop-Instance -Instance $i
+        } catch {
+            # E.g. access denied. Report it as a failed stop (exit 3), not a crash (exit 1).
+            Write-Host "Could not stop $($i.Kind) PID $($i.ProcessId): $($_.Exception.Message)"
+            $gone = $false
+        }
+        if (-not $gone) {
             Write-Host "$($i.Kind) PID $($i.ProcessId) did not exit."
             $allGone = $false
         }

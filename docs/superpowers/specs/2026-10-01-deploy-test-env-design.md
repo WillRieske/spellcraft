@@ -27,7 +27,7 @@ Pester 3.4 (built into Windows PowerShell 5.1). The script itself is the thin fl
 
 | Term | Meaning |
 |---|---|
-| **Build stamp** | The newest file modification time under `build/classes/java/main` and `build/resources/main`. None if neither has files. |
+| **Build stamp** | The newest write time of any file or directory under `build/classes/java/main` and `build/resources/main`, the two directories included. Directories count because deleting a file (an incremental compile removing a class) changes only its directory's time. None if neither has files. |
 | **Instance** | A `java.exe` process running the dev client, the GameTest server or the dedicated server **from this checkout** (not the Gradle daemon, not another checkout or worktree). |
 | **Up to date** | The instance's start time is strictly later than the build stamp. |
 | **Stale** | Not up to date: started at or before the build stamp, or there is no build stamp. It may be running older code than what is on disk. |
@@ -93,15 +93,31 @@ instance never skips them.
 - **Detect:** `Get-CimInstance Win32_Process -Filter "Name='java.exe'"`, matching the command
   line. ModDevGradle starts the game with argument files under `build\moddev\`, named
   `clientRun*`, `gameTestServerRun*` and `serverRun*`. The match is anchored on
-  `<repo root>\build\moddev\<name>` and is case-insensitive, so `serverRun` never matches inside
-  `gameTestServerRun`, and runs from another checkout or worktree are ignored. The real command
-  lines are recorded under [Verified launch facts](#verified-launch-facts).
-- **Stop:** `CloseMainWindow()` on the client, then wait up to 20 s for exit, then
-  `Stop-Process -Force` only because the user has already answered `y`. Servers have no window:
-  `Stop-Process -Force`. Nothing is ever stopped without the prompt.
+  `@<repo root>\build\moddev\<name>` and is case-insensitive, so `serverRun` never matches inside
+  `gameTestServerRun`, and runs from another checkout or worktree are ignored. Only the `@`
+  argument-file token counts. Any run of `\` or `/` matches any other, so the doubled backslashes
+  of the real tokens, forward slashes and trailing separators all compare equal; a UNC root still
+  needs its two leading separators. The root is tried in each form Gradle may have written it:
+  as given, with 8.3 short names expanded, and with junctions and `subst` drives resolved. The
+  real command lines are recorded under [Verified launch facts](#verified-launch-facts).
+- **Start time:** from `Process.StartTime`, not CIM's `CreationDate`. `Process.StartTime`
+  converts back to the right UTC instant even in the repeated hour when daylight saving ends,
+  and it is the same clock the PID-reuse check reads. An instance whose start time cannot be
+  read is skipped with a message.
+- **Stop:** first pin the process by opening its handle (Windows cannot reuse a PID while a
+  handle is open), then check it is still the same process: its start time must be within 5 s
+  of the instance's. A different start time means the PID now belongs to another process, which
+  is left alone and the instance counts as gone. If the start time cannot be read and the process
+  still exists, it is not stopped (exit 3). Then `CloseMainWindow()` on the client and wait up
+  to 20 s; anything still running is killed through the pinned handle. This happens only after
+  the user has answered `y`. Servers have no window, so they are killed straight away. An error
+  while stopping (e.g. access denied) counts as "did not exit" (exit 3), not a crash. Nothing is
+  ever stopped without the prompt.
 - **Non-interactive runs:** if `[Console]::IsInputRedirected`, the process was started with
-  `-NonInteractive`, or `[Environment]::UserInteractive` is false, an instance that must stop is
-  treated as `N` (exit 3) rather than hanging on the prompt.
+  `-NonInteractive` (in any spelling `powershell.exe` accepts: `-noni` to `-NonInteractive`, or
+  the same with `/`), or `[Environment]::UserInteractive` is false, an instance that must stop is
+  treated as `N` (exit 3) rather than hanging on the prompt. If the host still refuses the
+  prompt, that is also `N`.
 
 ## Shared run directory
 
@@ -124,7 +140,7 @@ is tested without a 15-minute build, and it is a useful read-only status command
 | 0 | Everything passed; client launched or already current |
 | 1 | Not in a repo, or step 1 failed |
 | 2 | GameTests failed |
-| 3 | An instance that must stop was found and the user declined (or could not be asked), or it did not exit after being stopped |
+| 3 | An instance that must stop was found and the user declined (or could not be asked), or it did not exit after being stopped, or it could not be stopped (an error, or its identity could not be checked) |
 | 4 | The client launch process died within 15 s |
 
 ## Out of scope
@@ -141,8 +157,11 @@ is tested without a 15-minute build, and it is a useful read-only status command
 
 Pester 3.4 unit tests (`scripts/tests/DeployTestEnv.Tests.ps1`) cover the pure parts:
 command-line classification, the build stamp, the verdict, which instances must stop, the
-prompt decision and the status formatting. Process discovery is tested with a mocked
-`Get-CimInstance`.
+prompt decision and the status formatting. Process discovery is tested with mocked
+`Get-CimInstance` and `Get-Process`; the repo-root forms use real junctions and 8.3 names; and
+the stop guard is also run against real throwaway `ping.exe` processes. Each guard on the stop
+path has a test that fails when the guard is broken (checked by hand-made mutations,
+2026-10-02).
 
 ## Verification plan
 
@@ -195,7 +214,15 @@ the shape matters, not the root. In the main checkout `<root>` is `C:\dev\spellc
   `@...\\build\\moddev\\serverRunVmArgs.txt` and `@...\\build\\moddev\\serverRunProgramArgs.txt`.
 - **A run does not move the build stamp.** Newest file under `build\classes\java\main` and
   `build\resources\main` stayed `Spellcraft.class` at 2026-10-01 23:04:57 UTC across two
-  `runGameTestServer` runs (and the client launch).
+  `runGameTestServer` runs (and the client launch). Re-checked 2026-10-02 with directories
+  counted: the stamp stayed at 00:19:46.887 UTC across a no-op `spotlessCheck build` and a
+  `runGameTestServer` run.
+- **`-NonInteractive` spellings**: `powershell.exe` accepts `-noni`, `-nonin`, ... `-NonInteractive`
+  in any case, and the same with `/` (`/noni`, `/NonInteractive`); `-non` is rejected. Under each
+  accepted one, `Read-Host` throws.
+- **Daylight-saving end**: `Process.StartTime` (`DateTime.FromFileTime`) keeps which of the two
+  repeated local hours it is: 05:30 and 06:30 UTC on 2026-11-01 both show as 01:30 Eastern, and
+  `.ToUniversalTime()` returns each correctly.
 - **GameTests pass while the client runs**: `runGameTestServer` exited 0 with the client open
   ("All 10 required tests passed", `BUILD SUCCESSFUL`); no rollover warning or crash.
 - **Rebuilding while the client runs works and makes it stale**: `./gradlew classes` after a source
