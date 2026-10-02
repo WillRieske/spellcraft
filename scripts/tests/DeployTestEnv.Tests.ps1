@@ -187,6 +187,25 @@ Describe 'Get-Instances' {
     }
 }
 
+Describe 'Get-Instances with an unknown start time' {
+    Mock -ModuleName DeployTestEnv Write-Host { }
+    Mock -ModuleName DeployTestEnv Get-CimInstance {
+        $bs = [string][char]92
+        $client = '@' + 'C:\dev\spellcraft\build\moddev\clientRunVmArgs.txt'.Replace($bs, $bs + $bs)
+        [pscustomobject]@{ ProcessId = 105; CreationDate = $null
+            CommandLine = "java.exe -cp C:\dev\spellcraft\build\moddev\artifacts\a.jar $client net.neoforged.devlaunch.Main" }
+    }
+
+    $result = @(Get-Instances -RepoRoot 'C:\dev\spellcraft')
+
+    It 'skips the instance instead of throwing' {
+        $result.Count | Should Be 0
+    }
+    It 'says which instance it skipped' {
+        Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Times 1 -Exactly -ParameterFilter { "$Object" -match 'Client PID 105' }
+    }
+}
+
 Describe 'Get-Instances with nothing running' {
     Mock -ModuleName DeployTestEnv Get-CimInstance { }
 
@@ -495,7 +514,8 @@ Describe 'Start-DevClient' {
     It 'reports a launch that is still running after the grace period' {
         $r = Start-DevClient -RepoRoot (New-RepoDir 'alive') -GraceSeconds 1 -Command 'ping -n 6 127.0.0.1'
         try { $r.Started | Should Be $true }
-        finally { Stop-Process -Id $r.ProcessId -Force -ErrorAction SilentlyContinue }
+        # /T: the cmd.exe wrapper's ping child would otherwise outlive it and hold the log open.
+        finally { taskkill /PID $r.ProcessId /T /F 2>&1 | Out-Null }
     }
 }
 

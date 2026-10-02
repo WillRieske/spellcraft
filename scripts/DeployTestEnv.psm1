@@ -94,12 +94,18 @@ function Get-Verdict {
     The repo root.
 .OUTPUTS
     Zero or more objects with Kind, ProcessId and StartTimeUtc. Wrap the call in @(...).
+    A dev run whose start time CIM does not report is skipped, with a line saying so.
 #>
 function Get-Instances {
     param([Parameter(Mandatory)][string] $RepoRoot)
     foreach ($p in @(Get-CimInstance -ClassName Win32_Process -Filter "Name='java.exe'")) {
         $kind = Get-InstanceKind -CommandLine $p.CommandLine -RepoRoot $RepoRoot
         if ($null -eq $kind) { continue }
+        # Without a start time neither the verdict nor Stop-Instance's PID-reuse guard can work.
+        if ($null -eq $p.CreationDate) {
+            Write-Host "$kind PID $($p.ProcessId) has no start time (CIM hid it); skipping it. Stop it by hand if it gets in the way."
+            continue
+        }
         [pscustomobject]@{
             Kind         = $kind
             ProcessId    = [int]$p.ProcessId
