@@ -40,7 +40,7 @@ displayName="${mod_name}" #mandatory
 
 # The description text for the mod (multi line!) (#mandatory)
 description='''
-Spells for Minecraft. First spell: Strength of Upside-Down.
+Spells for Minecraft. Spells so far: Strength of Upside-Down and Strength of Infinity.
 '''
 
 # The [[mixins]] block allows you to declare your mixin config to FML so that it gets loaded.
