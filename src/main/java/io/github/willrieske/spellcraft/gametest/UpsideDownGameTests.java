@@ -1,5 +1,12 @@
 package io.github.willrieske.spellcraft.gametest;
 
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.heldCount;
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.hold;
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.requireEffect;
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.useHeld;
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.withConfig;
+import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
+
 import io.github.willrieske.spellcraft.config.ServerConfig;
 import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.spell.ModItems;
@@ -11,161 +18,125 @@ import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.neoforged.neoforge.common.ModConfigSpec;
+import net.minecraft.world.level.GameType;
 
 /** Server-rule GameTests for Strength of Upside-Down. Registered in {@link SpellcraftGameTests}. */
 public final class UpsideDownGameTests {
+    private static final int TICKS_PER_SECOND = 20;
+    private static final int DEFAULT_DURATION_TICKS = 180 * TICKS_PER_SECOND;
+
     private UpsideDownGameTests() {}
 
-    static void effectIsANeutralMarker(GameTestHelper helper) {
+    static void registerAll() {
+        SpellcraftGameTests.add(SHARED, "upside_down_effect_is_neutral_marker", UpsideDownGameTests::isANeutralMarker);
+        SpellcraftGameTests.add(SHARED, "upside_down_milk_clears", UpsideDownGameTests::milkClearsTheEffect);
+        SpellcraftGameTests.add(SHARED, "upside_down_cast_consumes", UpsideDownGameTests::castConsumesAndGrants);
+        SpellcraftGameTests.add(SHARED, "upside_down_recast_refreshes", UpsideDownGameTests::recastRefreshes);
+        SpellcraftGameTests.add(SHARED, "upside_down_sneak_dispels", UpsideDownGameTests::sneakDispels);
+        SpellcraftGameTests.add(SHARED, "upside_down_sneak_inactive_casts", UpsideDownGameTests::sneakInactiveCasts);
+        SpellcraftGameTests.add(
+                SHARED, "upside_down_sneak_other_item_keeps", UpsideDownGameTests::sneakOtherItemKeepsTheEffect);
+        SpellcraftGameTests.add(SHARED, "upside_down_creative_consumes", UpsideDownGameTests::creativeConsumes);
+        SpellcraftGameTests.add("config_mutation", "upside_down_config_duration", UpsideDownGameTests::configDuration);
+    }
+
+    private static ServerPlayer survivalWithScrolls(GameTestHelper helper, int count) {
+        ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        hold(player, new ItemStack(ModItems.UPSIDE_DOWN_SCROLL.get(), count));
+        return player;
+    }
+
+    static void isANeutralMarker(GameTestHelper helper) {
         helper.assertValueEqual(
                 ModEffects.UPSIDE_DOWN.value().getCategory(), MobEffectCategory.NEUTRAL, "effect category");
         helper.succeed();
     }
 
-    // makeMockServerPlayer() has no connection, so addEffect (which sends a packet) NPEs; the in-level mock has one.
-    @SuppressWarnings("removal")
     static void milkClearsTheEffect(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         player.addEffect(new MobEffectInstance(ModEffects.UPSIDE_DOWN, 200));
-        helper.assertTrue(player.hasEffect(ModEffects.UPSIDE_DOWN), "precondition: effect applied");
         Items.MILK_BUCKET.finishUsingItem(new ItemStack(Items.MILK_BUCKET), helper.getLevel(), player);
         helper.assertFalse(player.hasEffect(ModEffects.UPSIDE_DOWN), "milk should clear Upside-Down");
         helper.succeed();
     }
 
-    private static final int TICKS_PER_SECOND = 20;
-    private static final int DEFAULT_DURATION_TICKS = 180 * TICKS_PER_SECOND;
-
-    // See milkClearsTheEffect: the in-level mock player is deprecated-for-removal but is the only one with a
-    // connection.
-    @SuppressWarnings("removal")
-    static void castGrantsTheFullDuration(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
-        ItemStack scroll = useScroll(helper, player);
-        MobEffectInstance effect = requireEffect(helper, player);
+    static void castConsumesAndGrants(GameTestHelper helper) {
+        ServerPlayer player = survivalWithScrolls(helper, 2);
+        helper.assertValueEqual(useHeld(helper, player), InteractionResult.SUCCESS, "use result");
+        helper.assertValueEqual(heldCount(player), 1, "one scroll used up");
+        MobEffectInstance effect = requireEffect(helper, player, ModEffects.UPSIDE_DOWN);
         helper.assertValueEqual(effect.getDuration(), DEFAULT_DURATION_TICKS, "duration ticks");
-        helper.assertFalse(effect.isVisible(), "particles must be hidden so other players see nothing");
-        helper.assertFalse(player.getCooldowns().isOnCooldown(scroll), "default cooldown is 0");
-        helper.succeed();
-    }
-
-    @SuppressWarnings("removal")
-    static void recastResetsToTheFullDuration(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
-        player.addEffect(new MobEffectInstance(ModEffects.UPSIDE_DOWN, 40, 0, false, false, true));
-        useScroll(helper, player);
+        helper.assertFalse(effect.isVisible(), "particles hidden so other players see nothing");
         helper.assertValueEqual(
-                requireEffect(helper, player).getDuration(), DEFAULT_DURATION_TICKS, "recast duration ticks");
+                ModItems.UPSIDE_DOWN_SCROLL.get().getDefaultInstance().getMaxStackSize(), 16, "scrolls stack to 16");
         helper.succeed();
     }
 
-    @SuppressWarnings("removal")
-    static void sneakCastWhileActiveRemovesTheEffect(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
-        useScroll(helper, player);
+    static void recastRefreshes(GameTestHelper helper) {
+        ServerPlayer player = survivalWithScrolls(helper, 2);
+        player.addEffect(new MobEffectInstance(ModEffects.UPSIDE_DOWN, 40, 0, false, false, true));
+        useHeld(helper, player);
+        helper.assertValueEqual(
+                requireEffect(helper, player, ModEffects.UPSIDE_DOWN).getDuration(),
+                DEFAULT_DURATION_TICKS,
+                "recast resets the timer");
+        helper.assertValueEqual(heldCount(player), 1, "recast uses up a scroll");
+        helper.succeed();
+    }
+
+    static void sneakDispels(GameTestHelper helper) {
+        ServerPlayer player = survivalWithScrolls(helper, 2);
+        player.addEffect(new MobEffectInstance(ModEffects.UPSIDE_DOWN, 200, 0, false, false, true));
         player.setShiftKeyDown(true);
-        useScroll(helper, player);
-        helper.assertFalse(player.hasEffect(ModEffects.UPSIDE_DOWN), "sneak-cast while active should dispel");
+        useHeld(helper, player);
+        helper.assertFalse(player.hasEffect(ModEffects.UPSIDE_DOWN), "sneak + use while active dispels");
+        helper.assertValueEqual(heldCount(player), 1, "dispel uses up a scroll");
+        helper.succeed();
+    }
+
+    static void sneakInactiveCasts(GameTestHelper helper) {
+        ServerPlayer player = survivalWithScrolls(helper, 1);
+        player.setShiftKeyDown(true);
+        useHeld(helper, player);
+        helper.assertValueEqual(
+                requireEffect(helper, player, ModEffects.UPSIDE_DOWN).getDuration(),
+                DEFAULT_DURATION_TICKS,
+                "sneak + use while inactive casts");
+        helper.assertTrue(player.getMainHandItem().isEmpty(), "the last scroll is gone");
         helper.succeed();
     }
 
     /** Dispel is a scroll action: sneak-using anything else leaves an active spell running. */
-    @SuppressWarnings("removal")
-    static void sneakUseWithoutScrollKeepsTheEffect(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
-        useScroll(helper, player);
+    static void sneakOtherItemKeepsTheEffect(GameTestHelper helper) {
+        ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        player.addEffect(new MobEffectInstance(ModEffects.UPSIDE_DOWN, 200, 0, false, false, true));
         ItemStack paper = new ItemStack(Items.PAPER);
-        player.setItemInHand(InteractionHand.MAIN_HAND, paper);
+        hold(player, paper);
         player.setShiftKeyDown(true);
         paper.getItem().use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
         helper.assertTrue(player.hasEffect(ModEffects.UPSIDE_DOWN), "sneak-use of another item must not dispel");
         helper.succeed();
     }
 
-    @SuppressWarnings("removal")
-    static void sneakCastWhileInactiveCasts(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
-        player.setShiftKeyDown(true);
-        useScroll(helper, player);
-        helper.assertValueEqual(
-                requireEffect(helper, player).getDuration(), DEFAULT_DURATION_TICKS, "sneak-cast duration ticks");
+    static void creativeConsumes(GameTestHelper helper) {
+        ServerPlayer player = MockPlayers.inLevel(helper, GameType.CREATIVE);
+        hold(player, new ItemStack(ModItems.UPSIDE_DOWN_SCROLL.get(), 2));
+        useHeld(helper, player);
+        helper.assertTrue(player.hasEffect(ModEffects.UPSIDE_DOWN), "creative casts Upside-Down");
+        helper.assertValueEqual(heldCount(player), 1, "creative still uses up the scroll");
         helper.succeed();
     }
 
     /** Mutates global server config, so it runs alone in the {@code config_mutation} batch. */
-    @SuppressWarnings("removal")
-    static void configValuesAreHonored(GameTestHelper helper) {
-        withConfig(
-                ServerConfig.UPSIDE_DOWN_DURATION_SECONDS,
-                5,
-                () -> withConfig(ServerConfig.UPSIDE_DOWN_COOLDOWN_SECONDS, 2, () -> {
-                    ServerPlayer player = helper.makeMockServerPlayerInLevel();
-                    ItemStack scroll = useScroll(helper, player);
-                    helper.assertValueEqual(
-                            requireEffect(helper, player).getDuration(),
-                            5 * TICKS_PER_SECOND,
-                            "configured duration ticks");
-                    helper.assertTrue(player.getCooldowns().isOnCooldown(scroll), "configured cooldown should apply");
-                }));
-        helper.succeed();
-    }
-
-    /**
-     * The gate is vanilla's: {@code ServerPlayerGameMode.useItem} refuses a stack on cooldown before
-     * {@code Item.use} runs (docs/api-notes.md §7). Goes through it so a second cast during the cooldown is
-     * proven refused. Mutates global server config, so it runs alone in its own batch.
-     */
-    @SuppressWarnings("removal")
-    static void castIsRefusedDuringCooldown(GameTestHelper helper) {
-        withConfig(ServerConfig.UPSIDE_DOWN_COOLDOWN_SECONDS, 2, () -> {
-            ServerPlayer player = helper.makeMockServerPlayerInLevel();
-            ItemStack scroll = giveScroll(player);
-            player.gameMode.useItem(player, helper.getLevel(), scroll, InteractionHand.MAIN_HAND);
-            helper.assertTrue(player.getCooldowns().isOnCooldown(scroll), "precondition: first cast starts cooldown");
-            // addEffect keeps the longer of two durations, so clear the first cast before planting a short one.
-            player.removeEffect(ModEffects.UPSIDE_DOWN);
-            player.addEffect(new MobEffectInstance(ModEffects.UPSIDE_DOWN, 40, 0, false, false, true));
-            InteractionResult second =
-                    player.gameMode.useItem(player, helper.getLevel(), scroll, InteractionHand.MAIN_HAND);
-            helper.assertValueEqual(second, InteractionResult.PASS, "gate should refuse the use");
+    static void configDuration(GameTestHelper helper) {
+        withConfig(ServerConfig.UPSIDE_DOWN_DURATION_SECONDS, 5, () -> {
+            ServerPlayer player = survivalWithScrolls(helper, 1);
+            useHeld(helper, player);
             helper.assertValueEqual(
-                    requireEffect(helper, player).getDuration(), 40, "duration must not reset during cooldown");
+                    requireEffect(helper, player, ModEffects.UPSIDE_DOWN).getDuration(),
+                    5 * TICKS_PER_SECOND,
+                    "configured duration ticks");
         });
         helper.succeed();
-    }
-
-    /** Runs {@code body} with a global server config value set to {@code temporary}, restoring it afterwards. */
-    private static void withConfig(ModConfigSpec.IntValue value, int temporary, Runnable body) {
-        int saved = value.getAsInt();
-        value.set(temporary);
-        try {
-            body.run();
-        } finally {
-            value.set(saved);
-        }
-    }
-
-    private static ItemStack giveScroll(ServerPlayer player) {
-        ItemStack scroll = player.getItemInHand(InteractionHand.MAIN_HAND);
-        if (!scroll.is(ModItems.UPSIDE_DOWN_SCROLL.get())) {
-            scroll = new ItemStack(ModItems.UPSIDE_DOWN_SCROLL.get());
-            player.setItemInHand(InteractionHand.MAIN_HAND, scroll);
-        }
-        return scroll;
-    }
-
-    private static ItemStack useScroll(GameTestHelper helper, ServerPlayer player) {
-        ItemStack scroll = giveScroll(player);
-        scroll.getItem().use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
-        return scroll;
-    }
-
-    private static MobEffectInstance requireEffect(GameTestHelper helper, ServerPlayer player) {
-        MobEffectInstance effect = player.getEffect(ModEffects.UPSIDE_DOWN);
-        if (effect == null) {
-            throw helper.assertionException("expected Strength of Upside-Down to be active");
-        }
-        return effect;
     }
 }

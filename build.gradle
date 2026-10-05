@@ -147,8 +147,8 @@ tasks.named('jacocoTestReport', JacocoReport) {
 pitest {
     pitestVersion = '1.30.0'
     junit5PluginVersion = '1.2.3'
-    targetClasses = ['io.github.willrieske.spellcraft.client.upsidedown.*']
-    targetTests = ['io.github.willrieske.spellcraft.client.upsidedown.*']
+    targetClasses = ['io.github.willrieske.spellcraft.client.upsidedown.*', 'io.github.willrieske.spellcraft.spell.rules.*']
+    targetTests = ['io.github.willrieske.spellcraft.client.upsidedown.*', 'io.github.willrieske.spellcraft.spell.rules.*']
     threads = Runtime.runtime.availableProcessors()
     outputFormats = ['HTML', 'XML']
     timestampedReports = false

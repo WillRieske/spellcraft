@@ -14,13 +14,15 @@ Run from the repo root. In the Bash tool use `./gradlew`; in PowerShell use `.\g
 | `./gradlew test` | Unit tests: JUnit 5 + jqwik + ArchUnit (seconds) |
 | `./gradlew build` | spotlessCheck + Error Prone/`-Xlint:all -Werror` + tests + jar |
 | `./gradlew spotlessApply` | Format (palantir-java-format) |
-| `./gradlew runGameTestServer` | GameTests (server rules); non-zero exit on failure |
+| `./gradlew runGameTestServer` | GameTests (server rules and common Mixins); non-zero exit on failure. |
 | `./gradlew runData` | Headless client-dist boot (loads client classes and config specs); the only automated check of client code |
 | `./gradlew runClient` | Dev client, for Will's playtest only |
 | `powershell -ExecutionPolicy Bypass -File scripts\Deploy-TestEnv.ps1` | Gate checks + GameTests, then launch the dev client (or keep a current one); asks before stopping a stale one. `-CheckOnly`: status only. Exit codes in the script header |
 | `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Path scripts/tests -EnableExit"` | Deploy-script unit tests (Pester 3.4; by hand, not in CI) |
 | `./gradlew pitest` | Mutation testing of the pure core (on demand) |
 | `./gradlew test jacocoTestReport` | Coverage report (on demand) |
+| `python scripts/spell_icons.py` | Regenerate every spell's scroll and effect icon (one glyph per spell) |
+| `python -m unittest discover -s scripts -p "test_*.py"` | Icon-script tests (also a pre-commit hook) |
 
 A cold build (fresh clone, cleared Gradle cache, or a NeoForge bump) takes 5–15 min. Run it
 by hand in the background, never through the commit gate (300 s limit).
@@ -47,10 +49,11 @@ Then grep `build/mc-src` (vanilla `net.minecraft.*` with NeoForge patches applie
   `spellcraft:upside_down` effect. No custom packets.
 - **Client-only code lives under `io.github.willrieske.spellcraft.client`.** ArchUnit rule 1
   enforces this; a violation crashes dedicated servers.
-- **Pure core** (`client.upsidedown`): no `net.minecraft`/NeoForge imports (ArchUnit rule 2).
-  TDD it; add jqwik properties for invariants; `./gradlew pitest` after changing it and update
-  `docs/mutation-testing.md`.
-- **Mixins only where no event exists**, `require = 1`, handlers are thin and call the pure core.
+- **Pure core** (`client.upsidedown`, `spell.rules`): no `net.minecraft`/NeoForge imports (ArchUnit rule 2). TDD
+  it; add jqwik properties for invariants; `./gradlew pitest` after changing it and update `docs/mutation-testing.md`.
+- **Mixins only where no event exists**, `require = 1`, handlers are thin and call shared code. Common
+  Mixins live in `…spellcraft.mixin` (`spellcraft.mixins.json`), client ones in `…spellcraft.client.mixin`
+  (`spellcraft.client.mixins.json`); a Mixin config's package holds only Mixins.
 - **Error Prone runs with `-Werror`.** Suppress a check only with `@SuppressWarnings("<Check>")`
   plus a comment saying why (e.g. Mixin handlers → `UnusedMethod`).
 - **Commits:** conventional (gitlint). The commit gate (`.claude/gate.json`) runs

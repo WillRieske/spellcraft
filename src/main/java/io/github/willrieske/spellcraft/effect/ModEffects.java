@@ -15,5 +15,9 @@ public final class ModEffects {
     public static final DeferredHolder<MobEffect, MobEffect> UPSIDE_DOWN =
             MOB_EFFECTS.register("upside_down", () -> new MarkerEffect(MobEffectCategory.NEUTRAL, 0x7F5AF0));
 
+    /** Strength of Infinity. Its abilities are synced each server tick by {@code InfinityAbilitySync}. */
+    public static final DeferredHolder<MobEffect, MobEffect> INFINITY =
+            MOB_EFFECTS.register("infinity", InfinityEffect::new);
+
     private ModEffects() {}
 }

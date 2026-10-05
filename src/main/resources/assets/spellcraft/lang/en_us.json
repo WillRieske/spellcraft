@@ -1,6 +1,9 @@
 {
   "item.spellcraft.upside_down_scroll": "Scroll of Upside-Down",
+  "item.spellcraft.infinity_scroll": "Scroll of Infinity",
   "effect.spellcraft.upside_down": "Strength of Upside-Down",
+  "effect.spellcraft.infinity": "Strength of Infinity",
+  "message.spellcraft.scroll_not_needed": "Scroll not needed; already have effect!",
 
   "spellcraft.configuration.title": "Spellcraft Configs",
   "spellcraft.configuration.section.spellcraft.server.toml": "Spellcraft Server Configs",
@@ -8,7 +11,10 @@
   "spellcraft.configuration.section.spellcraft.client.toml": "Spellcraft Client Configs",
   "spellcraft.configuration.section.spellcraft.client.toml.title": "Spellcraft Client Configs",
   "spellcraft.configuration.upsideDown": "Strength of Upside-Down",
+  "spellcraft.configuration.scribing": "Scribing",
+  "spellcraft.configuration.topTierChancePercent": "Extreme-tier chance per option (%)",
   "spellcraft.configuration.durationSeconds": "Duration (seconds)",
-  "spellcraft.configuration.cooldownSeconds": "Cooldown (seconds)",
-  "spellcraft.configuration.transitionSeconds": "Roll transition (seconds)"
+  "spellcraft.configuration.transitionSeconds": "Roll transition (seconds)",
+  "container.spellcraft.scribe": "Scribe a random scroll",
+  "container.spellcraft.scribe.chance": "%s%% chance of an extreme-tier spell"
 }

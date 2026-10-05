@@ -16,3 +16,17 @@ task3 577e300 Pester 40/40 pass; gate build green
 task4 560e6e8 Pester 62/62 pass; gate build green
 task5 8ab4345 Pester 77/77 pass; gate build green
 task6 0625b85 live E2E steps 1-7,10 ok; Pester 77/77; docs gate green
+db85395 task 1: docs-only; build green (baseline 27s), markdownlint+gitlint pass
+d8cc856 task 2: build green, 73 tests, 0 failures
+71a4424 task 3: build green, commit gate passed
+abd37e2 task 4: build green, commit gate passed
+9bd2d6c task 5: build green, commit gate passed
+b420f92 task 6: 6 python unittests OK, pre-commit incl. spell-icon-tests passed
+7ff8915 task 7: build green; runGameTestServer all 10 required tests passed (9 ours)
+549f34b task 8: build green; runGameTestServer 20/20 passed; runData OK
+e898361 task 9: build green; runGameTestServer 26/26 passed
+293fb7b task 10: build green; runGameTestServer 37/37 passed
+641c61b task 11: build green; runGameTestServer 49/49 passed
+ef99bec task 12: build green; runData exit 0; runGameTestServer 49 required passed
+182ec4a task 13: build green 129 unit tests; runGameTestServer 49 required passed (48 ours); runData green; python unittest 6 OK; PIT 97% (115/119), coverage 94% (116/123)
+b289f62 fix pass (post-plan): build green 137 unit tests; runGameTestServer 60 required passed (59 ours); items from deferred minors fixed incl. two-pass restore

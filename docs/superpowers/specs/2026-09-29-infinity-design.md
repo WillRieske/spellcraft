@@ -1,7 +1,7 @@
 # Spellcraft: "Strength of Infinity" and the shared spell framework (design)
 
 **Date:** 2026-09-29
-**Status:** Approved in brainstorming; awaiting written-spec review
+**Status:** Implemented (plan: docs/superpowers/plans/2026-09-29-infinity.md); playtest pending
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
 **Builds on:** [`2026-09-28-upside-down-design.md`](2026-09-28-upside-down-design.md). Where they
 disagree, this spec wins (§9 lists what it supersedes).

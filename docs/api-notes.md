@@ -139,3 +139,92 @@ The `build.gradle` change was reverted.
 "Compatibility level JAVA_25 specified by spellcraft.mixins.json is higher than the maximum level supported by
 this version of mixin (JAVA_13). Compatibility level set to JAVA_25"), so no fallback to `JAVA_21` was needed.
 `com.llamalad7.mixinextras` (0.5.5, bundled with NeoForge) resolves.
+
+## 10. Effect cures: there is no cure API in 26.3 (Infinity task)
+
+Verified 2026-09-29. `build/nf-src` has no `EffectCure`/`EffectCures`/`fillEffectCures`.
+
+- Milk: `Consumables.MILK_BUCKET` → `ClearAllStatusEffectsConsumeEffect`
+  (`world/item/consume_effects/ClearAllStatusEffectsConsumeEffect.java`, `apply` returns `user.removeAllEffects()`).
+- Totem: `world/item/component/DeathProtection.java:25-27` `TOTEM_OF_UNDYING` includes
+  `new ClearAllStatusEffectsConsumeEffect()`; applied from `LivingEntity.checkTotemDeathProtection` (`:1465`).
+- `/effect clear`: `server/commands/EffectCommands.java:211` `removeAllEffects()`; `:224` `removeEffect(holder)`.
+- `LivingEntity.removeAllEffects` (`:1000-1017`) posts `MobEffectEvent.Remove` per effect; the event has no cause.
+- So "immune to milk and totem, removable by command" = a Mixin on `ClearAllStatusEffectsConsumeEffect.apply`
+  wrapping the `LivingEntity.removeAllEffects()Z` call.
+
+## 11. Abilities and the creative inventory (Infinity task)
+
+- `Player.hasInfiniteMaterials()` (`world/entity/player/Player.java:1360`) is `abilities.instabuild`.
+- `ServerGamePacketListenerImpl.handleSetCreativeModeSlot` (`:2128-2152`) accepts the slot only if
+  `player.hasInfiniteMaterials()`; `inventoryMenu` slot 36 = hotbar 0.
+- `InventoryScreen.init`/`containerTick` (`client/gui/screens/inventory/InventoryScreen.java:37-60`) swap to
+  `CreativeModeInventoryScreen` when `hasInfiniteMaterials()`: no client code needed.
+- `GameType.updatePlayerAbilities` (`world/level/GameType.java:68-86`): survival/adventure → `mayfly`,
+  `instabuild`, `invulnerable`, `flying` all false; creative → first three true; spectator → mayfly, invulnerable,
+  flying true.
+- `ServerPlayer.onUpdateAbilities` (`:1859`) sends `ClientboundPlayerAbilitiesPacket`; `setGameMode` (`:1870`)
+  rewrites abilities; `gameMode()` (`:1897`).
+
+## 12. Death and respawn (Infinity task)
+
+- `ServerPlayer.die` (`:928`): `CommonHooks.onLivingDeath` (`:930`, `LivingDeathEvent`, cancellable) runs before
+  `dropAllDeathLoot` (`:968`).
+- `Player.dropEquipment` (`:567-575`): only if `!KEEP_INVENTORY`: `destroyVanishingCursedItems()` (by
+  `EnchantmentEffectComponents.PREVENT_EQUIPMENT_DROP`) then `inventory.dropAll()`.
+- XP: `Player.java:1674`, and `isAlwaysExperienceDropper` → orbs drop on death.
+- `ServerPlayer.restoreFrom(old, restoreAll)` (`:1720-1767`): `setGameModeForPlayer(old mode)` resets abilities
+  (`:1723`); inventory transferred only with `KEEP_INVENTORY` or spectator (`:1739`); fires
+  `PlayerEvent.Clone(new, old, wasDeath = !restoreAll)` at `:1767`.
+- `PlayerList.respawn(ServerPlayer, boolean keepAllPlayerData, Entity.RemovalReason)` (`server/players/PlayerList.java:402`).
+- `Inventory`: `INVENTORY_SIZE = 36`, `getSelectionSize() = 9`, `SLOT_OFFHAND = 40`, armor 36-39, body 41,
+  saddle 42 (`world/entity/player/Inventory.java:31-50`).
+- Game rules: `world/level/gamerules/GameRules.java` `get(GameRule)` (`:124`), `set(GameRule, T, MinecraftServer)` (`:133`);
+  `GameRules.KEEP_INVENTORY`.
+
+## 13. Data attachments (Infinity task)
+
+- `attachment/AttachmentType.java`: `builder(Supplier)` (`:109`), `Builder.serialize(MapCodec)` (`:198`),
+  `copyOnDeath()` (`:237`, not used). Register in `NeoForgeRegistries.ATTACHMENT_TYPES`.
+- `IAttachmentHolder`: `getData(Supplier)`, `setData(Supplier, T)`, `removeData(Supplier)`.
+
+## 14. GameTest players (all tasks)
+
+- `GameTestHelper.makeMockServerPlayerInLevel()` (`:397-409`) returns a `ServerPlayer` whose `gameMode()` is
+  hard-coded to `CREATIVE`. Our `MockPlayers.inLevel(helper, GameType)` copies its connection setup
+  (`CommonListenerCookie.createInitial`, `Connection(PacketFlow.SERVERBOUND)`, `EmbeddedChannel`,
+  `PlayerList.placeNewPlayer`) without the override, then calls `setGameMode`.
+- `ServerPlayer.teleportTo(ServerLevel, x, y, z, Set<Relative>, yRot, xRot, resetCamera)` (`:1824`).
+- A mock player is invulnerable (damage and `kill()` do nothing) until `connection.markClientLoaded()`:
+  `ServerPlayer.isInvulnerableTo` (`:1375`) is true while `!connection.hasClientLoaded()`. `MockPlayers.inLevel`
+  calls it. After a dimension change also call `player.hasChangedDimension()` (clears `isChangingDimension`,
+  same check) and `markClientLoaded()` again before killing.
+- `PlayerList.respawn(dead, false, RemovalReason.KILLED)` works for mock players and fires `PlayerEvent.Clone`
+  (Infinity death GameTests G2-G6, G10, G11 use it; no fallback needed).
+
+## 15. Enchanting table (scribing task)
+
+- `world/inventory/EnchantmentMenu.java`: private `enchantSlots` (`:34`), `access`, `enchantmentSeed`; public
+  `costs`, `enchantClue`, `levelClue`, all synced by `DataSlot.shared` (`:72-82`).
+- `slotsChanged(Container)` (`:85-131`): non-enchantable items take the `else` branch, which zeroes the costs.
+  This runs on both sides; the client's `access` is `ContainerLevelAccess.NULL`.
+- `clickMenuButton(Player, int)` (`:135-181`): checks lapis (`currency.getCount() < buttonId + 1`) and levels,
+  waived by `hasInfiniteMaterials()`, then does all work in one `this.access.execute(BiConsumer)` call.
+  The client calls it first (`EnchantmentScreen.mouseClicked`, `:84`) and sends the click only if it returns true.
+- `EnchantmentScreen.java:114`: the option looks disabled when `enchantClue[i] == -1` (NeoForge patch).
+  The tooltip is built in `extractRenderState` (`:152-205`) and set with
+  `GuiGraphicsExtractor.setComponentTooltipForNextFrame(Font, List, int, int)`, which keeps the first
+  tooltip per frame (`client/gui/GuiGraphicsExtractor.java:1173`).
+- `AbstractContainerScreen.topPos` is `protected` (`:50`), but NeoForge patches in a public `getTopPos()` (`:624`): use that, no access transformer.
+
+## 16. Config lists and randomness (scribing task)
+
+- `ModConfigSpec.Builder.defineList(List<String> path, Supplier<List<? extends T>>, Supplier<T>, Predicate<Object>, Range<Integer> sizeRange)` (`common/ModConfigSpec.java:621`); `Range.of(int, int)` (`:1014`).
+- `util/RandomSource.java:10` does not extend `java.util.random.RandomGenerator`, so the pure core takes a `Dice`.
+
+## 17. Scroll effects (framework task)
+
+- `ParticleTypes.LARGE_SMOKE` (`core/particles/ParticleTypes.java:105`), `SoundEvents.FIRE_EXTINGUISH` (`sounds/SoundEvents.java:636`).
+- `ServerLevel.sendParticles(T, x, y, z, count, xDist, yDist, zDist, speed)` (`:1355`);
+  `Level.playSound(@Nullable Entity, x, y, z, SoundEvent, SoundSource, volume, pitch)` (`:434`).
+- `Player.sendOverlayMessage(Component)` (`:1414`) writes to the action bar.

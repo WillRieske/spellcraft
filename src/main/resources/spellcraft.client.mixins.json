@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "io.github.willrieske.spellcraft.client.mixin",
+  "client": ["MouseHandlerMixin", "EnchantmentScreenMixin"],
+  "compatibilityLevel": "JAVA_25",
+  "minVersion": "0.8"
+}

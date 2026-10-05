@@ -1,6 +1,10 @@
 package io.github.willrieske.spellcraft.gametest;
 
 import io.github.willrieske.spellcraft.Spellcraft;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -21,52 +25,41 @@ public final class SpellcraftGameTests {
     public static final DeferredRegister<Consumer<GameTestHelper>> TEST_FUNCTIONS =
             DeferredRegister.create(BuiltInRegistries.TEST_FUNCTION, Spellcraft.MODID);
 
+    /** Tests that change no global state share this environment (one batch). */
+    static final String SHARED = "shared";
+
     private static final Identifier EMPTY_STRUCTURE = Spellcraft.id("empty");
     private static final int MAX_TICKS = 20;
 
-    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> EFFECT_IS_NEUTRAL_MARKER =
-            TEST_FUNCTIONS.register("effect_is_neutral_marker", () -> UpsideDownGameTests::effectIsANeutralMarker);
-    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> MILK_CLEARS_EFFECT =
-            TEST_FUNCTIONS.register("milk_clears_effect", () -> UpsideDownGameTests::milkClearsTheEffect);
+    /**
+     * Test functions by environment, in registration order. Batches run one after another, so a test that
+     * mutates global state (config, game rules) gets an environment of its own.
+     */
+    private static final Map<String, List<DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>>>
+            BY_ENVIRONMENT = new LinkedHashMap<>();
 
-    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> CAST_GRANTS_FULL_DURATION =
-            TEST_FUNCTIONS.register("cast_grants_full_duration", () -> UpsideDownGameTests::castGrantsTheFullDuration);
-    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> RECAST_RESETS_DURATION =
-            TEST_FUNCTIONS.register("recast_resets_duration", () -> UpsideDownGameTests::recastResetsToTheFullDuration);
-    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> SNEAK_CAST_ACTIVE_REMOVES =
-            TEST_FUNCTIONS.register(
-                    "sneak_cast_active_removes", () -> UpsideDownGameTests::sneakCastWhileActiveRemovesTheEffect);
-    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> SNEAK_CAST_INACTIVE_CASTS =
-            TEST_FUNCTIONS.register(
-                    "sneak_cast_inactive_casts", () -> UpsideDownGameTests::sneakCastWhileInactiveCasts);
-    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> SNEAK_USE_WITHOUT_SCROLL =
-            TEST_FUNCTIONS.register(
-                    "sneak_use_without_scroll_keeps_effect",
-                    () -> UpsideDownGameTests::sneakUseWithoutScrollKeepsTheEffect);
-    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> CONFIG_IS_HONORED =
-            TEST_FUNCTIONS.register("config_is_honored", () -> UpsideDownGameTests::configValuesAreHonored);
-    private static final DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> CAST_REFUSED_ON_COOLDOWN =
-            TEST_FUNCTIONS.register("cast_refused_on_cooldown", () -> UpsideDownGameTests::castIsRefusedDuringCooldown);
+    static {
+        UpsideDownGameTests.registerAll();
+        InfinityGameTests.registerAll();
+        InfinityAbilityGameTests.registerAll();
+        InfinityDeathGameTests.registerAll();
+        ScribingGameTests.registerAll();
+    }
 
     private SpellcraftGameTests() {}
 
+    static void add(String environment, String name, Consumer<GameTestHelper> body) {
+        BY_ENVIRONMENT
+                .computeIfAbsent(environment, e -> new ArrayList<>())
+                .add(TEST_FUNCTIONS.register(name, () -> body));
+    }
+
     @SubscribeEvent
     public static void register(RegisterGameTestsEvent event) {
-        Holder<TestEnvironmentDefinition<?>> shared = event.registerEnvironment(Spellcraft.id("shared"));
-        test(event, shared, EFFECT_IS_NEUTRAL_MARKER);
-        test(event, shared, MILK_CLEARS_EFFECT);
-        test(event, shared, CAST_GRANTS_FULL_DURATION);
-        test(event, shared, RECAST_RESETS_DURATION);
-        test(event, shared, SNEAK_CAST_ACTIVE_REMOVES);
-        test(event, shared, SNEAK_CAST_INACTIVE_CASTS);
-        test(event, shared, SNEAK_USE_WITHOUT_SCROLL);
-        // Batches run one after another, so a separate environment isolates the config mutation.
-        Holder<TestEnvironmentDefinition<?>> configMutation =
-                event.registerEnvironment(Spellcraft.id("config_mutation"));
-        test(event, configMutation, CONFIG_IS_HONORED);
-        Holder<TestEnvironmentDefinition<?>> cooldownMutation =
-                event.registerEnvironment(Spellcraft.id("cooldown_mutation"));
-        test(event, cooldownMutation, CAST_REFUSED_ON_COOLDOWN);
+        BY_ENVIRONMENT.forEach((environment, functions) -> {
+            Holder<TestEnvironmentDefinition<?>> holder = event.registerEnvironment(Spellcraft.id(environment));
+            functions.forEach(function -> test(event, holder, function));
+        });
     }
 
     private static void test(
