@@ -31,3 +31,17 @@ jobs:
         run: |
           pip install gitlint-core==0.19.1
           gitlint --commits b441228..HEAD
+
+  version-tag:
+    # Release tags only: the tag must name the version gradle.properties holds, so the two can't drift.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag matches the gradle.properties version
+        run: |
+          manifest=$(sed -nE 's/^mod_version=(.*)$/\1/p' gradle.properties)
+          if [ "v${manifest}" != "${GITHUB_REF_NAME}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match gradle.properties version ${manifest}." >&2
+            exit 1
+          fi
