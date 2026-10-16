@@ -1,7 +1,18 @@
 # Spellcraft
 
-A NeoForge mod that adds spells cast from scrolls. The first is **Strength of Upside-Down**: for
-three minutes your view rolls upside down while physics stays the same.
+A NeoForge mod that adds spells cast from scrolls. Version 1.1.0 has two:
+
+- **Strength of Upside-Down**: for three minutes (configurable) your view rolls upside down while
+  physics stays the same.
+- **Strength of Infinity**: survival and adventure players get creative flight, the creative
+  inventory and instant building, but still take damage, get hungry and can die. It has no time
+  limit; only death or `/effect clear` removes it. If you die with Infinity, you keep your hotbar,
+  main inventory and offhand through respawn (armor and XP are lost).
+
+Each scroll is single-use. Scribe one by putting paper and lapis in an enchanting table: you get
+a random scroll, and more lapis raises the odds of an extreme-tier spell. Creative players can
+take the Scroll of Infinity from the Tools & Utilities tab, or use
+`/give @s spellcraft:infinity_scroll`.
 
 Minecraft 26.3, NeoForge 26.3.0.23-beta, Java 25. Windows is the development platform.
 
