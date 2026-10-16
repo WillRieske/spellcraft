@@ -45,3 +45,8 @@ The first build downloads and decompiles Minecraft and takes 5-15 minutes.
 - [`CLAUDE.md`](CLAUDE.md): full command list and project rules.
 - [`docs/superpowers/specs/`](docs/superpowers/specs/): designs.
 - [`docs/playtest-checklist.md`](docs/playtest-checklist.md): what to check by hand in game.
+
+## License
+
+[GPL-3.0-or-later](LICENSE). The vendored skills under `.claude/skills` are MIT-licensed; see
+`.claude/skills/LICENSE-minecraft-agent-skills`.
