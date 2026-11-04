@@ -228,3 +228,60 @@ Verified 2026-09-29. `build/nf-src` has no `EffectCure`/`EffectCures`/`fillEffec
 - `ServerLevel.sendParticles(T, x, y, z, count, xDist, yDist, zDist, speed)` (`:1355`);
   `Level.playSound(@Nullable Entity, x, y, z, SoundEvent, SoundSource, volume, pitch)` (`:434`).
 - `Player.sendOverlayMessage(Component)` (`:1414`) writes to the action bar.
+
+## 18. Fire blocks, level attachments and allies (Trailing task)
+
+Verified 2026-11-04 against the same unpacked sources.
+
+- `world/level/block/BaseFireBlock.java`: ctor `:32` `(BlockBehaviour.Properties, float fireDamage)`;
+  `entityInside(BlockState, Level, BlockPos, Entity, InsideBlockEffectApplier, boolean isPrecise)` `:128-132`
+  applies `CLEAR_FREEZE`, `FIRE_IGNITE`, then `runAfter(FIRE_IGNITE, e -> e.hurt(inFire, fireDamage))`;
+  `fireIgnite(Entity)` `:134` skips `fireImmune()` entities (`Entity.java:1614`); `onPlace` `:150-165`, whose whole
+  body is guarded by `!oldState.is(state.getBlock())`, calls `PortalShape.findEmptyPortalShape` (through
+  `EventHooks.onTrySpawnPortal`, `:154`) in the Overworld/Nether (**lights portals**) and then removes the block if
+  `!canSurvive`. A subclass that must not light portals overrides `onPlace`, keeping that guard and the
+  `!canSurvive` → `removeBlock(pos, false)` tail.
+- `SoulFireBlock.java`: `canSurvive` `:32-34` requires `BlockTags.SOUL_FIRE_BASE_BLOCKS` below (`canSurviveOnBlock`
+  `:36`), so vanilla soul fire cannot sit on ordinary ground; `updateShape` `:18-29` returns air when it can't
+  survive. Fire damage 2.0 (`:14`).
+- `Blocks.java:1368-1379` `SOUL_FIRE` properties: `mapColor(COLOR_LIGHT_BLUE)`, `replaceable()`, `noCollision()`,
+  `instabreak()`, `lightLevel(state -> 10)`, `sound(SoundType.WOOL)`, `pushReaction(PushReaction.POPPED)`.
+- TNT by fire: the only vanilla path is `FireBlock.java:235` `oldState.onCaughtFire(...)` inside the fire's
+  scheduled tick (`checkBurnOut`); `TntBlock.java:46,54` ignite only on `hasNeighborSignal`. A fire block with no
+  scheduled tick never ignites TNT and never spreads.
+- `BlockTags.FIRE` users (`grep -rn "BlockTags.FIRE\b" build/mc-src`): `NodeEvaluator.java:99` (mobs path
+  around it), `AbstractThrownPotion.java:124` (water bottles extinguish), `FallingBlock.java:60`,
+  `PortalShape.java:167`, `Cushion.java:130`, `ShearsItem.java:54`, `PistonBaseBlock.java:284`,
+  `SculkVeinBlock.java:164`, `VanillaBlockTagsProvider.java:212,246` (also in `DRAGON_TRANSPARENT`).
+- Render layer: `client/renderer/chunk/ChunkSectionLayer.java:31-37` `byTransparency(Transparency)` and
+  `client/resources/model/geometry/BakedQuad.java:99` pick the layer from the texture's transparency. There is no
+  `ItemBlockRenderTypes` or `render_type` field in 26.3 (`grep -rn render_type build/mc-src build/nf-src` → none),
+  so a block that reuses `minecraft:block/soul_fire_*` models renders cutout with no client code.
+- Level attachments: `world/level/Level.java:94` `Level extends net.neoforged.neoforge.attachment.AttachmentHolder`;
+  `ServerLevel.java:318` calls `LevelAttachmentsSavedData.init(this)`; `LevelAttachmentsSavedData.java:62-65`
+  `isDirty()` returns `true` ("Always re-save"), so an attachment value mutated in place is saved on every world
+  save. `IAttachmentHolder.java:46` `getData(Supplier<AttachmentType<T>>)` creates the default on first read.
+  `AttachmentType.java:210` `Builder.serialize(MapCodec<T>, Predicate<? super T> shouldSerialize)` skips saving
+  values the predicate rejects (used so an empty ledger is not written for every level).
+- Ticks: `event/tick/LevelTickEvent.java:61` `Post` (per level, `getLevel()` `:41` returns `Level`);
+  `event/tick/PlayerTickEvent.java:52` `Post`. `PlayerEvent.java:480` `PlayerLoggedOutEvent`;
+  `event/server/ServerStoppedEvent.java` (game bus) for clearing server-wide static state.
+- Allies: `Entity.java:2879-2889` `isAlliedTo(Entity)` is `final`: `this == other || considersEntityAsAlly(other)
+  || other.considersEntityAsAlly(this)`, and `considersEntityAsAlly` is the team check;
+  `TamableAnimal.java:209-222` overrides it: a tamed animal considers its root owner (and the owner's allies) allies.
+  `TamableAnimal.getTeam()` (`:192-206`) also returns the owner's team, so a pet of a teamed owner is allied through
+  the team path too; a pet test must use an owner with no team to exercise the tame path.
+- Entity state: `Entity.java:737` `onGround()`, `:2774` `isPassenger()`, `:3866` `blockPosition()`, `:696`
+  `setOnGround(boolean)`, `:2504` `startRiding(Entity, boolean force, boolean sendEventAndTriggers)`,
+  `:660` `igniteForSeconds(float)`, `:676` `getRemainingFireTicks()`; `Player.java:1721` `isSpectator()`.
+  `ServerPlayer.java:1866` `level()` returns `ServerLevel`. `Level.java:689` `isLoaded(BlockPos)`.
+- Test entry points: `BlockBehaviour.BlockStateBase` `entityInside(Level, BlockPos, Entity, InsideBlockEffectApplier,
+  boolean)` `:773` and `randomTick(ServerLevel, BlockPos, RandomSource)` `:769` are public;
+  `InsideBlockEffectApplier.StepBasedCollector` (`world/entity/InsideBlockEffectApplier.java:32`) collects the
+  effects and `applyAndClear(Entity)` runs them. `BlockBehaviour.BlockStateBase.canBeReplaced()` `:840` (no-arg)
+  reads the `replaceable` property; `isFaceSturdy(BlockGetter, BlockPos, Direction)` `:893`.
+- Registration: `DeferredRegister.Blocks.registerBlock(String, Function<Properties, B>, Supplier<Properties>)`
+  (`registries/DeferredRegister.java:433`) sets the block id on the properties.
+- GameTest helpers used: `TamableAnimal.tame(Player)` `:170`; `Scoreboard.addPlayerTeam(String)` `:249`,
+  `addPlayerToTeam(String, PlayerTeam)` `:272`, `removePlayerTeam(PlayerTeam)` `:262`;
+  `GameTestHelper.assertValueEqual(N, N, String)` `:1095`; `Vec3.atBottomCenterOf(Vec3i)` `:61`.
