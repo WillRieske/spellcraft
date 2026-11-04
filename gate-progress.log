@@ -32,3 +32,4 @@ ef99bec task 12: build green; runData exit 0; runGameTestServer 49 required pass
 b289f62 fix pass (post-plan): build green 137 unit tests; runGameTestServer 60 required passed (59 ours); items from deferred minors fixed incl. two-pass restore
 59955a7 task 1: docs only (api-notes §18); baseline build green 137 unit tests
 1055152 task 2: TrailTracker; unit tests green (TrailTrackerTest 7, properties 2, ArchUnit 3)
+be82cf0 task 3: Trail; unit tests green (+17 JUnit, +5 jqwik); PIT 97% (150/154), line coverage 96% (168/175), no new survivors
