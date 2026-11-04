@@ -31,3 +31,4 @@ ef99bec task 12: build green; runData exit 0; runGameTestServer 49 required pass
 182ec4a task 13: build green 129 unit tests; runGameTestServer 49 required passed (48 ours); runData green; python unittest 6 OK; PIT 97% (115/119), coverage 94% (116/123)
 b289f62 fix pass (post-plan): build green 137 unit tests; runGameTestServer 60 required passed (59 ours); items from deferred minors fixed incl. two-pass restore
 59955a7 task 1: docs only (api-notes §18); baseline build green 137 unit tests
+1055152 task 2: TrailTracker; unit tests green (TrailTrackerTest 7, properties 2, ArchUnit 3)
