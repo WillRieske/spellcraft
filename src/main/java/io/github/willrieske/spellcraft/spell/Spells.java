@@ -20,8 +20,14 @@ public final class Spells {
             SpellDeclarations.INFINITY,
             Spell.INFINITE);
 
+    public static final Spell TRAILING = new Spell(
+            Spellcraft.id(SpellDeclarations.TRAILING.name()),
+            ModEffects.TRAILING,
+            SpellDeclarations.TRAILING,
+            ServerConfig::trailingDurationTicks);
+
     /** Every spell, in declaration order (creative tab, scribing). */
-    public static final List<Spell> ALL = List.of(UPSIDE_DOWN, INFINITY);
+    public static final List<Spell> ALL = List.of(UPSIDE_DOWN, INFINITY, TRAILING);
 
     private Spells() {}
 }

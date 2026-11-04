@@ -12,8 +12,12 @@ public final class SpellDeclarations {
     public static final SpellRules INFINITY =
             new SpellRules("infinity", SpellTier.EXTREME, SpellRules.Recast.REFUSE, false, true);
 
+    /** Scroll of Trailing: good tier, refreshes on recast, dispellable by sneaking, cast in creative too. */
+    public static final SpellRules TRAILING =
+            new SpellRules("trailing", SpellTier.GOOD, SpellRules.Recast.REFRESH, true, false);
+
     /** Every declaration, in declaration order. */
-    public static final List<SpellRules> ALL = List.of(UPSIDE_DOWN, INFINITY);
+    public static final List<SpellRules> ALL = List.of(UPSIDE_DOWN, INFINITY, TRAILING);
 
     private SpellDeclarations() {}
 }

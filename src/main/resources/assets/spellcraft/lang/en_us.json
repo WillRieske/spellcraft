@@ -1,8 +1,11 @@
 {
   "item.spellcraft.upside_down_scroll": "Scroll of Upside-Down",
   "item.spellcraft.infinity_scroll": "Scroll of Infinity",
+  "item.spellcraft.trailing_scroll": "Scroll of Trailing",
   "effect.spellcraft.upside_down": "Strength of Upside-Down",
   "effect.spellcraft.infinity": "Strength of Infinity",
+  "effect.spellcraft.trailing": "Strength of Trailing",
+  "block.spellcraft.trail_fire": "Trail Fire",
   "message.spellcraft.scroll_not_needed": "Scroll not needed; already have effect!",
 
   "spellcraft.configuration.title": "Spellcraft Configs",
@@ -12,6 +15,8 @@
   "spellcraft.configuration.section.spellcraft.client.toml.title": "Spellcraft Client Configs",
   "spellcraft.configuration.upsideDown": "Strength of Upside-Down",
   "spellcraft.configuration.scribing": "Scribing",
+  "spellcraft.configuration.trailing": "Strength of Trailing",
+  "spellcraft.configuration.maxTrailBlocks": "Most flames per trail",
   "spellcraft.configuration.topTierChancePercent": "Extreme-tier chance per option (%)",
   "spellcraft.configuration.durationSeconds": "Duration (seconds)",
   "spellcraft.configuration.transitionSeconds": "Roll transition (seconds)",

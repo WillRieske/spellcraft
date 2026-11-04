@@ -6,6 +6,7 @@ import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARE
 import io.github.willrieske.spellcraft.config.ServerConfig;
 import io.github.willrieske.spellcraft.spell.ModItems;
 import io.github.willrieske.spellcraft.spell.SpellScrollItem;
+import java.util.Arrays;
 import java.util.List;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.triggers.CriteriaTriggers;
@@ -171,19 +172,23 @@ public final class ScribingGameTests {
         helper.succeed();
     }
 
-    private static void drawsOnly(GameTestHelper helper, List<Integer> chances, Item expected) {
+    private static void drawsOnly(GameTestHelper helper, List<Integer> chances, Item... expected) {
         withConfig(ServerConfig.TOP_TIER_CHANCE_PERCENT, chances, () -> {
             ServerPlayer player = scribe(helper, LEVELS);
             EnchantmentMenu menu = table(helper, player, new ItemStack(Items.PAPER), 3);
             helper.assertTrue(menu.clickMenuButton(player, 2), "click accepted");
-            helper.assertTrue(menu.getSlot(0).getItem().is(expected), "drew " + expected);
+            ItemStack drawn = menu.getSlot(0).getItem();
+            helper.assertTrue(Arrays.stream(expected).anyMatch(drawn::is), "drew one of " + Arrays.toString(expected));
         });
         helper.succeed();
     }
 
-    /** Mutates global server config, so it runs alone in the {@code scribing_zero} batch. */
+    /**
+     * Mutates global server config, so it runs alone in the {@code scribing_zero} batch. At 0% the draw comes from
+     * the lower pool, which holds every non-extreme spell (Upside-Down and Trailing).
+     */
     static void zeroPercent(GameTestHelper helper) {
-        drawsOnly(helper, List.of(0, 0, 0), ModItems.UPSIDE_DOWN_SCROLL.get());
+        drawsOnly(helper, List.of(0, 0, 0), ModItems.UPSIDE_DOWN_SCROLL.get(), ModItems.TRAILING_SCROLL.get());
     }
 
     /** Mutates global server config, so it runs alone in the {@code scribing_full} batch. */
