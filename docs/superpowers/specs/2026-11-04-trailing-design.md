@@ -1,7 +1,7 @@
 # Spellcraft: "Strength of Trailing" (design)
 
 **Date:** 2026-11-04
-**Status:** Approved in brainstorming (fade model A, "fuse"); plan to follow
+**Status:** plan written (`2026-11-04-trailing.md`)
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
 **Builds on:** [`2026-09-29-infinity-design.md`](2026-09-29-infinity-design.md) (the shared spell
 framework: declarations, cast rules, scribing, icon generator). Nothing there is superseded.
@@ -31,6 +31,10 @@ fades trails and remembers who owns each flame.
 | **Owner** | The player who laid a flame. Known for every flame the world remembers. |
 | **Orphan** | A trail fire block with no owner (placed by `/setblock`, or left after lost data). |
 | **Ally** | What vanilla's `Entity.isAlliedTo` says: the same scoreboard team, or a tamed animal whose owner is (allied to) the player. |
+| **Fuse** | How a trail behaves: the oldest flame goes out first, the rest wait their turn. |
+| **Tracker** | The per-player record of where the player stood last tick and whether they were grounded there (`TrailTracker`). |
+| **Grounded** | On the ground, not riding, not a spectator: `onGround() && !isPassenger() && !isSpectator()`. |
+| **Ledger** | The per-level record of every trail and which flame belongs to whom (`TrailFires`). |
 | **Pure core** | Code with no `net.minecraft`/NeoForge imports, unit-testable with plain JUnit (package `spell.rules`). |
 | **Level attachment** | NeoForge data stored on a world (`ServerLevel`) and saved with it. |
 
@@ -42,7 +46,7 @@ fades trails and remembers who owns each flame.
 - The trail fire block (§3).
 - Laying and fading trails, ownership and the ally rule (§4).
 - Unit tests, jqwik properties, GameTests, script tests, docs and playtest items (§6).
-- Deploying the built jar into Will's real `.minecraft/mods` for the local-install test (§7).
+- Handing Will the built jar and the commands for the local-install test (§7).
 
 **Out of scope:**
 
@@ -125,14 +129,17 @@ portal there.
 **`TrailTracker`** remembers one observation per player and decides what to light:
 
 - `observe(long pos, boolean grounded) → OptionalLong`: returns the *previous* position when
-  a previous observation exists, it was grounded, and `pos` differs from it; otherwise empty.
-  Then stores `(pos, grounded)`.
+  a previous observation exists, `pos` differs from it, and the player was grounded **at any
+  point** while on it; otherwise empty. Then records `pos`, and whether the player has been
+  grounded on it so far (a repeat observation of the same block ORs the flag; a new block
+  starts it fresh).
 - `reset()`: forgets the observation (level change, effect start).
 
 Consequences: the first tick after the effect starts lights nothing; jumping lights the block
-you jumped from (you were grounded there); nothing is lit while airborne; landing on a block
-and leaving it lights it; standing still lights nothing. "Grounded" is supplied by the
-plumbing as `onGround() && !isPassenger()`, so riding lays no trail.
+you jumped from even though you leave the ground a tick before you leave the block; nothing
+is lit for blocks only passed in the air; landing on a block and leaving it lights it;
+standing still lights nothing. "Grounded" is supplied by the plumbing as
+`onGround() && !isPassenger() && !isSpectator()`, so riding and spectating lay no trail.
 
 **`Trail`** is one player's fuse:
 
@@ -152,17 +159,20 @@ plumbing as `onGround() && !isPassenger()`, so riding lays no trail.
 **`TrailFires`** is the value of a level attachment (`trailing_fires`, serialized, registered
 in `TrailingAttachments`): a map from owner UUID to `Trail`, plus a derived index from flame
 position to owner, rebuilt when loaded. Level attachments are re-saved on every world save, so
-the object is mutated in place.
+the object is mutated in place; an empty ledger is not written (every level reads the
+attachment each tick, which would otherwise save an empty record per dimension).
 
 - `light(ServerLevel, ServerPlayer owner, BlockPos)`: lights `pos` when its state is air, or
   replaceable with no fluid and not in `#minecraft:fire`, and the block below has a sturdy top
   face. Sets `trail_fire`, records a `Flame` (`lingers` = below is in
   `#minecraft:soul_fire_base_blocks`), then `trim(maxTrailBlocks)` and extinguishes what it
-  returns.
+  returns. It does not consult spawn protection or claim mods (`Level.mayInteract`): a trail
+  burns across protected ground like any other effect of walking there (accepted).
 - `fadeTick(ServerLevel)`: `tick()` every trail; extinguish each returned flame; drop empty
   trails.
-- `extinguish(level, flame)`: removes the block only if it is still `trail_fire` (someone may
-  have put it out already), and drops the index entry.
+- `extinguish(level, owner, flame)`: only when the index still says the flame is this owner's
+  (if the spot was put out and relit by someone else, that newer flame stays), drops the index
+  entry and removes the block if it is still `trail_fire`.
 - `ownerOf(BlockPos) → Optional<UUID>`; `isSpared(ServerLevel, BlockPos, Entity)`: true when
   the entity's UUID is the owner, or the owner is online in this level and
   `owner.isAlliedTo(entity)`. An offline owner spares only themself (their pets burn until
@@ -172,9 +182,11 @@ the object is mutated in place.
 
 - `PlayerTickEvent.Post`, server players only: with the effect, fetch or create the player's
   `TrailTracker` (reset when the player's level changed since last tick), `observe`, and
-  `light` what it returns. Without the effect, drop the tracker. Trackers live in a static
-  map keyed by UUID and are removed on `PlayerLoggedOutEvent`; they are transient by design
-  (the next tick after a relog starts a fresh observation).
+  `light` what it returns if that block's chunk is loaded (after a long teleport it may not
+  be; no chunk is force-loaded to lay a flame). Without the effect, drop the tracker. Trackers
+  live in a static map keyed by UUID, removed on `PlayerLoggedOutEvent` and cleared on
+  `ServerStoppedEvent`; they are transient by design (the next tick after a relog starts a
+  fresh observation).
 - `LevelTickEvent.Post`, server levels only: `TrailFires.of(level).fadeTick(level)`.
 - `track(ServerPlayer)` and the fade entry point are public so GameTests can drive them
   without waiting for ticks (as `InfinityAbilitySync.sync` does).
@@ -186,12 +198,15 @@ the object is mutated in place.
 | Effect ends or is dispelled | No new flames; the existing trail keeps fading at its rate; the owner stays spared from it. |
 | Owner logs out | Trail keeps fading (level tick). Allies of an offline owner are not spared. |
 | World reload | Flames are blocks and the trails are saved with the level: fading and ownership continue. |
-| Flame removed by water, a piston or a player | It stays in the trail until its turn; extinguishing a missing flame is a no-op. |
+| Flame removed by water, a piston or a player | It stays in the trail until its turn; extinguishing a missing flame is a no-op. If another player relights the spot first, the new flame is theirs and the old entry's turn leaves it alone. If the **same** owner relights it, their trail lists the spot twice and the older entry puts the new flame out early: accepted (rare, and the flame only fades sooner). |
 | Ground removed under a flame | `updateShape` turns it to air; the trail entry is harmless. |
-| Standing on a snow layer, carpet or slab | The feet block is not replaceable (or is the slab itself): no flame. Accepted. |
+| Standing on a snow layer | The snow block is the feet block and is replaceable: the flame replaces the snow. |
+| Standing on carpet or a slab | The feet block is the carpet or the slab itself, neither replaceable: no flame. Accepted. |
 | Walking over your own or another player's flame | The target is in `#fire`: no new flame, no ownership change. |
 | Two trailing players share a tile over time | The second to arrive lights nothing while the first flame burns; after it fades, the next departure lights it under the new owner. |
 | Dimension change | The tracker resets, so the first position in the new level is not lit. |
+| Spectator mode | Never grounded, so no flames. |
+| The block just left is in an unloaded chunk (long teleport) | Not lit; nothing is force-loaded to lay a flame. |
 | Config `maxTrailBlocks` lowered while a trail is longer | The next `light` trims to the new value. |
 | Orphan flame | Burns everyone; removed on its next random tick (about a minute at default random tick speed). |
 | `/setblock spellcraft:trail_fire` by hand | An orphan: see above. Useful for testing the look. |
@@ -200,19 +215,21 @@ the object is mutated in place.
 
 | Risk | Handling |
 |---|---|
-| Beta API drift | Plan task 1 re-checks every hook used here against `build/mc-src` and `build/nf-src` and records it in `docs/api-notes.md` §18: `BaseFireBlock` hooks and `fireIgnite`, `SoulFireBlock.canSurvive`, `FireBlock.tick` as the TNT path, `BlockTags.FIRE` users, `ChunkSectionLayer.byTransparency`, `Level` as an attachment holder with always-dirty saving, `LevelTickEvent.Post`, `PlayerTickEvent.Post`, `Entity.isAlliedTo` and `TamableAnimal.considersEntityAsAlly`, `Entity.onGround`/`isPassenger`/`blockPosition`, `BlockState.entityInside`/`randomTick` entry points for tests. |
+| Beta API drift | Plan task 1 re-checks every hook used here against `build/mc-src` and `build/nf-src` and records it in `docs/api-notes.md` §18: `BaseFireBlock` hooks and `fireIgnite`, `SoulFireBlock.canSurvive`, `FireBlock.tick` as the TNT path, `BlockTags.FIRE` users, `ChunkSectionLayer.byTransparency`, `Level` as an attachment holder with always-dirty saving and the serialize predicate, `LevelTickEvent.Post`, `PlayerTickEvent.Post`, `ServerStoppedEvent`, `Entity.isAlliedTo`, `TamableAnimal.considersEntityAsAlly` and `getTeam`, `Entity.onGround`/`isPassenger`/`isSpectator`/`blockPosition`, `Level.isLoaded`, `BlockState.entityInside`/`randomTick` entry points for tests. |
 | Corrupt or missing attachment | The codec default is an empty `TrailFires`; flames already in the world become orphans and clean themselves up. Never crash a level load. |
 | Config out of range | NeoForge range checks (table in §2). |
-| A flame's chunk is unloaded when it should fade | `extinguish` checks the block state through `ServerLevel`, which loads the chunk if needed; trails are short-lived, so this is rare and accepted. |
+| A flame's chunk is unloaded when it should fade | `extinguish` checks the block state through `ServerLevel`, which loads the chunk if needed; trails are short-lived, so this is rare and accepted. Decided against the alternative (skip unloaded chunks and drop the ledger entry): that would leave an ownerless flame that burns everyone, the owner included, until a random tick. |
 
 ## 6. Testing
 
 ### Unit tests and jqwik properties (pure core, TDD, `./gradlew test`)
 
 **`TrailTracker`:** first observation lights nothing; same position lights nothing; grounded
-then moved lights the previous position; airborne then moved lights nothing; grounded, airborne
-move, landing elsewhere, leaving lights only the landing block; `reset` forgets. Property: an
-observation returns at most the previous position, and only if that previous one was grounded.
+then moved lights the previous position; airborne then moved lights nothing; grounded, then
+airborne on the same block, then moved lights that block; grounded, airborne move, landing
+elsewhere, leaving lights only the landing block; `reset` forgets. Properties: an observation
+returns the previous position exactly when the position changed and the player was grounded
+at some point on the previous block; a reset tracker answers like a new one.
 
 **`Trail`:**
 
@@ -227,17 +244,23 @@ observation returns at most the previous position, and only if that previous one
 | T7 | `trim` at or above size | returns nothing, countdown untouched |
 | T8 | rebuild from `flames()` + `countdown()` | behaves identically from then on |
 
+Also: the rebuild constructor clamps a saved countdown into `1 … fadeTicks(oldest)` and gives
+an empty trail countdown 0; adding after the trail emptied starts a fresh countdown.
+
 Properties: flames come out in the order they went in; the number of ticks to empty a trail
 equals the sum of `fadeTicks` over its flames; `size()` never exceeds `max` after `trim`;
-the countdown is always in `1 … fadeTicks(oldest)` while non-empty.
+the countdown is always in `1 … fadeTicks(oldest)` while non-empty, under ticks alone and under
+any mix of add, tick and trim.
 
 **`SpellDeclarationsTest`** gains Trailing (tier `GOOD`, not top). **`SpellAssetsTest`** covers
-the new assets by itself.
+the new assets by itself. New unit and property test classes follow the methodology's *Unit
+test style*; existing test files keep their style.
 
 ### GameTests (`./gradlew runGameTestServer`)
 
 Cast rules: survival cast gives 480 s and uses up the scroll; creative casts (not refused);
-recast refreshes; sneak dispels; milk cures; category beneficial.
+recast refreshes; sneak dispels; sneak while inactive casts; milk cures; category beneficial.
+The scribing zero-percent test now accepts either lower-tier scroll (Upside-Down or Trailing).
 
 Trail (driven through the public `track`/fade entry points, all synchronous):
 
@@ -249,16 +272,20 @@ Trail (driven through the public `track`/fade entry points, all synchronous):
 | G4 | A is over soul sand | flame lingers: 39 fade ticks keep it, the 40th removes it |
 | G5 | Flames at A then B | 20 fade ticks remove A only; 20 more remove B |
 | G6 | `maxTrailBlocks = 2` (config batch), three flames | the first is gone immediately, the other two stand |
-| G7 | Zombie, the owner, a teammate and a tamed wolf each run `entityInside` on the flame | zombie ignited and hurt; the others untouched |
+| G7 | The owner (on a team), a zombie on the same team and a zombie on no team each run `entityInside` on the flame | the stranger zombie ignited and hurt; the owner and teammate untouched |
+| G7b | A tamed wolf of an owner with no team runs `entityInside` | untouched (the tame path alone spares it) |
 | G8 | A second, unallied player runs `entityInside` | ignited and hurt |
 | G9 | Flame placed by `setBlock` (no owner), `randomTick` | removed; an owned flame's `randomTick` leaves it and its neighbors (planks, TNT) unchanged |
-| G10 | Owned flame, remove the block below | the flame is gone |
-| G11 | Effect removed, then the player moves | no flame |
+| G10 | Owned flame, remove the block below; a flame set where nothing supports it | the flame is gone; the unsupported flame removes itself at once (`onPlace`) |
+| G11 | Effect removed, then the player moves; effect re-added, two more moves | no flame at the old spots; the first new departure after re-adding lights nothing, the next lights its block |
 | G12 | `TrailFires` with two owners, codec round trip | equal trails, countdowns and index |
-| G13 | Flame at A, player moves back onto A then away | still one flame at A, same owner |
+| G13 | Flames at A and B, player walks A→B→A→B | A and B each lit once, same owner, two flames in the trail |
+| G14 | X's flame at A put out by hand, Y relights A, X's turn comes | A still burns and is Y's; it fades on Y's turn |
+| G15 | Lighting over grass, over an own flame, on a fence top, on vanilla soul fire, in water | only the grass spot is lit; the owner's trail holds one flame |
 
 The nether-portal override has no GameTest (a frame does not fit the 3×3×3 structure); it is
-a playtest item, and the plan's review checks that `onPlace` does not call portal code.
+a playtest item, and the plan's review checks that `onPlace` does not call portal code. The
+dimension reset and the spectator exclusion are playtest items too.
 
 ### Script tests
 
@@ -273,19 +300,27 @@ PNGs are stale).
 ### Playtest checklist additions (Will)
 
 - The scroll icon (light-blue flame on parchment) and the effect icon.
-- Walk, sprint, jump: flames appear on blocks you left, never under you, never in the air.
+- Walk, sprint, jump: flames appear on blocks you left (the take-off block of a jump included),
+  never under you, never in the air.
 - Stand still: the far end burns back at about one block a second; over soul sand it lingers.
+- Snow layers are replaced by the flame; carpet and slab tops get none.
 - You walk back through your trail unharmed; a zombie or cow in it burns; a tamed wolf does not.
 - Walk through an obsidian portal frame: no portal. Walk past TNT and wooden planks: nothing
   catches. Throw a water bottle at a flame: it goes out.
+- Riding, creative flight and spectator mode lay no flames.
+- Through a nether portal: nothing on arrival; the next step lights the block you left there.
 - Quit to title mid-trail and rejoin: the trail is still there and still fading.
-- Real profile: the deployed jar in `.minecraft/mods` loads, and the spell works there.
+- Real profile: the jar Will copied into `.minecraft/mods` loads, and the spell works there.
 
 ## 7. Delivery
 
-- `mod_version` → **1.2.0**; README and `neoforge.mods.toml` describe three spells.
+- `mod_version` → **1.2.0** (Will's explicit request); README and `neoforge.mods.toml` describe
+  three spells.
 - `docs/api-notes.md` §18 (new facts), `docs/mutation-testing.md` (new row),
   `docs/playtest-checklist.md` (new section).
-- Local-install test: after the gate and GameTests pass, copy `build/libs/spellcraft-1.2.0.jar`
-  into `%APPDATA%\.minecraft\mods` and remove the stale `spellcraft-1.0.0.jar` there. Will
-  plays it from the real NeoForge 26.3 profile.
+- Local-install test: after the gate and GameTests pass, the agent reports the built
+  `build/libs/spellcraft-1.2.0.jar` and gives Will the PowerShell commands to copy it into
+  `%APPDATA%\.minecraft\mods` and remove the stale `spellcraft-1.0.0.jar` there (only that
+  jar). Will runs them from a normal PowerShell with Minecraft closed: the Claude desktop app
+  is MSIX-packaged, and files its shells write under `%APPDATA%` land in a private copy the
+  real launcher never sees. Will then plays from the real NeoForge 26.3 profile.
