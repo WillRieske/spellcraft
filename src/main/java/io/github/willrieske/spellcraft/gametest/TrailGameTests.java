@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
@@ -74,6 +75,10 @@ public final class TrailGameTests {
         SpellcraftGameTests.add(
                 SHARED, "trail_g17_stand_in_cell_above_soul_sand", TrailGameTests::g17StandInCellAboveSoulSand);
         SpellcraftGameTests.add(SHARED, "trail_g26_carpet_and_top_slab", TrailGameTests::g26CarpetAndTopSlab);
+        SpellcraftGameTests.add(
+                SHARED, "trail_g18_unloaded_flame_goes_stale", TrailGameTests::g18UnloadedFlameGoesStale);
+        SpellcraftGameTests.add(
+                SHARED, "trail_g19_stale_flame_goes_out_when_loaded", TrailGameTests::g19StaleFlameGoesOutWhenLoaded);
     }
 
     // --- helpers -------------------------------------------------------------------------------------------------
@@ -359,16 +364,61 @@ public final class TrailGameTests {
         TrailFires.Entry xTrail =
                 new TrailFires.Entry(x, List.of(new Trail.Flame(10L, false), new Trail.Flame(11L, true)), 7);
         TrailFires.Entry yTrail = new TrailFires.Entry(y, List.of(new Trail.Flame(20L, true)), 33);
-        TrailFires original = new TrailFires(List.of(xTrail, yTrail));
+        TrailFires.StaleFlame xStale = new TrailFires.StaleFlame(x, 30L);
+        TrailFires original = new TrailFires(List.of(xTrail, yTrail), List.of(xStale));
         Tag saved =
                 TrailFires.CODEC.codec().encodeStart(NbtOps.INSTANCE, original).getOrThrow();
         TrailFires loaded =
                 TrailFires.CODEC.codec().parse(NbtOps.INSTANCE, saved).getOrThrow();
         helper.assertValueEqual(loaded.entries(), original.entries(), "entries after the round trip");
         helper.assertValueEqual(loaded.entries(), List.of(xTrail, yTrail), "entries as written");
+        helper.assertValueEqual(loaded.staleFlames(), List.of(xStale), "stale flames after the round trip");
         helper.assertValueEqual(loaded.ownerOf(BlockPos.of(11L)), Optional.of(x), "owner of x's flame");
         helper.assertValueEqual(loaded.ownerOf(BlockPos.of(20L)), Optional.of(y), "owner of y's flame");
+        helper.assertValueEqual(loaded.ownerOf(BlockPos.of(30L)), Optional.of(x), "owner of x's stale flame");
         helper.assertValueEqual(loaded.ownerOf(BlockPos.of(99L)), Optional.empty(), "owner of nothing");
+        // A save from before stale flames existed has no "stale" field (an empty list is not written either).
+        Tag legacy = TrailFires.CODEC
+                .codec()
+                .encodeStart(NbtOps.INSTANCE, new TrailFires(List.of(yTrail)))
+                .getOrThrow();
+        helper.assertFalse(((CompoundTag) legacy).contains("stale"), "an empty stale list is not written");
+        TrailFires legacyLoaded =
+                TrailFires.CODEC.codec().parse(NbtOps.INSTANCE, legacy).getOrThrow();
+        helper.assertValueEqual(legacyLoaded.entries(), List.of(yTrail), "a save without stale flames loads");
+        helper.assertValueEqual(legacyLoaded.staleFlames(), List.of(), "and has none");
+        helper.succeed();
+    }
+
+    /** The flame's turn comes while its chunk is unloaded: it goes stale, keeps its owner, and nothing is loaded. */
+    static void g18UnloadedFlameGoesStale(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos far = new BlockPos(100_000, 64, 100_000);
+        helper.assertFalse(level.isLoaded(far), "setup: the far chunk is not loaded");
+        UUID owner = UUID.randomUUID();
+        TrailFires ledger =
+                new TrailFires(List.of(new TrailFires.Entry(owner, List.of(new Trail.Flame(far.asLong(), false)), 1)));
+        ledger.fadeTick(level);
+        helper.assertValueEqual(
+                ledger.staleFlames(), List.of(new TrailFires.StaleFlame(owner, far.asLong())), "stale flames");
+        helper.assertValueEqual(ledger.entries(), List.of(), "the flame left its trail");
+        helper.assertValueEqual(ledger.ownerOf(far), Optional.of(owner), "the stale flame keeps its owner");
+        helper.assertFalse(level.isLoaded(far), "no chunk was loaded");
+        helper.succeed();
+    }
+
+    /** A stale flame whose chunk is loaded goes out on the next fade tick, and the ledger forgets it. */
+    static void g19StaleFlameGoesOutWhenLoaded(GameTestHelper helper) {
+        floors(helper);
+        ServerPlayer owner = trailingPlayer(helper);
+        helper.assertTrue(light(helper, owner, A), "lit A");
+        BlockPos a = helper.absolutePos(A);
+        TrailFires ledger = new TrailFires(List.of(), List.of(new TrailFires.StaleFlame(owner.getUUID(), a.asLong())));
+        helper.assertValueEqual(ledger.ownerOf(a), Optional.of(owner.getUUID()), "a stale flame is indexed");
+        ledger.fadeTick(helper.getLevel());
+        helper.assertBlockNotPresent(trailFire(), A);
+        helper.assertValueEqual(ledger.ownerOf(a), Optional.empty(), "owner after the sweep");
+        helper.assertTrue(ledger.isEmpty(), "the ledger is empty");
         helper.succeed();
     }
 

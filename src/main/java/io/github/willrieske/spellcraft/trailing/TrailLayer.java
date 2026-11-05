@@ -79,8 +79,8 @@ public final class TrailLayer {
     /**
      * One trail-laying step: observe where the player stands and light the block they just left. Without the effect
      * the player's tracker is dropped. The previous block is lit only while its chunk is loaded (after a long
-     * teleport it may not be; spec §5 accepts forced loads for fading only). Public so GameTests can run a step
-     * without waiting for a tick.
+     * teleport it may not be; no chunk is ever loaded to lay or put out a flame, spec §4). Public so GameTests can run
+     * a step without waiting for a tick.
      *
      * @param player the server-side player to track
      */

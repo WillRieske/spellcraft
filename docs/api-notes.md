@@ -289,3 +289,24 @@ Verified 2026-11-04 against the same unpacked sources.
 - GameTest helpers used: `TamableAnimal.tame(Player)` `:170`; `Scoreboard.addPlayerTeam(String)` `:249`,
   `addPlayerToTeam(String, PlayerTeam)` `:272`, `removePlayerTeam(PlayerTeam)` `:262`;
   `GameTestHelper.assertValueEqual(N, N, String)` `:1095`; `Vec3.atBottomCenterOf(Vec3i)` `:61`.
+- Chunk loading (stale flames, fix pass 2): `Level.java:689-693` `isLoaded(BlockPos)` is `isInValidBounds(pos)` and
+  then `getChunkSource().hasChunk(chunkX, chunkZ)`; `ServerChunkCache.java:263-267` `hasChunk` only looks up the
+  visible chunk holder and its ticket level, so it never loads anything. `Level.java:369-376` `getBlockState`
+  calls `getChunk(x, z)` (`:208-210`), which is `getChunk(x, z, ChunkStatus.FULL)` and so
+  `LevelReader.java:133-135` `getChunk(x, z, status, true)`: **reading a block in an unloaded chunk loads (or
+  generates) it synchronously**. `Level.java:213-219` throws if that load fails. Code that must not load a chunk
+  checks `isLoaded` before any `getBlockState`/`setBlock`/`removeBlock`. `BlockPos.MutableBlockPos.set(long)`
+  `core/BlockPos.java:646` reuses one cursor for such checks.
+- `Codec.optionalFieldOf(name, default)` (DataFixerUpper 10.0.21 sources, `com/mojang/serialization/Codec.java:274`,
+  `:303-308`; not in `build/mc-src`: unzip `datafixerupper-10.0.21-sources.jar` from the Gradle cache): decoding a
+  missing field yields the default (`codecs/OptionalFieldCodec.java:30-33`), so a save written before the field
+  existed still loads; encoding a value **equal to the default omits the field** (`Objects.equals(a, defaultValue)
+  ? Optional.empty()`). It is not lenient: a present but malformed field fails the decode. `RecordCodecBuilder.mapCodec`
+  (`codecs/RecordCodecBuilder.java:75`) builds the `MapCodec` that `AttachmentType.Builder.serialize` takes.
+- Attachment saving (G27): `AttachmentHolder.java:120-137` `serializeAttachments(ValueOutput)` is public and final;
+  for each serializable attachment it writes `tag.child(<type id>)` and `discard`s that key when the serializer
+  returns false. `AttachmentType.java:210-227`: the `serialize(MapCodec, Predicate)` serializer returns false when
+  the predicate rejects the value, else `output.store(codec, value)` (the map codec's fields go straight into the
+  child). `LevelAttachmentsSavedData.java:46-48` saves a level through `TagValueOutput.createWithContext(reporter,
+  registryAccess)` (`world/level/storage/TagValueOutput.java:27`) and `buildResult()` (`:159`), the same calls a
+  test can make on `ServerLevel` (it inherits `serializeAttachments` from `Level`).
