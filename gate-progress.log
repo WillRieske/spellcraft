@@ -36,3 +36,4 @@ be82cf0 task 3: Trail; unit tests green (+17 JUnit, +5 jqwik); PIT 97% (150/154)
 edfe635 task 4: spell wiring; build green 173 unit tests; icon tests 6 OK; runGameTestServer all 68 required passed
 a1e745d task 5: trail fire block + TrailFires ledger; build green 173 unit tests; runGameTestServer all 79 required passed; runData green
 1448fe0 task 6: TrailLayer; build green 173 unit tests; runGameTestServer all 84 required passed
+f3de410 task 7: docs, 1.2.0, playtest checklist; build green 173 unit tests; runGameTestServer all 84 required passed; runData ok; icon tests 6 ok
