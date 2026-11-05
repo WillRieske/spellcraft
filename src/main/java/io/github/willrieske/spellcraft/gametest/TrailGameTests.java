@@ -8,6 +8,7 @@ import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.spell.rules.Trail;
 import io.github.willrieske.spellcraft.trailing.ModBlocks;
 import io.github.willrieske.spellcraft.trailing.TrailFires;
+import io.github.willrieske.spellcraft.trailing.TrailLayer;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,6 +23,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.InsideBlockEffectApplier;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.level.GameType;
@@ -44,6 +46,11 @@ public final class TrailGameTests {
     private TrailGameTests() {}
 
     static void registerAll() {
+        SpellcraftGameTests.add(SHARED, "trail_g1_lights_the_block_left", TrailGameTests::g1LightsTheBlockLeft);
+        SpellcraftGameTests.add(SHARED, "trail_g2_not_from_the_air", TrailGameTests::g2NotFromTheAir);
+        SpellcraftGameTests.add(SHARED, "trail_g3_not_while_riding", TrailGameTests::g3NotWhileRiding);
+        SpellcraftGameTests.add(SHARED, "trail_g11_stops_with_the_effect", TrailGameTests::g11StopsWithTheEffect);
+        SpellcraftGameTests.add(SHARED, "trail_g13_own_flame_is_not_relit", TrailGameTests::g13OwnFlameIsNotRelit);
         SpellcraftGameTests.add(SHARED, "trail_g4_lingers_on_soul_sand", TrailGameTests::g4LingersOnSoulSand);
         SpellcraftGameTests.add(SHARED, "trail_g5_fades_oldest_first", TrailGameTests::g5FadesOldestFirst);
         SpellcraftGameTests.add("config_mutation", "trail_g6_max_blocks", TrailGameTests::g6MaxBlocks);
@@ -77,6 +84,13 @@ public final class TrailGameTests {
     /** Teleports the player to a standing spot without tracking (Task 6 adds the tracking variant). */
     static void teleport(GameTestHelper helper, ServerPlayer player, BlockPos spot) {
         MockPlayers.moveTo(helper, player, Vec3.atBottomCenterOf(spot));
+    }
+
+    /** Teleports the player to a spot, sets its ground state, and runs one trail-laying step. */
+    static void standAt(GameTestHelper helper, ServerPlayer player, BlockPos spot, boolean grounded) {
+        teleport(helper, player, spot);
+        player.setOnGround(grounded);
+        TrailLayer.track(player);
     }
 
     static TrailFires fires(GameTestHelper helper) {
@@ -121,6 +135,76 @@ public final class TrailGameTests {
     }
 
     // --- tests ---------------------------------------------------------------------------------------------------
+
+    static void g1LightsTheBlockLeft(GameTestHelper helper) {
+        floors(helper);
+        ServerPlayer player = trailingPlayer(helper);
+        standAt(helper, player, A, true);
+        helper.assertBlockNotPresent(trailFire(), A);
+        standAt(helper, player, B, true);
+        helper.assertBlockPresent(trailFire(), A);
+        helper.assertBlockNotPresent(trailFire(), B);
+        helper.assertValueEqual(ownerOf(helper, A), Optional.of(player.getUUID()), "owner of A");
+        helper.succeed();
+    }
+
+    static void g2NotFromTheAir(GameTestHelper helper) {
+        floors(helper);
+        ServerPlayer player = trailingPlayer(helper);
+        standAt(helper, player, A, false);
+        standAt(helper, player, B, true);
+        helper.assertBlockNotPresent(trailFire(), A);
+        helper.succeed();
+    }
+
+    static void g3NotWhileRiding(GameTestHelper helper) {
+        floors(helper);
+        ServerPlayer player = trailingPlayer(helper);
+        Pig pig = helper.spawn(EntityTypes.PIG, A);
+        teleport(helper, player, A);
+        helper.assertTrue(player.startRiding(pig, true, false), "mounted the pig");
+        player.setOnGround(true);
+        helper.assertTrue(player.isPassenger(), "riding when tracked");
+        TrailLayer.track(player);
+        player.stopRiding();
+        standAt(helper, player, B, true);
+        helper.assertBlockNotPresent(trailFire(), A);
+        helper.succeed();
+    }
+
+    static void g11StopsWithTheEffect(GameTestHelper helper) {
+        floors(helper);
+        ServerPlayer player = trailingPlayer(helper);
+        standAt(helper, player, A, true);
+        player.removeEffect(ModEffects.TRAILING);
+        standAt(helper, player, B, true);
+        helper.assertBlockNotPresent(trailFire(), A);
+        player.addEffect(new MobEffectInstance(ModEffects.TRAILING, 600, 0, false, false, true));
+        standAt(helper, player, C, true);
+        helper.assertBlockNotPresent(trailFire(), B);
+        standAt(helper, player, D, true);
+        helper.assertBlockPresent(trailFire(), C);
+        // The tracker was dropped with the effect, so re-casting never lights the old spot A.
+        helper.assertBlockNotPresent(trailFire(), A);
+        helper.succeed();
+    }
+
+    static void g13OwnFlameIsNotRelit(GameTestHelper helper) {
+        floors(helper);
+        ServerPlayer player = trailingPlayer(helper);
+        standAt(helper, player, A, true);
+        standAt(helper, player, B, true);
+        standAt(helper, player, A, true);
+        standAt(helper, player, B, true);
+        helper.assertBlockPresent(trailFire(), A);
+        helper.assertBlockPresent(trailFire(), B);
+        TrailFires.Entry trail = fires(helper).entries().stream()
+                .filter(e -> e.owner().equals(player.getUUID()))
+                .findFirst()
+                .orElseThrow(() -> helper.assertionException("the player has a trail"));
+        helper.assertValueEqual(trail.flames().size(), 2, "A and B once each");
+        helper.succeed();
+    }
 
     static void g4LingersOnSoulSand(GameTestHelper helper) {
         floors(helper);
