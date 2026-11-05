@@ -1,7 +1,7 @@
 # Spellcraft: "Strength of Trailing" (design)
 
 **Date:** 2026-11-04
-**Status:** plan written (`2026-11-04-trailing.md`)
+**Status:** implemented 2026-11-04 via `2026-11-04-trailing.md`
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
 **Builds on:** [`2026-09-29-infinity-design.md`](2026-09-29-infinity-design.md) (the shared spell
 framework: declarations, cast rules, scribing, icon generator). Nothing there is superseded.
