@@ -308,7 +308,7 @@ PNGs are stale).
 - Walk through an obsidian portal frame: no portal. Walk past TNT and wooden planks: nothing
   catches. Throw a water bottle at a flame: it goes out.
 - Riding, creative flight and spectator mode lay no flames.
-- Through a nether portal: nothing on arrival; the next step lights the block you left there.
+- Through a nether portal: nothing on arrival, and nothing on the portal block itself (it is not replaceable, so `canLight` refuses it); the first ordinary block you step off in the new dimension lights.
 - Quit to title mid-trail and rejoin: the trail is still there and still fading.
 - Real profile: the jar Will copied into `.minecraft/mods` loads, and the spell works there.
 

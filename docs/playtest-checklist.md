@@ -109,7 +109,7 @@ Use a **Survival** world with open ground. `/give @s spellcraft:trailing_scroll`
 - [ ] Throw a splash water bottle at a flame: it goes out. Break a flame by hand: the extinguish sound plays.
 - [ ] Ride a horse, boat or minecart: no flames.
 - [ ] Creative flight: no flames; landing and walking: flames again. `/gamemode spectator` and move along the ground: no flames.
-- [ ] Walk through a nether portal with the effect on: no flame appears on arrival; after one more step the block you left in the new dimension lights; the same coming back.
+- [ ] Walk through a nether portal with the effect on: no flame appears on arrival, and none on the portal block itself; the first ordinary block you step off in the new dimension lights; the same coming back.
 - [ ] Sneak + right-click with a second scroll: the effect ends; the trail keeps fading on its own.
 - [ ] Drink milk: the effect ends the same way.
 - [ ] Quit to title mid-trail and rejoin: the trail is still there and keeps fading; walking back through it is still safe.
