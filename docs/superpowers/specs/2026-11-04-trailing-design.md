@@ -167,26 +167,36 @@ reads the attachment each tick, which would otherwise save an empty record per d
 saved form is `trails: [{owner, flames, countdown}]` and `stale: [{owner, pos}]`; `stale` is
 optional when read, so a save without it loads as having none. If a save lists one owner
 twice, the last non-empty trail wins, only its flames are indexed, and a warning is logged.
+A position belongs to whoever lit it last: the index is the truth. A trail may still list a
+flame it no longer owns (its flame was put out and another owner relit the spot); that entry
+is dead, its turn is a no-op, and the save drops it (`entries()` and the saved stale list keep
+only flames the index gives to that owner), so a reload can never hand a spot back to the
+older owner.
 
 - `light(ServerLevel, ServerPlayer owner, BlockPos feet)`: the **stand-in cell** is `feet`
   when it can take a flame, else `feet.above()` (a player on soul sand or mud stands 2/16 deep
   inside the block, so `blockPosition()` is the block itself; both report a full support
-  shape, so the cell above them qualifies). A cell can take a flame when its state is air, or
-  replaceable with no fluid and not in `#minecraft:fire`, and the block below has a sturdy top
-  face. If neither cell qualifies, nothing is lit. Sets `trail_fire`, records a `Flame`
+  shape, so the cell above them qualifies). A cell can take a flame when it is inside the
+  world's build limits (`Level.isInValidBounds`; above the top layer `getBlockState` reports
+  void air, which would otherwise pass) and its state is air, or replaceable with no fluid and
+  not in `#minecraft:fire`, and the block below has a sturdy top face. If neither cell
+  qualifies, or `setBlock` reports no change, nothing is lit or recorded. Sets `trail_fire`, records a `Flame`
   (`lingers` = the block below the flame is in `#minecraft:soul_fire_base_blocks`), then
   `trim(maxTrailBlocks)` and extinguishes what it returns. It does not consult spawn
   protection or claim mods (`Level.mayInteract`): a trail burns across protected ground like
   any other effect of walking there (accepted).
 - `fadeTick(ServerLevel)`: `tick()` every trail; extinguish each returned flame; drop empty
-  trails. Then sweep the stale flames: each whose chunk is loaded (`Level.isLoaded`, a chunk
-  lookup) is put out the same way and forgotten.
+  trails. Then sweep the stale flames: each whose chunk is **ready** is put out the same way
+  and forgotten. Ready means `ServerChunkCache.getChunkNow(x, z)` returns the chunk (a map
+  lookup, no load, no wait). `Level.isLoaded` is not enough: it is true as soon as the chunk's
+  ticket reaches FULL, while its load may still be running, and a block read would then block
+  the server thread until the load finishes.
 - `extinguish(level, owner, flame)`: only when the index still says the flame is this owner's
   (if the spot was put out and relit by someone else, that newer flame stays). If the flame's
-  chunk is loaded, drops the index entry and removes the block if it is still `trail_fire`. If
-  it is not loaded, the flame becomes stale instead: it leaves the trail, keeps its index entry
-  (so the owner and their allies stay spared if they get there first) and waits for the sweep.
-  No chunk is ever loaded to put a flame out.
+  chunk is ready, drops the index entry and removes the block if it is still `trail_fire`. If
+  it is not, the flame becomes stale instead: it leaves the trail, keeps its index entry (so
+  the owner and their allies stay spared if they get there first) and waits for the sweep. No
+  chunk is ever loaded, or waited on, to put a flame out.
 - `ownerOf(BlockPos) → Optional<UUID>`; `isSpared(ServerLevel, BlockPos, Entity)`: true when
   the entity's UUID is the owner, or the owner is online in this level and
   `owner.isAlliedTo(entity)`. An offline owner spares only themself (their pets burn until
@@ -195,8 +205,8 @@ twice, the last non-empty trail wins, only its flames are indexed, and a warning
   be allied to anyone, so the owner lookup (a scan of the level's players) is skipped for it;
   this runs every tick for every entity standing in a flame. A modded entity with its own
   ally rule for players would be missed by this fast path (documented in the Javadoc).
-- `forget(UUID owner)`: drops the owner's trail and its index entries without touching any
-  block. GameTest support only (each test cleans its own ledger entries).
+- `forget(UUID owner)`: drops the owner's trail, their stale flames and their index entries
+  without touching any block. GameTest support only (each test cleans its own ledger entries).
 
 **`TrailLayer`** (`@EventBusSubscriber`, game bus):
 
@@ -241,7 +251,7 @@ twice, the last non-empty trail wins, only its flames are indexed, and a warning
 | Beta API drift | Plan task 1 re-checks every hook used here against `build/mc-src` and `build/nf-src` and records it in `docs/api-notes.md` §18: `BaseFireBlock` hooks and `fireIgnite`, `SoulFireBlock.canSurvive`, `FireBlock.tick` as the TNT path, `BlockTags.FIRE` users, `ChunkSectionLayer.byTransparency`, `Level` as an attachment holder with always-dirty saving and the serialize predicate, `LevelTickEvent.Post`, `PlayerTickEvent.Post`, `ServerStoppedEvent`, `Entity.isAlliedTo`, `TamableAnimal.considersEntityAsAlly` and `getTeam`, `Entity.onGround`/`isPassenger`/`isSpectator`/`blockPosition`, `Level.isLoaded`, `BlockState.entityInside`/`randomTick` entry points for tests. |
 | Corrupt or missing attachment | The codec default is an empty `TrailFires`; flames already in the world become orphans and clean themselves up. Never crash a level load. |
 | Config out of range | NeoForge range checks (table in §2). |
-| A flame's chunk is unloaded when it should fade | The flame becomes stale (§4): it keeps its owner in the index and is put out by the sweep the next tick its chunk is loaded. Nothing is force-loaded: the fuse burns from the far end, which after half a minute of running sits in chunks nobody is in, and an offline owner's whole trail fades out of sight, so synchronous loads were not rare. Decided against dropping the ledger entry: that would leave an ownerless flame that burns everyone, the owner included, until a random tick. |
+| A flame's chunk is unloaded when it should fade | The flame becomes stale (§4): it keeps its owner in the index and is put out by the sweep the next tick its chunk is ready (`getChunkNow`). Nothing is force-loaded or waited on: the fuse burns from the far end, which after half a minute of running sits in chunks nobody is in, and an offline owner's whole trail fades out of sight, so synchronous loads were not rare. Decided against dropping the ledger entry: that would leave an ownerless flame that burns everyone, the owner included, until a random tick. |
 | Corrupt save lists an owner twice | The last non-empty trail wins; a warning names the owner so an operator can explain orphan flames in the log. |
 
 ## 6. Testing
@@ -303,14 +313,14 @@ Trail (driven through the public `track`/fade entry points, all synchronous):
 | G9 | Flame placed by `setBlock` (no owner), `randomTick` | removed; an owned flame's `randomTick` leaves it standing (its neighbors are G25's check) |
 | G10 | Owned flame, remove the block below; a flame set where nothing supports it | the flame is gone; the unsupported flame removes itself at once (`onPlace`) |
 | G11 | Effect removed, then the player moves; effect re-added, two more moves | no flame at the old spots; the first new departure after re-adding lights nothing, the next lights its block |
-| G12 | `TrailFires` with two owners and one stale flame, codec round trip | equal trails, countdowns, stale flames and index; a save without `stale` loads with none |
+| G12 | `TrailFires` with two owners and two stale flames, codec round trip; then a spot that X's trail lists but Y lit last (the index says Y), and a stale flame of X at a spot Y's trail owns | equal trails, countdowns, stale flames (in order) and index; a save without `stale` loads with none; the contested spots are saved only under Y, so the reloaded index still says Y |
 | G13 | Flames at A and B, player walks A→B→A→B | A and B each lit once, same owner, two flames in the trail |
 | G14 | X's flame at A put out by hand, Y relights A, X's turn comes | A still burns and is Y's; it fades on Y's turn |
 | G15 | Lighting over grass, over an own flame, on a fence top, on vanilla soul fire, in water | only the grass spot is lit; the owner's trail holds one flame |
 | G16 | `TrailFires` rebuilt from two entries with the same owner | only the last trail is kept; the dropped trail's spots have no owner in the index |
 | G17 | Trailing player grounded on real soul sand (feet 2/16 inside it), moves to stone, `track` twice | a lingering flame in the cell above the sand (39 fade ticks keep it, the 40th removes it); none on the sand block itself |
 | G18 | Owner's trail rebuilt with one flame at a far, unloaded position, countdown 1; one `fadeTick` | the flame is stale: out of the trail, `ownerOf` still the owner, `level.isLoaded` there still false (no chunk was loaded) |
-| G19 | A stale flame at a lit, loaded spot (ledger rebuilt with it in `stale`); one `fadeTick` | the block is removed, `ownerOf` is empty, the ledger is empty |
+| G19 | A stale flame at a lit, loaded spot (ledger rebuilt with it in `stale`); one `fadeTick`. Then a stale flame of X at a spot whose index owner is Y (Y's live flame there); one `fadeTick` | the block is removed, `ownerOf` is empty, the ledger is empty; Y's flame still stands and is Y's, X's stale entry is gone |
 | G20 | Trailing player grounded at A; `onLogout` with a `PlayerLoggedOutEvent` for them; they stand at B, then C | A stays dark (the tracker was dropped); B lights |
 | G21 | Same with `onServerStopped` for the test server | A stays dark; B lights |
 | G22 | Trailing player grounded at a far, unloaded position X, then moves to A (the player is a discarded mock: NeoForge's `Entity.setPosRaw` loads the chunk any in-level entity moves into, so a live one cannot stand in an unloaded chunk) | X is not lit and `level.isLoaded(X)` is still false; `ownerOf(X)` is empty |
@@ -319,7 +329,7 @@ Trail (driven through the public `track`/fade entry points, all synchronous):
 | G25 | Owned flame beside oak planks and TNT; the flame's `tick` and `randomTick` run, then a few level ticks pass | planks and TNT unchanged, no fire anywhere else (no spread, nothing scheduled) |
 | G26 | Trailing player grounded on a carpet (over stone), then on a top slab, each left for stone | no flame for the carpet spot; the cell above the slab lights |
 | G27 | `level.serializeAttachments(...)` with an empty ledger, then with one flame | the trailing_fires key is absent, then present and decodes to the same ledger |
-| G28 | Trailing player grounded at A in the overworld; the same player (same UUID) in the nether stands at B then C | A stays dark (the tracker reset on the dimension change); B lights |
+| G28 | Stone under A's coordinates in the nether as well; trailing player grounded at A in the overworld; the same player (same UUID) in the nether stands at B then C | the nether cell at A's coordinates stays dark and unowned (without the reset the first nether observation would light it), overworld A stays dark, and the player's nether trail holds exactly B |
 
 The cast rules also cover: sneaking with another item in hand keeps the effect, and casting
 takes one scroll from a stack. The scribing check asserts the lower-tier candidate list holds
