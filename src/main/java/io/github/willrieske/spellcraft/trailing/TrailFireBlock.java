@@ -38,12 +38,34 @@ public final class TrailFireBlock extends BaseFireBlock {
         return false;
     }
 
+    /**
+     * A flame survives on any block with a sturdy top face (soul fire needs soul sand; a trail sits on any ground).
+     *
+     * @param state this flame's state
+     * @param level the level to read
+     * @param pos the flame's position
+     * @return whether the block below has a sturdy top face
+     */
     @Override
     protected boolean canSurvive(BlockState state, LevelReader level, BlockPos pos) {
         BlockPos below = pos.below();
         return level.getBlockState(below).isFaceSturdy(level, below, Direction.UP);
     }
 
+    /**
+     * Turns to air when a neighbor change leaves the flame unable to survive (as {@code SoulFireBlock} does), so
+     * flames fall away with the ground.
+     *
+     * @param state this flame's state
+     * @param level the level to read
+     * @param ticks the scheduled-tick access (unused: trail fire schedules nothing)
+     * @param pos the flame's position
+     * @param directionToNeighbour the side the change came from
+     * @param neighbourPos the changed neighbor's position
+     * @param neighbourState the changed neighbor's new state
+     * @param random the level's random source
+     * @return {@code state}, or air when the flame can no longer survive
+     */
     @Override
     protected BlockState updateShape(
             BlockState state,

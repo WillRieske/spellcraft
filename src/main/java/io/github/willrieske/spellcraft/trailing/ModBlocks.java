@@ -10,6 +10,7 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 
 /** The blocks Spellcraft registers for Trailing; registered on the mod event bus by {@code Spellcraft}. */
 public final class ModBlocks {
+    /** The register for Spellcraft's blocks; {@code Spellcraft} adds it to the mod event bus. */
     public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(Spellcraft.MODID);
 
     private static final int LIGHT = 10;

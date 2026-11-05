@@ -23,13 +23,16 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.OwnableEntity;
+import net.minecraft.world.entity.animal.allay.Allay;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
 
 /**
- * Every trail in one level: each owner's {@link Trail} and which flame belongs to whom. The value of the
+ * The Ledger (spec glossary): every trail in one level, each owner's {@link Trail}, the stale flames, and which flame
+ * belongs to whom. The value of the
  * {@code trailing_fires} level attachment; level attachments are re-saved on every world save (docs/api-notes.md
  * §18), so this object is mutated in place.
  */
@@ -133,12 +136,21 @@ public final class TrailFires {
         });
     }
 
-    /** The level's ledger (created empty on first use). */
+    /**
+     * The level's ledger (created empty on first use).
+     *
+     * @param level the level whose ledger to fetch
+     * @return the ledger stored on {@code level}
+     */
     public static TrailFires of(ServerLevel level) {
         return level.getData(TrailingAttachments.FIRES);
     }
 
-    /** Every owner's trail, in the order the owners first lit a flame. */
+    /**
+     * Every owner's trail, in the order the owners first lit a flame.
+     *
+     * @return a snapshot of the trails, one {@link Entry} per owner
+     */
     public List<Entry> entries() {
         List<Entry> entries = new ArrayList<>();
         byOwner.forEach((owner, trail) -> entries.add(new Entry(owner, trail.flames(), trail.countdown())));
@@ -163,9 +175,26 @@ public final class TrailFires {
         return byOwner.isEmpty() && stale.isEmpty();
     }
 
-    /** Who owns the flame at {@code pos}, if the ledger knows one. */
+    /**
+     * Who owns the flame at {@code pos}, if the ledger knows one.
+     *
+     * @param pos the flame's position
+     * @return the owner's UUID, or empty for an orphan or a spot with no flame
+     */
     public Optional<UUID> ownerOf(BlockPos pos) {
         return Optional.ofNullable(ownerByPos.get(pos.asLong()));
+    }
+
+    /**
+     * Forgets {@code owner}'s trail and stale flames and every index entry pointing at them, leaving the blocks where
+     * they are (they become orphans). For GameTests that share one level and must leave no ledger entry behind.
+     *
+     * @param owner the owner to forget
+     */
+    public void forget(UUID owner) {
+        byOwner.remove(owner);
+        stale.removeIf(flame -> flame.owner().equals(owner));
+        ownerByPos.values().removeIf(owner::equals);
     }
 
     /**
@@ -195,13 +224,14 @@ public final class TrailFires {
         Trail trail = byOwner.computeIfAbsent(id, key -> new Trail());
         trail.add(new Trail.Flame(pos.asLong(), lingers));
         ownerByPos.put(pos.asLong(), id);
-        for (Trail.Flame evicted : trail.trim(ServerConfig.trailingMaxBlocks())) {
+        for (Trail.Flame evicted : trail.trim(ServerConfig.trailingMaxFlames())) {
             extinguish(level, id, evicted);
         }
         return true;
     }
 
-    static boolean canLight(ServerLevel level, BlockPos pos) {
+    /** A cell can take a flame when it is air, or replaceable with no fluid and not fire, over a sturdy top face. */
+    private static boolean canLight(ServerLevel level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
         boolean free = state.isAir()
                 || (state.canBeReplaced() && state.getFluidState().isEmpty() && !state.is(BlockTags.FIRE));
@@ -213,6 +243,8 @@ public final class TrailFires {
      * One fade tick for every trail in the level; trails that empty are forgotten. Then the stale sweep: every stale
      * flame whose chunk is loaded now ({@code Level.isLoaded}, a chunk lookup that loads nothing) is put out and
      * forgotten.
+     *
+     * @param level the level this ledger belongs to
      */
     public void fadeTick(ServerLevel level) {
         Iterator<Map.Entry<UUID, Trail>> trails = byOwner.entrySet().iterator();
@@ -269,6 +301,22 @@ public final class TrailFires {
     /**
      * Whether the flame at {@code pos} spares {@code entity}: the owner, or (while the owner is online in this
      * level) anyone the owner {@code isAlliedTo} (same team, tamed pets). An orphan spares nobody.
+     *
+     * <p>Fast path, since this runs every tick for every entity in a flame: an entity with no team that is neither an
+     * {@code OwnableEntity} nor an allay cannot be allied to a player, so the owner lookup (a scan of the level's
+     * players, {@code EntityGetter.java:113-122}) is skipped. Why: {@code Entity.java:2879-2889} {@code isAlliedTo} is
+     * {@code this == other || considersEntityAsAlly(other) || other.considersEntityAsAlly(this)}, and the default
+     * {@code considersEntityAsAlly} is a team check that is false when either side has no team ({@code Team.java:17},
+     * {@code Entity.java:2887}). The vanilla overrides that ally a team-less entity to a player are
+     * {@code TamableAnimal.java:209-222} (an {@code OwnableEntity}, {@code TamableAnimal.java:34}; its
+     * {@code getTeam()} {@code :192-206} also borrows the owner's) and {@code Allay.java:160-163} (the player it
+     * likes); {@code AbstractIllager} and {@code Evoker} ally only illagers and vexes. An entity a mod adds with its
+     * own {@code considersEntityAsAlly} for players would need adding here.
+     *
+     * @param level the level the flame is in
+     * @param pos the flame's position
+     * @param entity the entity standing in the flame
+     * @return {@code true} if the flame must not burn {@code entity}
      */
     public boolean isSpared(ServerLevel level, BlockPos pos, Entity entity) {
         UUID owner = ownerByPos.get(pos.asLong());
@@ -277,6 +325,9 @@ public final class TrailFires {
         }
         if (owner.equals(entity.getUUID())) {
             return true;
+        }
+        if (entity.getTeam() == null && !(entity instanceof OwnableEntity) && !(entity instanceof Allay)) {
+            return false;
         }
         Player ownerPlayer = level.getPlayerByUUID(owner);
         return ownerPlayer != null && ownerPlayer.isAlliedTo(entity);

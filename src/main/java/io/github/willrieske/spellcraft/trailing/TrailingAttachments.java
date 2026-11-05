@@ -8,6 +8,7 @@ import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 /** Per-level data Trailing keeps (docs/api-notes.md §18). Saved with the level on every world save. */
 public final class TrailingAttachments {
+    /** The register for Trailing's attachment types; {@code Spellcraft} adds it to the mod event bus. */
     public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES =
             DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, Spellcraft.MODID);
 

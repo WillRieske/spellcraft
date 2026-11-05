@@ -3,7 +3,10 @@ package io.github.willrieske.spellcraft.config;
 import java.util.List;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
-/** Server-side (per-world) settings. Read at cast time, so edits apply to the next cast. */
+/**
+ * Server-side (per-world) settings. The durations are read at cast time; {@code maxTrailBlocks} is read each time a
+ * flame is laid.
+ */
 public final class ServerConfig {
     private static final int TICKS_PER_SECOND = 20;
     /** Keeps seconds × 20 well inside int range (≈11.5 days). */
@@ -13,7 +16,7 @@ public final class ServerConfig {
 
     public static final ModConfigSpec.IntValue UPSIDE_DOWN_DURATION_SECONDS;
     public static final ModConfigSpec.IntValue TRAILING_DURATION_SECONDS;
-    public static final ModConfigSpec.IntValue TRAILING_MAX_BLOCKS;
+    public static final ModConfigSpec.IntValue TRAILING_MAX_FLAMES;
     public static final ModConfigSpec.ConfigValue<List<? extends Integer>> TOP_TIER_CHANCE_PERCENT;
     public static final ModConfigSpec SPEC;
 
@@ -26,7 +29,7 @@ public final class ServerConfig {
         builder.push("trailing");
         TRAILING_DURATION_SECONDS = builder.comment("How long Strength of Trailing lasts, in seconds.")
                 .defineInRange("durationSeconds", 480, 1, MAX_SECONDS);
-        TRAILING_MAX_BLOCKS = builder.comment(
+        TRAILING_MAX_FLAMES = builder.comment(
                         "The most flames one player's trail holds. Beyond it the oldest flames go out at once.")
                 .defineInRange("maxTrailBlocks", 1024, 1, MAX_TRAIL_BLOCKS);
         builder.pop();
@@ -54,8 +57,8 @@ public final class ServerConfig {
     }
 
     /** The most flames one player's trail holds (range-checked by NeoForge: 1-65536). */
-    public static int trailingMaxBlocks() {
-        return TRAILING_MAX_BLOCKS.getAsInt();
+    public static int trailingMaxFlames() {
+        return TRAILING_MAX_FLAMES.getAsInt();
     }
 
     /** The configured chances, index = option (range-checked by NeoForge: exactly 3, each 0-100). */

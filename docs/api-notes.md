@@ -310,3 +310,20 @@ Verified 2026-11-04 against the same unpacked sources.
   child). `LevelAttachmentsSavedData.java:46-48` saves a level through `TagValueOutput.createWithContext(reporter,
   registryAccess)` (`world/level/storage/TagValueOutput.java:27`) and `buildResult()` (`:159`), the same calls a
   test can make on `ServerLevel` (it inherits `serializeAttachments` from `Level`).
+- **NeoForge loads the chunk an entity moves into**: `Entity.java:3983-3986` (end of `setPosRaw`, "Neo: ensure
+  target chunk is loaded") calls `level.getChunk(x >> 4, z >> 4)` for any server entity that is added to its level
+  and not removed. Every move goes through it (`setPos` `:486`, `teleportSetPosition` `:3298-3300`, and so
+  `ServerPlayer.teleport` `ServerPlayer.java:1176-1197` within a level), so teleporting a player to a far spot loads
+  that spot's chunk. A test that needs a player standing in an unloaded chunk uses a `discard()`ed player.
+  `Entity.setOnGround` `:696-699` runs `checkSupportingBlock`, whose collision lookup does not load chunks.
+- Ally overrides that matter to a team-less entity and a player (for the `isSpared` fast path):
+  `TamableAnimal.java:209-222` (an `OwnableEntity`, `:34`) and `Allay.java:160-163` (`isLikedPlayer`, the
+  `LIKED_PLAYER` brain memory, `MemoryModuleType.java:136`). `AbstractIllager.java:31-38` allies only
+  `#illager_friends` (illagers) and `Evoker.java:81-99` its vexes. `Team.isAlliedTo(null)` is false
+  (`world/scores/Team.java:17-19`). `EntityGetter.java:113-122` `getPlayerByUUID` scans the level's player list.
+- Test entry points (fix pass 2): `BlockBehaviour.BlockStateBase.tick(ServerLevel, BlockPos, RandomSource)` `:765` is
+  public; `PlayerEvent.PlayerLoggedOutEvent(Player)` (`PlayerEvent.java:481`) and `ServerStoppedEvent(MinecraftServer)`
+  (`event/server/ServerStoppedEvent.java:18`) have public constructors; `GameTestHelper.runAfterDelay(long,
+  Runnable)` `:964`, `getBlockState(BlockPos)` `:111` (relative); `CompoundTag.contains(String)` `:293`,
+  `getCompoundOrEmpty(String)` `:373`; `ProblemReporter.DISCARDING` (`util/ProblemReporter.java:19`). The GameTest
+  server uses `WorldPresets.FLAT_ALL_DIMENSIONS` (`GameTestServer.java:127`), so it has a Nether.
