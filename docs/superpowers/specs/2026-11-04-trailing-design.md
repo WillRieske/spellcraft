@@ -32,6 +32,7 @@ fades trails and remembers who owns each flame.
 | **Orphan** | A trail fire block with no owner (placed by `/setblock`, or left after lost data). |
 | **Stale flame** | A flame whose turn to fade came while its chunk was not ready. The ledger keeps its owner and puts it out the next tick its chunk is ready (`getChunkNow` returns it). |
 | **Spared** | What a flame does for its owner and the owner's allies: `entityInside` applies no fire and no damage to them (`TrailFires.isSpared`). |
+| **Dead entry** | A flame a trail (or the stale list) still lists although the index gives its spot to another owner. Its turn is a no-op and the save drops it. |
 | **Ally** | What vanilla's `Entity.isAlliedTo` says: the same scoreboard team, or a tamed animal whose owner is (allied to) the player. |
 | **Fuse** | How a trail behaves: the oldest flame goes out first, the rest wait their turn. |
 | **Tracker** | The per-player record of where the player stood last tick and whether they were grounded there (`TrailTracker`). |
@@ -162,7 +163,8 @@ standing still lights nothing. "Grounded" is supplied by the plumbing as
 in `TrailingAttachments`): a map from owner UUID to `Trail`, a list of **stale flames** (owner
 and position), plus a derived index from flame position to owner (trails and stale flames
 alike), rebuilt when loaded. Level attachments are re-saved on every world save, so the object
-is mutated in place; an empty ledger (no trails, no stale flames) is not written (every level
+is mutated in place; an empty ledger (nothing the save would keep: no trail flame or stale
+flame that the index gives to its owner) is not written (every level
 reads the attachment each tick, which would otherwise save an empty record per dimension). The
 saved form is `trails: [{owner, flames, countdown}]` and `stale: [{owner, pos}]`; `stale` is
 optional when read, so a save without it loads as having none. If a save lists one owner
@@ -339,7 +341,11 @@ the Trailing scroll directly (a random draw cannot prove both scrolls are reacha
 
 The nether-portal override has no GameTest (a frame does not fit the 3×3×3 structure); it is
 a playtest item, and the plan's review checks that `onPlace` does not call portal code. The
-spectator exclusion is a playtest item too.
+spectator exclusion is a playtest item too. No GameTest separates "ready" from "loaded"
+either: G18 and G22 use chunks that hold no ticket at all, so a chunk that is ticketed but
+still loading cannot be staged inside a synchronous test (the holder map only updates at the
+end of a tick). Accepted gap; the readiness test is one line that the review verified against
+`ServerChunkCache.getChunkNow`.
 
 ### Script tests
 

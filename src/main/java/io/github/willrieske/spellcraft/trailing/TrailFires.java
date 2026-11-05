@@ -291,7 +291,7 @@ public final class TrailFires {
 
     /**
      * One fade tick for every trail in the level; trails that empty are forgotten. Then the stale sweep: every stale
-     * flame whose chunk is ready now ({@link #isReady}) is put out, if the index still gives it to its owner, and
+     * flame whose chunk is ready now ({@code isReady}) is put out, if the index still gives it to its owner, and
      * forgotten.
      *
      * @param level the level this ledger belongs to
@@ -324,7 +324,7 @@ public final class TrailFires {
      * Puts out {@code owner}'s flame, only while the index still says the flame is theirs: if the spot was put out
      * (by hand or water) and relit by another owner, that newer flame is theirs and stays. Accepted limit (spec §4):
      * if the same owner relit the spot, their trail lists it twice and the older entry puts the new flame out early.
-     * If the flame's chunk is not ready ({@link #isReady}), nothing is read or changed there (reading a block loads
+     * If the flame's chunk is not ready ({@code isReady}), nothing is read or changed there (reading a block loads
      * its chunk, or waits for a running load, docs/api-notes.md §18): the flame becomes stale instead, keeps its
      * index entry (so the owner and their allies stay spared) and waits for the sweep in {@link #fadeTick}. No chunk
      * is ever loaded, or waited on, to put a flame out.

@@ -15,7 +15,9 @@ import static io.github.willrieske.spellcraft.gametest.TrailGameTests.trailingPl
 import io.github.willrieske.spellcraft.spell.rules.Trail;
 import io.github.willrieske.spellcraft.trailing.TrailFires;
 import io.github.willrieske.spellcraft.trailing.TrailLayer;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -126,8 +128,12 @@ public final class TrailLayerGameTests {
         floors(helper);
         BlockPos absA = helper.absolutePos(A);
         helper.assertTrue(nether.isInValidBounds(absA), "setup: A's coordinates are inside the Nether's build limits");
-        BlockState netherAWas = nether.getBlockState(absA);
-        BlockState netherBelowAWas = nether.getBlockState(absA.below());
+        // Every Nether cell the test touches is recorded first and restored in the finally block.
+        Map<BlockPos, BlockState> netherWas = new LinkedHashMap<>();
+        for (BlockPos spot : new BlockPos[] {absA, NETHER_B, NETHER_C}) {
+            netherWas.put(spot, nether.getBlockState(spot));
+            netherWas.put(spot.below(), nether.getBlockState(spot.below()));
+        }
         TrailFires netherLedger = TrailFires.of(nether);
         ServerPlayer player = trailingPlayer(helper);
         try {
@@ -153,9 +159,7 @@ public final class TrailLayerGameTests {
                     "the player's Nether trail holds B alone");
         } finally {
             netherLedger.forget(player.getUUID());
-            nether.setBlock(NETHER_B, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
-            nether.setBlock(absA, netherAWas, Block.UPDATE_ALL);
-            nether.setBlock(absA.below(), netherBelowAWas, Block.UPDATE_ALL);
+            netherWas.forEach((spot, was) -> nether.setBlock(spot, was, Block.UPDATE_ALL));
         }
         forget(helper, player);
         helper.succeed();
