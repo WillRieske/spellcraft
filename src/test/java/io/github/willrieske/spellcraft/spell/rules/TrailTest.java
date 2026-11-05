@@ -11,6 +11,9 @@ import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TrailTest {
     private static final Flame PLAIN_A = new Flame(1L, false);
@@ -26,25 +29,16 @@ class TrailTest {
         }
     }
 
-    /** Ticks up to {@code times} (stopping once the trail is empty) and returns each fade keyed by its tick number. */
-    private Map<Integer, Flame> fadesWithin(int times) {
-        Map<Integer, Flame> fadedAtTick = new LinkedHashMap<>();
-        for (int tick = 1; tick <= times && !trail.isEmpty(); tick++) {
-            int thisTick = tick;
-            trail.tick().ifPresent(flame -> fadedAtTick.put(thisTick, flame));
-        }
-        return fadedAtTick;
-    }
-
     @Nested
     class Constructor {
         /**
-         * When a trail is rebuilt from another's flames and countdown, it should behave identically from then on.
+         * When a trail is rebuilt from another's flames and countdown, it should behave identically from then on. Spec
+         * section 6, T8.
          *
          * <p>Method under test: {@link Trail#Trail(java.util.Collection, int)}
          */
         @Test
-        void t8RebuiltFromFlamesAndCountdownBehavesIdentically() {
+        void rebuiltFromFlamesAndCountdownBehavesIdentically() {
             // Arrange
             trail.add(PLAIN_A);
             trail.add(LINGERING_C);
@@ -65,18 +59,41 @@ class TrailTest {
          *
          * <p>Method under test: {@link Trail#Trail(java.util.Collection, int)}
          */
-        @Test
-        void clampsTheCountdownIntoTheOldestFlamesRange() {
-            // Arrange & Act & Assert
-            assertThat(new Trail(List.of(PLAIN_A), 0).countdown()).isEqualTo(1);
-            assertThat(new Trail(List.of(PLAIN_A), -4).countdown()).isEqualTo(1);
-            assertThat(new Trail(List.of(PLAIN_A), 1).countdown()).isEqualTo(1);
-            assertThat(new Trail(List.of(PLAIN_A), 20).countdown()).isEqualTo(20);
-            assertThat(new Trail(List.of(PLAIN_A), 99).countdown()).isEqualTo(Trail.FADE_TICKS);
-            assertThat(new Trail(List.of(LINGERING_C), 33).countdown()).isEqualTo(33);
-            assertThat(new Trail(List.of(LINGERING_C), 99).countdown()).isEqualTo(Trail.LINGER_TICKS);
+        @ParameterizedTest(name = "[{index}] flames {0}, saved {1} -> {2}")
+        @CsvSource({
+            "PLAIN, 0, 1",
+            "PLAIN, -4, 1",
+            "PLAIN, 1, 1",
+            "PLAIN, 20, 20",
+            "PLAIN, 99, 20",
+            "LINGERING, 33, 33",
+            "LINGERING, 99, 40",
             // The clamp uses the OLDEST flame's fade, not the newest or the longest.
-            assertThat(new Trail(List.of(PLAIN_A, LINGERING_C), 30).countdown()).isEqualTo(Trail.FADE_TICKS);
+            "PLAIN_THEN_LINGERING, 30, 20"
+        })
+        void clampsTheCountdownIntoTheOldestFlamesRange(String flames, int saved, int expected) {
+            // Arrange
+            List<Flame> saveFlames = switch (flames) {
+                case "PLAIN" -> List.of(PLAIN_A);
+                case "LINGERING" -> List.of(LINGERING_C);
+                default -> List.of(PLAIN_A, LINGERING_C);
+            };
+            // Act
+            Trail rebuilt = new Trail(saveFlames, saved);
+            // Assert
+            assertThat(rebuilt.countdown()).isEqualTo(expected);
+        }
+
+        /**
+         * When rebuilt from a null flame collection, the constructor should refuse it.
+         *
+         * <p>Method under test: {@link Trail#Trail(java.util.Collection, int)}
+         */
+        @Test
+        void rejectsNullFlames() {
+            assertThatThrownBy(() -> new Trail(null, 5))
+                    .isInstanceOf(NullPointerException.class)
+                    .hasMessage("flames");
         }
 
         /**
@@ -112,12 +129,13 @@ class TrailTest {
     @Nested
     class Add {
         /**
-         * When a flame is added while the oldest is counting down, add should leave that countdown alone.
+         * When a flame is added while the oldest is counting down, add should leave that countdown alone. Spec
+         * section 6, T5.
          *
          * <p>Method under test: {@link Trail#add(Flame)}
          */
         @Test
-        void t5AddingWhileCountingDownLeavesTheOldestCountdownAlone() {
+        void addingWhileCountingDownLeavesTheOldestCountdownAlone() {
             // Arrange
             trail.add(PLAIN_A);
             tickQuietly(5);
@@ -178,12 +196,12 @@ class TrailTest {
     @Nested
     class Tick {
         /**
-         * When the trail is empty, tick should return nothing and leave the countdown at zero.
+         * When the trail is empty, tick should return nothing and leave the countdown at zero. Spec section 6, T1.
          *
          * <p>Method under test: {@link Trail#tick()}
          */
         @Test
-        void t1OnAnEmptyTrailReturnsNothingAndLeavesTheCountdown() {
+        void onAnEmptyTrailReturnsNothingAndLeavesTheCountdown() {
             // Arrange & Act & Assert
             assertThat(trail.tick()).isEmpty();
             assertThat(trail.countdown()).isZero();
@@ -191,11 +209,12 @@ class TrailTest {
 
         /**
          * When a plain flame is the only one, tick should return it on the twentieth tick and leave the trail empty.
+         * Spec section 6, T2.
          *
          * <p>Method under test: {@link Trail#tick()}
          */
         @Test
-        void t2APlainFlameFadesOnTheTwentiethTick() {
+        void aPlainFlameFadesOnTheTwentiethTick() {
             // Arrange
             trail.add(PLAIN_A);
             assertThat(trail.countdown()).isEqualTo(Trail.FADE_TICKS);
@@ -209,12 +228,12 @@ class TrailTest {
         }
 
         /**
-         * When a lingering flame is the only one, tick should return it on the fortieth tick.
+         * When a lingering flame is the only one, tick should return it on the fortieth tick. Spec section 6, T3.
          *
          * <p>Method under test: {@link Trail#tick()}
          */
         @Test
-        void t3ALingeringFlameFadesOnTheFortiethTick() {
+        void aLingeringFlameFadesOnTheFortiethTick() {
             // Arrange
             trail.add(LINGERING_C);
             tickQuietly(39);
@@ -226,16 +245,21 @@ class TrailTest {
 
         /**
          * When a plain flame is followed by a lingering one, tick should fade them in order, each with its own delay.
+         * Spec section 6, T4.
          *
          * <p>Method under test: {@link Trail#tick()}
          */
         @Test
-        void t4PlainThenLingeringFadeInOrderWithEachOwnDelay() {
+        void plainThenLingeringFadeInOrderWithEachOwnDelay() {
             // Arrange
             trail.add(PLAIN_A);
             trail.add(LINGERING_C);
             // Act
-            Map<Integer, Flame> fadedAtTick = fadesWithin(100);
+            Map<Integer, Flame> fadedAtTick = new LinkedHashMap<>();
+            for (int tick = 1; tick <= 100 && !trail.isEmpty(); tick++) {
+                int thisTick = tick;
+                trail.tick().ifPresent(flame -> fadedAtTick.put(thisTick, flame));
+            }
             // Assert
             assertThat(fadedAtTick).containsExactly(entry(20, PLAIN_A), entry(60, LINGERING_C));
         }
@@ -245,12 +269,12 @@ class TrailTest {
     class Trim {
         /**
          * When the maximum is below the size, trim should remove the oldest flames first and restart the countdown
-         * for the new oldest.
+         * for the new oldest. Spec section 6, T6.
          *
          * <p>Method under test: {@link Trail#trim(int)}
          */
         @Test
-        void t6BelowSizeRemovesTheOldestFirstAndRestartsTheCountdown() {
+        void belowSizeRemovesTheOldestFirstAndRestartsTheCountdown() {
             // Arrange
             trail.add(PLAIN_A);
             trail.add(PLAIN_B);
@@ -265,36 +289,20 @@ class TrailTest {
         }
 
         /**
-         * When the maximum is at or above the size, trim should remove nothing and keep the countdown.
+         * When the maximum is at or above the size (here 2 flames, maximum 2 or 5), trim should remove nothing and keep
+         * the countdown. Spec section 6, T7.
          *
          * <p>Method under test: {@link Trail#trim(int)}
          */
-        @Test
-        void t7AtOrAboveSizeRemovesNothingAndKeepsTheCountdown() {
+        @ParameterizedTest
+        @ValueSource(ints = {2, 5})
+        void atOrAboveSizeRemovesNothingAndKeepsTheCountdown(int max) {
             // Arrange
             trail.add(PLAIN_A);
             trail.add(PLAIN_B);
             tickQuietly(3);
             // Act
-            List<Flame> removed = trail.trim(2);
-            // Assert
-            assertThat(removed).isEmpty();
-            assertThat(trail.countdown()).isEqualTo(Trail.FADE_TICKS - 3);
-        }
-
-        /**
-         * When the maximum is above the size, trim should remove nothing and keep the countdown.
-         *
-         * <p>Method under test: {@link Trail#trim(int)}
-         */
-        @Test
-        void t7AboveSizeRemovesNothingAndKeepsTheCountdown() {
-            // Arrange
-            trail.add(PLAIN_A);
-            trail.add(PLAIN_B);
-            tickQuietly(3);
-            // Act
-            List<Flame> removed = trail.trim(5);
+            List<Flame> removed = trail.trim(max);
             // Assert
             assertThat(removed).isEmpty();
             assertThat(trail.countdown()).isEqualTo(Trail.FADE_TICKS - 3);
@@ -347,23 +355,6 @@ class TrailTest {
             // Assert
             assertThat(snapshot).containsExactly(PLAIN_A);
             assertThat(trail.size()).isEqualTo(2);
-        }
-    }
-
-    @Nested
-    class FlameRecord {
-        /**
-         * When a flame is built, it should report the position and flag it was given.
-         *
-         * <p>Method under test: {@link Flame}
-         */
-        @Test
-        void keepsItsPositionAndItsLingerFlag() {
-            // Arrange & Act
-            Flame flame = new Flame(-7L, true);
-            // Assert
-            assertThat(flame.pos()).isEqualTo(-7L);
-            assertThat(flame.lingers()).isTrue();
         }
     }
 }

@@ -5,7 +5,7 @@ import java.util.OptionalLong;
 /**
  * Decides which block a trailing player just left. One per player. Positions are packed longs (the plumbing uses
  * {@code BlockPos.asLong()}); "grounded" is supplied by the plumbing as
- * {@code onGround() && !isPassenger() && !isSpectator()}. A block counts as grounded if the player was grounded at
+ * {@code onGround() && !isPassenger() && !isSpectator()}. A block counts as stood on if the player was grounded at
  * any point while on it, so a jump (airborne first, then off the block) still lights the take-off block.
  */
 public final class TrailTracker {

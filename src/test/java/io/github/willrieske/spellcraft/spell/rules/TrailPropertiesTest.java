@@ -63,23 +63,33 @@ class TrailPropertiesTest {
         }
 
         /**
-         * For any list of flames, the ticks needed to empty the trail should equal the sum of the flames' fade ticks.
+         * For any list of flames, the tick on which each flame fades should equal the sum of the fade ticks of the
+         * flames added up to and including it, and the trail should be empty after the last of them.
          *
          * <p>Method under test: {@link Trail#tick()}
          */
         @Property
-        void ticksToEmptyEqualTheSumOfFadeTicks(@ForAll("flames") List<Flame> flames) {
+        void eachFlameFadesAtThePrefixSumOfFadeTicks(@ForAll("flames") List<Flame> flames) {
             // Arrange
             Trail trail = trailOf(flames);
+            List<Integer> expectedTicks = new ArrayList<>();
+            int sum = 0;
+            for (Flame flame : flames) {
+                sum += Trail.fadeTicks(flame);
+                expectedTicks.add(sum);
+            }
             // Act
+            List<Integer> fadeTicks = new ArrayList<>();
             int ticks = 0;
-            while (!trail.isEmpty() && ticks <= GUARD) {
-                trail.tick();
+            while (!trail.isEmpty() && ticks < GUARD) {
                 ticks++;
+                if (trail.tick().isPresent()) {
+                    fadeTicks.add(ticks);
+                }
             }
             // Assert
-            assertThat(ticks)
-                    .isEqualTo(flames.stream().mapToInt(Trail::fadeTicks).sum());
+            assertThat(fadeTicks).isEqualTo(expectedTicks);
+            assertThat(trail.isEmpty()).isTrue();
         }
     }
 

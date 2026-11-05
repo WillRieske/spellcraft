@@ -32,20 +32,23 @@ class TrailTrackerPropertiesTest {
     void lightsThePreviousBlockIffThePlayerWasEverGroundedOnIt(@ForAll("steps") List<Step> steps) {
         // Arrange
         TrailTracker tracker = new TrailTracker();
-        Step previous = null;
-        boolean groundedHere = false;
-        for (Step step : steps) {
+        for (int i = 0; i < steps.size(); i++) {
+            Step step = steps.get(i);
             // Act
             OptionalLong lit = tracker.observe(step.pos(), step.grounded());
             // Assert
-            boolean samePos = previous != null && previous.pos() == step.pos();
-            if (previous != null && !samePos && groundedHere) {
-                assertThat(lit).as("steps %s at %s", steps, step).hasValue(previous.pos());
-            } else {
-                assertThat(lit).as("steps %s at %s", steps, step).isEmpty();
+            OptionalLong expected = OptionalLong.empty();
+            if (i > 0 && steps.get(i - 1).pos() != step.pos()) {
+                int previousPos = steps.get(i - 1).pos();
+                int runStart = i - 1;
+                while (runStart > 0 && steps.get(runStart - 1).pos() == previousPos) {
+                    runStart--;
+                }
+                if (steps.subList(runStart, i).stream().anyMatch(Step::grounded)) {
+                    expected = OptionalLong.of(previousPos);
+                }
             }
-            groundedHere = samePos ? groundedHere || step.grounded() : step.grounded();
-            previous = step;
+            assertThat(lit).as("steps %s at index %d", steps, i).isEqualTo(expected);
         }
     }
 

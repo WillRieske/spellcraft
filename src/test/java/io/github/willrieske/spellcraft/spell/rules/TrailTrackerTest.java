@@ -39,12 +39,12 @@ class TrailTrackerTest {
         }
 
         /**
-         * When the player leaves a block they were grounded on, observe should light that block.
+         * When the player was grounded while on a block and leaves it, observe should light that block.
          *
          * <p>Method under test: {@link TrailTracker#observe(long, boolean)}
          */
         @Test
-        void leavingAGroundedBlockLightsIt() {
+        void leavingABlockTheyStoodOnLightsIt() {
             // Arrange
             tracker.observe(A, true);
             // Act & Assert
@@ -52,12 +52,12 @@ class TrailTrackerTest {
         }
 
         /**
-         * When the player leaves a block they were never grounded on, observe should light nothing.
+         * When the player was never grounded while on a block and leaves it, observe should light nothing.
          *
          * <p>Method under test: {@link TrailTracker#observe(long, boolean)}
          */
         @Test
-        void leavingAnAirborneBlockLightsNothing() {
+        void leavingABlockTheyNeverStoodOnLightsNothing() {
             // Arrange
             tracker.observe(A, false);
             // Act & Assert
@@ -77,7 +77,7 @@ class TrailTrackerTest {
             // Act & Assert
             assertThat(tracker.observe(A, false)).as("still on A, airborne").isEmpty();
             assertThat(tracker.observe(B, false))
-                    .as("left A: A was grounded earlier")
+                    .as("left A: the player was grounded on A earlier")
                     .hasValue(A);
         }
 
@@ -92,7 +92,9 @@ class TrailTrackerTest {
             // Arrange
             tracker.observe(A, true);
             // Act & Assert
-            assertThat(tracker.observe(B, false)).as("take-off: A was grounded").hasValue(A);
+            assertThat(tracker.observe(B, false))
+                    .as("take-off: the player was grounded on A")
+                    .hasValue(A);
             assertThat(tracker.observe(C, false))
                     .as("B was only passed in the air")
                     .isEmpty();
