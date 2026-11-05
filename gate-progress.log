@@ -41,3 +41,4 @@ b1daf6f fix pass (post-plan): deferred Minor findings from Tasks 1, 3, 5, 6; bui
 57b5b31 review fixes (pure-core tests): build green 182 unit tests; pitest 150/154 killed, no Trail/TrailTracker survivor
 ce45fc4 review fixes (ce6cc82 stand-in cell, 9fdf636 stale flames, ce45fc4 lifecycle/edge-case/save-wiring tests): build green 182 unit tests; runGameTestServer all 99 required passed; runData ok
 d13c1a2 follow-up review fixes (owned-only save, ready-chunk test, G28/G12/G19 strengthened): build green 182 unit tests; runGameTestServer all 99 required passed; runData ok
+da0bed5 final review fixes (G28 cleanup, Javadoc, spec wording): build green 182 unit tests; runGameTestServer BUILD SUCCESSFUL (99 required)
