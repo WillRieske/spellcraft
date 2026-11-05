@@ -111,13 +111,23 @@ public final class TrailFires {
     }
 
     /**
-     * Lights {@code pos} for {@code owner} if the spot allows it (spec §4): air, or a replaceable block with no fluid
-     * that is not fire, over a block with a sturdy top face. Then trims the owner's trail to the configured maximum.
+     * Lights the stand-in cell for {@code owner} (spec §4): {@code feet} when it can take a flame, else the cell above
+     * it (a player on soul sand or mud stands 2/16 deep inside the block, so {@code feet} is that block; both report a
+     * full support shape, so the cell above qualifies), else nothing. The flame lingers when the block below the lit
+     * cell is a soul-fire base. Then trims the owner's trail to the configured maximum.
      *
+     * @param level the level to light in
+     * @param owner the player laying the flame
+     * @param feet the block position the player just left ({@code blockPosition()})
      * @return whether a flame was lit
      */
-    public boolean light(ServerLevel level, ServerPlayer owner, BlockPos pos) {
-        if (!canLight(level, pos)) {
+    public boolean light(ServerLevel level, ServerPlayer owner, BlockPos feet) {
+        BlockPos pos;
+        if (canLight(level, feet)) {
+            pos = feet;
+        } else if (canLight(level, feet.above())) {
+            pos = feet.above();
+        } else {
             return false;
         }
         BlockPos below = pos.below();

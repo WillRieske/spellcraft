@@ -29,11 +29,16 @@ import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.SlabBlock;
+import net.minecraft.world.level.block.state.properties.SlabType;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
 
-/** Trail GameTests for Strength of Trailing (spec §6 G1–G15, plus G16 for the corrupt-save rebuild). Registered in {@link SpellcraftGameTests}. */
+/**
+ * Trail GameTests for Strength of Trailing: the rows of the spec's GameTests table (spec §6, table G1–G28), each
+ * test named after its row. Registered in {@link SpellcraftGameTests}.
+ */
 public final class TrailGameTests {
     /** Relative positions in the 3×3×3 structure: four standing spots at y = 1, each over its own floor block. */
     static final BlockPos A = new BlockPos(0, 1, 0);
@@ -66,6 +71,9 @@ public final class TrailGameTests {
         SpellcraftGameTests.add(
                 SHARED, "trail_g14_relit_spot_keeps_new_owner", TrailGameTests::g14RelitSpotKeepsNewOwner);
         SpellcraftGameTests.add(SHARED, "trail_g15_where_a_flame_may_go", TrailGameTests::g15WhereAFlameMayGo);
+        SpellcraftGameTests.add(
+                SHARED, "trail_g17_stand_in_cell_above_soul_sand", TrailGameTests::g17StandInCellAboveSoulSand);
+        SpellcraftGameTests.add(SHARED, "trail_g26_carpet_and_top_slab", TrailGameTests::g26CarpetAndTopSlab);
     }
 
     // --- helpers -------------------------------------------------------------------------------------------------
@@ -373,6 +381,44 @@ public final class TrailGameTests {
         helper.assertValueEqual(rebuilt.entries(), List.of(kept), "entries after the rebuild");
         helper.assertValueEqual(rebuilt.ownerOf(BlockPos.of(10L)), Optional.empty(), "owner of the dropped flame");
         helper.assertValueEqual(rebuilt.ownerOf(BlockPos.of(20L)), Optional.of(x), "owner of the kept flame");
+        helper.succeed();
+    }
+
+    /** A player on soul sand stands 2/16 inside it, so the cell above the sand (the stand-in cell) takes the flame. */
+    static void g17StandInCellAboveSoulSand(GameTestHelper helper) {
+        floors(helper);
+        helper.setBlock(A.below(), Blocks.SOUL_SAND);
+        ServerPlayer player = trailingPlayer(helper);
+        MockPlayers.moveTo(helper, player, new Vec3(A.getX() + 0.5, A.below().getY() + 0.875, A.getZ() + 0.5));
+        helper.assertValueEqual(player.blockPosition(), helper.absolutePos(A.below()), "feet block is the sand");
+        player.setOnGround(true);
+        TrailLayer.track(player);
+        standAt(helper, player, B, true);
+        helper.assertBlockPresent(trailFire(), A);
+        helper.assertBlockPresent(Blocks.SOUL_SAND, A.below());
+        fade(helper, 39);
+        helper.assertBlockPresent(trailFire(), A);
+        fade(helper, 1);
+        helper.assertBlockNotPresent(trailFire(), A);
+        helper.succeed();
+    }
+
+    /** Carpet is the feet block and has no sturdy top: no flame. A top slab's surface is a full face: it lights. */
+    static void g26CarpetAndTopSlab(GameTestHelper helper) {
+        floors(helper);
+        ServerPlayer player = trailingPlayer(helper);
+        helper.setBlock(A, Blocks.MOSS_CARPET);
+        MockPlayers.moveTo(helper, player, new Vec3(A.getX() + 0.5, A.getY() + 1.0 / 16, A.getZ() + 0.5));
+        helper.assertValueEqual(player.blockPosition(), helper.absolutePos(A), "feet block is the carpet");
+        player.setOnGround(true);
+        TrailLayer.track(player);
+        standAt(helper, player, B, false);
+        helper.assertBlockPresent(Blocks.MOSS_CARPET, A);
+        helper.assertBlockNotPresent(trailFire(), A.above());
+        helper.setBlock(C, Blocks.STONE_SLAB.defaultBlockState().setValue(SlabBlock.TYPE, SlabType.TOP));
+        standAt(helper, player, C.above(), true);
+        standAt(helper, player, D, true);
+        helper.assertBlockPresent(trailFire(), C.above());
         helper.succeed();
     }
 
