@@ -2,9 +2,13 @@ package io.github.willrieske.spellcraft.spell.rules;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.entry;
 
 import io.github.willrieske.spellcraft.spell.rules.Trail.Flame;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -20,6 +24,16 @@ class TrailTest {
         for (int i = 0; i < times; i++) {
             assertThat(trail.tick()).as("tick %d of %d", i + 1, times).isEmpty();
         }
+    }
+
+    /** Ticks up to {@code times} (stopping once the trail is empty) and returns each fade keyed by its tick number. */
+    private Map<Integer, Flame> fadesWithin(int times) {
+        Map<Integer, Flame> fadedAtTick = new LinkedHashMap<>();
+        for (int tick = 1; tick <= times && !trail.isEmpty(); tick++) {
+            int thisTick = tick;
+            trail.tick().ifPresent(flame -> fadedAtTick.put(thisTick, flame));
+        }
+        return fadedAtTick;
     }
 
     @Nested
@@ -126,11 +140,25 @@ class TrailTest {
             trail.add(PLAIN_A);
             tickQuietly(19);
             trail.tick();
-            // Act & Assert
+            // Act
             trail.add(LINGERING_C);
+            // Assert
             assertThat(trail.countdown()).isEqualTo(Trail.LINGER_TICKS);
-            assertThat(trail.trim(0)).containsExactly(LINGERING_C);
+        }
+
+        /**
+         * When flames are added after trim emptied the trail, add should start the countdown for the first new flame.
+         *
+         * <p>Method under test: {@link Trail#add(Flame)}
+         */
+        @Test
+        void addingToATrailThatTrimEmptiedStartsAFreshCountdown() {
+            // Arrange
+            trail.add(LINGERING_C);
+            trail.trim(0);
+            // Act
             trail.add(PLAIN_B);
+            // Assert
             assertThat(trail.countdown()).isEqualTo(Trail.FADE_TICKS);
         }
 
@@ -171,9 +199,11 @@ class TrailTest {
             // Arrange
             trail.add(PLAIN_A);
             assertThat(trail.countdown()).isEqualTo(Trail.FADE_TICKS);
-            // Act & Assert
             tickQuietly(19);
-            assertThat(trail.tick()).contains(PLAIN_A);
+            // Act
+            Optional<Flame> faded = trail.tick();
+            // Assert
+            assertThat(faded).contains(PLAIN_A);
             assertThat(trail.isEmpty()).isTrue();
             assertThat(trail.countdown()).isZero();
         }
@@ -187,9 +217,11 @@ class TrailTest {
         void t3ALingeringFlameFadesOnTheFortiethTick() {
             // Arrange
             trail.add(LINGERING_C);
-            // Act & Assert
             tickQuietly(39);
-            assertThat(trail.tick()).contains(LINGERING_C);
+            // Act
+            Optional<Flame> faded = trail.tick();
+            // Assert
+            assertThat(faded).contains(LINGERING_C);
         }
 
         /**
@@ -202,12 +234,10 @@ class TrailTest {
             // Arrange
             trail.add(PLAIN_A);
             trail.add(LINGERING_C);
-            // Act & Assert
-            tickQuietly(19);
-            assertThat(trail.tick()).contains(PLAIN_A);
-            assertThat(trail.countdown()).isEqualTo(Trail.LINGER_TICKS);
-            tickQuietly(39);
-            assertThat(trail.tick()).contains(LINGERING_C);
+            // Act
+            Map<Integer, Flame> fadedAtTick = fadesWithin(100);
+            // Assert
+            assertThat(fadedAtTick).containsExactly(entry(20, PLAIN_A), entry(60, LINGERING_C));
         }
     }
 
@@ -245,9 +275,28 @@ class TrailTest {
             trail.add(PLAIN_A);
             trail.add(PLAIN_B);
             tickQuietly(3);
-            // Act & Assert
-            assertThat(trail.trim(2)).isEmpty();
-            assertThat(trail.trim(5)).isEmpty();
+            // Act
+            List<Flame> removed = trail.trim(2);
+            // Assert
+            assertThat(removed).isEmpty();
+            assertThat(trail.countdown()).isEqualTo(Trail.FADE_TICKS - 3);
+        }
+
+        /**
+         * When the maximum is above the size, trim should remove nothing and keep the countdown.
+         *
+         * <p>Method under test: {@link Trail#trim(int)}
+         */
+        @Test
+        void t7AboveSizeRemovesNothingAndKeepsTheCountdown() {
+            // Arrange
+            trail.add(PLAIN_A);
+            trail.add(PLAIN_B);
+            tickQuietly(3);
+            // Act
+            List<Flame> removed = trail.trim(5);
+            // Assert
+            assertThat(removed).isEmpty();
             assertThat(trail.countdown()).isEqualTo(Trail.FADE_TICKS - 3);
         }
 
@@ -260,8 +309,10 @@ class TrailTest {
         void toZeroEmptiesTheTrail() {
             // Arrange
             trail.add(PLAIN_A);
-            // Act & Assert
-            assertThat(trail.trim(0)).containsExactly(PLAIN_A);
+            // Act
+            List<Flame> removed = trail.trim(0);
+            // Assert
+            assertThat(removed).containsExactly(PLAIN_A);
             assertThat(trail.isEmpty()).isTrue();
             assertThat(trail.countdown()).isZero();
         }

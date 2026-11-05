@@ -25,7 +25,7 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class TrailLayer {
-    /** A player's tracker and the level it observes; a level change resets it. */
+    /** A player's tracker and the level it observes; a level change replaces the tracker with a fresh one. */
     private record Tracked(ResourceKey<Level> dimension, TrailTracker tracker) {}
 
     private static final Map<UUID, Tracked> TRACKERS = new HashMap<>();

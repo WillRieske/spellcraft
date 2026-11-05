@@ -23,6 +23,11 @@ public final class TrailFireBlock extends BaseFireBlock {
     /** Soul fire's damage. */
     public static final float FIRE_DAMAGE = 2.0F;
 
+    /**
+     * Creates the block with the properties it was registered with.
+     *
+     * @param properties the block properties (see {@link ModBlocks#TRAIL_FIRE})
+     */
     public TrailFireBlock(BlockBehaviour.Properties properties) {
         super(properties, FIRE_DAMAGE);
     }

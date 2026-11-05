@@ -46,12 +46,21 @@ public final class Trail {
         }
     }
 
-    /** How many ticks {@code flame} burns once it is the oldest. */
+    /**
+     * How many ticks {@code flame} burns once it is the oldest.
+     *
+     * @param flame the flame to ask about
+     * @return {@link #LINGER_TICKS} if the flame lingers, otherwise {@link #FADE_TICKS}
+     */
     public static int fadeTicks(Flame flame) {
         return flame.lingers() ? LINGER_TICKS : FADE_TICKS;
     }
 
-    /** Appends a flame. The countdown starts only if the trail was empty. */
+    /**
+     * Appends a flame. The countdown starts only if the trail was empty.
+     *
+     * @param flame the newest flame (not null)
+     */
     public void add(Flame flame) {
         Objects.requireNonNull(flame, "flame");
         if (flames.isEmpty()) {

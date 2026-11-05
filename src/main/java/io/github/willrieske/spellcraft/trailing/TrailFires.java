@@ -30,7 +30,13 @@ import net.minecraft.world.level.block.state.BlockState;
  * §18), so this object is mutated in place.
  */
 public final class TrailFires {
-    /** One owner's saved trail. */
+    /**
+     * One owner's saved trail.
+     *
+     * @param owner the player who laid the trail
+     * @param flames the trail's flames, oldest first
+     * @param countdown the ticks left until the oldest flame fades
+     */
     public record Entry(UUID owner, List<Trail.Flame> flames, int countdown) {
         static final Codec<Trail.Flame> FLAME_CODEC = RecordCodecBuilder.create(instance -> instance.group(
                         Codec.LONG.fieldOf("pos").forGetter(Trail.Flame::pos),
@@ -48,6 +54,7 @@ public final class TrailFires {
         }
     }
 
+    /** Saves and loads the ledger as a {@code trails} list with one {@link Entry} per owner. */
     public static final MapCodec<TrailFires> CODEC =
             Entry.CODEC.listOf().fieldOf("trails").xmap(TrailFires::new, TrailFires::entries);
 
@@ -57,18 +64,24 @@ public final class TrailFires {
     /** No trails. */
     public TrailFires() {}
 
-    /** Rebuilds the ledger from saved entries; empty trails are dropped. */
+    /**
+     * Rebuilds the ledger from saved entries; empty trails are dropped. If a corrupt save lists an owner twice, the
+     * last non-empty trail wins and only its flames are indexed.
+     *
+     * @param entries the saved trails
+     */
     public TrailFires(List<Entry> entries) {
         for (Entry entry : entries) {
             Trail trail = new Trail(entry.flames(), entry.countdown());
-            if (trail.isEmpty()) {
-                continue;
-            }
-            byOwner.put(entry.owner(), trail);
-            for (Trail.Flame flame : trail.flames()) {
-                ownerByPos.put(flame.pos(), entry.owner());
+            if (!trail.isEmpty()) {
+                byOwner.put(entry.owner(), trail);
             }
         }
+        byOwner.forEach((owner, trail) -> {
+            for (Trail.Flame flame : trail.flames()) {
+                ownerByPos.put(flame.pos(), owner);
+            }
+        });
     }
 
     /** The level's ledger (created empty on first use). */
@@ -81,6 +94,15 @@ public final class TrailFires {
         List<Entry> entries = new ArrayList<>();
         byOwner.forEach((owner, trail) -> entries.add(new Entry(owner, trail.flames(), trail.countdown())));
         return entries;
+    }
+
+    /**
+     * Whether the ledger holds no trails (an owner with no flames is never kept).
+     *
+     * @return {@code true} if there is nothing to save
+     */
+    public boolean isEmpty() {
+        return byOwner.isEmpty();
     }
 
     /** Who owns the flame at {@code pos}, if the ledger knows one. */
@@ -123,9 +145,9 @@ public final class TrailFires {
     public void fadeTick(ServerLevel level) {
         Iterator<Map.Entry<UUID, Trail>> trails = byOwner.entrySet().iterator();
         while (trails.hasNext()) {
-            Map.Entry<UUID, Trail> entry = trails.next();
-            entry.getValue().tick().ifPresent(flame -> extinguish(level, entry.getKey(), flame));
-            if (entry.getValue().isEmpty()) {
+            Map.Entry<UUID, Trail> ownerTrail = trails.next();
+            ownerTrail.getValue().tick().ifPresent(flame -> extinguish(level, ownerTrail.getKey(), flame));
+            if (ownerTrail.getValue().isEmpty()) {
                 trails.remove();
             }
         }

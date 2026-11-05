@@ -235,7 +235,8 @@ Verified 2026-11-04 against the same unpacked sources.
 
 - `world/level/block/BaseFireBlock.java`: ctor `:32` `(BlockBehaviour.Properties, float fireDamage)`;
   `entityInside(BlockState, Level, BlockPos, Entity, InsideBlockEffectApplier, boolean isPrecise)` `:128-132`
-  applies `CLEAR_FREEZE`, `FIRE_IGNITE`, then `runAfter(FIRE_IGNITE, e -> e.hurt(inFire, fireDamage))`;
+  applies `CLEAR_FREEZE`, `FIRE_IGNITE`, then
+  `runAfter(FIRE_IGNITE, e -> e.hurt(e.level().damageSources().inFire(), this.fireDamage))` (`:131`);
   `fireIgnite(Entity)` `:134` skips `fireImmune()` entities (`Entity.java:1614`); `onPlace` `:150-165`, whose whole
   body is guarded by `!oldState.is(state.getBlock())`, calls `PortalShape.findEmptyPortalShape` (through
   `EventHooks.onTrySpawnPortal`, `:154`) in the Overworld/Nether (**lights portals**) and then removes the block if
@@ -266,8 +267,9 @@ Verified 2026-11-04 against the same unpacked sources.
 - Ticks: `event/tick/LevelTickEvent.java:61` `Post` (per level, `getLevel()` `:41` returns `Level`);
   `event/tick/PlayerTickEvent.java:52` `Post`. `PlayerEvent.java:480` `PlayerLoggedOutEvent`;
   `event/server/ServerStoppedEvent.java` (game bus) for clearing server-wide static state.
-- Allies: `Entity.java:2879-2889` `isAlliedTo(Entity)` is `final`: `this == other || considersEntityAsAlly(other)
-  || other.considersEntityAsAlly(this)`, and `considersEntityAsAlly` is the team check;
+- Allies: `Entity.java:2879-2885` `isAlliedTo(Entity)` is `final`: `this == other || considersEntityAsAlly(other)
+  || other.considersEntityAsAlly(this)` (false for `null`), and `considersEntityAsAlly` is the team check
+  (`isAlliedTo(other.getTeam())`; the `isAlliedTo(Team)` overload is at `:2887`);
   `TamableAnimal.java:209-222` overrides it: a tamed animal considers its root owner (and the owner's allies) allies.
   `TamableAnimal.getTeam()` (`:192-206`) also returns the owner's team, so a pet of a teamed owner is allied through
   the team path too; a pet test must use an owner with no team to exercise the tame path.

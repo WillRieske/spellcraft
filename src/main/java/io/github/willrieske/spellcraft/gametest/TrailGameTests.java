@@ -33,7 +33,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
 
-/** Trail GameTests for Strength of Trailing (spec §6 G1–G15). Registered in {@link SpellcraftGameTests}. */
+/** Trail GameTests for Strength of Trailing (spec §6 G1–G15, plus G16 for the corrupt-save rebuild). Registered in {@link SpellcraftGameTests}. */
 public final class TrailGameTests {
     /** Relative positions in the 3×3×3 structure: four standing spots at y = 1, each over its own floor block. */
     static final BlockPos A = new BlockPos(0, 1, 0);
@@ -62,6 +62,8 @@ public final class TrailGameTests {
         SpellcraftGameTests.add(SHARED, "trail_g10_falls_with_the_ground", TrailGameTests::g10FallsWithTheGround);
         SpellcraftGameTests.add(SHARED, "trail_g12_codec_round_trip", TrailGameTests::g12CodecRoundTrip);
         SpellcraftGameTests.add(
+                SHARED, "trail_g16_duplicate_owner_keeps_last", TrailGameTests::g16DuplicateOwnerKeepsTheLastTrail);
+        SpellcraftGameTests.add(
                 SHARED, "trail_g14_relit_spot_keeps_new_owner", TrailGameTests::g14RelitSpotKeepsNewOwner);
         SpellcraftGameTests.add(SHARED, "trail_g15_where_a_flame_may_go", TrailGameTests::g15WhereAFlameMayGo);
     }
@@ -81,7 +83,7 @@ public final class TrailGameTests {
         return player;
     }
 
-    /** Teleports the player to a standing spot without tracking (Task 6 adds the tracking variant). */
+    /** Teleports the player to a standing spot without tracking (see {@link #standAt} for the tracking variant). */
     static void teleport(GameTestHelper helper, ServerPlayer player, BlockPos spot) {
         MockPlayers.moveTo(helper, player, Vec3.atBottomCenterOf(spot));
     }
@@ -221,8 +223,8 @@ public final class TrailGameTests {
     static void g5FadesOldestFirst(GameTestHelper helper) {
         floors(helper);
         ServerPlayer player = trailingPlayer(helper);
-        light(helper, player, A);
-        light(helper, player, B);
+        helper.assertTrue(light(helper, player, A), "lit A");
+        helper.assertTrue(light(helper, player, B), "lit B");
         fade(helper, Trail.FADE_TICKS);
         helper.assertBlockNotPresent(trailFire(), A);
         helper.assertBlockPresent(trailFire(), B);
@@ -239,9 +241,9 @@ public final class TrailGameTests {
         withConfig(ServerConfig.TRAILING_MAX_BLOCKS, 2, () -> {
             floors(helper);
             ServerPlayer player = trailingPlayer(helper);
-            light(helper, player, A);
-            light(helper, player, B);
-            light(helper, player, C);
+            helper.assertTrue(light(helper, player, A), "lit A");
+            helper.assertTrue(light(helper, player, B), "lit B");
+            helper.assertTrue(light(helper, player, C), "lit C");
             helper.assertBlockNotPresent(trailFire(), A);
             helper.assertBlockPresent(trailFire(), B);
             helper.assertBlockPresent(trailFire(), C);
@@ -255,7 +257,7 @@ public final class TrailGameTests {
         floors(helper);
         ServerPlayer owner = trailingPlayer(helper);
         teleport(helper, owner, D);
-        light(helper, owner, A);
+        helper.assertTrue(light(helper, owner, A), "lit A");
         Scoreboard scoreboard = helper.getLevel().getScoreboard();
         PlayerTeam team = scoreboard.addPlayerTeam("spellcraft_trail_test");
         try {
@@ -284,7 +286,7 @@ public final class TrailGameTests {
         floors(helper);
         ServerPlayer owner = trailingPlayer(helper);
         teleport(helper, owner, D);
-        light(helper, owner, A);
+        helper.assertTrue(light(helper, owner, A), "lit A");
         Wolf pet = helper.spawn(EntityTypes.WOLF, C);
         pet.tame(owner);
         stepInto(helper, A, pet);
@@ -295,7 +297,7 @@ public final class TrailGameTests {
     static void g8BurnsAnUnalliedPlayer(GameTestHelper helper) {
         floors(helper);
         ServerPlayer owner = trailingPlayer(helper);
-        light(helper, owner, A);
+        helper.assertTrue(light(helper, owner, A), "lit A");
         ServerPlayer other = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         teleport(helper, other, B);
         stepInto(helper, A, other);
@@ -315,7 +317,7 @@ public final class TrailGameTests {
         helper.assertBlockNotPresent(trailFire(), A);
         // An owned flame's random tick changes nothing: it stays, and flammable neighbours stay unlit.
         ServerPlayer owner = trailingPlayer(helper);
-        light(helper, owner, A);
+        helper.assertTrue(light(helper, owner, A), "lit A");
         helper.setBlock(new BlockPos(1, 1, 0), Blocks.OAK_PLANKS);
         helper.setBlock(new BlockPos(0, 1, 1), Blocks.TNT);
         level.getBlockState(helper.absolutePos(A)).randomTick(level, helper.absolutePos(A), level.getRandom());
@@ -333,7 +335,7 @@ public final class TrailGameTests {
     static void g10FallsWithTheGround(GameTestHelper helper) {
         floors(helper);
         ServerPlayer owner = trailingPlayer(helper);
-        light(helper, owner, A);
+        helper.assertTrue(light(helper, owner, A), "lit A");
         helper.setBlock(A.below(), Blocks.AIR);
         helper.assertBlockNotPresent(trailFire(), A);
         // onPlace: a flame set where nothing supports it removes itself at once.
@@ -362,12 +364,24 @@ public final class TrailGameTests {
         helper.succeed();
     }
 
+    /** A corrupt save lists one owner twice: the last trail wins, and the dropped trail's spots are not indexed. */
+    static void g16DuplicateOwnerKeepsTheLastTrail(GameTestHelper helper) {
+        UUID x = UUID.randomUUID();
+        TrailFires.Entry dropped = new TrailFires.Entry(x, List.of(new Trail.Flame(10L, false)), 5);
+        TrailFires.Entry kept = new TrailFires.Entry(x, List.of(new Trail.Flame(20L, true)), 9);
+        TrailFires rebuilt = new TrailFires(List.of(dropped, kept));
+        helper.assertValueEqual(rebuilt.entries(), List.of(kept), "entries after the rebuild");
+        helper.assertValueEqual(rebuilt.ownerOf(BlockPos.of(10L)), Optional.empty(), "owner of the dropped flame");
+        helper.assertValueEqual(rebuilt.ownerOf(BlockPos.of(20L)), Optional.of(x), "owner of the kept flame");
+        helper.succeed();
+    }
+
     /** X's flame at A is put out by hand; Y relights A. X's turn to fade must not touch Y's flame. */
     static void g14RelitSpotKeepsNewOwner(GameTestHelper helper) {
         floors(helper);
         ServerPlayer x = trailingPlayer(helper);
         ServerPlayer y = trailingPlayer(helper);
-        light(helper, x, A);
+        helper.assertTrue(light(helper, x, A), "x lights A");
         fade(helper, 10);
         helper.setBlock(A, Blocks.AIR);
         helper.assertTrue(light(helper, y, A), "y relights the empty spot");
@@ -395,9 +409,9 @@ public final class TrailGameTests {
         helper.setBlock(D, Blocks.SOUL_FIRE);
         helper.assertBlockPresent(Blocks.SOUL_FIRE, D); // fail loudly if the setup did not hold
         helper.assertFalse(light(helper, owner, D), "vanilla fire is not replaced");
-        // Water last: it flows out of the edge cell a tick after the test ends, which is harmless.
         helper.setBlock(B, Blocks.WATER);
         helper.assertFalse(light(helper, owner, B), "water is not lit");
+        helper.setBlock(B, Blocks.AIR);
         // Other tests in the batch leave trails in the same level, so look at this owner's trail only.
         TrailFires.Entry mine = fires(helper).entries().stream()
                 .filter(e -> e.owner().equals(owner.getUUID()))

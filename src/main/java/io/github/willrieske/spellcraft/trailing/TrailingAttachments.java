@@ -18,7 +18,7 @@ public final class TrailingAttachments {
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<TrailFires>> FIRES = ATTACHMENT_TYPES.register(
             "trailing_fires",
             () -> AttachmentType.builder(() -> new TrailFires())
-                    .serialize(TrailFires.CODEC, fires -> !fires.entries().isEmpty())
+                    .serialize(TrailFires.CODEC, fires -> !fires.isEmpty())
                     .build());
 
     private TrailingAttachments() {}

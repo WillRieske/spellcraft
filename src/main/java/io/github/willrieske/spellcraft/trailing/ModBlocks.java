@@ -8,6 +8,7 @@ import net.minecraft.world.level.material.PushReaction;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
+/** The blocks Spellcraft registers for Trailing; registered on the mod event bus by {@code Spellcraft}. */
 public final class ModBlocks {
     public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(Spellcraft.MODID);
 
