@@ -1,6 +1,6 @@
 # Spellcraft
 
-A NeoForge mod for Minecraft that adds spells cast from scrolls. Version 1.1.0 has two:
+A NeoForge mod for Minecraft that adds spells cast from scrolls. Version 1.2.0 has three:
 
 - <img src="src/main/resources/assets/spellcraft/textures/item/upside_down_scroll.png" alt="" width="24" height="24"> **Strength of Upside-Down**: for three minutes (configurable) your view rolls upside down while
   physics stays the same.
@@ -8,6 +8,10 @@ A NeoForge mod for Minecraft that adds spells cast from scrolls. Version 1.1.0 h
   inventory and instant building, but still take damage, get hungry and can die. It has no time
   limit; only death or `/effect clear` removes it. If you die with Infinity, you keep your hotbar,
   main inventory and offhand through respawn (armor and XP are lost).
+- <img src="src/main/resources/assets/spellcraft/textures/item/trailing_scroll.png" alt="" width="24" height="24"> **Strength of Trailing**: for eight minutes (configurable) you leave soul fire on every block
+  you step off. It never hurts you or your allies (your team, your pets) but burns everything else;
+  it spreads to nothing and lights no TNT. The trail is a fuse: the oldest flame goes out once a
+  second (every two seconds over soul sand or soul soil), so it burns back toward you when you stop.
 
 Each scroll is single-use. Scribe one by putting paper and lapis in an enchanting table: you get
 a random scroll, and more lapis raises the odds of an extreme-tier spell. Creative players can

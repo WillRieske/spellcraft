@@ -91,9 +91,34 @@ Use a **Survival** world. Take the Scroll of Infinity from Tools & Utilities in 
 - [ ] A book still enchants normally.
 - [ ] With Infinity on (creative inventory), scribing costs nothing.
 
+## Strength of Trailing
+
+Use a **Survival** world with open ground. `/give @s spellcraft:trailing_scroll`, or take it from Tools & Utilities in creative.
+
+- [ ] Scroll icon: a light-blue flame on the parchment. Effect icon: the same flame; the HUD shows an 8:00 countdown.
+- [ ] Walk: a light-blue flame appears on each block you step **off**, never under you. Sprint: same, a longer line.
+- [ ] Jump: the block you jumped from gets a flame; nothing appears in the air; the block you land on gets one when you leave it.
+- [ ] Stand still: the far end of the trail goes out about one block a second, toward you.
+- [ ] Walk over soul sand or soul soil: those flames linger about twice as long before going out.
+- [ ] Walk over a snow layer: the flame replaces the snow. Walk over carpet or along the top of slabs: no flames there (accepted).
+- [ ] Walk back through your own trail: no damage, no burning.
+- [ ] A zombie, cow or villager in the trail catches fire and takes damage. A dropped item burns up.
+- [ ] Tame a wolf, then lure it into the trail: it is unharmed. (Optional, LAN: a teammate via `/team` is unharmed; a player on no team burns.)
+- [ ] Walk through an obsidian portal frame (4×5) in the Overworld: no portal lights.
+- [ ] Walk past TNT and along wooden planks: nothing catches; the flames never spread.
+- [ ] Throw a splash water bottle at a flame: it goes out. Break a flame by hand: the extinguish sound plays.
+- [ ] Ride a horse, boat or minecart: no flames.
+- [ ] Creative flight: no flames; landing and walking: flames again. `/gamemode spectator` and move along the ground: no flames.
+- [ ] Walk through a nether portal with the effect on: no flame appears on arrival; after one more step the block you left in the new dimension lights; the same coming back.
+- [ ] Sneak + right-click with a second scroll: the effect ends; the trail keeps fading on its own.
+- [ ] Drink milk: the effect ends the same way.
+- [ ] Quit to title mid-trail and rejoin: the trail is still there and keeps fading; walking back through it is still safe.
+- [ ] `/setblock ~ ~ ~ spellcraft:trail_fire`: it looks like soul fire and burns you (no owner); it disappears by itself within a minute or two.
+- [ ] Mods > Spellcraft > Config: the `trailing` section shows "Duration (seconds)" and "Most flames per trail".
+
 ## Real profile
 
-- [ ] Copy `build/libs/spellcraft-1.0.0.jar` into `%APPDATA%\.minecraft\mods`, launch the NeoForge 26.3 profile, and cast once.
+- [ ] Will copies `build/libs/spellcraft-1.2.0.jar` into `%APPDATA%\.minecraft\mods` and removes `spellcraft-1.0.0.jar` there (from a normal PowerShell, not the Claude app: its shells cannot write to `%APPDATA%`), launches the NeoForge 26.3 profile, and casts each scroll once.
 
 ## Findings
 
