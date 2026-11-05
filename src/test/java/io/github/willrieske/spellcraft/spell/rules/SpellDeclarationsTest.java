@@ -9,12 +9,23 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class SpellDeclarationsTest {
     @Test
-    void declaresBothSpellsWithTheirTiers() {
-        assertThat(SpellDeclarations.ALL).containsExactly(SpellDeclarations.UPSIDE_DOWN, SpellDeclarations.INFINITY);
+    void declaresEverySpellWithItsTier() {
+        assertThat(SpellDeclarations.ALL)
+                .containsExactly(SpellDeclarations.UPSIDE_DOWN, SpellDeclarations.INFINITY, SpellDeclarations.TRAILING);
         assertThat(SpellDeclarations.UPSIDE_DOWN.tier()).isEqualTo(SpellTier.STARTER);
         assertThat(SpellDeclarations.INFINITY.tier()).isEqualTo(SpellTier.EXTREME);
+        assertThat(SpellDeclarations.TRAILING.tier()).isEqualTo(SpellTier.GOOD);
         assertThat(SpellDeclarations.INFINITY.tier().isTop()).isTrue();
         assertThat(SpellDeclarations.UPSIDE_DOWN.tier().isTop()).isFalse();
+        assertThat(SpellDeclarations.TRAILING.tier().isTop()).isFalse();
+    }
+
+    @Test
+    void trailingRefreshesIsDispellableAndCastsInCreative() {
+        assertThat(SpellDeclarations.TRAILING.name()).isEqualTo("trailing");
+        assertThat(SpellDeclarations.TRAILING.recast()).isEqualTo(SpellRules.Recast.REFRESH);
+        assertThat(SpellDeclarations.TRAILING.dispellable()).isTrue();
+        assertThat(SpellDeclarations.TRAILING.redundantInCreative()).isFalse();
     }
 
     @ParameterizedTest

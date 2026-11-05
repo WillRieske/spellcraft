@@ -228,3 +228,115 @@ Verified 2026-09-29. `build/nf-src` has no `EffectCure`/`EffectCures`/`fillEffec
 - `ServerLevel.sendParticles(T, x, y, z, count, xDist, yDist, zDist, speed)` (`:1355`);
   `Level.playSound(@Nullable Entity, x, y, z, SoundEvent, SoundSource, volume, pitch)` (`:434`).
 - `Player.sendOverlayMessage(Component)` (`:1414`) writes to the action bar.
+
+## 18. Fire blocks, level attachments and allies (Trailing task)
+
+Verified 2026-11-04 against the same unpacked sources.
+
+- `world/level/block/BaseFireBlock.java`: ctor `:32` `(BlockBehaviour.Properties, float fireDamage)`;
+  `entityInside(BlockState, Level, BlockPos, Entity, InsideBlockEffectApplier, boolean isPrecise)` `:128-132`
+  applies `CLEAR_FREEZE`, `FIRE_IGNITE`, then
+  `runAfter(FIRE_IGNITE, e -> e.hurt(e.level().damageSources().inFire(), this.fireDamage))` (`:131`);
+  `fireIgnite(Entity)` `:134` skips `fireImmune()` entities (`Entity.java:1614`); `onPlace` `:150-165`, whose whole
+  body is guarded by `!oldState.is(state.getBlock())`, calls `PortalShape.findEmptyPortalShape` (through
+  `EventHooks.onTrySpawnPortal`, `:154`) in the Overworld/Nether (**lights portals**) and then removes the block if
+  `!canSurvive`. A subclass that must not light portals overrides `onPlace`, keeping that guard and the
+  `!canSurvive` → `removeBlock(pos, false)` tail.
+- `SoulFireBlock.java`: `canSurvive` `:32-34` requires `BlockTags.SOUL_FIRE_BASE_BLOCKS` below (`canSurviveOnBlock`
+  `:36`), so vanilla soul fire cannot sit on ordinary ground; `updateShape` `:18-29` returns air when it can't
+  survive. Fire damage 2.0 (`:14`).
+- `Blocks.java:1368-1379` `SOUL_FIRE` properties: `mapColor(COLOR_LIGHT_BLUE)`, `replaceable()`, `noCollision()`,
+  `instabreak()`, `lightLevel(state -> 10)`, `sound(SoundType.WOOL)`, `pushReaction(PushReaction.POPPED)`.
+- TNT by fire: the only path from a fire block is `FireBlock.java:235` `oldState.onCaughtFire(...)` inside the
+  fire's scheduled tick (`checkBurnOut`). TNT's other ignition paths involve no fire block: redstone
+  (`TntBlock.java:46,54` `hasNeighborSignal`), breaking unstable TNT (`:62`), flint and steel or a fire charge
+  (`:109`) and burning projectiles (`:134`). A fire block with no scheduled tick never ignites TNT and never
+  spreads; a burning arrow shot by a mob standing in a flame still can, as in vanilla.
+- `BlockTags.FIRE` users (`grep -rn "BlockTags.FIRE\b" build/mc-src`): `NodeEvaluator.java:99` (mobs path
+  around it), `AbstractThrownPotion.java:124` (water bottles extinguish), `FallingBlock.java:60`,
+  `PortalShape.java:167`, `Cushion.java:130`, `ShearsItem.java:54`, `PistonBaseBlock.java:284`,
+  `SculkVeinBlock.java:164`, `VanillaBlockTagsProvider.java:212,246` (also in `DRAGON_TRANSPARENT`).
+- Render layer: `client/renderer/chunk/ChunkSectionLayer.java:31-37` `byTransparency(Transparency)` and
+  `client/resources/model/geometry/BakedQuad.java:99` pick the layer from the texture's transparency. There is no
+  `ItemBlockRenderTypes` or `render_type` field in 26.3 (`grep -rn render_type build/mc-src build/nf-src` → none),
+  so a block that reuses `minecraft:block/soul_fire_*` models renders cutout with no client code.
+- Level attachments: `world/level/Level.java:94` `Level extends net.neoforged.neoforge.attachment.AttachmentHolder`;
+  `ServerLevel.java:318` calls `LevelAttachmentsSavedData.init(this)`; `LevelAttachmentsSavedData.java:62-65`
+  `isDirty()` returns `true` ("Always re-save"), so an attachment value mutated in place is saved on every world
+  save. `IAttachmentHolder.java:46` `getData(Supplier<AttachmentType<T>>)` creates the default on first read.
+  `AttachmentType.java:210` `Builder.serialize(MapCodec<T>, Predicate<? super T> shouldSerialize)` skips saving
+  values the predicate rejects (used so an empty ledger is not written for every level).
+- Ticks: `event/tick/LevelTickEvent.java:61` `Post` (per level, `getLevel()` `:41` returns `Level`);
+  `event/tick/PlayerTickEvent.java:52` `Post`. `PlayerEvent.java:480` `PlayerLoggedOutEvent`;
+  `event/server/ServerStoppedEvent.java` (game bus) for clearing server-wide static state.
+- Allies: `Entity.java:2879-2885` `isAlliedTo(Entity)` is `final`: `this == other || considersEntityAsAlly(other)
+  || other.considersEntityAsAlly(this)` (false for `null`), and `considersEntityAsAlly` is the team check
+  (`isAlliedTo(other.getTeam())`; the `isAlliedTo(Team)` overload is at `:2887`);
+  `TamableAnimal.java:209-222` overrides it: a tamed animal considers its root owner (and the owner's allies) allies.
+  `TamableAnimal.getTeam()` (`:192-206`) also returns the owner's team, so a pet of a teamed owner is allied through
+  the team path too; a pet test must use an owner with no team to exercise the tame path.
+- Entity state: `Entity.java:737` `onGround()`, `:2774` `isPassenger()`, `:3866` `blockPosition()`, `:696`
+  `setOnGround(boolean)`, `:2504` `startRiding(Entity, boolean force, boolean sendEventAndTriggers)`,
+  `:660` `igniteForSeconds(float)`, `:676` `getRemainingFireTicks()`; `Player.java:1721` `isSpectator()`.
+  `ServerPlayer.java:1866` `level()` returns `ServerLevel`. `Level.java:689` `isLoaded(BlockPos)`.
+- Test entry points: `BlockBehaviour.BlockStateBase` `entityInside(Level, BlockPos, Entity, InsideBlockEffectApplier,
+  boolean)` `:773` and `randomTick(ServerLevel, BlockPos, RandomSource)` `:769` are public;
+  `InsideBlockEffectApplier.StepBasedCollector` (`world/entity/InsideBlockEffectApplier.java:32`) collects the
+  effects and `applyAndClear(Entity)` runs them. `BlockBehaviour.BlockStateBase.canBeReplaced()` `:840` (no-arg)
+  reads the `replaceable` property; `isFaceSturdy(BlockGetter, BlockPos, Direction)` `:893`.
+- Registration: `DeferredRegister.Blocks.registerBlock(String, Function<Properties, B>, Supplier<Properties>)`
+  (`registries/DeferredRegister.java:433`) sets the block id on the properties.
+- GameTest helpers used: `TamableAnimal.tame(Player)` `:170`; `Scoreboard.addPlayerTeam(String)` `:249`,
+  `addPlayerToTeam(String, PlayerTeam)` `:272`, `removePlayerTeam(PlayerTeam)` `:262`;
+  `GameTestHelper.assertValueEqual(N, N, String)` `:1095`; `Vec3.atBottomCenterOf(Vec3i)` `:61`.
+- Chunk loading (stale flames, fix passes 2 and 3): `Level.java:369-376` `getBlockState` calls `getChunk(x, z)`
+  (`:208-210`), which is `getChunk(x, z, ChunkStatus.FULL)` and so `LevelReader.java:133-135`
+  `getChunk(x, z, status, true)`: **reading a block in an unloaded chunk loads (or generates) it synchronously**;
+  `ServerChunkCache.java:144-178` schedules the load and `managedBlock`s the server thread until it is done (`:169`),
+  and `Level.java:213-219` throws if that load fails. **`isLoaded` means "ticketed", not "ready"**: `Level.java:689-693`
+  `isLoaded(BlockPos)` is `isInValidBounds(pos)` and then `getChunkSource().hasChunk(chunkX, chunkZ)`, and
+  `ServerChunkCache.java:262-267` `hasChunk` only checks that the visible chunk holder's ticket level has reached FULL
+  (`chunkAbsent`, `:258-260`). That is true as soon as the ticket is added, while the load may still be running, and a
+  block read then waits for it. `ServerChunkCache.java:180-210` `getChunkNow(chunkX, chunkZ)` (`@Nullable LevelChunk`,
+  declared on `ChunkSource.java:16`) is the readiness test: a lookup in the 4-entry cache and the chunk holder that
+  returns the chunk only at FULL status (`getChunkIfPresent(ChunkStatus.FULL)`, `:201`), or NeoForge's
+  `currentlyLoading` chunk while it is being promoted on the server thread (`:200`, set in
+  `ChunkStatusTasks.java:202-215`), and `null` otherwise; it never loads or waits, and returns `null` off the server
+  thread (`:182-184`). `ServerLevel.java:1245` `getChunkSource()` returns `ServerChunkCache`. Code that must neither
+  load nor wait for a chunk checks `getChunkNow(...) != null` before any `getBlockState`/`setBlock`/`removeBlock`;
+  `BlockPos.getX(long)`/`getZ(long)` (`core/BlockPos.java:69,77`) and `SectionPos.blockToSectionCoord(int)`
+  (`core/SectionPos.java:81`) give the chunk coordinates from a packed position. Tests that prove nothing was loaded
+  still assert `isLoaded` is false (the stronger claim: not even ticketed).
+- Build limits: `Level.java:182-184` `isInValidBounds(BlockPos)` is build height plus the horizontal chunk limit;
+  `getBlockState` returns `VOID_AIR` outside it (`:370-372`, which passes `isAir()`) and `setBlock` returns `false`
+  (`:223-226`; `LevelWriter.java:16-17` the 3-argument overload returns the same boolean).
+- `Codec.optionalFieldOf(name, default)` (DataFixerUpper 10.0.21 sources, `com/mojang/serialization/Codec.java:274`,
+  `:303-308`; not in `build/mc-src`: unzip `datafixerupper-10.0.21-sources.jar` from the Gradle cache): decoding a
+  missing field yields the default (`codecs/OptionalFieldCodec.java:30-33`), so a save written before the field
+  existed still loads; encoding a value **equal to the default omits the field** (`Objects.equals(a, defaultValue)
+  ? Optional.empty()`). It is not lenient: a present but malformed field fails the decode. `RecordCodecBuilder.mapCodec`
+  (`codecs/RecordCodecBuilder.java:75`) builds the `MapCodec` that `AttachmentType.Builder.serialize` takes.
+- Attachment saving (G27): `AttachmentHolder.java:120-137` `serializeAttachments(ValueOutput)` is public and final;
+  for each serializable attachment it writes `tag.child(<type id>)` and `discard`s that key when the serializer
+  returns false. `AttachmentType.java:210-227`: the `serialize(MapCodec, Predicate)` serializer returns false when
+  the predicate rejects the value, else `output.store(codec, value)` (the map codec's fields go straight into the
+  child). `LevelAttachmentsSavedData.java:46-48` saves a level through `TagValueOutput.createWithContext(reporter,
+  registryAccess)` (`world/level/storage/TagValueOutput.java:27`) and `buildResult()` (`:159`), the same calls a
+  test can make on `ServerLevel` (it inherits `serializeAttachments` from `Level`).
+- **NeoForge loads the chunk an entity moves into**: `Entity.java:3983-3986` (end of `setPosRaw`, "Neo: ensure
+  target chunk is loaded") calls `level.getChunk(x >> 4, z >> 4)` for any server entity that is added to its level
+  and not removed. Every move goes through it (`setPos` `:486`, `teleportSetPosition` `:3298-3300`, and so
+  `ServerPlayer.teleport` `ServerPlayer.java:1176-1197` within a level), so teleporting a player to a far spot loads
+  that spot's chunk. A test that needs a player standing in an unloaded chunk uses a `discard()`ed player.
+  `Entity.setOnGround` `:696-699` runs `checkSupportingBlock`, whose collision lookup does not load chunks.
+- Ally overrides that matter to a team-less entity and a player (for the `isSpared` fast path):
+  `TamableAnimal.java:209-222` (an `OwnableEntity`, `:34`) and `Allay.java:160-163` (`isLikedPlayer`, the
+  `LIKED_PLAYER` brain memory, `MemoryModuleType.java:136`). `AbstractIllager.java:31-38` allies only
+  `#illager_friends` (illagers) and `Evoker.java:81-99` its vexes. `Team.isAlliedTo(null)` is false
+  (`world/scores/Team.java:17-19`). `EntityGetter.java:113-122` `getPlayerByUUID` scans the level's player list.
+- Test entry points (fix pass 2): `BlockBehaviour.BlockStateBase.tick(ServerLevel, BlockPos, RandomSource)` `:765` is
+  public; `PlayerEvent.PlayerLoggedOutEvent(Player)` (`PlayerEvent.java:481`) and `ServerStoppedEvent(MinecraftServer)`
+  (`event/server/ServerStoppedEvent.java:18`) have public constructors; `GameTestHelper.runAfterDelay(long,
+  Runnable)` `:964`, `getBlockState(BlockPos)` `:111` (relative); `CompoundTag.contains(String)` `:293`,
+  `getCompoundOrEmpty(String)` `:373`; `ProblemReporter.DISCARDING` (`util/ProblemReporter.java:19`). The GameTest
+  server uses `WorldPresets.FLAT_ALL_DIMENSIONS` (`GameTestServer.java:127`), so it has a Nether.

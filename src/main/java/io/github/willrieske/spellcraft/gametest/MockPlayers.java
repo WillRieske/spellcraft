@@ -41,7 +41,12 @@ public final class MockPlayers {
 
     /** Moves {@code player} into this test's area, so its drops don't mix with other tests' drops. */
     public static void moveIntoTest(GameTestHelper helper, ServerPlayer player) {
-        Vec3 pos = helper.absoluteVec(new Vec3(1.5, 1, 1.5));
+        moveTo(helper, player, new Vec3(1.5, 1, 1.5));
+    }
+
+    /** Teleports {@code player} to a position relative to this test's structure. */
+    public static void moveTo(GameTestHelper helper, ServerPlayer player, Vec3 relative) {
+        Vec3 pos = helper.absoluteVec(relative);
         player.teleportTo(helper.getLevel(), pos.x, pos.y, pos.z, Set.of(), 0.0F, 0.0F, false);
     }
 }

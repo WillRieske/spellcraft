@@ -4,8 +4,13 @@ import static io.github.willrieske.spellcraft.gametest.GameTestSupport.withConfi
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
 import io.github.willrieske.spellcraft.config.ServerConfig;
+import io.github.willrieske.spellcraft.scribing.Scribing;
 import io.github.willrieske.spellcraft.spell.ModItems;
+import io.github.willrieske.spellcraft.spell.Spell;
 import io.github.willrieske.spellcraft.spell.SpellScrollItem;
+import io.github.willrieske.spellcraft.spell.rules.ScrollDraw;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.triggers.CriteriaTriggers;
@@ -171,19 +176,58 @@ public final class ScribingGameTests {
         helper.succeed();
     }
 
-    private static void drawsOnly(GameTestHelper helper, List<Integer> chances, Item expected) {
+    private static void drawsOnly(GameTestHelper helper, List<Integer> chances, Item... expected) {
         withConfig(ServerConfig.TOP_TIER_CHANCE_PERCENT, chances, () -> {
             ServerPlayer player = scribe(helper, LEVELS);
             EnchantmentMenu menu = table(helper, player, new ItemStack(Items.PAPER), 3);
             helper.assertTrue(menu.clickMenuButton(player, 2), "click accepted");
-            helper.assertTrue(menu.getSlot(0).getItem().is(expected), "drew " + expected);
+            ItemStack drawn = menu.getSlot(0).getItem();
+            helper.assertTrue(Arrays.stream(expected).anyMatch(drawn::is), "drew one of " + Arrays.toString(expected));
         });
         helper.succeed();
     }
 
-    /** Mutates global server config, so it runs alone in the {@code scribing_zero} batch. */
+    /**
+     * Mutates global server config, so it runs alone in the {@code scribing_zero} batch. At 0% the draw comes from
+     * the lower pool, which holds every non-extreme spell (Upside-Down and Trailing). A random draw cannot prove both
+     * are reachable, so {@code ScrollDraw.draw} itself is run first over {@code Scribing.candidates()} with dice that
+     * pick each index of the lower pool in turn.
+     */
     static void zeroPercent(GameTestHelper helper) {
-        drawsOnly(helper, List.of(0, 0, 0), ModItems.UPSIDE_DOWN_SCROLL.get());
+        List<Item> lowerPool = new ArrayList<>();
+        int poolSize = 1;
+        for (int pick = 0; pick < poolSize; pick++) {
+            FixedPick dice = new FixedPick(pick);
+            Spell drawn = ScrollDraw.draw(0, Scribing.candidates(), List.of(0, 0, 0), dice);
+            lowerPool.add(ModItems.scrollFor(drawn).getItem());
+            poolSize = dice.poolSize;
+        }
+        helper.assertTrue(lowerPool.contains(ModItems.TRAILING_SCROLL.get()), "the lower pool holds Trailing");
+        helper.assertTrue(lowerPool.contains(ModItems.UPSIDE_DOWN_SCROLL.get()), "the lower pool holds Upside-Down");
+        drawsOnly(helper, List.of(0, 0, 0), ModItems.UPSIDE_DOWN_SCROLL.get(), ModItems.TRAILING_SCROLL.get());
+    }
+
+    /**
+     * Dice for one draw: the tier roll comes up 0 (not below a 0% chance, so the lower pool), then the pick comes up
+     * {@code pick}. Remembers the bound of the pick, which is the size of the pool drawn from.
+     */
+    private static final class FixedPick implements ScrollDraw.Dice {
+        private final int pick;
+        private int rolls;
+        private int poolSize;
+
+        FixedPick(int pick) {
+            this.pick = pick;
+        }
+
+        @Override
+        public int below(int bound) {
+            if (rolls++ == 0) {
+                return 0;
+            }
+            poolSize = bound;
+            return pick;
+        }
     }
 
     /** Mutates global server config, so it runs alone in the {@code scribing_full} batch. */

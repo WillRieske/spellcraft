@@ -44,6 +44,10 @@ public final class SpellcraftGameTests {
         InfinityAbilityGameTests.registerAll();
         InfinityDeathGameTests.registerAll();
         ScribingGameTests.registerAll();
+        TrailingGameTests.registerAll();
+        TrailGameTests.registerAll();
+        TrailEdgeCaseGameTests.registerAll();
+        TrailLayerGameTests.registerAll();
     }
 
     private SpellcraftGameTests() {}

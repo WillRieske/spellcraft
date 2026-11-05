@@ -19,5 +19,9 @@ public final class ModEffects {
     public static final DeferredHolder<MobEffect, MobEffect> INFINITY =
             MOB_EFFECTS.register("infinity", InfinityEffect::new);
 
+    /** Strength of Trailing. A marker: {@code TrailLayer} lays the trail while a player has it. */
+    public static final DeferredHolder<MobEffect, MobEffect> TRAILING =
+            MOB_EFFECTS.register("trailing", () -> new MarkerEffect(MobEffectCategory.BENEFICIAL, 0x4FD4E6));
+
     private ModEffects() {}
 }

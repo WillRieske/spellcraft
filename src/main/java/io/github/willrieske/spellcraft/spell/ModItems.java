@@ -22,6 +22,7 @@ public final class ModItems {
 
     public static final DeferredItem<SpellScrollItem> UPSIDE_DOWN_SCROLL = registerScroll(Spells.UPSIDE_DOWN);
     public static final DeferredItem<SpellScrollItem> INFINITY_SCROLL = registerScroll(Spells.INFINITY);
+    public static final DeferredItem<SpellScrollItem> TRAILING_SCROLL = registerScroll(Spells.TRAILING);
 
     private ModItems() {}
 

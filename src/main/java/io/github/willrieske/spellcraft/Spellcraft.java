@@ -8,6 +8,8 @@ import io.github.willrieske.spellcraft.scribing.Scribing;
 import io.github.willrieske.spellcraft.spell.ModItems;
 import io.github.willrieske.spellcraft.spell.SpellScrollItem;
 import io.github.willrieske.spellcraft.spell.rules.ScrollDraw;
+import io.github.willrieske.spellcraft.trailing.ModBlocks;
+import io.github.willrieske.spellcraft.trailing.TrailingAttachments;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.neoforged.bus.api.IEventBus;
@@ -26,6 +28,8 @@ public final class Spellcraft {
         ModEffects.MOB_EFFECTS.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
         InfinityAttachments.ATTACHMENT_TYPES.register(modEventBus);
+        ModBlocks.BLOCKS.register(modEventBus);
+        TrailingAttachments.ATTACHMENT_TYPES.register(modEventBus);
         SpellcraftGameTests.TEST_FUNCTIONS.register(modEventBus);
         modEventBus.addListener(Spellcraft::addToCreativeTabs);
         modContainer.registerConfig(ModConfig.Type.SERVER, ServerConfig.SPEC);

@@ -26,11 +26,59 @@ jobs:
           python-version: '3.13'
       - name: pre-commit hooks (all files)
         uses: pre-commit/action@v3.0.1
+        env:
+          # The runner has no gitleaks binary, and a --staged scan sees nothing under
+          # --all-files anyway. The secrets job below is CI's secret scan.
+          SKIP: gitleaks
       - name: Conventional commit messages
         # b441228 is the last pre-gitlint commit (the spec); earlier history predates the rule.
         run: |
           pip install gitlint-core==0.19.1
           gitlint --commits b441228..HEAD
+
+  secrets:
+    # Full-history gitleaks scan on every run. It fails closed: gitleaks exits 0 with no
+    # findings on a folder that is not a repo, so exit 0 counts only with the guards below.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read                       # read-only token; the job writes nothing
+    env:
+      GITLEAKS_VERSION: "8.30.1"           # bump both values together, in one commit
+      GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+      NO_COLOR: "1"                        # gitleaks colours its log even when redirected
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0                    # full history, every ref the clone has
+      - name: Install pinned gitleaks
+        run: |
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSL -o "$tarball" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${tarball}"
+          echo "${GITLEAKS_SHA256}  ${tarball}" | sha256sum -c -
+          tar -xzf "$tarball" gitleaks
+          installed=$(./gitleaks version)
+          if [ "$installed" != "${GITLEAKS_VERSION}" ] && [ "$installed" != "v${GITLEAKS_VERSION}" ]; then
+            echo "gitleaks reports ${installed}, pinned ${GITLEAKS_VERSION}." >&2
+            exit 1
+          fi
+      - name: Scan full history
+        run: |
+          git rev-parse --is-inside-work-tree > /dev/null
+          test "$(git rev-list --all --count)" -gt 0
+          ./gitleaks git --redact --no-banner --exit-code 1 . 2> gitleaks.log \
+            || { cat gitleaks.log >&2; exit 1; }
+          cat gitleaks.log >&2
+          # Strip colour codes first: in "\e[31mERR\e[0m" no \b falls before ERR.
+          plain=$(sed 's/\x1b\[[0-9;]*m//g' gitleaks.log)
+          if grep -Eq '(^|[[:space:]])(ERR|FTL)([[:space:]]|$)' <<< "$plain"; then
+            echo "gitleaks logged an error; the scan is not trusted." >&2
+            exit 1
+          fi
+          if ! grep -Eq '(^|[[:space:]])[1-9][0-9]* commits scanned' <<< "$plain"; then
+            echo "gitleaks reported no commits scanned; the scan is not trusted." >&2
+            exit 1
+          fi
 
   version-tag:
     # Release tags only: the tag must name the version gradle.properties holds, so the two can't drift.
