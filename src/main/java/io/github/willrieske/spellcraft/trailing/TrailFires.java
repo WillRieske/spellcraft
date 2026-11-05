@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.SectionPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -32,9 +33,14 @@ import org.slf4j.Logger;
 
 /**
  * The Ledger (spec glossary): every trail in one level, each owner's {@link Trail}, the stale flames, and which flame
- * belongs to whom. The value of the
- * {@code trailing_fires} level attachment; level attachments are re-saved on every world save (docs/api-notes.md
- * §18), so this object is mutated in place.
+ * belongs to whom. The value of the {@code trailing_fires} level attachment; level attachments are re-saved on every
+ * world save (docs/api-notes.md §18), so this object is mutated in place.
+ *
+ * <p>Who owns a spot (spec §4): whoever lit it last. The index is the truth. A trail or a stale entry may still list
+ * a flame the index gives to someone else (the flame was put out and another owner relit the spot); that entry is
+ * dead, its turn (or its sweep) is a no-op, and the save drops it: {@link #entries()} and the saved {@code stale} list
+ * keep only flames the index gives to that owner. So a save lists each spot under one owner at most, and a reload can
+ * never hand a spot back to the older owner. The live trails and stale set are left as they are.
  */
 public final class TrailFires {
     /**
@@ -77,15 +83,15 @@ public final class TrailFires {
 
     /**
      * Saves and loads the ledger as a {@code trails} list with one {@link Entry} per owner and a {@code stale} list of
-     * {@link StaleFlame}s. {@code stale} is optional when read (a save from before it existed has none) and is not
-     * written while empty.
+     * {@link StaleFlame}s, each holding only flames the index gives to that owner (see the class comment). {@code
+     * stale} is optional when read (a save from before it existed has none) and is not written while empty.
      */
     public static final MapCodec<TrailFires> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                     Entry.CODEC.listOf().fieldOf("trails").forGetter(TrailFires::entries),
                     StaleFlame.CODEC
                             .listOf()
                             .optionalFieldOf("stale", List.of())
-                            .forGetter(TrailFires::staleFlames))
+                            .forGetter(TrailFires::savedStaleFlames))
             .apply(instance, TrailFires::new));
 
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -94,8 +100,6 @@ public final class TrailFires {
     private final Map<Long, UUID> ownerByPos = new HashMap<>();
     /** A set, so a spot its owner's trail lists twice goes stale once, and removal during the sweep is O(1). */
     private final Set<StaleFlame> stale = new LinkedHashSet<>();
-    /** Reused by the stale sweep, so checking a chunk allocates nothing. */
-    private final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
 
     /** No trails. */
     public TrailFires() {}
@@ -113,7 +117,8 @@ public final class TrailFires {
     /**
      * Rebuilds the ledger from saved trails and stale flames; empty trails are dropped. If a corrupt save lists an
      * owner twice, the last non-empty trail wins, only its flames are indexed, and a warning is logged. Stale flames
-     * are indexed too; a trail flame at the same spot takes the index.
+     * are indexed too. A save this class wrote lists each spot under one owner at most (see the class comment), so no
+     * other rule is needed to decide who owns a spot.
      *
      * @param entries the saved trails
      * @param staleFlames the saved stale flames
@@ -147,18 +152,29 @@ public final class TrailFires {
     }
 
     /**
-     * Every owner's trail, in the order the owners first lit a flame.
+     * Every owner's trail as the save writes it, in the order the owners first lit a flame: only the flames the index
+     * gives to that owner (dead entries are dropped, see the class comment), and no owner whose every flame is dead.
+     * The countdown is kept as it is; if the oldest flame was dead, the rebuilt trail clamps it to the new oldest, so
+     * after a reload that flame may fade up to one turn early (accepted).
      *
-     * @return a snapshot of the trails, one {@link Entry} per owner
+     * @return a snapshot of the trails, one {@link Entry} per owner with an owned flame
      */
     public List<Entry> entries() {
         List<Entry> entries = new ArrayList<>();
-        byOwner.forEach((owner, trail) -> entries.add(new Entry(owner, trail.flames(), trail.countdown())));
+        byOwner.forEach((owner, trail) -> {
+            List<Trail.Flame> owned = trail.flames().stream()
+                    .filter(flame -> owns(owner, flame.pos()))
+                    .toList();
+            if (!owned.isEmpty()) {
+                entries.add(new Entry(owner, owned, trail.countdown()));
+            }
+        });
         return entries;
     }
 
     /**
-     * The flames waiting for their chunk to load before they go out, in the order they went stale.
+     * Every flame waiting for its chunk to be ready before it goes out, in the order they went stale, dead entries
+     * included (the sweep forgets those without touching the spot). The save writes only the owned ones.
      *
      * @return a copy of the stale flames
      */
@@ -166,13 +182,37 @@ public final class TrailFires {
         return List.copyOf(stale);
     }
 
+    /** The stale flames as the save writes them: only those the index still gives to their owner, in order. */
+    private List<StaleFlame> savedStaleFlames() {
+        return stale.stream().filter(flame -> owns(flame.owner(), flame.pos())).toList();
+    }
+
     /**
-     * Whether the ledger holds no trails and no stale flames (an owner with no flames is never kept).
+     * Whether the ledger holds nothing the save would keep: no trail or stale flame the index gives to its owner. Dead
+     * entries do not count, so this agrees with what the codec writes ({@link #entries()} and the owned stale flames):
+     * the attachment skips saving an empty ledger, and a ledger of dead entries alone is not written.
      *
      * @return {@code true} if there is nothing to save
      */
     public boolean isEmpty() {
-        return byOwner.isEmpty() && stale.isEmpty();
+        for (Map.Entry<UUID, Trail> ownerTrail : byOwner.entrySet()) {
+            for (Trail.Flame flame : ownerTrail.getValue().flames()) {
+                if (owns(ownerTrail.getKey(), flame.pos())) {
+                    return false;
+                }
+            }
+        }
+        for (StaleFlame flame : stale) {
+            if (owns(flame.owner(), flame.pos())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Whether the index gives the flame at {@code pos} to {@code owner}. */
+    private boolean owns(UUID owner, long pos) {
+        return owner.equals(ownerByPos.get(pos));
     }
 
     /**
@@ -201,7 +241,8 @@ public final class TrailFires {
      * Lights the stand-in cell for {@code owner} (spec §4): {@code feet} when it can take a flame, else the cell above
      * it (a player on soul sand or mud stands 2/16 deep inside the block, so {@code feet} is that block; both report a
      * full support shape, so the cell above qualifies), else nothing. The flame lingers when the block below the lit
-     * cell is a soul-fire base. Then trims the owner's trail to the configured maximum.
+     * cell is a soul-fire base. If {@code setBlock} reports no change, nothing is recorded. Then trims the owner's
+     * trail to the configured maximum.
      *
      * @param level the level to light in
      * @param owner the player laying the flame
@@ -219,7 +260,9 @@ public final class TrailFires {
         }
         BlockPos below = pos.below();
         boolean lingers = level.getBlockState(below).is(BlockTags.SOUL_FIRE_BASE_BLOCKS);
-        level.setBlock(pos, ModBlocks.TRAIL_FIRE.get().defaultBlockState(), Block.UPDATE_ALL);
+        if (!level.setBlock(pos, ModBlocks.TRAIL_FIRE.get().defaultBlockState(), Block.UPDATE_ALL)) {
+            return false;
+        }
         UUID id = owner.getUUID();
         Trail trail = byOwner.computeIfAbsent(id, key -> new Trail());
         trail.add(new Trail.Flame(pos.asLong(), lingers));
@@ -230,8 +273,15 @@ public final class TrailFires {
         return true;
     }
 
-    /** A cell can take a flame when it is air, or replaceable with no fluid and not fire, over a sturdy top face. */
+    /**
+     * A cell can take a flame when it is inside the build limits and is air, or replaceable with no fluid and not
+     * fire, over a sturdy top face. The bounds check comes first: above the top layer {@code getBlockState} reports
+     * void air ({@code Level.java:370-372}), which would pass the air test.
+     */
     private static boolean canLight(ServerLevel level, BlockPos pos) {
+        if (!level.isInValidBounds(pos)) {
+            return false;
+        }
         BlockState state = level.getBlockState(pos);
         boolean free = state.isAir()
                 || (state.canBeReplaced() && state.getFluidState().isEmpty() && !state.is(BlockTags.FIRE));
@@ -241,7 +291,7 @@ public final class TrailFires {
 
     /**
      * One fade tick for every trail in the level; trails that empty are forgotten. Then the stale sweep: every stale
-     * flame whose chunk is loaded now ({@code Level.isLoaded}, a chunk lookup that loads nothing) is put out and
+     * flame whose chunk is ready now ({@link #isReady}) is put out, if the index still gives it to its owner, and
      * forgotten.
      *
      * @param level the level this ledger belongs to
@@ -261,9 +311,9 @@ public final class TrailFires {
         Iterator<StaleFlame> waiting = stale.iterator();
         while (waiting.hasNext()) {
             StaleFlame flame = waiting.next();
-            if (level.isLoaded(cursor.set(flame.pos()))) {
+            if (isReady(level, flame.pos())) {
                 waiting.remove();
-                if (flame.owner().equals(ownerByPos.get(flame.pos()))) {
+                if (owns(flame.owner(), flame.pos())) {
                     putOut(level, flame.pos());
                 }
             }
@@ -274,22 +324,44 @@ public final class TrailFires {
      * Puts out {@code owner}'s flame, only while the index still says the flame is theirs: if the spot was put out
      * (by hand or water) and relit by another owner, that newer flame is theirs and stays. Accepted limit (spec §4):
      * if the same owner relit the spot, their trail lists it twice and the older entry puts the new flame out early.
-     * If the flame's chunk is not loaded, nothing is read or changed there (reading a block loads its chunk,
-     * docs/api-notes.md §18): the flame becomes stale instead, keeps its index entry (so the owner and their allies
-     * stay spared) and waits for the sweep in {@link #fadeTick}. No chunk is ever loaded to put a flame out.
+     * If the flame's chunk is not ready ({@link #isReady}), nothing is read or changed there (reading a block loads
+     * its chunk, or waits for a running load, docs/api-notes.md §18): the flame becomes stale instead, keeps its
+     * index entry (so the owner and their allies stay spared) and waits for the sweep in {@link #fadeTick}. No chunk
+     * is ever loaded, or waited on, to put a flame out.
      */
     private void extinguish(ServerLevel level, UUID owner, Trail.Flame flame) {
-        if (!owner.equals(ownerByPos.get(flame.pos()))) {
+        if (!owns(owner, flame.pos())) {
             return;
         }
-        if (!level.isLoaded(cursor.set(flame.pos()))) {
+        if (!isReady(level, flame.pos())) {
             stale.add(new StaleFlame(owner, flame.pos()));
             return;
         }
         putOut(level, flame.pos());
     }
 
-    /** Drops the index entry at {@code pos} and removes the block there if it is still trail fire (chunk loaded). */
+    /**
+     * Whether the chunk holding {@code pos} is ready: at FULL status in the chunk cache, so reading or writing a block
+     * there neither loads anything nor waits for a load. {@code ServerChunkCache.getChunkNow} ({@code
+     * ServerChunkCache.java:180-210}) is a cache and chunk-holder lookup that returns the chunk only when it is ready.
+     * Not {@code Level.isLoaded}: that is true once the chunk's ticket level reaches FULL ({@code
+     * ServerChunkCache.java:262-267}), while its load may still be running, and a block read would then block the
+     * server thread until it finishes (docs/api-notes.md §18). Server thread only: {@code getChunkNow} answers
+     * {@code null} on any other thread.
+     *
+     * @param level the level the position is in
+     * @param pos the position ({@link BlockPos#asLong()})
+     * @return {@code true} if blocks at {@code pos} can be read and written without touching the chunk system
+     */
+    static boolean isReady(ServerLevel level, long pos) {
+        return level.getChunkSource()
+                        .getChunkNow(
+                                SectionPos.blockToSectionCoord(BlockPos.getX(pos)),
+                                SectionPos.blockToSectionCoord(BlockPos.getZ(pos)))
+                != null;
+    }
+
+    /** Drops the index entry at {@code pos} and removes the block there if it is still trail fire (chunk ready). */
     private void putOut(ServerLevel level, long pos) {
         ownerByPos.remove(pos);
         BlockPos at = BlockPos.of(pos);

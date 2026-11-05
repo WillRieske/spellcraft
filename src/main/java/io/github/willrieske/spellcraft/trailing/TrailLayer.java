@@ -78,9 +78,9 @@ public final class TrailLayer {
 
     /**
      * One trail-laying step: observe where the player stands and light the block they just left. Without the effect
-     * the player's tracker is dropped. The previous block is lit only while its chunk is loaded (after a long
-     * teleport it may not be; no chunk is ever loaded to lay or put out a flame, spec §4). Public so GameTests can run
-     * a step without waiting for a tick.
+     * the player's tracker is dropped. The previous block is lit only while its chunk is ready ({@code
+     * TrailFires.isReady}; after a long teleport it may not be; no chunk is ever loaded, or waited on, to lay or put
+     * out a flame, spec §4). Public so GameTests can run a step without waiting for a tick.
      *
      * @param player the server-side player to track
      */
@@ -98,9 +98,8 @@ public final class TrailLayer {
         }
         boolean grounded = player.onGround() && !player.isPassenger() && !player.isSpectator();
         tracked.tracker().observe(player.blockPosition().asLong(), grounded).ifPresent(pos -> {
-            BlockPos spot = BlockPos.of(pos);
-            if (level.isLoaded(spot)) {
-                TrailFires.of(level).light(level, player, spot);
+            if (TrailFires.isReady(level, pos)) {
+                TrailFires.of(level).light(level, player, BlockPos.of(pos));
             }
         });
     }

@@ -289,14 +289,27 @@ Verified 2026-11-04 against the same unpacked sources.
 - GameTest helpers used: `TamableAnimal.tame(Player)` `:170`; `Scoreboard.addPlayerTeam(String)` `:249`,
   `addPlayerToTeam(String, PlayerTeam)` `:272`, `removePlayerTeam(PlayerTeam)` `:262`;
   `GameTestHelper.assertValueEqual(N, N, String)` `:1095`; `Vec3.atBottomCenterOf(Vec3i)` `:61`.
-- Chunk loading (stale flames, fix pass 2): `Level.java:689-693` `isLoaded(BlockPos)` is `isInValidBounds(pos)` and
-  then `getChunkSource().hasChunk(chunkX, chunkZ)`; `ServerChunkCache.java:263-267` `hasChunk` only looks up the
-  visible chunk holder and its ticket level, so it never loads anything. `Level.java:369-376` `getBlockState`
-  calls `getChunk(x, z)` (`:208-210`), which is `getChunk(x, z, ChunkStatus.FULL)` and so
-  `LevelReader.java:133-135` `getChunk(x, z, status, true)`: **reading a block in an unloaded chunk loads (or
-  generates) it synchronously**. `Level.java:213-219` throws if that load fails. Code that must not load a chunk
-  checks `isLoaded` before any `getBlockState`/`setBlock`/`removeBlock`. `BlockPos.MutableBlockPos.set(long)`
-  `core/BlockPos.java:646` reuses one cursor for such checks.
+- Chunk loading (stale flames, fix passes 2 and 3): `Level.java:369-376` `getBlockState` calls `getChunk(x, z)`
+  (`:208-210`), which is `getChunk(x, z, ChunkStatus.FULL)` and so `LevelReader.java:133-135`
+  `getChunk(x, z, status, true)`: **reading a block in an unloaded chunk loads (or generates) it synchronously**;
+  `ServerChunkCache.java:144-178` schedules the load and `managedBlock`s the server thread until it is done (`:169`),
+  and `Level.java:213-219` throws if that load fails. **`isLoaded` means "ticketed", not "ready"**: `Level.java:689-693`
+  `isLoaded(BlockPos)` is `isInValidBounds(pos)` and then `getChunkSource().hasChunk(chunkX, chunkZ)`, and
+  `ServerChunkCache.java:262-267` `hasChunk` only checks that the visible chunk holder's ticket level has reached FULL
+  (`chunkAbsent`, `:258-260`). That is true as soon as the ticket is added, while the load may still be running, and a
+  block read then waits for it. `ServerChunkCache.java:180-210` `getChunkNow(chunkX, chunkZ)` (`@Nullable LevelChunk`,
+  declared on `ChunkSource.java:16`) is the readiness test: a lookup in the 4-entry cache and the chunk holder that
+  returns the chunk only at FULL status (`getChunkIfPresent(ChunkStatus.FULL)`, `:201`), or NeoForge's
+  `currentlyLoading` chunk while it is being promoted on the server thread (`:200`, set in
+  `ChunkStatusTasks.java:202-215`), and `null` otherwise; it never loads or waits, and returns `null` off the server
+  thread (`:182-184`). `ServerLevel.java:1245` `getChunkSource()` returns `ServerChunkCache`. Code that must neither
+  load nor wait for a chunk checks `getChunkNow(...) != null` before any `getBlockState`/`setBlock`/`removeBlock`;
+  `BlockPos.getX(long)`/`getZ(long)` (`core/BlockPos.java:69,77`) and `SectionPos.blockToSectionCoord(int)`
+  (`core/SectionPos.java:81`) give the chunk coordinates from a packed position. Tests that prove nothing was loaded
+  still assert `isLoaded` is false (the stronger claim: not even ticketed).
+- Build limits: `Level.java:182-184` `isInValidBounds(BlockPos)` is build height plus the horizontal chunk limit;
+  `getBlockState` returns `VOID_AIR` outside it (`:370-372`, which passes `isAir()`) and `setBlock` returns `false`
+  (`:223-226`; `LevelWriter.java:16-17` the 3-argument overload returns the same boolean).
 - `Codec.optionalFieldOf(name, default)` (DataFixerUpper 10.0.21 sources, `com/mojang/serialization/Codec.java:274`,
   `:303-308`; not in `build/mc-src`: unzip `datafixerupper-10.0.21-sources.jar` from the Gradle cache): decoding a
   missing field yields the default (`codecs/OptionalFieldCodec.java:30-33`), so a save written before the field

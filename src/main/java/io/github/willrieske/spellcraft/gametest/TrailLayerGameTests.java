@@ -12,8 +12,10 @@ import static io.github.willrieske.spellcraft.gametest.TrailGameTests.trailFire;
 import static io.github.willrieske.spellcraft.gametest.TrailGameTests.trailOf;
 import static io.github.willrieske.spellcraft.gametest.TrailGameTests.trailingPlayer;
 
+import io.github.willrieske.spellcraft.spell.rules.Trail;
 import io.github.willrieske.spellcraft.trailing.TrailFires;
 import io.github.willrieske.spellcraft.trailing.TrailLayer;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -23,6 +25,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
@@ -110,30 +113,49 @@ public final class TrailLayerGameTests {
         player.setOnGround(true);
     }
 
-    /** The same player in another level starts a fresh observation: the overworld spot is never lit from there. */
+    /**
+     * The same player in another level starts a fresh observation. The Nether cell at A's (absolute) coordinates is
+     * made able to take a flame, so without the reset the first Nether observation would return A's coordinates and
+     * light that cell: it must stay dark and unowned, and the Nether trail must hold B alone.
+     */
     static void g28DimensionChangeResets(GameTestHelper helper) {
         ServerLevel nether = helper.getLevel().getServer().getLevel(Level.NETHER);
         if (nether == null) {
             throw helper.assertionException("no Nether on the GameTest server: move G28 to the playtest");
         }
         floors(helper);
-        ServerPlayer player = trailingPlayer(helper);
-        standAt(helper, player, A, true);
-        for (BlockPos spot : new BlockPos[] {NETHER_B, NETHER_C}) {
-            nether.setBlock(spot.below(), Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
-            nether.setBlock(spot, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
-        }
-        standInNether(player, nether, NETHER_B);
-        helper.assertValueEqual(player.level().dimension(), Level.NETHER, "setup: the player is in the Nether");
-        standInNether(player, nether, NETHER_C);
+        BlockPos absA = helper.absolutePos(A);
+        helper.assertTrue(nether.isInValidBounds(absA), "setup: A's coordinates are inside the Nether's build limits");
+        BlockState netherAWas = nether.getBlockState(absA);
+        BlockState netherBelowAWas = nether.getBlockState(absA.below());
         TrailFires netherLedger = TrailFires.of(nether);
+        ServerPlayer player = trailingPlayer(helper);
         try {
+            for (BlockPos spot : new BlockPos[] {absA, NETHER_B, NETHER_C}) {
+                nether.setBlock(spot.below(), Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
+                nether.setBlock(spot, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+            }
+            standAt(helper, player, A, true);
+            standInNether(player, nether, NETHER_B);
+            helper.assertValueEqual(player.level().dimension(), Level.NETHER, "setup: the player is in the Nether");
+            standInNether(player, nether, NETHER_C);
+            helper.assertValueEqual(netherLedger.ownerOf(absA), Optional.empty(), "owner of A's cell in the Nether");
+            helper.assertFalse(nether.getBlockState(absA).is(trailFire()), "A's cell in the Nether stays dark");
             helper.assertBlockNotPresent(trailFire(), A);
             helper.assertTrue(nether.getBlockState(NETHER_B).is(trailFire()), "B is lit in the Nether");
             helper.assertValueEqual(netherLedger.ownerOf(NETHER_B), Optional.of(player.getUUID()), "owner of B");
+            helper.assertValueEqual(
+                    netherLedger.entries().stream()
+                            .filter(entry -> entry.owner().equals(player.getUUID()))
+                            .map(TrailFires.Entry::flames)
+                            .findFirst(),
+                    Optional.of(List.of(new Trail.Flame(NETHER_B.asLong(), false))),
+                    "the player's Nether trail holds B alone");
         } finally {
             netherLedger.forget(player.getUUID());
             nether.setBlock(NETHER_B, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+            nether.setBlock(absA, netherAWas, Block.UPDATE_ALL);
+            nether.setBlock(absA.below(), netherBelowAWas, Block.UPDATE_ALL);
         }
         forget(helper, player);
         helper.succeed();

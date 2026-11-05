@@ -179,6 +179,13 @@ public final class TrailGameTests {
                 .findFirst();
     }
 
+    /** Writes {@code ledger} with its codec and reads it back. */
+    private static TrailFires roundTrip(TrailFires ledger) {
+        Tag saved =
+                TrailFires.CODEC.codec().encodeStart(NbtOps.INSTANCE, ledger).getOrThrow();
+        return TrailFires.CODEC.codec().parse(NbtOps.INSTANCE, saved).getOrThrow();
+    }
+
     // --- tests ---------------------------------------------------------------------------------------------------
 
     static void g1LightsTheBlockLeft(GameTestHelper helper) {
@@ -268,7 +275,10 @@ public final class TrailGameTests {
         helper.succeed();
     }
 
-    /** Puts the owner on a team, so it runs alone in the {@code team_mutation} batch and removes the team after. */
+    /**
+     * Puts the owner on a team, so it runs in the {@code team_mutation} batch (shared with G23; both bodies are
+     * synchronous, so neither sees the other's team) and removes the team after.
+     */
     static void g7SparesOwnerAndAllies(GameTestHelper helper) {
         floors(helper);
         ServerPlayer owner = trailingPlayer(helper);
@@ -395,25 +405,64 @@ public final class TrailGameTests {
         helper.succeed();
     }
 
+    /**
+     * A ledger of its own with two owners and two stale flames survives the codec. Then Y lights A, which X's trail
+     * still lists, and B, where X has a stale flame: the index says Y, so the save keeps both spots under Y only and
+     * the reloaded index still says Y.
+     */
     static void g12CodecRoundTrip(GameTestHelper helper) {
+        floors(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos a = helper.absolutePos(A);
+        BlockPos b = helper.absolutePos(B);
         UUID x = UUID.randomUUID();
-        UUID y = UUID.randomUUID();
-        TrailFires.Entry xTrail =
-                new TrailFires.Entry(x, List.of(new Trail.Flame(10L, false), new Trail.Flame(11L, true)), 7);
+        // No effect, so the player's own ticks lay nothing in the level's ledger.
+        ServerPlayer yPlayer = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        UUID y = yPlayer.getUUID();
+        Trail.Flame x10 = new Trail.Flame(10L, false);
+        Trail.Flame x11 = new Trail.Flame(11L, true);
+        TrailFires.Entry xTrail = new TrailFires.Entry(x, List.of(x10, new Trail.Flame(a.asLong(), false), x11), 7);
         TrailFires.Entry yTrail = new TrailFires.Entry(y, List.of(new Trail.Flame(20L, true)), 33);
         TrailFires.StaleFlame xStale = new TrailFires.StaleFlame(x, 30L);
-        TrailFires original = new TrailFires(List.of(xTrail, yTrail), List.of(xStale));
-        Tag saved =
-                TrailFires.CODEC.codec().encodeStart(NbtOps.INSTANCE, original).getOrThrow();
-        TrailFires loaded =
-                TrailFires.CODEC.codec().parse(NbtOps.INSTANCE, saved).getOrThrow();
+        TrailFires.StaleFlame xStaleAtB = new TrailFires.StaleFlame(x, b.asLong());
+        TrailFires.StaleFlame xStaleLast = new TrailFires.StaleFlame(x, 31L);
+        TrailFires original = new TrailFires(List.of(xTrail, yTrail), List.of(xStale, xStaleAtB, xStaleLast));
+        TrailFires loaded = roundTrip(original);
         helper.assertValueEqual(loaded.entries(), original.entries(), "entries after the round trip");
         helper.assertValueEqual(loaded.entries(), List.of(xTrail, yTrail), "entries as written");
-        helper.assertValueEqual(loaded.staleFlames(), List.of(xStale), "stale flames after the round trip");
+        helper.assertValueEqual(loaded.staleFlames(), List.of(xStale, xStaleAtB, xStaleLast), "stale flames, in order");
         helper.assertValueEqual(loaded.ownerOf(BlockPos.of(11L)), Optional.of(x), "owner of x's flame");
+        helper.assertValueEqual(loaded.ownerOf(a), Optional.of(x), "owner of x's flame at A");
         helper.assertValueEqual(loaded.ownerOf(BlockPos.of(20L)), Optional.of(y), "owner of y's flame");
         helper.assertValueEqual(loaded.ownerOf(BlockPos.of(30L)), Optional.of(x), "owner of x's stale flame");
+        helper.assertValueEqual(loaded.ownerOf(b), Optional.of(x), "owner of x's stale flame at B");
         helper.assertValueEqual(loaded.ownerOf(BlockPos.of(99L)), Optional.empty(), "owner of nothing");
+
+        // The contested spots: y lights last at A and B, so the index says y.
+        helper.assertTrue(original.light(level, yPlayer, a), "y lights A");
+        helper.assertTrue(original.light(level, yPlayer, b), "y lights B");
+        helper.assertValueEqual(original.ownerOf(a), Optional.of(y), "setup: the index gives A to y");
+        helper.assertValueEqual(original.ownerOf(b), Optional.of(y), "setup: the index gives B to y");
+        TrailFires reloaded = roundTrip(original);
+        helper.assertValueEqual(
+                reloaded.entries(),
+                List.of(
+                        new TrailFires.Entry(x, List.of(x10, x11), 7),
+                        new TrailFires.Entry(
+                                y,
+                                List.of(
+                                        new Trail.Flame(20L, true),
+                                        new Trail.Flame(a.asLong(), false),
+                                        new Trail.Flame(b.asLong(), false)),
+                                33)),
+                "A is saved under y only");
+        helper.assertValueEqual(
+                reloaded.staleFlames(), List.of(xStale, xStaleLast), "x's stale flame at B is not saved");
+        helper.assertValueEqual(reloaded.ownerOf(a), Optional.of(y), "owner of A after the reload");
+        helper.assertValueEqual(reloaded.ownerOf(b), Optional.of(y), "owner of B after the reload");
+        helper.setBlock(A, Blocks.AIR); // the level's ledger does not know these flames
+        helper.setBlock(B, Blocks.AIR);
+
         // A save from before stale flames existed has no "stale" field (an empty list is not written either).
         Tag legacy = TrailFires.CODEC
                 .codec()
@@ -519,19 +568,36 @@ public final class TrailGameTests {
         helper.succeed();
     }
 
-    /** A stale flame whose chunk is loaded goes out on the next fade tick, and the ledger forgets it. */
+    /**
+     * A stale flame whose chunk is loaded goes out on the next fade tick, and the ledger forgets it. A stale flame of
+     * X's at a spot Y relit since is dead: the sweep forgets it and leaves Y's flame burning and Y's.
+     */
     static void g19StaleFlameGoesOutWhenLoaded(GameTestHelper helper) {
         floors(helper);
+        ServerLevel level = helper.getLevel();
         ServerPlayer owner = trailingPlayer(helper);
         helper.assertTrue(light(helper, owner, A), "lit A");
         BlockPos a = helper.absolutePos(A);
         TrailFires ledger = new TrailFires(List.of(), List.of(new TrailFires.StaleFlame(owner.getUUID(), a.asLong())));
         helper.assertValueEqual(ledger.ownerOf(a), Optional.of(owner.getUUID()), "a stale flame is indexed");
-        ledger.fadeTick(helper.getLevel());
+        ledger.fadeTick(level);
         helper.assertBlockNotPresent(trailFire(), A);
         helper.assertValueEqual(ledger.ownerOf(a), Optional.empty(), "owner after the sweep");
         helper.assertTrue(ledger.isEmpty(), "the ledger is empty");
         forget(helper, owner); // the level's own entry for A
+
+        BlockPos b = helper.absolutePos(B);
+        UUID x = UUID.randomUUID();
+        // No effect, so the player's own ticks lay nothing in the level's ledger.
+        ServerPlayer y = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        TrailFires contested = new TrailFires(List.of(), List.of(new TrailFires.StaleFlame(x, b.asLong())));
+        helper.assertTrue(contested.light(level, y, b), "y relights B");
+        helper.assertValueEqual(contested.ownerOf(b), Optional.of(y.getUUID()), "setup: the index gives B to y");
+        contested.fadeTick(level);
+        helper.assertBlockPresent(trailFire(), B);
+        helper.assertValueEqual(contested.ownerOf(b), Optional.of(y.getUUID()), "y's flame is still y's");
+        helper.assertValueEqual(contested.staleFlames(), List.of(), "x's stale entry is gone");
+        helper.setBlock(B, Blocks.AIR); // the level's ledger does not know this flame
         helper.succeed();
     }
 }
