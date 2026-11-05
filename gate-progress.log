@@ -34,3 +34,4 @@ b289f62 fix pass (post-plan): build green 137 unit tests; runGameTestServer 60 r
 1055152 task 2: TrailTracker; unit tests green (TrailTrackerTest 7, properties 2, ArchUnit 3)
 be82cf0 task 3: Trail; unit tests green (+17 JUnit, +5 jqwik); PIT 97% (150/154), line coverage 96% (168/175), no new survivors
 edfe635 task 4: spell wiring; build green 173 unit tests; icon tests 6 OK; runGameTestServer all 68 required passed
+a1e745d task 5: trail fire block + TrailFires ledger; build green 173 unit tests; runGameTestServer all 79 required passed; runData green
