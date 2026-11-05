@@ -38,3 +38,5 @@ a1e745d task 5: trail fire block + TrailFires ledger; build green 173 unit tests
 1448fe0 task 6: TrailLayer; build green 173 unit tests; runGameTestServer all 84 required passed
 f3de410 task 7: docs, 1.2.0, playtest checklist; build green 173 unit tests; runGameTestServer all 84 required passed; runData ok; icon tests 6 ok
 b1daf6f fix pass (post-plan): deferred Minor findings from Tasks 1, 3, 5, 6; build green 175 unit tests; runGameTestServer all 85 required passed
+57b5b31 review fixes (pure-core tests): build green 182 unit tests; pitest 150/154 killed, no Trail/TrailTracker survivor
+ce45fc4 review fixes (ce6cc82 stand-in cell, 9fdf636 stale flames, ce45fc4 lifecycle/edge-case/save-wiring tests): build green 182 unit tests; runGameTestServer all 99 required passed; runData ok

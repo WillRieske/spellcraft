@@ -190,9 +190,13 @@ twice, the last non-empty trail wins, only its flames are indexed, and a warning
 - `ownerOf(BlockPos) → Optional<UUID>`; `isSpared(ServerLevel, BlockPos, Entity)`: true when
   the entity's UUID is the owner, or the owner is online in this level and
   `owner.isAlliedTo(entity)`. An offline owner spares only themself (their pets burn until
-  they return: accepted). An entity with no team that is not an `OwnableEntity` cannot be
-  allied to anyone, so the owner lookup (a scan of the level's players) is skipped for it;
-  this runs every tick for every entity standing in a flame.
+  they return: accepted). An entity with no team that is neither an `OwnableEntity` nor an
+  allay (vanilla allies an allay to the player it likes, `Allay.considersEntityAsAlly`) cannot
+  be allied to anyone, so the owner lookup (a scan of the level's players) is skipped for it;
+  this runs every tick for every entity standing in a flame. A modded entity with its own
+  ally rule for players would be missed by this fast path (documented in the Javadoc).
+- `forget(UUID owner)`: drops the owner's trail and its index entries without touching any
+  block. GameTest support only (each test cleans its own ledger entries).
 
 **`TrailLayer`** (`@EventBusSubscriber`, game bus):
 
@@ -294,11 +298,12 @@ Trail (driven through the public `track`/fade entry points, all synchronous):
 | G6 | `maxTrailBlocks = 2` (config batch), three flames | the first is gone immediately, the other two stand |
 | G7 | The owner (on a team), a zombie on the same team and a zombie on no team each run `entityInside` on the flame | the stranger zombie ignited and hurt; the owner and teammate untouched |
 | G7b | A tamed wolf of an owner with no team runs `entityInside` | untouched (the tame path alone spares it) |
+| G7c | An allay that likes the owner (no teams) runs `entityInside` | untouched (vanilla `Allay.considersEntityAsAlly`; guards the `isSpared` fast path) |
 | G8 | A second, unallied player runs `entityInside` | ignited and hurt |
-| G9 | Flame placed by `setBlock` (no owner), `randomTick` | removed; an owned flame's `randomTick` leaves it and its neighbors (planks, TNT) unchanged |
+| G9 | Flame placed by `setBlock` (no owner), `randomTick` | removed; an owned flame's `randomTick` leaves it standing (its neighbors are G25's check) |
 | G10 | Owned flame, remove the block below; a flame set where nothing supports it | the flame is gone; the unsupported flame removes itself at once (`onPlace`) |
 | G11 | Effect removed, then the player moves; effect re-added, two more moves | no flame at the old spots; the first new departure after re-adding lights nothing, the next lights its block |
-| G12 | `TrailFires` with two owners, codec round trip | equal trails, countdowns and index |
+| G12 | `TrailFires` with two owners and one stale flame, codec round trip | equal trails, countdowns, stale flames and index; a save without `stale` loads with none |
 | G13 | Flames at A and B, player walks A→B→A→B | A and B each lit once, same owner, two flames in the trail |
 | G14 | X's flame at A put out by hand, Y relights A, X's turn comes | A still burns and is Y's; it fades on Y's turn |
 | G15 | Lighting over grass, over an own flame, on a fence top, on vanilla soul fire, in water | only the grass spot is lit; the owner's trail holds one flame |
@@ -308,7 +313,7 @@ Trail (driven through the public `track`/fade entry points, all synchronous):
 | G19 | A stale flame at a lit, loaded spot (ledger rebuilt with it in `stale`); one `fadeTick` | the block is removed, `ownerOf` is empty, the ledger is empty |
 | G20 | Trailing player grounded at A; `onLogout` with a `PlayerLoggedOutEvent` for them; they stand at B, then C | A stays dark (the tracker was dropped); B lights |
 | G21 | Same with `onServerStopped` for the test server | A stays dark; B lights |
-| G22 | Trailing player grounded at a far, unloaded position X, then moves to A | X is not lit and `level.isLoaded(X)` is still false; `ownerOf(X)` is empty |
+| G22 | Trailing player grounded at a far, unloaded position X, then moves to A (the player is a discarded mock: NeoForge's `Entity.setPosRaw` loads the chunk any in-level entity moves into, so a live one cannot stand in an unloaded chunk) | X is not lit and `level.isLoaded(X)` is still false; `ownerOf(X)` is empty |
 | G23 | Owner on a team lights A and is discarded (offline); a zombie on the same team runs `entityInside` | the zombie burns (allies of an offline owner are not spared) |
 | G24 | Owner lights A, the effect is removed, the owner runs `entityInside` on A | untouched (the owner stays spared after the effect ends) |
 | G25 | Owned flame beside oak planks and TNT; the flame's `tick` and `randomTick` run, then a few level ticks pass | planks and TNT unchanged, no fire anywhere else (no spread, nothing scheduled) |
