@@ -30,7 +30,7 @@ fades trails and remembers who owns each flame.
 | **Trail** | One player's flames, oldest first, plus the countdown until the oldest fades. |
 | **Owner** | The player who laid a flame. Known for every flame the world remembers. |
 | **Orphan** | A trail fire block with no owner (placed by `/setblock`, or left after lost data). |
-| **Stale flame** | A flame whose turn to fade came while its chunk was unloaded. The ledger keeps its owner and puts it out the next tick its chunk is loaded. |
+| **Stale flame** | A flame whose turn to fade came while its chunk was not ready. The ledger keeps its owner and puts it out the next tick its chunk is ready (`getChunkNow` returns it). |
 | **Spared** | What a flame does for its owner and the owner's allies: `entityInside` applies no fire and no damage to them (`TrailFires.isSpared`). |
 | **Ally** | What vanilla's `Entity.isAlliedTo` says: the same scoreboard team, or a tamed animal whose owner is (allied to) the player. |
 | **Fuse** | How a trail behaves: the oldest flame goes out first, the rest wait their turn. |
@@ -212,8 +212,9 @@ older owner.
 
 - `PlayerTickEvent.Post`, server players only: with the effect, fetch or create the player's
   `TrailTracker` (reset when the player's level changed since last tick), `observe`, and
-  `light` what it returns if that block's chunk is loaded (after a long teleport it may not
-  be; no chunk is force-loaded to lay a flame). Without the effect, drop the tracker. Trackers
+  `light` what it returns if that block's chunk is ready (`TrailFires.isReady`, the same
+  `getChunkNow` test the ledger uses; after a long teleport it may not be; no chunk is loaded
+  or waited on to lay a flame). Without the effect, drop the tracker. Trackers
   live in a static map keyed by UUID, removed on `PlayerLoggedOutEvent` and cleared on
   `ServerStoppedEvent`; they are transient by design (the next tick after a relog starts a
   fresh observation).
@@ -238,9 +239,10 @@ older owner.
 | Two trailing players share a tile over time | The second to arrive lights nothing while the first flame burns; after it fades, the next departure lights it under the new owner. |
 | Dimension change | The tracker resets, so the first position in the new level is not lit. |
 | Spectator mode | Never grounded, so no flames. |
-| The block just left is in an unloaded chunk (long teleport) | Not lit; nothing is force-loaded to lay a flame. |
+| The block just left is in a chunk that is not ready (long teleport) | Not lit; nothing is loaded or waited on to lay a flame. |
 | Config `maxTrailBlocks` lowered while a trail is longer | The next `light` trims to the new value. |
-| A flame's turn to fade comes while its chunk is unloaded | It becomes a stale flame: out of the trail, still owned, put out the next tick its chunk is loaded. The trail's fuse keeps burning meanwhile. |
+| A flame's turn to fade comes while its chunk is not ready | It becomes a stale flame: out of the trail, still owned, put out the next tick its chunk is ready. The trail's fuse keeps burning meanwhile. |
+| A reload after a trail's oldest flame went dead (relit by another owner) | The save drops the dead entry, so the countdown saved for it now applies to the next flame (clamped to that flame's delay): the trail may fade one turn early. Accepted. |
 | Orphan flame | Burns everyone; removed on its next random tick (about a minute on average at the default `randomTickSpeed`; with the gamerule at 0 it stays until broken by hand or water). Orphans come only from `/setblock`, world-editing tools or a lost ledger. |
 | `/setblock spellcraft:trail_fire` by hand | An orphan: see above. Useful for testing the look. |
 
@@ -248,10 +250,10 @@ older owner.
 
 | Risk | Handling |
 |---|---|
-| Beta API drift | Plan task 1 re-checks every hook used here against `build/mc-src` and `build/nf-src` and records it in `docs/api-notes.md` §18: `BaseFireBlock` hooks and `fireIgnite`, `SoulFireBlock.canSurvive`, `FireBlock.tick` as the TNT path, `BlockTags.FIRE` users, `ChunkSectionLayer.byTransparency`, `Level` as an attachment holder with always-dirty saving and the serialize predicate, `LevelTickEvent.Post`, `PlayerTickEvent.Post`, `ServerStoppedEvent`, `Entity.isAlliedTo`, `TamableAnimal.considersEntityAsAlly` and `getTeam`, `Entity.onGround`/`isPassenger`/`isSpectator`/`blockPosition`, `Level.isLoaded`, `BlockState.entityInside`/`randomTick` entry points for tests. |
+| Beta API drift | Plan task 1 re-checks every hook used here against `build/mc-src` and `build/nf-src` and records it in `docs/api-notes.md` §18: `BaseFireBlock` hooks and `fireIgnite`, `SoulFireBlock.canSurvive`, `FireBlock.tick` as the TNT path, `BlockTags.FIRE` users, `ChunkSectionLayer.byTransparency`, `Level` as an attachment holder with always-dirty saving and the serialize predicate, `LevelTickEvent.Post`, `PlayerTickEvent.Post`, `ServerStoppedEvent`, `Entity.isAlliedTo`, `TamableAnimal.considersEntityAsAlly` and `getTeam`, `Entity.onGround`/`isPassenger`/`isSpectator`/`blockPosition`, `Level.isLoaded` versus `ServerChunkCache.getChunkNow` (ready, not merely ticketed), NeoForge's `Entity.setPosRaw` chunk load, `Allay.considersEntityAsAlly`, `AttachmentHolder.serializeAttachments`, `BlockState.entityInside`/`randomTick` entry points for tests. |
 | Corrupt or missing attachment | The codec default is an empty `TrailFires`; flames already in the world become orphans and clean themselves up. Never crash a level load. |
 | Config out of range | NeoForge range checks (table in §2). |
-| A flame's chunk is unloaded when it should fade | The flame becomes stale (§4): it keeps its owner in the index and is put out by the sweep the next tick its chunk is ready (`getChunkNow`). Nothing is force-loaded or waited on: the fuse burns from the far end, which after half a minute of running sits in chunks nobody is in, and an offline owner's whole trail fades out of sight, so synchronous loads were not rare. Decided against dropping the ledger entry: that would leave an ownerless flame that burns everyone, the owner included, until a random tick. |
+| A flame's chunk is not ready when it should fade | The flame becomes stale (§4): it keeps its owner in the index and is put out by the sweep the next tick its chunk is ready (`getChunkNow`). Nothing is force-loaded or waited on: the fuse burns from the far end, which after half a minute of running sits in chunks nobody is in, and an offline owner's whole trail fades out of sight, so synchronous loads were not rare. Decided against dropping the ledger entry: that would leave an ownerless flame that burns everyone, the owner included, until a random tick. |
 | Corrupt save lists an owner twice | The last non-empty trail wins; a warning names the owner so an operator can explain orphan flames in the log. |
 
 ## 6. Testing
