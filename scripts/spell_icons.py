@@ -1,7 +1,7 @@
 """Write every spell's icons from one glyph per spell. Stdlib only.
 
 - Scroll item (16x16): the glyph at 1x on a diagonal parchment sheet (same silhouette as the vanilla paper item).
-- Effect icon (18x18): the glyph at 2x, centred.
+- Effect icon (18x18): the glyph at 2x, centered.
 
 Original art: nothing is copied from Minecraft's textures.
 
@@ -61,19 +61,19 @@ class Spell:
 SPELLS = (
     Spell(
         "upside_down",
-        (127, 90, 240, 255),  # purple, as the effect colour 0x7F5AF0
+        (127, 90, 240, 255),  # purple, as the effect color 0x7F5AF0
         ("..##..", "..##..", "..##..", "..##..", "######", ".####.", "..##.."),
         (5, 4),
     ),
     Spell(
         "infinity",
-        (214, 150, 20, 255),  # gold, as the effect colour 0xD69614
+        (214, 150, 20, 255),  # gold, as the effect color 0xD69614
         (".##.##.", "#..#..#", "#..#..#", ".##.##."),
         (5, 6),
     ),
     Spell(
         "trailing",
-        (79, 212, 230, 255),  # soul-fire blue, as the effect colour 0x4FD4E6
+        (79, 212, 230, 255),  # soul-fire blue, as the effect color 0x4FD4E6
         (
             "....#..",
             "...##..",

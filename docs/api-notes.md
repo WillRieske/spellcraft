@@ -247,9 +247,11 @@ Verified 2026-11-04 against the same unpacked sources.
   survive. Fire damage 2.0 (`:14`).
 - `Blocks.java:1368-1379` `SOUL_FIRE` properties: `mapColor(COLOR_LIGHT_BLUE)`, `replaceable()`, `noCollision()`,
   `instabreak()`, `lightLevel(state -> 10)`, `sound(SoundType.WOOL)`, `pushReaction(PushReaction.POPPED)`.
-- TNT by fire: the only vanilla path is `FireBlock.java:235` `oldState.onCaughtFire(...)` inside the fire's
-  scheduled tick (`checkBurnOut`); `TntBlock.java:46,54` ignite only on `hasNeighborSignal`. A fire block with no
-  scheduled tick never ignites TNT and never spreads.
+- TNT by fire: the only path from a fire block is `FireBlock.java:235` `oldState.onCaughtFire(...)` inside the
+  fire's scheduled tick (`checkBurnOut`). TNT's other ignition paths involve no fire block: redstone
+  (`TntBlock.java:46,54` `hasNeighborSignal`), breaking unstable TNT (`:62`), flint and steel or a fire charge
+  (`:109`) and burning projectiles (`:134`). A fire block with no scheduled tick never ignites TNT and never
+  spreads; a burning arrow shot by a mob standing in a flame still can, as in vanilla.
 - `BlockTags.FIRE` users (`grep -rn "BlockTags.FIRE\b" build/mc-src`): `NodeEvaluator.java:99` (mobs path
   around it), `AbstractThrownPotion.java:124` (water bottles extinguish), `FallingBlock.java:60`,
   `PortalShape.java:167`, `Cushion.java:130`, `ShearsItem.java:54`, `PistonBaseBlock.java:284`,

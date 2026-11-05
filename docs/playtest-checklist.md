@@ -4,7 +4,7 @@ Run `powershell -ExecutionPolicy Bypass -File scripts\Deploy-TestEnv.ps1` (check
 *Scroll of Upside-Down* from the Tools & Utilities tab. Tick each item; record anything odd
 under **Findings** with what you did and what you saw.
 
-Config used below (all in one place): for the mid-roll items set the client config `transitionSeconds = 10` (the sideways point then lasts several seconds; at the default 1 s it is gone in half a second). For the "run out" item set the server config `durationSeconds` low. Restore the defaults afterwards (`transitionSeconds = 1.0`, `durationSeconds = 180`).
+Config used below (all in one place): for the mid-roll items set the client config `transitionSeconds = 10` (the sideways point then lasts several seconds; at the default 1 s it is gone in half a second). For the "run out" item set the server config `durationSeconds` low. Restore the defaults afterwards (`transitionSeconds = 1.0`, `durationSeconds = 180`). The Trailing section names its own server settings (`trailing.durationSeconds`, default 480; `trailing.maxTrailBlocks`, default 1024) where it uses them.
 
 ## Cast and roll
 
@@ -112,8 +112,12 @@ Use a **Survival** world with open ground. `/give @s spellcraft:trailing_scroll`
 - [ ] Walk through a nether portal with the effect on: no flame appears on arrival, and none on the portal block itself; the first ordinary block you step off in the new dimension lights; the same coming back.
 - [ ] Sneak + right-click with a second scroll: the effect ends; the trail keeps fading on its own.
 - [ ] Drink milk: the effect ends the same way.
+- [ ] Recast while the effect is on (right-click a second scroll without sneaking): the HUD countdown resets to 8:00 and the second scroll is used up; the existing trail keeps fading.
+- [ ] Scribe paper with one lapis a few times: a Scroll of Trailing comes up among the results.
+- [ ] Server config `trailing.maxTrailBlocks = 5`, then walk a line: only the last five flames stand at any time. Restore 1024.
+- [ ] Server config `trailing.durationSeconds = 20`: the effect ends after 20 s and the trail keeps fading afterwards. Restore 480.
 - [ ] Quit to title mid-trail and rejoin: the trail is still there and keeps fading; walking back through it is still safe.
-- [ ] `/setblock ~ ~ ~ spellcraft:trail_fire`: it looks like soul fire and burns you (no owner); it disappears by itself within a minute or two.
+- [ ] `/setblock ~ ~ ~ spellcraft:trail_fire`: it looks like soul fire and burns you (no owner); it disappears by itself on a random tick (about a minute on average at the default `randomTickSpeed`, sometimes much longer; `/gamerule randomTickSpeed 100` makes it seconds).
 - [ ] Mods > Spellcraft > Config: the `trailing` section shows "Duration (seconds)" and "Most flames per trail".
 
 ## Real profile
