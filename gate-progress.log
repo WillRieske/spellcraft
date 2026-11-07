@@ -42,3 +42,5 @@ b1daf6f fix pass (post-plan): deferred Minor findings from Tasks 1, 3, 5, 6; bui
 ce45fc4 review fixes (ce6cc82 stand-in cell, 9fdf636 stale flames, ce45fc4 lifecycle/edge-case/save-wiring tests): build green 182 unit tests; runGameTestServer all 99 required passed; runData ok
 d13c1a2 follow-up review fixes (owned-only save, ready-chunk test, G28/G12/G19 strengthened): build green 182 unit tests; runGameTestServer all 99 required passed; runData ok
 da0bed5 final review fixes (G28 cleanup, Javadoc, spec wording): build green 182 unit tests; runGameTestServer BUILD SUCCESSFUL (99 required)
+ecbddda Evoking Task 1 (api-notes §19): docs only; markdownlint clean; review clean after 1 fix round
+4de8448 Evoking Task 2 (EvokerSpell, EvokingCast): EvokerSpellTest 3, EvokingCastTest 15, EvokingCastPropertiesTest 2, ArchitectureTest 3 green; build green via gate; review clean after 1 fix round
