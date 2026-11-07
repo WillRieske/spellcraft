@@ -22,6 +22,7 @@ import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.item.ItemStack;
@@ -79,6 +80,20 @@ public final class GameTestSupport {
         TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, entity.registryAccess());
         entity.save(output);
         return output.buildResult();
+    }
+
+    /**
+     * Saves {@code entity} and loads the save into a fresh entity of the same type, as a chunk load does: the copy
+     * keeps the UUID, the attributes and the serialized data attachments. The copy is created, not added to the
+     * level, so discard the original before adding it.
+     */
+    public static Entity reloaded(ServerLevel level, Entity entity) {
+        return EntityType.create(
+                        entity.getType(),
+                        TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), saved(entity)),
+                        level,
+                        EntitySpawnReason.LOAD)
+                .orElseThrow(() -> new IllegalStateException("could not reload " + entity.getType()));
     }
 
     /**

@@ -56,6 +56,7 @@ public final class SpellcraftGameTests {
         EvokingGameTests.registerAll();
         AlliesGameTests.registerAll();
         FangGameTests.registerAll();
+        VexGameTests.registerAll();
     }
 
     private SpellcraftGameTests() {}
