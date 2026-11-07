@@ -18,6 +18,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.EntityTypes;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -31,7 +32,7 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class EvokingCaster {
-    /** What a request did. Only {@code STARTED} changes anything. */
+    /** What a request did. Only {@code STARTED} starts a cast. */
     public enum Request {
         /** No Evoking, dead, or a spectator. */
         IGNORED,
@@ -41,12 +42,17 @@ public final class EvokingCaster {
         COOLING,
         /** Fangs with nothing to bite: only the notice, one warmup later. */
         NO_TARGETS,
+        /** Vexes on Peaceful, where vanilla refuses to create one: only the notice, at once; no cast, no cooldown. */
+        PEACEFUL,
         /** The cast started. */
         STARTED
     }
 
     /** Lang key of the action-bar notice. */
     public static final String NO_TARGETS_KEY = "message.spellcraft.no_targets";
+
+    /** Lang key of the notice for a vex request on Peaceful. */
+    public static final String PEACEFUL_KEY = "message.spellcraft.peaceful_vexes";
 
     /** One player's timers and, for a pending fang cast, the snapshot taken at the press. */
     private static final class Casting {
@@ -60,8 +66,9 @@ public final class EvokingCaster {
 
     /**
      * Handles one key press for {@code spell} (spec §4): ignored without Evoking, while dead or as a spectator;
-     * refused silently while busy or cooling; for fangs, scans for targets and schedules only the notice when there
-     * are none; otherwise starts the cast (prepare sound, casting effect, timers).
+     * refused silently while busy or cooling; for vexes on Peaceful, where no vex can be created, sends the notice
+     * at once and starts nothing; for fangs, scans for targets and schedules only the notice when there are none;
+     * otherwise starts the cast (prepare sound, casting effect, timers).
      *
      * @param player the server-side player who pressed the key
      * @param spell the spell whose key was pressed
@@ -80,6 +87,10 @@ public final class EvokingCaster {
         }
         if (readiness == Readiness.COOLING) {
             return Request.COOLING;
+        }
+        if (spell == EvokerSpell.VEXES && !EntityTypes.VEX.canSpawn(level)) {
+            player.sendOverlayMessage(Component.translatable(PEACEFUL_KEY));
+            return Request.PEACEFUL;
         }
         if (spell == EvokerSpell.FANGS) {
             Optional<Fangs.Snapshot> snapshot = Fangs.snapshot(level, player);

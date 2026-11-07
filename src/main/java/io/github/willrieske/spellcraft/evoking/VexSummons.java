@@ -64,6 +64,8 @@ public final class VexSummons {
             BlockPos pos = feet.offset(offset.dx(), 1, offset.dz());
             Vex vex = EntityTypes.VEX.create(level, EntitySpawnReason.MOB_SUMMONED);
             if (vex == null) {
+                // Peaceful: vanilla refuses to create a vex. EvokingCaster.request turns the press away first with a
+                // notice, so this is only a guard for another caller.
                 continue;
             }
             vex.snapTo(pos, 0.0F, 0.0F);

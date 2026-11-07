@@ -19,8 +19,10 @@ import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
@@ -74,6 +76,8 @@ public final class VexGameTests {
         FangGameTests.addPadded(SHARED, "vexes_e18_armor_stand", VexGameTests::e18ArmorStand);
         SpellcraftGameTests.add("team_mutation", "vexes_prey_rule", VexGameTests::preyRule);
         FangGameTests.addPadded(SHARED, "vexes_target_recheck", VexGameTests::targetRecheck);
+        // Sets the server difficulty, which is global, so it runs alone in its own batch.
+        FangGameTests.addPadded("peaceful", "vexes_peaceful_notice", VexGameTests::peacefulNotice);
     }
 
     /** Every vex within 14 blocks of {@code center} in {@code level}. */
@@ -404,6 +408,43 @@ public final class VexGameTests {
                 .thenExecute(
                         () -> helper.assertTrue(vex.getTarget() == null, "the tamed wolf is dropped as the target"))
                 .thenSucceed();
+    }
+
+    /**
+     * When a player presses V on Peaceful, should send the notice at once, start no cast (no casting effect, no vex
+     * after the warmup) and not use up the cooldown: on Normal the same player's next press starts.
+     *
+     * <p>Method under test: {@link EvokingCaster#request}
+     *
+     * <p>Sets the server difficulty, which is global, so it runs alone in the {@code peaceful} batch; the difficulty
+     * is restored through {@code whenDone}.
+     */
+    static void peacefulNotice(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        discardLeftoverVexes(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        Difficulty saved = helper.getLevel().getDifficulty();
+        whenDone(helper, () -> server.setDifficulty(saved, true));
+        server.setDifficulty(Difficulty.PEACEFUL, true);
+        GameTestSupport.drainActionBar(player);
+
+        // Act
+        Request request = EvokingCaster.request(player, EvokerSpell.VEXES);
+
+        // Assert
+        helper.assertValueEqual(request, Request.PEACEFUL, "request");
+        GameTestSupport.assertActionBarKey(helper, player, EvokingCaster.PEACEFUL_KEY);
+        helper.assertFalse(player.hasEffect(ModEffects.CASTING_VEXES), "no casting effect");
+        helper.runAfterDelay(WARMUP, () -> {
+            FangGameTests.step(player);
+            helper.assertTrue(
+                    vexesAround(helper.getLevel(), helper.absolutePos(FEET)).isEmpty(), "no vex was summoned");
+            server.setDifficulty(Difficulty.NORMAL, true);
+            helper.assertValueEqual(
+                    EvokingCaster.request(player, EvokerSpell.VEXES), Request.STARTED, "no cooldown was spent");
+            helper.succeed();
+        });
     }
 
     /**

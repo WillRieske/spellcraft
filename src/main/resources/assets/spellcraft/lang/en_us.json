@@ -12,6 +12,7 @@
   "block.spellcraft.trail_fire": "Trail Fire",
   "message.spellcraft.scroll_not_needed": "Scroll not needed; already have effect!",
   "message.spellcraft.no_targets": "No targets in range",
+  "message.spellcraft.peaceful_vexes": "Vexes cannot be summoned on Peaceful",
 
   "spellcraft.configuration.title": "Spellcraft Configs",
   "spellcraft.configuration.section.spellcraft.server.toml": "Spellcraft Server Configs",
