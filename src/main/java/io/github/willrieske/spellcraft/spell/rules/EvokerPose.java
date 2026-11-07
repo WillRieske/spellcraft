@@ -34,7 +34,13 @@ public final class EvokerPose {
 
     private EvokerPose() {}
 
-    /** The illager spellcasting pose at {@code ageInTicks} for the right ({@code true}) or left arm. */
+    /**
+     * The illager spellcasting pose at {@code ageInTicks} for the right ({@code true}) or left arm.
+     *
+     * @param ageInTicks the model's age in ticks, including the partial tick
+     * @param rightArm true for the right arm, false for the left
+     * @return the arm's rotation in radians
+     */
     public static ArmRotation armRotation(float ageInTicks, boolean rightArm) {
         float sway = (float) Math.cos(ageInTicks * SWAY_RATE) * ARM_SWAY;
         return new ArmRotation(sway, 0.0F, rightArm ? ARM_RAISE : -ARM_RAISE);
@@ -43,6 +49,10 @@ public final class EvokerPose {
     /**
      * Where one hand particle sits when the body faces {@code bodyYawDegrees} at {@code tick}; the other hand is
      * {@code (-dx, -dz)}. Multiply by the entity's scale.
+     *
+     * @param bodyYawDegrees the body's yaw in degrees
+     * @param tick the age in ticks that drives the sway
+     * @return the offset of one hand particle from the body center
      */
     public static HandOffset handOffset(float bodyYawDegrees, int tick) {
         double angle = Math.toRadians(bodyYawDegrees) + Math.cos(tick * SWAY_RATE) * ARM_SWAY;

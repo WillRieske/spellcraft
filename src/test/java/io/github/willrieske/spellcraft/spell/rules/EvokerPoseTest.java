@@ -58,8 +58,8 @@ class EvokerPoseTest {
             // Act
             HandOffset hand = EvokerPose.handOffset(0.0F, 0);
             // Assert
-            assertThat(hand.dx()).isCloseTo(Math.cos(angle) * 0.6, within(1e-6));
-            assertThat(hand.dz()).isCloseTo(Math.sin(angle) * 0.6, within(1e-6));
+            assertThat(hand.dx()).isCloseTo(Math.cos(angle) * EvokerPose.HAND_DISTANCE, within(1e-6));
+            assertThat(hand.dz()).isCloseTo(Math.sin(angle) * EvokerPose.HAND_DISTANCE, within(1e-6));
         }
 
         /**
@@ -74,8 +74,8 @@ class EvokerPoseTest {
             // Act
             HandOffset hand = EvokerPose.handOffset(90.0F, 7);
             // Assert
-            assertThat(hand.dx()).isCloseTo(Math.cos(angle) * 0.6, within(1e-6));
-            assertThat(hand.dz()).isCloseTo(Math.sin(angle) * 0.6, within(1e-6));
+            assertThat(hand.dx()).isCloseTo(Math.cos(angle) * EvokerPose.HAND_DISTANCE, within(1e-6));
+            assertThat(hand.dz()).isCloseTo(Math.sin(angle) * EvokerPose.HAND_DISTANCE, within(1e-6));
             assertThat(Math.hypot(hand.dx(), hand.dz())).isCloseTo(EvokerPose.HAND_DISTANCE, within(1e-9));
         }
     }

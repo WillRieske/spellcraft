@@ -72,12 +72,22 @@ public record FangSquare(int centerDx, int centerDz) {
         return centerDz + HALF;
     }
 
-    /** Whether the cell at {@code (dx, dz)} from the caster's block lies inside the square (edges included). */
+    /**
+     * Whether the cell at {@code (dx, dz)} from the caster's block lies inside the square (edges included).
+     *
+     * @param dx blocks east of the caster's block
+     * @param dz blocks south of the caster's block
+     * @return true if the cell is inside the square
+     */
     public boolean contains(int dx, int dz) {
         return dx >= minDx() && dx <= maxDx() && dz >= minDz() && dz <= maxDz();
     }
 
-    /** Every cell but the caster's, row by row, each with its ripple delay. */
+    /**
+     * Every cell but the caster's, row by row, each with its ripple delay.
+     *
+     * @return an unmodifiable list of {@link #CELL_COUNT} cells
+     */
     public List<Cell> cells() {
         List<Cell> cells = new ArrayList<>(CELL_COUNT);
         for (int dz = minDz(); dz <= maxDz(); dz++) {

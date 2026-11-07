@@ -53,7 +53,13 @@ public final class VexRing {
         return List.copyOf(offsets);
     }
 
-    /** The spawn cell for a roll in {@code 0 … COUNT − 1}. */
+    /**
+     * The spawn cell for a roll in {@code 0 … COUNT − 1}.
+     *
+     * @param index the roll, 0 up to but not including {@link #COUNT}
+     * @return the spawn cell, relative to the caster's block
+     * @throws IllegalArgumentException if the index is outside 0 … {@code COUNT − 1}
+     */
     public static Offset offset(int index) {
         if (index < 0 || index >= COUNT) {
             throw new IllegalArgumentException("index must be 0-" + (COUNT - 1) + ", got " + index);
@@ -61,7 +67,13 @@ public final class VexRing {
         return OFFSETS.get(index);
     }
 
-    /** The evoker's life for a vex: {@code 20 · (30 + roll)} ticks, 30 s to 119 s, for a roll in {@code 0 … 89}. */
+    /**
+     * The evoker's life for a vex: {@code 20 · (30 + roll)} ticks, 30 s to 119 s, for a roll in {@code 0 … 89}.
+     *
+     * @param roll the life roll, 0 up to but not including {@link #LIFE_ROLL_BOUND}
+     * @return the vex's life in ticks
+     * @throws IllegalArgumentException if the roll is outside 0 … {@code LIFE_ROLL_BOUND − 1}
+     */
     public static int lifeTicks(int roll) {
         if (roll < 0 || roll >= LIFE_ROLL_BOUND) {
             throw new IllegalArgumentException("roll must be 0-" + (LIFE_ROLL_BOUND - 1) + ", got " + roll);
