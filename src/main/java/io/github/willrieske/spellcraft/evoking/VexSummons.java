@@ -38,7 +38,10 @@ public final class VexSummons {
 
     private static final int TARGET_GOAL_PRIORITY = 1;
 
-    /** The permanent FOLLOW_RANGE modifier {@code Mob.finalizeSpawn} adds ({@code Mob.RANDOM_SPAWN_BONUS_ID}, protected). */
+    /**
+     * The permanent FOLLOW_RANGE modifier {@code Mob.finalizeSpawn} adds ({@code Mob.RANDOM_SPAWN_BONUS_ID},
+     * protected).
+     */
     private static final Identifier RANDOM_SPAWN_BONUS_ID = Identifier.withDefaultNamespace("random_spawn_bonus");
 
     private VexSummons() {}

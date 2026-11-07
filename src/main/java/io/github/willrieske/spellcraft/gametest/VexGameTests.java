@@ -225,8 +225,8 @@ public final class VexGameTests {
      * When the only other living thing is a pig eight blocks from a summoned vex, should never take it as a target
      * over a 40-tick window (one sampled instant would prove little), and should then take
      * a pig three blocks away. The second half is the control: it shows the vex and its line of sight work out
-     * here, so the empty window is down to the range. It proves the range is below 8; the boundary itself is pinned by the
-     * effective-value assertions of E8 and E11.
+     * here, so the empty window is down to the range. It proves the range is below 8; the boundary itself is pinned by
+     * the effective-value assertions of E8 and E11.
      *
      * <p>Method under test: {@code VexSummons.install} (package-private), through the goal it builds
      */
