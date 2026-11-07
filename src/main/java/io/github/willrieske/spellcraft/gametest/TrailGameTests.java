@@ -5,6 +5,7 @@ import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARE
 
 import io.github.willrieske.spellcraft.config.ServerConfig;
 import io.github.willrieske.spellcraft.effect.ModEffects;
+import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.rules.Trail;
 import io.github.willrieske.spellcraft.trailing.ModBlocks;
 import io.github.willrieske.spellcraft.trailing.TrailFires;
@@ -28,6 +29,7 @@ import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.animal.allay.Allay;
 import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.animal.wolf.Wolf;
+import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Block;
@@ -66,6 +68,7 @@ public final class TrailGameTests {
                 "team_mutation", "trail_g7_spares_owner_and_allies", TrailGameTests::g7SparesOwnerAndAllies);
         SpellcraftGameTests.add(SHARED, "trail_g7b_spares_a_tamed_pet", TrailGameTests::g7bSparesATamedPet);
         SpellcraftGameTests.add(SHARED, "trail_g7c_spares_a_liked_allay", TrailGameTests::g7cSparesALikedAllay);
+        SpellcraftGameTests.add(SHARED, "trail_g7d_spares_a_summoned_vex", TrailGameTests::g7dSparesASummonedVex);
         SpellcraftGameTests.add(SHARED, "trail_g8_burns_an_unallied_player", TrailGameTests::g8BurnsAnUnalliedPlayer);
         SpellcraftGameTests.add(SHARED, "trail_g9_random_tick", TrailGameTests::g9RandomTick);
         SpellcraftGameTests.add(SHARED, "trail_g10_falls_with_the_ground", TrailGameTests::g10FallsWithTheGround);
@@ -318,6 +321,20 @@ public final class TrailGameTests {
         pet.tame(owner);
         stepInto(helper, A, pet);
         assertSpared(helper, pet, "the owner's pet");
+        forget(helper, owner);
+        helper.succeed();
+    }
+
+    /** A vex carrying the owner's summoner attachment has no team and no owner; only the attachment spares it. */
+    static void g7dSparesASummonedVex(GameTestHelper helper) {
+        floors(helper);
+        ServerPlayer owner = trailingPlayer(helper);
+        teleport(helper, owner, D);
+        helper.assertTrue(light(helper, owner, A), "lit A");
+        Vex vex = helper.spawn(EntityTypes.VEX, C);
+        vex.setData(AllyAttachments.SUMMONER, owner.getUUID());
+        stepInto(helper, A, vex);
+        assertSpared(helper, vex, "the owner's summoned vex");
         forget(helper, owner);
         helper.succeed();
     }

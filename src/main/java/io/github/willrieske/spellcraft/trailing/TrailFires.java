@@ -5,6 +5,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.github.willrieske.spellcraft.config.ServerConfig;
+import io.github.willrieske.spellcraft.spell.Allies;
 import io.github.willrieske.spellcraft.spell.rules.Trail;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,8 +25,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.OwnableEntity;
-import net.minecraft.world.entity.animal.allay.Allay;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
@@ -372,18 +371,10 @@ public final class TrailFires {
 
     /**
      * Whether the flame at {@code pos} spares {@code entity}: the owner, or (while the owner is online in this
-     * level) anyone the owner {@code isAlliedTo} (same team, tamed pets). An orphan spares nobody.
+     * level) anyone the owner's allies per {@link Allies} (spec 2026-11-06 section 3). An orphan spares nobody.
      *
-     * <p>Fast path, since this runs every tick for every entity in a flame: an entity with no team that is neither an
-     * {@code OwnableEntity} nor an allay cannot be allied to a player, so the owner lookup (a scan of the level's
-     * players, {@code EntityGetter.java:113-122}) is skipped. Why: {@code Entity.java:2879-2889} {@code isAlliedTo} is
-     * {@code this == other || considersEntityAsAlly(other) || other.considersEntityAsAlly(this)}, and the default
-     * {@code considersEntityAsAlly} is a team check that is false when either side has no team ({@code Team.java:17},
-     * {@code Entity.java:2887}). The vanilla overrides that ally a team-less entity to a player are
-     * {@code TamableAnimal.java:209-222} (an {@code OwnableEntity}, {@code TamableAnimal.java:34}; its
-     * {@code getTeam()} {@code :192-206} also borrows the owner's) and {@code Allay.java:160-163} (the player it
-     * likes); {@code AbstractIllager} and {@code Evoker} ally only illagers and vexes. An entity a mod adds with its
-     * own {@code considersEntityAsAlly} for players would need adding here.
+     * <p>The owner lookup is skipped when {@link Allies#mayHaveAllies} is false; why that is safe is documented
+     * there.
      *
      * @param level the level the flame is in
      * @param pos the flame's position
@@ -398,10 +389,10 @@ public final class TrailFires {
         if (owner.equals(entity.getUUID())) {
             return true;
         }
-        if (entity.getTeam() == null && !(entity instanceof OwnableEntity) && !(entity instanceof Allay)) {
+        if (!Allies.mayHaveAllies(entity)) {
             return false;
         }
         Player ownerPlayer = level.getPlayerByUUID(owner);
-        return ownerPlayer != null && ownerPlayer.isAlliedTo(entity);
+        return ownerPlayer != null && Allies.isAllyOf(ownerPlayer, entity);
     }
 }

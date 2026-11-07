@@ -3,16 +3,25 @@ package io.github.willrieske.spellcraft.gametest;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import net.minecraft.core.Holder;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.storage.TagValueInput;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /** Small helpers shared by the GameTest classes. */
@@ -52,6 +61,22 @@ public final class GameTestSupport {
             }
         }
         return messages;
+    }
+
+    /**
+     * A vex whose saved {@code owner} is {@code owner}: vanilla stores the owner but never calls the vex an ally of
+     * it, and {@code Vex.setOwner} takes a mob, so the owner is loaded from the smallest tag that carries it. The
+     * vex is created, not added to the level.
+     */
+    public static Vex vexOwnedBy(ServerLevel level, UUID owner) {
+        Vex vex = EntityTypes.VEX.create(level, EntitySpawnReason.LOAD);
+        if (vex == null) {
+            throw new IllegalStateException("could not create a vex");
+        }
+        CompoundTag tag = new CompoundTag();
+        tag.store("owner", UUIDUtil.CODEC, owner);
+        vex.load(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), tag));
+        return vex;
     }
 
     public static int heldCount(ServerPlayer player) {

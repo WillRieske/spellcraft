@@ -6,6 +6,7 @@ import io.github.willrieske.spellcraft.gametest.SpellcraftGameTests;
 import io.github.willrieske.spellcraft.infinity.InfinityAttachments;
 import io.github.willrieske.spellcraft.particle.ModParticles;
 import io.github.willrieske.spellcraft.scribing.Scribing;
+import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.ModItems;
 import io.github.willrieske.spellcraft.spell.SpellScrollItem;
 import io.github.willrieske.spellcraft.spell.rules.ScrollDraw;
@@ -32,6 +33,7 @@ public final class Spellcraft {
         InfinityAttachments.ATTACHMENT_TYPES.register(modEventBus);
         ModBlocks.BLOCKS.register(modEventBus);
         TrailingAttachments.ATTACHMENT_TYPES.register(modEventBus);
+        AllyAttachments.ATTACHMENT_TYPES.register(modEventBus);
         SpellcraftGameTests.TEST_FUNCTIONS.register(modEventBus);
         modEventBus.addListener(Spellcraft::addToCreativeTabs);
         modContainer.registerConfig(ModConfig.Type.SERVER, ServerConfig.SPEC);
