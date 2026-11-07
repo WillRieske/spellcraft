@@ -27,6 +27,13 @@ class EvokingCastPropertiesTest {
         return press.list().ofMinSize(1).ofMaxSize(40);
     }
 
+    private static void assertNoticeOnTime(long now, long noticeAt) {
+        assertThat(now)
+                .as("a notice comes exactly 20 ticks after the latest no-targets press, and"
+                        + " only if no start dropped it")
+                .isEqualTo(noticeAt);
+    }
+
     /**
      * For any sequence of presses, each one handled as the caster does (readiness, then start or noTargets), and
      * with due asked every tick, each PERFORM should come exactly once, exactly 20 ticks after its start, and
@@ -58,10 +65,7 @@ class EvokingCastPropertiesTest {
                     assertThat(due.get().spell()).isEqualTo(lastSpell);
                 }
                 if (due.isPresent() && due.get().kind() == Due.Kind.NOTIFY_NO_TARGETS) {
-                    assertThat(now)
-                            .as("a notice comes exactly 20 ticks after the latest no-targets press, and"
-                                    + " only if no start dropped it")
-                            .isEqualTo(noticeAt);
+                    assertNoticeOnTime(now, noticeAt);
                     noticeAt = -1;
                 }
                 assertThat(cast.isCasting(now)).isEqualTo(now < lastStart + lastSpell.castingTicks());
@@ -89,10 +93,7 @@ class EvokingCastPropertiesTest {
                 performs++;
             }
             if (due.isPresent() && due.get().kind() == Due.Kind.NOTIFY_NO_TARGETS) {
-                assertThat(now)
-                        .as("a notice comes exactly 20 ticks after the latest no-targets press, and"
-                                + " only if no start dropped it")
-                        .isEqualTo(noticeAt);
+                assertNoticeOnTime(now, noticeAt);
                 noticeAt = -1;
             }
         }

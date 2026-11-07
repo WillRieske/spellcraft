@@ -225,6 +225,23 @@ class EvokingCastTest {
         }
 
         /**
+         * When both a perform and a notice are overdue, due should return the perform first and the notice on the
+         * next call.
+         *
+         * <p>Method under test: {@link EvokingCast#due(long)}
+         */
+        @Test
+        void performsBeforeNotifyingWhenBothAreOverdue() {
+            // Arrange
+            cast.start(EvokerSpell.FANGS, 0);
+            cast.noTargets(10);
+            // Act & Assert
+            assertThat(cast.due(100)).contains(new Due(Due.Kind.PERFORM, EvokerSpell.FANGS));
+            assertThat(cast.due(101)).contains(new Due(Due.Kind.NOTIFY_NO_TARGETS, EvokerSpell.FANGS));
+            assertThat(cast.due(102)).isEmpty();
+        }
+
+        /**
          * When nothing is pending, due should be empty.
          *
          * <p>Method under test: {@link EvokingCast#due(long)}
