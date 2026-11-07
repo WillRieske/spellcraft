@@ -15,6 +15,7 @@ import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.rules.EvokerSpell;
 import io.github.willrieske.spellcraft.spell.rules.FangSquare;
 import io.netty.buffer.Unpooled;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,9 +75,17 @@ public final class FangGameTests {
     private static final int WARMUP = EvokerSpell.WARMUP_TICKS;
     private static final int LONG = 200;
     private static final int PADDING = 13;
-    private static final int PADDING_WAIT = 100;
-    /** The test's own 200 ticks plus the time {@link #padded} may spend waiting for the padded chunks. */
-    private static final int MAX_TICKS = LONG + PADDING_WAIT;
+    /** The longest {@link #padded} waits for the padded chunks to tick, in wall-clock time. */
+    private static final long PADDING_DEADLINE_MILLIS = 15_000L;
+
+    /** How long one wait between polls lasts; a polling tick takes at least this long. */
+    private static final long POLL_MILLIS = 10L;
+
+    /**
+     * The test's own {@link #LONG} ticks plus the most polling ticks the wait can take: the deadline divided by the
+     * poll time (the GameTest server ticks as fast as it can, so a polling tick lasts about {@link #POLL_MILLIS}).
+     */
+    private static final int PADDED_MAX_TICKS = LONG + (int) (PADDING_DEADLINE_MILLIS / POLL_MILLIS);
 
     /**
      * The server-stop test clears every player's cast, so it runs in an environment of its own: batches run one after
@@ -87,53 +96,31 @@ public final class FangGameTests {
     private FangGameTests() {}
 
     static void registerAll() {
-        SpellcraftGameTests.add(
-                SHARED, "fangs_e1_carpet_north", MAX_TICKS, PADDING, padded(FangGameTests::e1CarpetNorth));
-        SpellcraftGameTests.add(
-                SHARED, "fangs_e2_corner_north_east", MAX_TICKS, PADDING, padded(FangGameTests::e2CornerNorthEast));
-        SpellcraftGameTests.add(
-                SHARED, "fangs_e3_no_targets_notice", MAX_TICKS, PADDING, padded(FangGameTests::e3NoTargetsNotice));
-        SpellcraftGameTests.add(
-                SHARED,
-                "fangs_e4_allies_are_not_targets",
-                MAX_TICKS,
-                PADDING,
-                padded(FangGameTests::e4AlliesAreNotTargets));
-        SpellcraftGameTests.add(
-                SHARED, "fangs_e5_player_modes", MAX_TICKS, PADDING, padded(FangGameTests::e5PlayerModes));
-        SpellcraftGameTests.add(
-                SHARED, "fangs_e6_spare_summons", MAX_TICKS, PADDING, padded(FangGameTests::e6SpareSummons));
-        SpellcraftGameTests.add(
-                SHARED, "fangs_e7_busy_and_cooling", MAX_TICKS, PADDING, padded(FangGameTests::e7BusyAndCooling));
-        SpellcraftGameTests.add(
-                SHARED,
-                "fangs_e13_lost_evoking_cancels",
-                MAX_TICKS,
-                PADDING,
-                padded(FangGameTests::e13LostEvokingCancels));
-        SpellcraftGameTests.add(
-                SHARED, "fangs_e14_ignored_requests", MAX_TICKS, PADDING, padded(FangGameTests::e14IgnoredRequests));
-        SpellcraftGameTests.add(
-                SHARED,
-                "fangs_e15_logout_drops_the_cast",
-                MAX_TICKS,
-                PADDING,
-                padded(FangGameTests::e15LogoutDropsTheCast));
-        SpellcraftGameTests.add(
-                SHARED, "fangs_e16_dimension_change", MAX_TICKS, PADDING, padded(FangGameTests::e16DimensionChange));
-        SpellcraftGameTests.add(
-                SHARED, "fangs_e17_uneven_floor", MAX_TICKS, PADDING, padded(FangGameTests::e17UnevenFloor));
-        SpellcraftGameTests.add(
-                SHARED, "fangs_e18_armor_stand", MAX_TICKS, PADDING, padded(FangGameTests::e18ArmorStand));
-        SpellcraftGameTests.add(
-                SHARED, "fangs_e19_player_tick_event", MAX_TICKS, PADDING, padded(FangGameTests::e19PlayerTickEvent));
-        SpellcraftGameTests.add(
-                SERVER_STOP,
-                "fangs_server_stop_drops_the_cast",
-                MAX_TICKS,
-                PADDING,
-                padded(FangGameTests::serverStopDropsTheCast));
+        addPadded(SHARED, "fangs_e1_carpet_north", FangGameTests::e1CarpetNorth);
+        addPadded(SHARED, "fangs_e2_corner_north_east", FangGameTests::e2CornerNorthEast);
+        addPadded(SHARED, "fangs_e3_no_targets_notice", FangGameTests::e3NoTargetsNotice);
+        addPadded(SHARED, "fangs_e4_allies_are_not_targets", FangGameTests::e4AlliesAreNotTargets);
+        addPadded(SHARED, "fangs_e5_player_modes", FangGameTests::e5PlayerModes);
+        addPadded(SHARED, "fangs_e6_spare_summons", FangGameTests::e6SpareSummons);
+        addPadded(SHARED, "fangs_e7_busy_and_cooling", FangGameTests::e7BusyAndCooling);
+        addPadded(SHARED, "fangs_e13_lost_evoking_cancels", FangGameTests::e13LostEvokingCancels);
+        addPadded(SHARED, "fangs_e14_ignored_requests", FangGameTests::e14IgnoredRequests);
+        addPadded(SHARED, "fangs_e15_logout_drops_the_cast", FangGameTests::e15LogoutDropsTheCast);
+        addPadded(SHARED, "fangs_e16_dimension_change", FangGameTests::e16DimensionChange);
+        addPadded(SHARED, "fangs_e17_uneven_floor", FangGameTests::e17UnevenFloor);
+        addPadded(SHARED, "fangs_e18_armor_stand", FangGameTests::e18ArmorStand);
+        addPadded(SHARED, "fangs_e19_player_tick_event", FangGameTests::e19PlayerTickEvent);
+        addPadded(SERVER_STOP, "fangs_server_stop_drops_the_cast", FangGameTests::serverStopDropsTheCast);
         SpellcraftGameTests.add(SHARED, "fangs_request_codec_round_trip", FangGameTests::requestCodecRoundTrip);
+    }
+
+    /**
+     * Registers a test that places fangs or vexes far from its structure: padding 13, a tick budget that covers the
+     * body plus the wait of {@link #padded}, and the body wrapped in {@link #padded}. Task 7 registers its padded tests
+     * through this.
+     */
+    static void addPadded(String environment, String name, Consumer<GameTestHelper> body) {
+        SpellcraftGameTests.add(environment, name, PADDED_MAX_TICKS, PADDING, padded(body));
     }
 
     /**
@@ -156,31 +143,30 @@ public final class FangGameTests {
 
     /**
      * Wraps a padded test: forces every chunk of the padded box, waits until they all tick (a forced chunk is promoted
-     * to entity-ticking over the following ticks, never within the tick that forced it), then runs {@code body}. Every
-     * delay in the body counts from that point. Gives up after {@link #PADDING_WAIT} ticks, and {@link #loadPadding}
-     * then fails the test with the chunk that is not ticking.
+     * to entity-ticking over the following ticks, and chunk generation runs in real time on worker threads), then runs
+     * {@code body}. Every delay in the body counts from that point. The wait is bounded by
+     * {@link #PADDING_DEADLINE_MILLIS} of wall-clock time; when it runs out, the test fails naming the first chunk that
+     * is not ticking.
      */
     static Consumer<GameTestHelper> padded(Consumer<GameTestHelper> body) {
         return helper -> {
             forcePadding(helper);
-            awaitPadding(helper, 0, body);
+            awaitPadding(helper, System.nanoTime() + PADDING_DEADLINE_MILLIS * 1_000_000L, body);
         };
     }
 
-    private static void awaitPadding(GameTestHelper helper, int waited, Consumer<GameTestHelper> body) {
-        if (firstNotTicking(helper) == null || waited >= PADDING_WAIT) {
+    private static void awaitPadding(GameTestHelper helper, long deadlineNanos, Consumer<GameTestHelper> body) {
+        ChunkPos missing = firstNotTicking(helper);
+        if (missing == null) {
             body.accept(helper);
+        } else if (System.nanoTime() >= deadlineNanos) {
+            throw helper.assertionException("setup: padded chunk " + missing + " is not entity-ticking after "
+                    + PADDING_DEADLINE_MILLIS / 1000 + " s");
         } else {
-            sleepBriefly(); // the worker threads generate chunks in real time, not in ticks
-            helper.runAfterDelay(1, () -> awaitPadding(helper, waited + 1, body));
-        }
-    }
-
-    private static void sleepBriefly() {
-        try {
-            Thread.sleep(10);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            // Keeps running the main-thread chunk tasks while it waits (BlockableEventLoop.managedBlock).
+            long until = System.nanoTime() + POLL_MILLIS * 1_000_000L;
+            helper.getLevel().getServer().managedBlock(() -> System.nanoTime() >= until);
+            helper.runAfterDelay(1, () -> awaitPadding(helper, deadlineNanos, body));
         }
     }
 
@@ -219,7 +205,8 @@ public final class FangGameTests {
     /**
      * Forces every chunk of the padded box (the squares reach 12 blocks past the 3×3 structure, and the framework
      * forces only the structure's chunks) and checks they tick, so a missing fang fails here with its cause. A padded
-     * test is wrapped in {@link #padded}, which has already waited for them.
+     * test is wrapped in {@link #padded}, which has already forced and waited for them, so this is idempotent: it
+     * re-forces (a no-op) and asserts.
      */
     static void loadPadding(GameTestHelper helper) {
         forcePadding(helper);
@@ -228,12 +215,13 @@ public final class FangGameTests {
     }
 
     /**
-     * Sends {@code player} to a prepared pocket in the Nether at {@code (dx + 0.5, 64, 0.5)}: 5×4×5 air inside a
-     * stone shell (floor, walls and ceiling), so the player lands alive whatever the terrain there and no lava flows
-     * in. The pocket's chunk is forced and every block the shell and pocket replace is recorded first. When the test
-     * ends, passed or failed ({@link GameTestSupport#whenDone}), the fangs and vexes near the pocket are discarded,
-     * the blocks restored, the chunk unforced and the player moved back to {@link #STAND}. Tests in a batch run at
-     * the same time, so each caller passes its own {@code dx} (Task 6's E16: 0; Task 7's E16: 64).
+     * Sends {@code player} to a prepared pocket in the Nether directly above the player's own coordinates (x plus
+     * {@code dx}, the same y and z), so the pocket covers the fang snapshot's columns: 5×4×5 air inside a stone shell
+     * (floor, walls and ceiling), so the player lands alive whatever the terrain there and no lava flows in. Every
+     * chunk the pocket touches is forced and loaded first, and every block the shell and pocket replace is recorded.
+     * When the test ends, passed or failed ({@link GameTestSupport#whenDone}), the fangs and vexes near the pocket are
+     * discarded, the blocks restored, the chunks unforced and the player moved back to {@link #STAND}. Tests in a
+     * batch run at the same time, so each caller passes its own {@code dx} (Task 6's E16: 0; Task 7's E16: 64).
      *
      * @return the player's feet block in the Nether
      */
@@ -242,11 +230,24 @@ public final class FangGameTests {
         if (nether == null) {
             throw helper.assertionException("no Nether on the GameTest server: move this test to the playtest");
         }
-        BlockPos feet = new BlockPos(dx, 64, 0);
-        ChunkPos chunk = ChunkPos.containing(feet);
-        nether.setChunkForced(chunk.x(), chunk.z(), true);
+        BlockPos here = player.blockPosition();
+        BlockPos feet = new BlockPos(here.getX() + dx, here.getY(), here.getZ());
         BlockPos low = feet.offset(-3, -1, -3);
         BlockPos high = feet.offset(3, 4, 3);
+        List<ChunkPos> chunks = new ArrayList<>();
+        int minCx = SectionPos.blockToSectionCoord(low.getX());
+        int maxCx = SectionPos.blockToSectionCoord(high.getX());
+        int minCz = SectionPos.blockToSectionCoord(low.getZ());
+        int maxCz = SectionPos.blockToSectionCoord(high.getZ());
+        for (int cx = minCx; cx <= maxCx; cx++) {
+            for (int cz = minCz; cz <= maxCz; cz++) {
+                chunks.add(new ChunkPos(cx, cz));
+            }
+        }
+        chunks.forEach(chunk -> {
+            nether.setChunkForced(chunk.x(), chunk.z(), true);
+            nether.getChunk(chunk.x(), chunk.z()); // loaded now, so the carving below lands
+        });
         Map<BlockPos, BlockState> was = new LinkedHashMap<>();
         for (BlockPos pos : BlockPos.betweenClosed(low, high)) {
             was.put(pos.immutable(), nether.getBlockState(pos));
@@ -265,7 +266,7 @@ public final class FangGameTests {
             nether.getEntitiesOfClass(EvokerFangs.class, around).forEach(Entity::discard);
             nether.getEntitiesOfClass(Vex.class, around).forEach(Entity::discard);
             was.forEach((pos, state) -> nether.setBlock(pos, state, Block.UPDATE_ALL));
-            nether.setChunkForced(chunk.x(), chunk.z(), false);
+            chunks.forEach(chunk -> nether.setChunkForced(chunk.x(), chunk.z(), false));
             MockPlayers.moveTo(helper, player, STAND);
         });
         player.teleportTo(nether, feet.getX() + 0.5, feet.getY(), feet.getZ() + 0.5, Set.of(), 0.0F, 0.0F, false);
@@ -318,6 +319,8 @@ public final class FangGameTests {
 
     static void e1CarpetNorth(GameTestHelper helper) {
         floor(helper, NORTH);
+        BlockPos carpet = FEET.offset(3, 0, -4); // on the floor layer: its fang stands on the carpet's collision top
+        helper.setBlock(carpet, Blocks.MOSS_CARPET);
         ServerPlayer player = caster(helper, NORTH);
         pig(helper, FEET.north(5));
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
@@ -354,6 +357,18 @@ public final class FangGameTests {
                     farthest = fang;
                 }
             }
+            EvokerFangs onCarpet = null;
+            for (EvokerFangs fang : fangs) {
+                if (fang.blockPosition().equals(helper.absolutePos(carpet))) {
+                    onCarpet = fang;
+                }
+            }
+            if (onCarpet == null) {
+                throw helper.assertionException("the carpet's cell holds a fang");
+            }
+            helper.assertTrue(
+                    Math.abs(onCarpet.getY() - (helper.absolutePos(carpet).getY() + 1.0 / 16.0)) < 1.0E-6,
+                    "the fang on the carpet stands at the floor's collision top, one sixteenth up: " + onCarpet.getY());
             if (nearest == null || farthest == null) {
                 throw helper.assertionException("the cell north of the caster and the far corner both hold a fang");
             }
@@ -399,15 +414,12 @@ public final class FangGameTests {
         helper.setBlock(FEET.offset(0, 7, -3), Blocks.STONE); // keeps the high pig from falling in
         pig(helper, FEET.offset(0, 8, -3)); // above the window: y in [feet-6, feet+7)
         drainActionBar(player); // discard what joining the level sent
-        long[] P1 = new long[2];
-        P1[0] = helper.getLevel().getGameTime();
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.NO_TARGETS, "request");
         helper.assertFalse(player.hasEffect(ModEffects.CASTING_FANGS), "no arms");
-        helper.runAfterDelay(5, () -> {
-            P1[1] = helper.getLevel().getGameTime();
-            helper.assertValueEqual(
-                    EvokingCaster.request(player, EvokerSpell.FANGS), Request.NO_TARGETS, "a second press");
-        });
+        helper.runAfterDelay(
+                5,
+                () -> helper.assertValueEqual(
+                        EvokingCaster.request(player, EvokerSpell.FANGS), Request.NO_TARGETS, "a second press"));
         // The first press set the notice for +20; the second moved it to +25. Stepping at +22 must send nothing.
         helper.runAfterDelay(WARMUP + 2, () -> {
             step(player);

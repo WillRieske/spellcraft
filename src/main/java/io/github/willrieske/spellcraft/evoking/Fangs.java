@@ -17,7 +17,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.EvokerFangs;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -97,11 +99,13 @@ public final class Fangs {
             int x = feet.getX() + cell.dx();
             int z = feet.getZ() + cell.dz();
             if (!level.isLoaded(new BlockPos(x, feet.getY(), z))) {
-                continue; // outside the build limits, or its chunk is not loaded: no fang (spec §8)
+                continue; // at the caster's height this trips only on the horizontal world bounds or an unloaded chunk
+                // (spec §8)
             }
             findFloor(level, x, z, snapshot.top(), snapshot.bottom()).ifPresent(y -> {
                 float angle = (float) Mth.atan2(cell.dz(), cell.dx());
                 level.addFreshEntity(new EvokerFangs(level, x + 0.5, y, z + 0.5, angle, cell.delayTicks(), caster));
+                level.gameEvent(GameEvent.ENTITY_PLACE, new Vec3(x + 0.5, y, z + 0.5), GameEvent.Context.of(caster));
             });
         }
         return true;

@@ -7,5 +7,11 @@ import net.minecraft.server.level.ServerPlayer;
 public final class VexSummons {
     private VexSummons() {}
 
+    /**
+     * Placeholder: summons nothing yet.
+     *
+     * @param level the level the summoner stands in
+     * @param summoner the casting player
+     */
     public static void summon(ServerLevel level, ServerPlayer summoner) {}
 }

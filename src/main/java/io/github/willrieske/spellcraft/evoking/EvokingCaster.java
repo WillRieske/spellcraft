@@ -127,7 +127,11 @@ public final class EvokingCaster {
         casting.cast.due(now).ifPresent(due -> {
             switch (due.kind()) {
                 case PERFORM -> perform(player, due.spell(), casting);
-                case NOTIFY_NO_TARGETS -> player.sendOverlayMessage(Component.translatable(NO_TARGETS_KEY));
+                case NOTIFY_NO_TARGETS -> {
+                    if (player.isAlive()) {
+                        player.sendOverlayMessage(Component.translatable(NO_TARGETS_KEY));
+                    }
+                }
             }
         });
     }

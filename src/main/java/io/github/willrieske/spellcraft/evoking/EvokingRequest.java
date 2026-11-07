@@ -24,6 +24,7 @@ public record EvokingRequest(EvokerSpell spell) implements CustomPacketPayload {
             EvokingRequest::spell,
             EvokingRequest::new);
 
+    /** Rejects a null spell, so a decoded or constructed request always names one. */
     public EvokingRequest {
         Objects.requireNonNull(spell, "spell");
     }
