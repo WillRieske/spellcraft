@@ -78,8 +78,8 @@ public final class Fangs {
 
     /**
      * A target (spec glossary): an enemy a mob could attack, attackable, and neither the caster nor an ally. A player
-     * counts only when the caster may harm that player ({@link ServerPlayer#canHarmPlayer}: the {@code pvp} game rule
-     * and team friendly fire), so fangs never start a cast whose bites vanilla would refuse.
+     * counts only when the caster may harm that player ({@link ServerPlayer#canHarmPlayer}: the {@code pvp} game rule;
+     * teammates are already spared by the ally rule), so fangs never start a cast whose bites vanilla would refuse.
      */
     // Entities compare by id (docs/api-notes.md §8); this asks "is it the caster".
     @SuppressWarnings("ReferenceEquality")

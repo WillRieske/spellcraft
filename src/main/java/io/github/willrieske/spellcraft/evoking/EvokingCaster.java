@@ -179,8 +179,7 @@ public final class EvokingCaster {
                 yield snapshot.isPresent() && Fangs.perform(level, player, snapshot.get());
             }
             case VEXES -> {
-                VexSummons.summon(level, player);
-                yield true;
+                yield !VexSummons.summon(level, player).isEmpty();
             }
         };
         if (performed) {

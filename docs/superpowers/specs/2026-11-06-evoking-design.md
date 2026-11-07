@@ -42,7 +42,7 @@ the server owns and every client renders (arms and particles) from vanilla-synce
 | **Interval** | How long after an accepted press the same spell can be pressed again: 100 ticks for fangs, 340 for vexes (vanilla `getCastingInterval`). |
 | **Casting effect** | One of two short marker effects (`spellcraft:casting_fangs`, `spellcraft:casting_vexes`) the server puts on the caster for the casting ticks. Its only job is to tell every client "this player is casting this spell". |
 | **Fang square** | The 13×13 block area a fang cast covers. The caster's block is on its edge; where on the edge depends on the caster's yaw. |
-| **Target** | A living entity the fangs or vexes may hurt: alive, visible as an enemy (not a creative or spectator player, not invulnerable, not a spectator), attackable, not a player the caster cannot harm (`pvp` rule, team friendly fire), and not the caster or an ally. |
+| **Target** | A living entity the fangs or vexes may hurt: alive, visible as an enemy (not a creative or spectator player, not invulnerable, not a spectator), attackable, not a player the caster cannot harm (`pvp` rule; teammates are already spared by the ally rule), and not the caster or an ally. |
 | **Ally** | Per the shared rule in §3: what vanilla `Entity.isAlliedTo` says (same team, a tamed animal whose owner is the player), or a mob the player summoned (its **summoner** attachment names the player), or any other `OwnableEntity` the player owns. |
 | **Summoner** | A saved entity attachment, `spellcraft:summoner`, holding the UUID of the player who summoned a mob. Evoking puts it on every vex it calls. |
 
@@ -295,10 +295,10 @@ At the press, with the caster's feet block `F = blockPosition()` and the square 
   e.canBeSeenAsEnemy() && e.attackable() && !Allies.isAllyOf(caster, e))`.
   `canBeSeenAsEnemy` is vanilla's "may a mob attack this": alive, not a spectator, not
   invulnerable, and for players not creative. `attackable` drops armor stands. A player the
-  caster cannot harm (`ServerPlayer.canHarmPlayer`: the `pvp` game rule off, or team friendly
-  fire off) is not a target (`Fangs.isTarget`), so fangs never start a cast whose bites vanilla
+  caster cannot harm (`ServerPlayer.canHarmPlayer`: the `pvp` game rule off; teammates are already spared by the
+  ally rule) is not a target (`Fangs.isTarget`), so fangs never start a cast whose bites vanilla
   would refuse.
-- No targets: step 2 of §4 (notice only).
+- No targets: step 4 of §4 (notice only).
 - Otherwise the snapshot is `(dimension, F, S, top, bottom)` with `top = max(F.y, highest
   target's feet y) + 1` and `bottom = min(F.y, lowest target's feet y) − 1`, the evoker's own
   window generalized to several targets.
@@ -373,7 +373,7 @@ target is re-checked against the same rule (`isPrey`) every tick and dropped whe
 ally (tamed, or marked by the summoner) or the summoner leaves.
 
 The summoner's PvP rules apply to its vexes: `isPrey` also refuses a player the summoner cannot
-harm (`canHarmPlayer`: the `pvp` game rule and team friendly fire).
+harm (`canHarmPlayer`: the `pvp` game rule; teammates are already spared by the ally rule).
 
 So a summoned vex never targets its summoner, the summoner's team, pets or other summons, and
 attacks any other living thing that comes within five blocks, players included only while the
@@ -414,7 +414,7 @@ casting state, add two `ENTITY_EFFECT` particles at the hands, the evoker's own 
 `(x ± cos a · 0.6, y + 1.8, z ± sin a · 0.6)`, color `(0.4, 0.3, 0.35)` for fangs and
 `(0.7, 0.7, 0.8)` for vexes. `EvokerPose.handOffset(bodyYawDegrees, tick)` (pure core) gives
 one hand's offset; the other is its negation (done by the caller). The two colors are constants
-in `CastingParticles`. While the client is paused (`Minecraft.isPaused()`) no hand particles
+in `CastingParticles`. While the client is paused (`Minecraft.isPaused()`) or the level is frozen (`/tick freeze`) no hand particles
 are emitted, so none pile up behind the pause menu.
 
 ### Raised arms (`EvokingArmPose`)
@@ -463,9 +463,9 @@ So with Fangs rebound to Shift+F a plain F press still swaps hands and Shift+F c
 - Vexes on Peaceful: the press is refused with the notice `Vexes cannot be summoned on Peaceful`
   (`PEACEFUL`), no cast, no cooldown (§4).
 - PvP: fangs and vexes treat a player the caster cannot harm (`canHarmPlayer`: the `pvp` game
-  rule, team friendly fire) as no target and no prey (§5, §6).
+  rule; teammates are already spared by the ally rule) as no target and no prey (§5, §6).
 - Casting ticks running or interval not passed: `BUSY` / `COOLING`, ignored silently (§10).
-- Evoking lost between press and perform (milk, dispel, `/effect clear`, death): no perform.
+- Evoking lost between press and perform (milk, dispel, `/effect clear`): no perform. Death keeps Evoking; the alive checks stop the cast instead (below).
   The casting effect, if still present, expires on its own.
 - Dimension change between press and perform: fangs are not placed (the snapshot is for the
   old level); vexes are summoned where the player now stands.
@@ -477,8 +477,8 @@ So with Fangs rebound to Shift+F a plain F press still swaps hands and Shift+F c
   tested at the caster's y, before the floor walk. A fang in a non-ticking chunk would be saved
   with the chunk and bite later, and the floor search would load chunks synchronously.
 - Repeated no-target requests from a modified client each cost one 13×13×13 scan and start no
-  cooldown; accepted.
-- A vex that fails to `create` (never in vanilla): skipped.
+  cooldown; accepted. The Peaceful notice is likewise unthrottled (one overlay message per refused press); accepted.
+- A vex that fails to `create` (only on Peaceful, which `request` already refuses): skipped, a guard for other callers. A cast started on Normal and performed after a switch to Peaceful summons nothing and plays no cast sound.
 - Summoner offline: the vex is passive; it starves out within two minutes anyway.
 - Enum-extension faults come in three cases. A syntax error, wrong prefix or missing file in
   `enumextensions.json` fails at launch on every dist. A wrong constructor descriptor fails in
@@ -668,10 +668,10 @@ of simulation distance place nothing in the far cells; no hand-particle burst af
 | Config | None | Every number is the evoker's. |
 | Version bump | Deferred: the delivery does not bump `mod_version` | The release step (bump, tag) follows the final review. |
 | Chunks that are not entity-ticking, and build limits | A cell there gets no fang (`ServerLevel.isPositionEntityTicking` at the caster's y) | A fang in a non-ticking chunk would be saved and bite later, and the floor search would force-load chunks; a 13×13 square near the edge of simulation distance must do neither. Alternative: `Level.isLoaded`, which accepts loaded but non-ticking chunks. |
-| PvP | Fangs and vexes never target a player the caster cannot harm (`canHarmPlayer`: the `pvp` game rule and team friendly fire) | A vex's hit names the vex as the cause, so vanilla's PvP gate in `ServerPlayer.hurtServer` never applies to it; without the rule a vex would break `pvp false`. |
+| PvP | Fangs and vexes never target a player the caster cannot harm (`canHarmPlayer`: the `pvp` game rule; teammates are already spared by the ally rule) | A vex's hit names the vex as the cause, so vanilla's PvP gate in `ServerPlayer.hurtServer` never applies to it; without the rule a vex would break `pvp false`. |
 | Peaceful | V is refused at request time with the notice `Vexes cannot be summoned on Peaceful` (lang key `message.spellcraft.peaceful_vexes`, request outcome `PEACEFUL`): no cast, no casting effect, no cooldown; busy and cooling presses stay silent | Vanilla refuses to create a vex on Peaceful, so a cast would show arms and spend the cooldown for nothing. Alternative: a silent no-op. |
 | Vex target re-check | The chosen target is re-checked every tick (`canContinueToUse`) and dropped when it becomes an ally or the summoner leaves | Vanilla's goal re-checks only `canAttack`, so a pet tamed after being chosen would stay a target. |
-| Paused client | No hand particles while `Minecraft.isPaused()` | `ClientTickEvent.Post` fires while paused; particles would pile up behind the pause menu. |
+| Paused or frozen client | No hand particles while `Minecraft.isPaused()` or while `/tick freeze` holds the level | `ClientTickEvent.Post` fires while paused, and players keep ticking while the level is frozen; particles would pile up. |
 
 ## 11. Delivery
 

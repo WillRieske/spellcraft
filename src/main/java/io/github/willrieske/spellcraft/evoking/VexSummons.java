@@ -95,8 +95,8 @@ public final class VexSummons {
     /**
      * Replaces the vex's target goals with one: the nearest living thing within {@link #AGGRO_RANGE} that is
      * attackable and no ally of the summoner. The range is set first so the goal's constructor sees five; later
-     * scans re-read the attribute anyway. The vanilla random spawn bonus (±11.5% of the base, either way) is removed so the
-     * effective range is exactly five. Only for a marked vex: on an unmarked one {@code getData} would create the
+     * scans re-read the attribute anyway. The vanilla random spawn bonus (±11.5% of the base, either way) is removed
+     * so the effective range is exactly five. Only for a marked vex: on an unmarked one {@code getData} would create the
      * mark with its default, so the only caller, {@link #onJoin}, checks {@code hasData} first.
      */
     static void install(Vex vex) {
@@ -125,8 +125,8 @@ public final class VexSummons {
 
     /**
      * Whether a vex summoned by {@code summoner} may attack {@code target}: anything attackable that is no ally of
-     * the summoner, no player the summoner cannot harm ({@code canHarmPlayer}: the {@code pvp} game rule and team
-     * friendly-fire), and nothing while the summoner is not in {@code level} (offline or in another dimension). Public
+     * the summoner, no player the summoner cannot harm ({@code canHarmPlayer}: the {@code pvp} game rule;
+     * teammates are already spared by the ally rule), and nothing while the summoner is not in {@code level} (offline or in another dimension). Public
      * for its GameTest in the {@code gametest} package.
      *
      * @param level the level the vex is in
@@ -142,7 +142,7 @@ public final class VexSummons {
         if (owner == null || Allies.isAllyOf(owner, target)) {
             return false;
         }
-        // The summoner's PvP rules apply to its vexes: the pvp gamerule and team friendly-fire.
+        // The summoner's PvP rules apply to its vexes: the pvp gamerule (teammates are already allies).
         return !(target instanceof Player other) || owner.canHarmPlayer(other);
     }
 }
