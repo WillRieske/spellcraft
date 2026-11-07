@@ -468,12 +468,15 @@ public final class VexGameTests {
         ArmorStand stand = helper.spawn(EntityTypes.ARMOR_STAND, FEET);
         Pig pig = FangGameTests.pig(helper, FEET);
         Zombie teammate = helper.spawn(EntityTypes.ZOMBIE, FEET);
+        Vex summonedVex = summonedVex(helper, FEET, id);
         Scoreboard scoreboard = level.getScoreboard();
 
         // Act & Assert
         helper.assertTrue(VexSummons.isPrey(level, id, stranger), "a stranger player is prey");
         helper.assertFalse(VexSummons.isPrey(level, id, pet), "the summoner's tamed pet is not");
-        helper.assertFalse(VexSummons.isPrey(level, id, otherSummon), "a vex the summoner owns is not");
+        helper.assertFalse(VexSummons.isPrey(level, id, otherSummon), "a vex the summoner owns (vanilla owner) is not");
+        helper.assertFalse(
+                VexSummons.isPrey(level, id, summonedVex), "a vex carrying the summoner's mark (attachment) is not");
         helper.assertFalse(VexSummons.isPrey(level, id, stand), "an armor stand is not");
         helper.assertTrue(VexSummons.isPrey(level, id, pig), "setup: a pig is prey while the summoner is online");
         helper.assertFalse(
@@ -488,6 +491,7 @@ public final class VexGameTests {
         stand.discard();
         pig.discard();
         teammate.discard();
+        summonedVex.discard();
         helper.succeed();
     }
 }

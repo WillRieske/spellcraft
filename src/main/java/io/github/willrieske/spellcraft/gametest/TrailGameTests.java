@@ -29,7 +29,6 @@ import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.animal.allay.Allay;
 import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.animal.wolf.Wolf;
-import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Block;
@@ -68,7 +67,7 @@ public final class TrailGameTests {
                 "team_mutation", "trail_g7_spares_owner_and_allies", TrailGameTests::g7SparesOwnerAndAllies);
         SpellcraftGameTests.add(SHARED, "trail_g7b_spares_a_tamed_pet", TrailGameTests::g7bSparesATamedPet);
         SpellcraftGameTests.add(SHARED, "trail_g7c_spares_a_liked_allay", TrailGameTests::g7cSparesALikedAllay);
-        SpellcraftGameTests.add(SHARED, "trail_g7d_spares_a_summoned_vex", TrailGameTests::g7dSparesASummonedVex);
+        SpellcraftGameTests.add(SHARED, "trail_g7d_spares_a_summoned_mob", TrailGameTests::g7dSparesASummonedMob);
         SpellcraftGameTests.add(SHARED, "trail_g8_burns_an_unallied_player", TrailGameTests::g8BurnsAnUnalliedPlayer);
         SpellcraftGameTests.add(SHARED, "trail_g9_random_tick", TrailGameTests::g9RandomTick);
         SpellcraftGameTests.add(SHARED, "trail_g10_falls_with_the_ground", TrailGameTests::g10FallsWithTheGround);
@@ -325,16 +324,31 @@ public final class TrailGameTests {
         helper.succeed();
     }
 
-    /** A vex carrying the owner's summoner attachment has no team and no owner; only the attachment spares it. */
-    static void g7dSparesASummonedVex(GameTestHelper helper) {
+    /**
+     * When a flame burns a zombie carrying the owner's summoner attachment and a zombie carrying a stranger's, should
+     * spare the first and burn the second. A zombie is not fire immune (a vex is, so it could not show a burn) and
+     * has no team and no owner, so only the attachment can spare it.
+     *
+     * <p>Method under test: {@link TrailFires#isSpared}, through {@link AllyAttachments#SUMMONER}
+     */
+    static void g7dSparesASummonedMob(GameTestHelper helper) {
+        // Arrange
         floors(helper);
         ServerPlayer owner = trailingPlayer(helper);
         teleport(helper, owner, D);
         helper.assertTrue(light(helper, owner, A), "lit A");
-        Vex vex = helper.spawn(EntityTypes.VEX, C);
-        vex.setData(AllyAttachments.SUMMONER, owner.getUUID());
-        stepInto(helper, A, vex);
-        assertSpared(helper, vex, "the owner's summoned vex");
+        Zombie mine = helper.spawn(EntityTypes.ZOMBIE, C);
+        mine.setData(AllyAttachments.SUMMONER, owner.getUUID());
+        Zombie strangers = helper.spawn(EntityTypes.ZOMBIE, B);
+        strangers.setData(AllyAttachments.SUMMONER, UUID.randomUUID());
+
+        // Act
+        stepInto(helper, A, mine);
+        stepInto(helper, A, strangers);
+
+        // Assert
+        assertSpared(helper, mine, "the owner's summoned mob");
+        assertBurned(helper, strangers, "a stranger's summoned mob");
         forget(helper, owner);
         helper.succeed();
     }
