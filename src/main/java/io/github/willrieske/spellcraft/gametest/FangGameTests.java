@@ -27,6 +27,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
@@ -47,6 +48,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.scores.Scoreboard;
@@ -93,6 +95,9 @@ public final class FangGameTests {
      */
     private static final String SERVER_STOP = "evoking_server_stop";
 
+    /** The {@code pvp} game rule is global, so the test that turns it off runs alone in this environment. */
+    private static final String PVP_OFF = "evoking_pvp_off";
+
     private FangGameTests() {}
 
     static void registerAll() {
@@ -110,6 +115,10 @@ public final class FangGameTests {
         addPadded(SHARED, "fangs_e17_uneven_floor", FangGameTests::e17UnevenFloor);
         addPadded(SHARED, "fangs_e18_armor_stand", FangGameTests::e18ArmorStand);
         addPadded(SHARED, "fangs_e19_player_tick_event", FangGameTests::e19PlayerTickEvent);
+        addPadded(SHARED, "fangs_e23_death_cancels", FangGameTests::e23DeathCancels);
+        addPadded(SHARED, "fangs_e23_death_cancels_the_notice", FangGameTests::e23DeathCancelsTheNotice);
+        addPadded(SHARED, "fangs_e23_dead_request_ignored", FangGameTests::e23DeadRequestIgnored);
+        addPadded(PVP_OFF, "fangs_e24_pvp_off_notice", FangGameTests::e24PvpOffNotice);
         addPadded(SERVER_STOP, "fangs_server_stop_drops_the_cast", FangGameTests::serverStopDropsTheCast);
         SpellcraftGameTests.add(SHARED, "fangs_request_codec_round_trip", FangGameTests::requestCodecRoundTrip);
     }
@@ -412,6 +421,8 @@ public final class FangGameTests {
         pig(helper, FEET.offset(0, 0, -13)); // one block past the far edge
         pig(helper, FEET.offset(7, 0, 0)); // one block past the east edge (dx -6...6)
         pig(helper, FEET.offset(0, 8, -3)); // above the window: y in [feet-6, feet+7)
+        helper.setBlock(FEET.offset(0, -9, -3), Blocks.STONE); // a floor for the pig below the window
+        pig(helper, FEET.offset(0, -8, -3)); // below the window: its top is under feet-6
         drainActionBar(player); // discard what joining the level sent
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.NO_TARGETS, "request");
         helper.assertFalse(player.hasEffect(ModEffects.CASTING_FANGS), "no arms");
@@ -570,7 +581,7 @@ public final class FangGameTests {
         ServerPlayer player = caster(helper, NORTH);
         pig(helper, FEET.north(5));
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
-        EvokingCaster.onLogout(new PlayerEvent.PlayerLoggedOutEvent(player));
+        NeoForge.EVENT_BUS.post(new PlayerEvent.PlayerLoggedOutEvent(player));
         helper.runAfterDelay(WARMUP + 2, () -> {
             step(player); // past the perform time, but the logout dropped the entry: nothing to perform
             helper.assertTrue(fangs(helper).isEmpty(), "no fangs after a logout");
@@ -657,6 +668,121 @@ public final class FangGameTests {
 
             // Assert
             helper.assertValueEqual(fangs(helper).size(), FangSquare.CELL_COUNT, "one fang per cell");
+            helper.succeed();
+        });
+    }
+
+    /**
+     * When the caster dies between the press and the perform, should the step place no fangs: Evoking survives death,
+     * so the perform-time alive check is the only thing that stops the cast.
+     *
+     * <p>Method under test: {@link EvokingCaster#tick}
+     */
+    static void e23DeathCancels(GameTestHelper helper) {
+        // Arrange
+        floor(helper, NORTH);
+        ServerPlayer player = caster(helper, NORTH);
+        pig(helper, FEET.north(5));
+        helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
+
+        // Act
+        player.kill(helper.getLevel());
+
+        // Assert
+        helper.assertTrue(
+                !player.isAlive() && player.hasEffect(ModEffects.EVOKING),
+                "setup: dead with Evoking, so only the alive check can stop the cast");
+        helper.runAfterDelay(WARMUP + 2, () -> {
+            step(player); // past the perform time: the entry is due, and the alive check stops it
+            helper.assertTrue(fangs(helper).isEmpty(), "no fangs from a dead caster");
+            helper.succeed();
+        });
+    }
+
+    /**
+     * When the caster dies after a no-targets press, should no notice arrive once the delay has passed.
+     *
+     * <p>Method under test: {@link EvokingCaster#tick}
+     */
+    static void e23DeathCancelsTheNotice(GameTestHelper helper) {
+        // Arrange
+        floor(helper, NORTH);
+        ServerPlayer player = caster(helper, NORTH);
+        drainActionBar(player); // discard what joining the level sent
+        helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.NO_TARGETS, "request");
+
+        // Act
+        player.kill(helper.getLevel());
+        drainActionBar(player); // discard what dying sent
+
+        // Assert
+        helper.assertTrue(
+                !player.isAlive() && player.hasEffect(ModEffects.EVOKING),
+                "setup: dead with Evoking, so only the alive check can stop the notice");
+        helper.runAfterDelay(WARMUP + 2, () -> {
+            step(player); // past the notice time: the entry is due, and the alive check stops it
+            helper.assertTrue(drainActionBar(player).isEmpty(), "no notice for a dead player");
+            helper.succeed();
+        });
+    }
+
+    /**
+     * When a dead player presses the key with a target in the square, should the request be ignored: no casting
+     * effect, and no fangs after the warmup.
+     *
+     * <p>Method under test: {@link EvokingCaster#request}
+     */
+    static void e23DeadRequestIgnored(GameTestHelper helper) {
+        // Arrange
+        floor(helper, NORTH);
+        ServerPlayer player = caster(helper, NORTH);
+        pig(helper, FEET.north(5)); // a target, so only the alive check can explain "ignored"
+        player.kill(helper.getLevel());
+        helper.assertTrue(
+                !player.isAlive() && player.hasEffect(ModEffects.EVOKING),
+                "setup: dead with Evoking, so only the alive check can ignore the request");
+
+        // Act
+        Request result = EvokingCaster.request(player, EvokerSpell.FANGS);
+
+        // Assert
+        helper.assertValueEqual(result, Request.IGNORED, "request from a dead player");
+        helper.assertFalse(player.hasEffect(ModEffects.CASTING_FANGS), "no casting effect");
+        helper.runAfterDelay(WARMUP + 2, () -> {
+            step(player);
+            helper.assertTrue(fangs(helper).isEmpty(), "no fangs");
+            helper.succeed();
+        });
+    }
+
+    /**
+     * When {@code pvp} is off and the only living thing in the square is another player, should the press find no
+     * target: the notice arrives and no fang is placed. E5 is the positive control with {@code pvp} on.
+     *
+     * <p>Method under test: {@link EvokingCaster#request}
+     */
+    static void e24PvpOffNotice(GameTestHelper helper) {
+        // Arrange
+        floor(helper, NORTH);
+        ServerPlayer player = caster(helper, NORTH);
+        ServerPlayer other = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        MockPlayers.moveTo(helper, other, STAND.add(0, 0, -4));
+        GameRules rules = helper.getLevel().getGameRules();
+        boolean saved = rules.get(GameRules.PVP);
+        MinecraftServer server = helper.getLevel().getServer();
+        whenDone(helper, () -> rules.set(GameRules.PVP, saved, server));
+        rules.set(GameRules.PVP, false, server);
+        drainActionBar(player); // discard what joining the level sent
+
+        // Act
+        Request result = EvokingCaster.request(player, EvokerSpell.FANGS);
+
+        // Assert
+        helper.assertValueEqual(result, Request.NO_TARGETS, "a player is no target with pvp off");
+        helper.runAfterDelay(WARMUP + 2, () -> {
+            step(player);
+            assertActionBarKey(helper, player, EvokingCaster.NO_TARGETS_KEY);
+            helper.assertTrue(fangs(helper).isEmpty(), "no fangs");
             helper.succeed();
         });
     }

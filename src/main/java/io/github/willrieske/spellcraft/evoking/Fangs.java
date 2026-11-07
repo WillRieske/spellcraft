@@ -76,17 +76,25 @@ public final class Fangs {
         return Optional.of(new Snapshot(level.dimension(), feet, square, highest + 1, lowest - 1));
     }
 
-    /** A target (spec glossary): an enemy a mob could attack, attackable, and neither the caster nor an ally. */
+    /**
+     * A target (spec glossary): an enemy a mob could attack, attackable, and neither the caster nor an ally. A player
+     * counts only when the caster may harm that player ({@link ServerPlayer#canHarmPlayer}: the {@code pvp} game rule
+     * and team friendly fire), so fangs never start a cast whose bites vanilla would refuse.
+     */
     // Entities compare by id (docs/api-notes.md §8); this asks "is it the caster".
     @SuppressWarnings("ReferenceEquality")
     static boolean isTarget(ServerPlayer caster, LivingEntity entity) {
-        return entity != caster && entity.canBeSeenAsEnemy() && entity.attackable() && !Allies.isAllyOf(caster, entity);
+        return entity != caster
+                && entity.canBeSeenAsEnemy()
+                && entity.attackable()
+                && !Allies.isAllyOf(caster, entity)
+                && (!(entity instanceof Player other) || caster.canHarmPlayer(other));
     }
 
     /**
      * Places the fangs of {@code snapshot}: one per cell with a sturdy floor in the window, facing away from the
-     * caster, with the cell's ripple delay. Nothing happens in another dimension than the snapshot's. Cells outside
-     * the build limits or in unloaded chunks get none ({@link Level#isLoaded}; no chunk is loaded or waited on).
+     * caster, with the cell's ripple delay. Nothing happens in another dimension than the snapshot's. Cells whose chunk
+     * is not entity-ticking get none ({@link ServerLevel#isPositionEntityTicking}; no chunk is loaded or waited on).
      *
      * @param level the level to place the fangs in
      * @param caster the owner of the fangs
@@ -101,8 +109,10 @@ public final class Fangs {
         for (FangSquare.Cell cell : snapshot.square().cells()) {
             int x = feet.getX() + cell.dx();
             int z = feet.getZ() + cell.dz();
-            // At the caster's height this trips only on the horizontal world bounds or an unloaded chunk (spec §8).
-            if (!level.isLoaded(new BlockPos(x, feet.getY(), z))) {
+            // A fang placed in a chunk that is not entity-ticking would be saved with the chunk and bite later, and
+            // findFloor would load chunks synchronously. The check reads the chunk only (a caster above the build limit
+            // still gets fangs on a valid floor).
+            if (!level.isPositionEntityTicking(new BlockPos(x, feet.getY(), z))) {
                 continue;
             }
             findFloor(level, x, z, snapshot.top(), snapshot.bottom()).ifPresent(y -> {
