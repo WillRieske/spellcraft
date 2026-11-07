@@ -25,16 +25,29 @@ class VexRingTest {
             Set<Offset> offsets = new HashSet<>();
             IntStream.range(0, VexRing.COUNT).forEach(index -> offsets.add(VexRing.offset(index)));
             // Assert
-            assertThat(offsets).hasSize(VexRing.COUNT);
-            for (int dx = -VexRing.MAX_DISTANCE; dx <= VexRing.MAX_DISTANCE; dx++) {
-                for (int dz = -VexRing.MAX_DISTANCE; dz <= VexRing.MAX_DISTANCE; dz++) {
+            assertThat(offsets).hasSize(40);
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dz = -3; dz <= 3; dz++) {
                     int distance = Math.max(Math.abs(dx), Math.abs(dz));
-                    boolean inRing = distance >= VexRing.MIN_DISTANCE && distance <= VexRing.MAX_DISTANCE;
+                    boolean inRing = distance >= 2;
                     assertThat(offsets.contains(new Offset(dx, dz)))
                             .as("(%d, %d)", dx, dz)
                             .isEqualTo(inRing);
                 }
             }
+        }
+
+        /**
+         * When the first and last index are asked for, offset should give the ring's corners in the spec's fixed order
+         * (north row first, west to east).
+         *
+         * <p>Method under test: {@link VexRing#offset(int)}
+         */
+        @Test
+        void listsTheCellsInFixedOrder() {
+            // Act & Assert
+            assertThat(VexRing.offset(0)).isEqualTo(new Offset(-3, -3));
+            assertThat(VexRing.offset(39)).isEqualTo(new Offset(3, 3));
         }
 
         /**

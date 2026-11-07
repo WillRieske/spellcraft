@@ -21,7 +21,7 @@ class FangSquarePropertiesTest {
          * <p>Method under test: {@link FangSquare#of(double)}
          */
         @Property
-        void theCasterIsAlwaysOnAnEdge(@ForAll @DoubleRange(min = -720, max = 720) double yaw) {
+        void theCasterIsAlwaysOnAnEdge(@ForAll double yaw) {
             // Act
             FangSquare square = FangSquare.of(yaw);
             // Assert

@@ -34,6 +34,12 @@ class SpellDeclarationsTest {
         assertThat(SpellDeclarations.TRAILING.redundantInCreative()).isFalse();
     }
 
+    /**
+     * When the Evoking declaration is read, it should refuse a recast, be dispellable and not be redundant in
+     * creative.
+     *
+     * <p>Method under test: {@link SpellDeclarations#EVOKING}
+     */
     @Test
     void evokingRefusesARecastIsDispellableAndCastsInCreative() {
         assertThat(SpellDeclarations.EVOKING.name()).isEqualTo("evoking");

@@ -226,7 +226,8 @@ class EvokingCastTest {
 
         /**
          * When both a perform and a notice are overdue, due should return the perform first and the notice on the
-         * next call.
+         * next call. The scenario (a late {@code due} call while the fangs cast is still busy) is outside the
+         * caller's contract; it pins the order the class documents.
          *
          * <p>Method under test: {@link EvokingCast#due(long)}
          */

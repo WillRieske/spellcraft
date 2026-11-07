@@ -73,6 +73,10 @@ class SpellIconsTest(unittest.TestCase):
         self.assertEqual(on_disk, expected)
 
     def test_i7_evoking_glyph_is_a_7x8_mint_y(self):
+        """When the spells are listed, SPELLS should hold Evoking as a 7x8 glyph inked mint (#D2F8EA).
+
+        Function under test: :data:`spell_icons.SPELLS`
+        """
         spell = next(s for s in icons.SPELLS if s.id == "evoking")
         self.assertEqual((len(spell.glyph[0]), len(spell.glyph)), (7, 8))
         self.assertEqual(spell.ink, (210, 248, 234, 255))  # #D2F8EA

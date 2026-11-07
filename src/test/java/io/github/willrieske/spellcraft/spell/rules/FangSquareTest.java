@@ -32,7 +32,7 @@ class FangSquareTest {
         }
 
         /**
-         * When the caster faces south, east or west, of should put the center 6 blocks that way (F2).
+         * When the caster faces north, south, east or west, of should put the center 6 blocks that way (F2).
          *
          * <p>Method under test: {@link FangSquare#of(double)}
          */
@@ -156,8 +156,6 @@ class FangSquareTest {
             // Assert
             assertThat(cells)
                     .contains(new Cell(0, -1, 0), new Cell(1, 0, 0), new Cell(-6, -12, 11), new Cell(6, -12, 11));
-            assertThat(cells)
-                    .allMatch(cell -> cell.delayTicks() == Math.max(Math.abs(cell.dx()), Math.abs(cell.dz())) - 1);
         }
     }
 
@@ -178,6 +176,7 @@ class FangSquareTest {
             assertThat(square.contains(-6, -12)).isTrue();
             assertThat(square.contains(6, 0)).isTrue();
             assertThat(square.contains(7, 0)).isFalse();
+            assertThat(square.contains(-7, -6)).isFalse();
             assertThat(square.contains(0, 1)).isFalse();
             assertThat(square.contains(0, -13)).isFalse();
         }

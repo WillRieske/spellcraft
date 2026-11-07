@@ -47,19 +47,29 @@ class EvokerPoseTest {
     class HandOffsetAt {
         /**
          * When the body faces south (yaw 0) at tick 0, handOffset should put the hand particle 0.6 blocks along the
-         * swayed body angle, as the evoker's particles are.
+         * body angle swayed by a quarter radian, as the evoker's particles are.
          *
          * <p>Method under test: {@link EvokerPose#handOffset(float, int)}
          */
         @Test
         void followsTheEvokersFormula() {
-            // Arrange
-            double angle = 0.0 + Math.cos(0 * 0.6662F) * 0.25F;
             // Act
             HandOffset hand = EvokerPose.handOffset(0.0F, 0);
-            // Assert
-            assertThat(hand.dx()).isCloseTo(Math.cos(angle) * EvokerPose.HAND_DISTANCE, within(1e-6));
-            assertThat(hand.dz()).isCloseTo(Math.sin(angle) * EvokerPose.HAND_DISTANCE, within(1e-6));
+            // Assert (0.6 · cos 0.25 and 0.6 · sin 0.25, computed by hand)
+            assertThat(hand.dx()).isCloseTo(0.5813474530, within(1e-6));
+            assertThat(hand.dz()).isCloseTo(0.1484423756, within(1e-6));
+        }
+
+        /**
+         * When the hand particle's height is asked for, HAND_HEIGHT should be the evoker's 1.8 blocks above its feet
+         * (spec §7).
+         *
+         * <p>Method under test: {@link EvokerPose#HAND_HEIGHT}
+         */
+        @Test
+        void pinsTheHandHeightTo1Point8() {
+            // Act & Assert
+            assertThat(EvokerPose.HAND_HEIGHT).isEqualTo(1.8);
         }
 
         /**
@@ -74,9 +84,9 @@ class EvokerPoseTest {
             // Act
             HandOffset hand = EvokerPose.handOffset(90.0F, 7);
             // Assert
-            assertThat(hand.dx()).isCloseTo(Math.cos(angle) * EvokerPose.HAND_DISTANCE, within(1e-6));
-            assertThat(hand.dz()).isCloseTo(Math.sin(angle) * EvokerPose.HAND_DISTANCE, within(1e-6));
-            assertThat(Math.hypot(hand.dx(), hand.dz())).isCloseTo(EvokerPose.HAND_DISTANCE, within(1e-9));
+            assertThat(hand.dx()).isCloseTo(Math.cos(angle) * 0.6, within(1e-6));
+            assertThat(hand.dz()).isCloseTo(Math.sin(angle) * 0.6, within(1e-6));
+            assertThat(Math.hypot(hand.dx(), hand.dz())).isCloseTo(0.6, within(1e-9));
         }
     }
 }
