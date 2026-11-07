@@ -123,7 +123,7 @@ spellcraft:evoking_scroll`. The glyph (`scripts/spell_icons.py`), ink `(210, 248
 
 Rows 0–2: the raised arms (outer columns) beside a 3×3 head. Row 3: the arms angle in to the
 shoulders; the single center pixel is the neck. Row 4: the shoulders. Rows 5–7: the body, the
-stem of the Y. Origin `(5, 4)` on the parchment; the effect icon is the glyph at 2× centered in
+stem of the Y. Origin `(5, 5)` on the parchment; the effect icon is the glyph at 2× centered in
 18×18, as for every spell. Whether it reads as an evoker is Will's call (§9 playtest).
 
 ### Keys
@@ -143,11 +143,12 @@ constants and `InputConstants.Type.KEYBOARD`, never `GLFW.GLFW_KEY_*`.
 
 F is vanilla's *Swap Item With Offhand*. **While the local player has Evoking, a press of the
 fangs key casts and does not swap**: the client drains the swap mapping's clicks in the same
-tick when the two mappings are bound to the same key (`KeyMapping.same`). Without Evoking, F
-swaps as always and the mod sends nothing. The player can rebind either key in Controls. V is
-vanilla's F3-chord *Dump version info* (`key.debug.dumpVersion`, `Options.java:736`, category
-Debug): the Controls screen shows the pair in red as a conflict, and pressing V without F3 held
-reaches only the mod's mapping. Accepted (Will chose V).
+tick when either Evoking key is bound to the same key as swap-offhand (`KeyMapping.same`), so
+no vanilla swap click gets through. Without Evoking, F swaps as always and the mod sends
+nothing. The player can rebind either key in Controls. V is vanilla's F3-chord *Dump version
+info* (`key.debug.dumpVersion`, `Options.java:736`, category Debug). In Controls both keys show
+red: F against Swap Item With Offhand, V against the F3-chord Dump Version Info. Both conflicts
+are accepted (Will chose F and V); pressing V without F3 held reaches only the mod's mapping.
 
 ### Config
 
@@ -173,7 +174,9 @@ core) is the one rule:
   no live owner lookup).
 - `mayHaveAllies(Entity other)`: the cheap pre-check Trailing's fast path needs: a team, an
   `OwnableEntity`, an `Allay`, or a summoner attachment. False means `isAllyOf` cannot be true
-  for any owner.
+  for any owner, except through a vanilla override the list does not know (team, `OwnableEntity`,
+  `Allay` and the summoner attachment are what it knows); a modded entity with its own
+  `considersEntityAsAlly` would need adding.
 
 `AllyAttachments.SUMMONER` (`spellcraft:summoner`, `UUID`, serialized with `UUIDUtil.CODEC`,
 not copied on death) is the attachment. It is a `spell`-package registration so that `trailing`
@@ -384,7 +387,9 @@ casting state, add two `ENTITY_EFFECT` particles at the hands, the evoker's own 
 (`SpellcasterIllager.tick`): `a = yBodyRot·π/180 + cos(tickCount · 0.6662) · 0.25`, hands at
 `(x ± cos a · 0.6, y + 1.8, z ± sin a · 0.6)`, color `(0.4, 0.3, 0.35)` for fangs and
 `(0.7, 0.7, 0.8)` for vexes. `EvokerPose.handOffset(bodyYawDegrees, tick)` (pure core) gives
-the offsets; the two colors are constants in `CastingParticles`.
+one hand's offset; the other is its negation (done by the caller). The two colors are constants
+in `CastingParticles`. While the client is paused (`Minecraft.isPaused()`) no hand particles
+are emitted, so none pile up behind the pause menu.
 
 ### Raised arms (`EvokingArmPose`)
 
@@ -398,7 +403,7 @@ NeoForge lets a mod add an `HumanoidModel.ArmPose` with a transformer (FML enum 
 - The transformer, for each arm: `xRot = cos(ageInTicks · 0.6662) · 0.25`, `yRot = 0`,
   `zRot = +3π/4` (right) or `−3π/4` (left): `IllagerModel`'s SPELLCASTING pose. The player's
   arms already sit at x = ∓5, so the illager's position shift is not needed.
-  `EvokerPose.armRotation(ageInTicks)` (pure) supplies the numbers.
+  `EvokerPose.armRotation(ageInTicks, rightArm)` (pure) supplies the numbers.
 - `RegisterRenderStateModifiersEvent.registerAvatarEntityModifier`: after vanilla extracts a
   player's render state, if `CastingState.of(player)` is present set both `rightArmPose` and
   `leftArmPose` to `PROXY.getValue()`. `HumanoidModel.setupAnim` then routes both arms to the
@@ -416,7 +421,7 @@ NeoForge lets a mod add an `HumanoidModel.ArmPose` with a transformer (FML enum 
 
 ```text
 for each (mapping, spell): while mapping.consumeClick(): if player has Evoking: send EvokingRequest(spell)
-if player has Evoking and FANGS.same(options.keySwapOffhand): while keySwapOffhand.consumeClick() {}
+if player has Evoking and (fangs or vexes mapping).same(options.keySwapOffhand): while keySwapOffhand.consumeClick() {}
 ```
 
 ## 8. Error handling
@@ -429,9 +434,13 @@ if player has Evoking and FANGS.same(options.keySwapOffhand): while keySwapOffha
 - Dimension change between press and perform: fangs are not placed (the snapshot is for the
   old level); vexes are summoned where the player now stands.
 - Logout or server stop: the caster's entry is dropped; the casting effect is saved with the
-  player and expires after the relog.
-- A cell with no sturdy floor in the window, or outside the build limits: no fang there
-  (`isInValidBounds` first, as Trailing's `canLight`).
+  player and expires after the relog. A fang whose caster has since logged out has no owner and
+  bites like a vanilla ownerless fang, allies included; accepted, a one-second window.
+- A cell with no sturdy floor in the window, outside the build limits, or in an unloaded chunk:
+  no fang there. Implemented as `Level.isLoaded(BlockPos)` tested at the caster's y, before the
+  floor walk.
+- Repeated no-target requests from a modified client each cost one 13×13×13 scan and start no
+  cooldown; accepted.
 - A vex that fails to `create` (never in vanilla): skipped.
 - Summoner offline: the vex is passive; it starves out within two minutes anyway.
 - `EnumProxy.getValue()` throws at first render if the enum extension file is missing or
@@ -456,6 +465,7 @@ Arrange/Act/Assert).
 | F5 | `cells()` | 168 cells, none `(0, 0)`, all within the square, all distinct |
 | F6 | delays | `chebyshev − 1`; adjacent cells 0, far corner 11 |
 | F7 | yaw outside −180…180 (e.g. 540) | same as the normalized yaw |
+| F8 | yaw `NaN` or infinite | `of` throws `IllegalArgumentException` |
 
 Properties: for every yaw, `max(|centerDx|, |centerDz|) == 6` (the caster is on an edge);
 cells count 168 and exclude the origin; rotating yaw by 90° rotates the center by 90°;
@@ -475,16 +485,19 @@ cells count 168 and exclude the origin; rotating yaw by 90° rotates the center 
 | C8 | `noTargets(100)`, `noTargets(110)` | one notice, at 130 |
 | C9 | `noTargets(100)`, `start(FANGS, 105)` | no notice; `PERFORM` at 125 |
 | C10 | `start` while `readiness` is not `READY` | `IllegalStateException` |
+| C11 | `noTargets` on a fresh state | no start, so `readiness` stays `READY` (no cooldown) and `isCasting` is false (no arms) |
 
 Properties: `due` never returns the same perform twice; after any sequence, at most one
-perform is pending; `isCasting` is false once `now ≥ start + castingTicks`.
+perform is pending; `isCasting` is false once `now ≥ start + castingTicks`; a notice comes
+exactly 20 ticks after the latest no-targets press unless a `start` dropped it.
 
 **`VexRing`:** 40 offsets, all distinct, every one with Chebyshev distance 2 or 3, every such
 cell present; `offset(i)` for `i` outside 0…39 throws.
 
-**`EvokerPose`:** `armRotation(t)` gives `xRot = cos(0.6662 t)·0.25`, right `zRot = 3π/4`, left
-`−3π/4`; `handOffset(yaw, t)` matches the evoker's formula at a few points, and the two hands
-are opposite. **`EvokerSpell`:** the four numbers and `WARMUP`.
+**`EvokerPose`:** `armRotation(t, rightArm)` gives `xRot = cos(0.6662 t)·0.25`, right `zRot =
+3π/4`, left `−3π/4`; `handOffset(yaw, t)` gives one hand's offset and matches the evoker's
+formula at a few points (the other hand is its negation, done by the caller).
+**`EvokerSpell`:** the four numbers and `WARMUP`.
 
 **`SpellDeclarationsTest`** gains Evoking (`AMAZING`, not top, `REFUSE`, dispellable, not
 redundant). **`CastRulesTest.decidesEveryCase`** gains `EVOKING` rows: the first spell that
@@ -493,6 +506,10 @@ creative → `CAST`). **`SpellAssetsTest`** covers the new assets by itself. **`
 unchanged: `evoking` is common, `client.evoking` is client, `spell.rules` stays pure.
 
 ### GameTests (`./gradlew runGameTestServer`)
+
+Mock players are never ticked by the server (`docs/api-notes.md` §19), so a GameTest steps the
+caster by hand (`EvokingCaster.tick(player)`, via a `step` helper) inside every delayed callback
+that asserts a perform or a notice.
 
 Cast rules in `EvokingGameTests`, written like `InfinityGameTests` (`CastRuleGameTests`
 assumes a finite, configured duration and a refreshing recast, so it does not fit): cast
@@ -516,23 +533,27 @@ with Evoking, flat ground around the structure):
 | # | Setup | Assert |
 |---|---|---|
 | E1 | Facing north, a zombie 5 blocks north, `request(FANGS)` | `STARTED`: `casting_fangs` on the player (duration 40, `showIcon` false, `isVisible` true), the synced particle list holds `CASTING_FANGS`; no fangs yet; after 20 ticks 168 `EvokerFangs` whose owner is the player, none on the caster's cell, all inside `x ∈ F.x−6…F.x+6, z ∈ F.z−12…F.z`; the saved `Warmup` of a fang beside the caster is 0 and of the far corner's 11 |
-| E2 | Facing north-east (yaw −135), zombie inside | all fangs inside `x ∈ F.x…F.x+12, z ∈ F.z−12…F.z` |
-| E3 | No entity in the square (a zombie 20 blocks away) | no casting effect, no fangs; after 20 ticks the action bar holds "No targets in range" (`drainActionBar`); a request 5 ticks later still yields one notice |
+| E2 | Facing north-east (yaw −135), a pig on the far corner of the square; the caster walks 3 blocks during the warmup | fangs still land on the square frozen at the press: all inside `x ∈ F.x…F.x+12, z ∈ F.z−12…F.z` |
+| E3 | Four strangers just outside the square (behind the caster, past the far edge, past the side edge, above the vertical window) | no casting effect, no fangs; after 20 ticks the action bar holds "No targets in range" (`drainActionBar`); a request 5 ticks later still yields one notice |
 | E4 | Only allies in the square: a tamed wolf (owner on no team), a zombie on the player's team, a vex with the summoner attachment | treated as no targets |
 | E5 | A creative player and a spectator in the square | no targets; a survival player in it is a target |
 | E6 | `EvokerFangs` with owner = the player, warmup 0, under (a) the player's summoned vex, (b) a stranger zombie; tick past the bite | vex health unchanged; zombie hurt |
 | E7 | `request(FANGS)` then `request(VEXES)` 5 ticks later; then `request(FANGS)` at 50 and at 100 ticks | second is `BUSY`, third `COOLING`, fourth `STARTED` |
 | E8 | `request(VEXES)` | `STARTED`, `casting_vexes` for 100 ticks; after 20 ticks exactly 3 vexes at `y = F.y + 1`, each at Chebyshev 2–3 horizontally, each with the summoner attachment, `FOLLOW_RANGE` 5, one target goal, `getBoundOrigin()` = its spawn block, saved NBT `life_ticks` in 600…2400 |
 | E9 | Player on a team, `request(VEXES)` | the vexes are on the team |
-| E10 | A summoned vex, the owner 2 blocks away, nothing else | after 40 ticks `getTarget()` is null; add a zombie 3 blocks from the vex: within 40 ticks the target is the zombie; a zombie 8 blocks away is never targeted |
-| E11 | A `Vex` created by hand with the attachment, then `addFreshEntity` | goals installed (one target goal, range 5); a vex without the attachment keeps vanilla's three target goals |
+| E10 | Deterministic: a summoned vex snapped 1 block from the owner, with a `noAi` pig 4 blocks away | the vex targets the pig, never the owner; second case: a lone pig 8 blocks away is never targeted over 40 ticks |
+| E11 | A `Vex` created by hand with the attachment, then `addFreshEntity`; then saved and reloaded | goals installed (one target goal, range 5); the reloaded copy has the same goal and range; a vex without the attachment keeps vanilla's three target goals |
 | E12 | Owner's trail flame, the owner's summoned vex runs `entityInside`; a stranger's vex does the same | the owner's vex untouched; the stranger's vex ignited and hurt |
 | E13 | `request(FANGS)` accepted, then `removeEffect(EVOKING)` before the perform | no fangs at 20 ticks |
 | E14 | `request(FANGS)` from a player without Evoking; from a spectator with it | nothing: no effect, no fangs, no notice |
 | E15 | `request(FANGS)` accepted, then `PlayerLoggedOutEvent` for the player (constructed as `TrailLayerGameTests` does), then 20 ticks | no fangs; `tick` on the player afterwards does nothing and throws nothing |
-| E16 | `request(FANGS)` accepted, then the player is teleported to the Nether before the perform | no fangs in either level; `request(VEXES)` accepted and the same teleport: the three vexes appear beside the player in the Nether |
+| E16 | Both cases use a prepared Nether pocket in a forced chunk. `request(FANGS)` accepted, then the player is teleported to the Nether before the perform | no fangs in either level; `request(VEXES)` accepted and the same teleport: the three vexes appear beside the player in the Nether |
 | E17 | Zombie in the square; one cell holds a 1-block pillar, one cell is a 2-deep hole, one cell is a hole deeper than the window | the pillar cell's fang stands on the pillar, the shallow hole's fang stands at its floor, the deep hole has no fang |
-| E18 | An armor stand, alone, in the square | no targets (`attackable()` false); a summoned vex 3 blocks from an armor stand never targets it |
+| E18 | An armor stand, alone, in the square | no targets (`attackable()` false); a summoned vex 3 blocks from an armor stand never targets it; positive control: a pig farther than the armor stand becomes the target |
+| E19 | `PlayerTickEvent.Post` posted for a mock player after a press | drives the perform: fangs appear after the warmup |
+| E20 | Each casting effect | neutral category, mint color, carries its own particle (`CASTING_FANGS` / `CASTING_VEXES`) |
+| E21 | `EvokingRequest.STREAM_CODEC` round trip for each spell | the decoded request equals the original |
+| E22 | `request(FANGS)` accepted, then `onServerStopped` | the pending cast is cancelled: no fangs at 20 ticks |
 
 Allies (`Allies.isAllyOf` / `mayHaveAllies`, no Evoking needed):
 
@@ -541,12 +562,14 @@ Allies (`Allies.isAllyOf` / `mayHaveAllies`, no Evoking needed):
 | A1 | The player and a zombie on one team; a zombie on no team | ally; not an ally |
 | A2 | A tamed wolf of a team-less player | ally; `mayHaveAllies` true |
 | A3 | A vex with the summoner attachment naming the player; one naming another UUID | ally; not an ally |
-| A4 | A vex loaded from NBT whose `owner` is the player's UUID (no attachment, no team; vanilla never calls it an ally) | ally through the `OwnableEntity` path |
+| A4 | A vex loaded from NBT whose `owner` is the player's UUID (no attachment, no team; vanilla never calls it an ally); a stranger's owned vex (random UUID) | ally through the `OwnableEntity` path; the stranger's is not an ally |
 | A5 | A plain zombie, a creeper | `mayHaveAllies` false; `isAllyOf` false for the player |
+| A6 | Direct `VexSummons.isPrey` | a stranger player is prey; a teammate, a tamed wolf, an armor stand and a vex whose summoner is offline are not |
+| A7 | `trail_g7d`: the owner's trail flame, the owner's summoned vex | the flame spares the vex |
 
 ### Script tests
 
-`scripts/test_spell_icons.py`: the Evoking glyph is 7 wide and 8 tall, its ink is
+`scripts/test_spell_icons.py` (`test_i7`): the Evoking glyph is 7 wide and 8 tall, its ink is
 `(210, 248, 234, 255)`, the generated scroll is 16×16 and the effect icon 18×18 (the existing
 parametrized checks pick it up from `SPELLS`).
 
@@ -565,7 +588,8 @@ arms are up or within five seconds: nothing; V: arms up for five seconds, three 
 you after one; vexes ignore you and your tamed wolf, attack a zombie or cow within five blocks,
 ignore one farther away, and die after 30–120 s; your own fangs and trail spare your vexes;
 F no longer swaps hands while Evoking is on and does again after sneak + scroll; the inventory
-shows no "Casting" entry; Controls lists "Spellcraft: Evoking: Fangs / Summon Vexes"; a second
+shows no "Casting" entry; Controls lists "Spellcraft: Evoking: Fangs / Summon Vexes"; pausing
+mid-cast leaves no particles piled up behind the menu; a second
 client (LAN) sees your arms and particles; recast refused; milk clears.
 
 ## 10. Decisions Will did not state
@@ -591,10 +615,15 @@ client (LAN) sees your arms and particles; recast refused; milk clears.
 | Losing Evoking mid-cast | The perform is dropped | The spell is gone. |
 | Game events | None per fang | 168 sculk pings per cast. |
 | Config | None | Every number is the evoker's. |
+| Version bump | Deferred: the delivery does not bump `mod_version` | The release step (bump, tag) follows the final review. |
+| Unloaded chunks and build limits | A cell there gets no fang (`Level.isLoaded` at the caster's y) | A 13×13 square near a chunk edge must not force-load chunks. |
+| Paused client | No hand particles while `Minecraft.isPaused()` | `ClientTickEvent.Post` fires while paused; particles would pile up behind the pause menu. |
 
 ## 11. Delivery
 
-Version **1.3.0**. README (four spells, the keys), the mod description, the playtest
-checklist, `docs/api-notes.md` §19 (every hook used here, verified), `CLAUDE.md` (the packet
-rule, the pure-core list unchanged), `docs/mutation-testing.md`. One plan, one branch
-(`feat/evoking`), one draft PR.
+README (four spells, the keys), the mod description, the playtest checklist, `docs/api-notes.md`
+§19 (every hook used here, verified), `CLAUDE.md` (the packet rule, the pure-core list
+unchanged), `docs/mutation-testing.md`. No version bump: the release step (bump `mod_version`,
+tag) follows the final review. The jar name carries `mod_version`, so the real-profile install
+copies the built jar and removes older `spellcraft-*.jar` files from the mods folder. One plan,
+one branch (`feat/evoking`), one draft PR.
