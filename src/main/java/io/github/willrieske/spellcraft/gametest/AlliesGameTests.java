@@ -39,7 +39,16 @@ public final class AlliesGameTests {
         SpellcraftGameTests.add("pvp_off", "allies_a6_pvp_off", AlliesGameTests::a6PvpOff);
     }
 
+    /**
+     * When a mob is on the player's scoreboard team, should be an ally and may have allies; a zombie on no team
+     * should not be an ally.
+     *
+     * <p>Method under test: {@link Allies#isAllyOf}, and {@link Allies#mayHaveAllies}
+     *
+     * <p>Puts the player on a team, so it runs in the {@code team_mutation} batch; synchronous on purpose.
+     */
     static void a1Team(GameTestHelper helper) {
+        // Arrange
         ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         Scoreboard scoreboard = helper.getLevel().getScoreboard();
         withTeam(scoreboard, "spellcraft_allies_a1", team -> {
@@ -47,6 +56,8 @@ public final class AlliesGameTests {
             scoreboard.addPlayerToTeam(player.getScoreboardName(), team);
             scoreboard.addPlayerToTeam(teammate.getScoreboardName(), team);
             Zombie stranger = helper.spawn(EntityTypes.ZOMBIE, SPOT);
+
+            // Act & Assert
             helper.assertTrue(Allies.isAllyOf(player, teammate), "a teammate is an ally");
             helper.assertFalse(Allies.isAllyOf(player, stranger), "a zombie on no team is not");
             helper.assertTrue(Allies.mayHaveAllies(teammate), "a teamed mob may have allies");
@@ -55,55 +66,91 @@ public final class AlliesGameTests {
     }
 
     /**
-     * The player has no team here, so the pet is allied through ownership, not the scoreboard.
+     * When a wolf is tamed by the player, should be an ally and may have allies. The player has no team here, so the
+     * pet is allied through ownership, not the scoreboard.
      *
-     * <p>Method under test: {@link Allies#isAllyOf}
+     * <p>Method under test: {@link Allies#isAllyOf}, and {@link Allies#mayHaveAllies}
      */
     static void a2TamedPet(GameTestHelper helper) {
+        // Arrange
         ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         helper.assertTrue(player.getTeam() == null, "setup: the player is on no team");
         Wolf pet = helper.spawn(EntityTypes.WOLF, SPOT);
+
+        // Act
         pet.tame(player);
+
+        // Assert
         helper.assertTrue(Allies.isAllyOf(player, pet), "a tamed pet is an ally");
         helper.assertTrue(Allies.mayHaveAllies(pet), "an ownable mob may have allies");
         helper.succeed();
     }
 
+    /**
+     * When a mob carries the player's UUID as its summoner mark, should be an ally and may have allies; a mob marked
+     * by another player should not be an ally. The zombie pins the attachment clause: a vex is already an {@code
+     * OwnableEntity}, so a vex alone would pass without it.
+     *
+     * <p>Method under test: {@link Allies#isAllyOf}, and {@link Allies#mayHaveAllies}
+     */
     static void a3SummonerAttachment(GameTestHelper helper) {
+        // Arrange
         ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         Vex mine = helper.spawn(EntityTypes.VEX, SPOT);
         mine.setData(AllyAttachments.SUMMONER, player.getUUID());
         Vex someoneElses = helper.spawn(EntityTypes.VEX, SPOT);
         someoneElses.setData(AllyAttachments.SUMMONER, UUID.randomUUID());
+        Zombie markedZombie = helper.spawn(EntityTypes.ZOMBIE, SPOT);
+        helper.assertFalse(Allies.mayHaveAllies(markedZombie), "setup: an unmarked zombie cannot have allies");
+
+        // Act
+        markedZombie.setData(AllyAttachments.SUMMONER, player.getUUID());
+
+        // Assert
         helper.assertTrue(Allies.isAllyOf(player, mine), "a mob the player summoned is an ally");
         helper.assertFalse(Allies.isAllyOf(player, someoneElses), "another player's summon is not");
         helper.assertTrue(Allies.mayHaveAllies(mine), "a summoned mob may have allies");
+        helper.assertTrue(Allies.isAllyOf(player, markedZombie), "a marked zombie, no vex, is an ally");
+        helper.assertTrue(Allies.mayHaveAllies(markedZombie), "a marked zombie may have allies");
         helper.succeed();
     }
 
     /**
-     * A vex whose saved {@code owner} is the player: vanilla stores the owner but never calls the vex an ally of
-     * it, so only the {@code OwnableEntity} path can. A second vex owned by a stranger is the negative control: it
-     * fails if the owner reference is not compared to the player. Both are built by
+     * When a vex's saved {@code owner} is the player, should be an ally: vanilla stores the owner but never calls the
+     * vex an ally of it, so only the {@code OwnableEntity} path can. A second vex owned by a stranger is the negative
+     * control: it fails if the owner reference is not compared to the player. Both are built by
      * {@link GameTestSupport#vexOwnedBy}.
+     *
+     * <p>Method under test: {@link Allies#isAllyOf}, and {@link Allies#mayHaveAllies}
      */
     static void a4OwnableOwner(GameTestHelper helper) {
+        // Arrange
         ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         ServerLevel level = helper.getLevel();
         Vex vex = GameTestSupport.vexOwnedBy(level, player.getUUID());
         Vex strangersVex = GameTestSupport.vexOwnedBy(level, UUID.randomUUID());
         helper.assertTrue(vex.getOwnerReference() != null, "setup: the owner was read");
         helper.assertFalse(player.isAlliedTo(vex), "setup: vanilla does not ally the vex to its owner");
+
+        // Act & Assert
         helper.assertTrue(Allies.isAllyOf(player, vex), "an ownable mob the player owns is an ally");
         helper.assertFalse(Allies.isAllyOf(player, strangersVex), "a vex another player owns is not an ally");
         helper.assertTrue(Allies.mayHaveAllies(strangersVex), "an ownable mob may have allies");
         helper.succeed();
     }
 
+    /**
+     * When a mob has no team, owner or mark, should be no ally and cannot have allies; the player is their own ally.
+     *
+     * <p>Method under test: {@link Allies#isAllyOf}, and {@link Allies#mayHaveAllies}
+     */
     static void a5Strangers(GameTestHelper helper) {
+        // Arrange
         ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         Zombie zombie = helper.spawn(EntityTypes.ZOMBIE, SPOT);
         Creeper creeper = helper.spawn(EntityTypes.CREEPER, SPOT);
+
+        // Act & Assert
         helper.assertFalse(Allies.mayHaveAllies(zombie), "a plain zombie cannot have allies");
         helper.assertFalse(Allies.mayHaveAllies(creeper), "a plain creeper cannot have allies");
         helper.assertFalse(Allies.isAllyOf(player, zombie), "a zombie is not an ally");

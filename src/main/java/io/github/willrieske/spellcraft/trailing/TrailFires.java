@@ -371,7 +371,7 @@ public final class TrailFires {
 
     /**
      * Whether the flame at {@code pos} spares {@code entity}: the owner, or (while the owner is online in this
-     * level) anyone the owner's allies per {@link Allies} (spec 2026-11-06 section 3). An orphan spares nobody.
+     * level) any ally of the owner per {@link Allies} (spec 2026-11-06 section 3). An orphan spares nobody.
      *
      * <p>The owner lookup is skipped when {@link Allies#mayHaveAllies} is false; why that is safe is documented
      * there.
