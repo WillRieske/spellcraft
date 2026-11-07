@@ -45,8 +45,11 @@ Then grep `build/mc-src` (vanilla `net.minecraft.*` with NeoForge patches applie
 
 - **Visual verification belongs to Will.** Never claim a visual/feel behaviour works. Add or
   point to an item in `docs/playtest-checklist.md` and hand it over.
-- **Server owns state; the client renders it.** The client only reads the vanilla-synced
-  `spellcraft:upside_down` effect. No custom packets.
+- **Server owns state; the client renders it.** The client reads vanilla-synced state (effects, the
+  effect-particle list) and never decides anything. The one custom packet is Evoking's
+  client→server `EvokingRequest` ("this key was pressed"), which the server validates in full;
+  nothing is sent clientbound. Add no other packets without a spec that says why vanilla's sync
+  cannot carry the state.
 - **Client-only code lives under `io.github.willrieske.spellcraft.client`.** ArchUnit rule 1
   enforces this; a violation crashes dedicated servers.
 - **Pure core** (`client.upsidedown`, `spell.rules`): no `net.minecraft`/NeoForge imports (ArchUnit rule 2). TDD
@@ -81,6 +84,6 @@ paradigms only. For exact signatures, the decompiled sources in `build/mc-src` a
 - [GameTests](https://docs.neoforged.net/docs/misc/gametest) - test environments, functions, instances.
 - [Access transformers](https://docs.neoforged.net/docs/advanced/accesstransformers) - widening access.
 - [Resources and data generation](https://docs.neoforged.net/docs/resources/) - assets, data, datagen.
-- [Networking](https://docs.neoforged.net/docs/networking/) - we deliberately add none.
+- [Networking](https://docs.neoforged.net/docs/networking/) - one client-to-server packet only (Evoking's `EvokingRequest`).
 - [Mixin wiki](https://github.com/SpongePowered/Mixin/wiki) - Mixin fundamentals.
 - [MixinExtras wiki](https://github.com/LlamaLad7/MixinExtras/wiki) - `WrapOperation` etc.
