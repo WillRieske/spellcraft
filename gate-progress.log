@@ -49,3 +49,4 @@ f03724d Evoking Task 3 (FangSquare, VexRing, EvokerPose): 28 unit tests + Archit
 7b41118 Evoking Task 5 (Allies, summoner attachment, Trailing isSpared, A1-A5, trail_g7d): build green; runGameTestServer all 114 required passed; review clean
 77833fe Evoking Task 6 (EvokingRequest/Network/Caster, Fangs, FangGameTests): build green; runGameTestServer all 130 required passed (x2); review clean after 1 fix round
 74f5481 Evoking Task 7 (VexSummons, VexGameTests): build green; runGameTestServer all 139 required passed; review clean after 2 fix rounds
+3c8cef8 Evoking Task 8 (client keys, CastingState, CastingParticles, EvokingArmPose, enum extension): build green; runGameTestServer all 139 required passed; runData exit 0 grep clean; review clean after 1 fix round
