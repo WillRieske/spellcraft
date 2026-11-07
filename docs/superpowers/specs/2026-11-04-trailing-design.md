@@ -33,7 +33,7 @@ fades trails and remembers who owns each flame.
 | **Stale flame** | A flame whose turn to fade came while its chunk was not ready. The ledger keeps its owner and puts it out the next tick its chunk is ready (`getChunkNow` returns it). |
 | **Spared** | What a flame does for its owner and the owner's allies: `entityInside` applies no fire and no damage to them (`TrailFires.isSpared`). |
 | **Dead entry** | A flame a trail (or the stale list) still lists although the index gives its spot to another owner. Its turn is a no-op and the save drops it. |
-| **Ally** | What vanilla's `Entity.isAlliedTo` says: the same scoreboard team, or a tamed animal whose owner is (allied to) the player. |
+| **Ally** | Since 2026-11-06, what [`2026-11-06-evoking-design.md`](2026-11-06-evoking-design.md) §3 says (`Allies.isAllyOf`): vanilla's `Entity.isAlliedTo` (the same scoreboard team, a tamed animal whose owner is the player, an allay that likes the player), plus a mob the player summoned and any other `OwnableEntity` the player owns. |
 | **Fuse** | How a trail behaves: the oldest flame goes out first, the rest wait their turn. |
 | **Tracker** | The per-player record of where the player stood last tick and whether they were grounded there (`TrailTracker`). |
 | **Grounded** | On the ground, not riding, not a spectator: `onGround() && !isPassenger() && !isSpectator()`. |
@@ -201,12 +201,14 @@ older owner.
   chunk is ever loaded, or waited on, to put a flame out.
 - `ownerOf(BlockPos) → Optional<UUID>`; `isSpared(ServerLevel, BlockPos, Entity)`: true when
   the entity's UUID is the owner, or the owner is online in this level and
-  `owner.isAlliedTo(entity)`. An offline owner spares only themself (their pets burn until
-  they return: accepted). An entity with no team that is neither an `OwnableEntity` nor an
-  allay (vanilla allies an allay to the player it likes, `Allay.considersEntityAsAlly`) cannot
-  be allied to anyone, so the owner lookup (a scan of the level's players) is skipped for it;
-  this runs every tick for every entity standing in a flame. A modded entity with its own
-  ally rule for players would be missed by this fast path (documented in the Javadoc).
+  `Allies.isAllyOf(owner, entity)` (the Evoking spec's §3 rule, which adds the owner's summons).
+  An offline owner spares only themself (their pets burn until they return: accepted). An
+  entity with no team that is neither an `OwnableEntity` nor an allay nor a summoned mob (the
+  summoner attachment) (vanilla allies an allay to the player it likes,
+  `Allay.considersEntityAsAlly`) cannot be allied to anyone, so the owner lookup (a scan of the
+  level's players) is skipped for it; this runs every tick for every entity standing in a
+  flame. A modded entity with its own ally rule for players would be missed by this fast path
+  (documented in `Allies.mayHaveAllies`).
 - `forget(UUID owner)`: drops the owner's trail, their stale flames and their index entries
   without touching any block. GameTest support only (each test cleans its own ledger entries).
 
