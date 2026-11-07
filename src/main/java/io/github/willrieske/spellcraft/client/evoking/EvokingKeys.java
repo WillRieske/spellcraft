@@ -20,7 +20,9 @@ import net.neoforged.neoforge.client.settings.KeyConflictContext;
  * The two casting keys (spec §2, §7). A press while the local player has Evoking sends an {@link EvokingRequest};
  * the server decides what it does. While Evoking is on, a casting key bound to the same key as vanilla's
  * swap-offhand (either of the two, if the user rebinds) swallows the swap: {@code ClientTickEvent.Pre} runs before
- * {@code Minecraft.handleKeybinds}, so clicks consumed here never reach it (docs/api-notes.md §19).
+ * {@code Minecraft.handleKeybinds}, so clicks consumed here never reach it (docs/api-notes.md §19). The swallow rule:
+ * the swap-offhand clicks are drained only on a tick where a casting key that is bound to the same key as swap
+ * consumed at least one click, so with Fangs rebound to Shift+F a plain F press still swaps.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID, value = Dist.CLIENT)
 public final class EvokingKeys {
@@ -58,8 +60,9 @@ public final class EvokingKeys {
     }
 
     /**
-     * Sends one request per click of a casting key while Evoking is on, and swallows the swap-offhand clicks when a
-     * casting key shares that key, so a casting key casts instead of swapping.
+     * Sends one request per click of a casting key while Evoking is on, and swallows the swap-offhand clicks on a
+     * tick where a casting key that is bound to the swap key ({@code KeyMapping.same}) consumed a click, so that
+     * press casts instead of swapping. A key that does not share the swap key never swallows it.
      *
      * @param event the game-bus event
      */
@@ -68,22 +71,36 @@ public final class EvokingKeys {
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
         boolean evoking = player != null && player.hasEffect(ModEffects.EVOKING);
-        send(FANGS, EvokerSpell.FANGS, evoking);
-        send(VEXES, EvokerSpell.VEXES, evoking);
         KeyMapping swap = minecraft.options.keySwapOffhand;
-        if (evoking && (FANGS.same(swap) || VEXES.same(swap))) {
+        int swallow = 0;
+        int fangs = send(FANGS, EvokerSpell.FANGS, evoking);
+        if (FANGS.same(swap)) {
+            swallow += fangs;
+        }
+        int vexes = send(VEXES, EvokerSpell.VEXES, evoking);
+        if (VEXES.same(swap)) {
+            swallow += vexes;
+        }
+        if (evoking && swallow > 0) {
             while (swap.consumeClick()) {
-                // swallowed: a casting key casts instead of swapping while Evoking is on
+                // swallowed: a casting key cast instead of swapping while Evoking is on
             }
         }
     }
 
-    /** Drains the mapping's clicks; each one is a request while Evoking is on, and nothing otherwise. */
-    private static void send(KeyMapping key, EvokerSpell spell, boolean evoking) {
+    /**
+     * Drains the mapping's clicks; each one is a request while Evoking is on, and nothing otherwise.
+     *
+     * @return the number of clicks that sent a request this tick (zero when Evoking is off)
+     */
+    private static int send(KeyMapping key, EvokerSpell spell, boolean evoking) {
+        int sent = 0;
         while (key.consumeClick()) {
             if (evoking) {
                 ClientPacketDistributor.sendToServer(new EvokingRequest(spell));
+                sent++;
             }
         }
+        return sent;
     }
 }
