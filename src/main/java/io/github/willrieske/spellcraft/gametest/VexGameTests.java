@@ -1,7 +1,10 @@
 package io.github.willrieske.spellcraft.gametest;
 
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.isSummonedBy;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.requireEffect;
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.summonedVex;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.withTeam;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
 import io.github.willrieske.spellcraft.effect.ModEffects;
@@ -31,7 +34,6 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
 
 /**
@@ -57,7 +59,6 @@ public final class VexGameTests {
     /** For the range limit, which needs more room than the box: a vex outside the shell, beyond its north wall. */
     private static final BlockPos OUTSIDE_VEX_SPOT = FEET.north(4);
 
-    private static final int NETHER_DX = 64;
     private static final int RANGE_WINDOW = 40;
 
     private VexGameTests() {}
@@ -149,16 +150,12 @@ public final class VexGameTests {
                 helper.assertTrue(
                         distance >= VexRing.MIN_DISTANCE && distance <= VexRing.MAX_DISTANCE,
                         "spawned 2-3 blocks away, got " + distance);
-                helper.assertTrue(
-                        vex.getExistingData(AllyAttachments.SUMMONER)
-                                .filter(player.getUUID()::equals)
-                                .isPresent(),
-                        "marked with the summoner");
+                helper.assertTrue(isSummonedBy(vex, player), "marked with the summoner");
                 helper.assertValueEqual(
                         vex.getAttributeValue(Attributes.FOLLOW_RANGE), VexSummons.AGGRO_RANGE, "range");
                 helper.assertValueEqual(vex.targetSelector.getAvailableGoals().size(), 1, "one target goal");
                 // Created in this tick, so no life has run down yet: the roll bounds are exact.
-                int life = FangGameTests.savedInt(helper, vex, "life_ticks");
+                int life = FangGameTests.savedInt(vex, "life_ticks");
                 helper.assertTrue(
                         life >= VexRing.lifeTicks(0) && life <= VexRing.lifeTicks(VexRing.LIFE_ROLL_BOUND - 1),
                         "limited life, got " + life);
@@ -181,23 +178,21 @@ public final class VexGameTests {
         // Arrange
         ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         Scoreboard scoreboard = helper.getLevel().getScoreboard();
-        PlayerTeam team = scoreboard.addPlayerTeam("spellcraft_vexes_e9");
-        List<Vex> vexes = List.of();
-        try {
+        withTeam(scoreboard, "spellcraft_vexes_e9", team -> {
             scoreboard.addPlayerToTeam(player.getScoreboardName(), team);
 
             // Act
-            vexes = VexSummons.summon(helper.getLevel(), player);
-
-            // Assert
-            helper.assertValueEqual(vexes.size(), VexRing.SUMMON_COUNT, "three vexes");
-            for (Vex vex : vexes) {
-                helper.assertTrue(team.equals(vex.getTeam()), "on the summoner's team");
+            List<Vex> vexes = VexSummons.summon(helper.getLevel(), player);
+            try {
+                // Assert
+                helper.assertValueEqual(vexes.size(), VexRing.SUMMON_COUNT, "three vexes");
+                for (Vex vex : vexes) {
+                    helper.assertTrue(team.equals(vex.getTeam()), "on the summoner's team");
+                }
+            } finally {
+                vexes.forEach(Vex::discard);
             }
-        } finally {
-            vexes.forEach(Vex::discard);
-            scoreboard.removePlayerTeam(team);
-        }
+        });
         helper.succeed();
     }
 
@@ -285,11 +280,7 @@ public final class VexGameTests {
                 copy.targetSelector.getAvailableGoals().size(),
                 3,
                 "setup: the copy has vanilla's goals until it joins");
-        helper.assertTrue(
-                copy.getExistingData(AllyAttachments.SUMMONER)
-                        .filter(player.getUUID()::equals)
-                        .isPresent(),
-                "setup: the mark survives the save");
+        helper.assertTrue(isSummonedBy(copy, player), "setup: the mark survives the save");
         level.addFreshEntity(copy);
 
         // Assert
@@ -311,12 +302,8 @@ public final class VexGameTests {
         ServerPlayer owner = TrailGameTests.trailingPlayer(helper);
         TrailGameTests.teleport(helper, owner, TrailGameTests.D);
         helper.assertTrue(TrailGameTests.light(helper, owner, TrailGameTests.A), "lit A");
-        Vex mine = helper.spawn(EntityTypes.VEX, TrailGameTests.B);
-        mine.setNoAi(true);
-        mine.setData(AllyAttachments.SUMMONER, owner.getUUID());
-        Vex stranger = helper.spawn(EntityTypes.VEX, TrailGameTests.C);
-        stranger.setNoAi(true);
-        stranger.setData(AllyAttachments.SUMMONER, UUID.randomUUID());
+        Vex mine = summonedVex(helper, TrailGameTests.B, owner.getUUID());
+        Vex stranger = summonedVex(helper, TrailGameTests.C, UUID.randomUUID());
         whenDone(helper, () -> {
             TrailGameTests.forget(helper, owner);
             mine.discard();
@@ -337,8 +324,9 @@ public final class VexGameTests {
 
     /**
      * When the player presses V in the Overworld and moves to the Nether before the perform, should summon the three
-     * vexes beside the player in the Nether and none in the Overworld. {@code toNether} carves a safe pocket at a
-     * different x than Task 6's E16 and cleans up the pocket and the player.
+     * vexes beside the player in the Nether and none in the Overworld. {@code toNether} carves a safe pocket above the
+     * player's own coordinates, so it cannot overlap {@code fangs_e16_dimension_change}'s, and cleans up the pocket
+     * and the player.
      *
      * <p>Method under test: {@link EvokingCaster#tick}, then {@link VexSummons#summon}
      */
@@ -348,7 +336,7 @@ public final class VexGameTests {
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.VEXES), Request.STARTED, "request");
 
         // Act
-        BlockPos netherFeet = FangGameTests.toNether(helper, player, NETHER_DX);
+        BlockPos netherFeet = FangGameTests.toNether(helper, player);
         ServerLevel nether = player.level();
         helper.assertValueEqual(nether.dimension(), Level.NETHER, "setup: the player is in the Nether");
 
@@ -423,14 +411,11 @@ public final class VexGameTests {
         helper.assertFalse(
                 VexSummons.isPrey(level, UUID.randomUUID(), pig), "nothing is prey while the summoner is offline");
         helper.assertTrue(VexSummons.isPrey(level, id, teammate), "setup: the zombie is prey before the team exists");
-        PlayerTeam team = scoreboard.addPlayerTeam("spellcraft_vexes_prey");
-        try {
+        withTeam(scoreboard, "spellcraft_vexes_prey", team -> {
             scoreboard.addPlayerToTeam(summoner.getScoreboardName(), team);
             scoreboard.addPlayerToTeam(teammate.getScoreboardName(), team);
             helper.assertFalse(VexSummons.isPrey(level, id, teammate), "the summoner's teammate is not");
-        } finally {
-            scoreboard.removePlayerTeam(team);
-        }
+        });
         pet.discard();
         stand.discard();
         pig.discard();

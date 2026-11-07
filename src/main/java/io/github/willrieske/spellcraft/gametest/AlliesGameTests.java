@@ -1,5 +1,6 @@
 package io.github.willrieske.spellcraft.gametest;
 
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.withTeam;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
 import io.github.willrieske.spellcraft.spell.Allies;
@@ -15,7 +16,6 @@ import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.level.GameType;
-import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
 
 /** The shared ally rule (Evoking spec §3, table A1–A5). Registered in {@link SpellcraftGameTests}. */
@@ -36,8 +36,7 @@ public final class AlliesGameTests {
     static void a1Team(GameTestHelper helper) {
         ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         Scoreboard scoreboard = helper.getLevel().getScoreboard();
-        PlayerTeam team = scoreboard.addPlayerTeam("spellcraft_allies_a1");
-        try {
+        withTeam(scoreboard, "spellcraft_allies_a1", team -> {
             Zombie teammate = helper.spawn(EntityTypes.ZOMBIE, SPOT);
             scoreboard.addPlayerToTeam(player.getScoreboardName(), team);
             scoreboard.addPlayerToTeam(teammate.getScoreboardName(), team);
@@ -45,9 +44,7 @@ public final class AlliesGameTests {
             helper.assertTrue(Allies.isAllyOf(player, teammate), "a teammate is an ally");
             helper.assertFalse(Allies.isAllyOf(player, stranger), "a zombie on no team is not");
             helper.assertTrue(Allies.mayHaveAllies(teammate), "a teamed mob may have allies");
-        } finally {
-            scoreboard.removePlayerTeam(team);
-        }
+        });
         helper.succeed();
     }
 

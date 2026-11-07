@@ -1,9 +1,12 @@
 package io.github.willrieske.spellcraft.gametest;
 
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.assertActionBarKey;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.drainActionBar;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.requireEffect;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.saved;
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.summonedVex;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.withTeam;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
 import io.github.willrieske.spellcraft.effect.ModEffects;
@@ -11,7 +14,6 @@ import io.github.willrieske.spellcraft.evoking.EvokingCaster;
 import io.github.willrieske.spellcraft.evoking.EvokingCaster.Request;
 import io.github.willrieske.spellcraft.evoking.EvokingRequest;
 import io.github.willrieske.spellcraft.particle.ModParticles;
-import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.rules.EvokerSpell;
 import io.github.willrieske.spellcraft.spell.rules.FangSquare;
 import io.netty.buffer.Unpooled;
@@ -25,8 +27,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
@@ -49,7 +49,6 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -58,10 +57,11 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import net.neoforged.neoforge.network.connection.ConnectionType;
 
 /**
- * Fang GameTests for Strength of Evoking (spec §9, table E1–E7, E13–E18, plus E19 for the real tick subscriber),
- * driven through the public {@link EvokingCaster#request}. A mock player is never ticked by the server
- * (docs/api-notes.md §19), so the tests drive the caster with {@link #step} inside each delayed callback, and E19
- * posts the player-tick event itself. Every test that places fangs registers with 200 ticks and padding 13 (its padded
+ * Fang GameTests for Strength of Evoking (spec §9, table E1–E7, E13–E18, E19 for the real tick subscriber, E21 for
+ * the request codec and E22 for the server stop), driven through the public {@link EvokingCaster#request}. A mock
+ * player is never ticked by the server (docs/api-notes.md §19), so the tests drive the caster with {@link #step}
+ * inside each delayed callback, and E19 posts the player-tick event itself. Every test that places fangs registers
+ * with padding 13 and {@link #PADDED_MAX_TICKS} (the body's 200 ticks plus the wait for the padded chunks; its padded
  * box is cleared to air, so {@link #floor} lays stone under the square). The caster stands at {@link #FEET}, the
  * structure's middle; targets are pigs or an iron golem (zombies burn in daylight).
  */
@@ -99,7 +99,7 @@ public final class FangGameTests {
         addPadded(SHARED, "fangs_e1_carpet_north", FangGameTests::e1CarpetNorth);
         addPadded(SHARED, "fangs_e2_corner_north_east", FangGameTests::e2CornerNorthEast);
         addPadded(SHARED, "fangs_e3_no_targets_notice", FangGameTests::e3NoTargetsNotice);
-        addPadded(SHARED, "fangs_e4_allies_are_not_targets", FangGameTests::e4AlliesAreNotTargets);
+        addPadded("team_mutation", "fangs_e4_allies_are_not_targets", FangGameTests::e4AlliesAreNotTargets);
         addPadded(SHARED, "fangs_e5_player_modes", FangGameTests::e5PlayerModes);
         addPadded(SHARED, "fangs_e6_spare_summons", FangGameTests::e6SpareSummons);
         addPadded(SHARED, "fangs_e7_busy_and_cooling", FangGameTests::e7BusyAndCooling);
@@ -116,8 +116,8 @@ public final class FangGameTests {
 
     /**
      * Registers a test that places fangs or vexes far from its structure: padding 13, a tick budget that covers the
-     * body plus the wait of {@link #padded}, and the body wrapped in {@link #padded}. Task 7 registers its padded tests
-     * through this.
+     * body plus the wait of {@link #padded}, and the body wrapped in {@link #padded}. The vex tests register their padded
+     * tests through this too.
      */
     static void addPadded(String environment, String name, Consumer<GameTestHelper> body) {
         SpellcraftGameTests.add(environment, name, PADDED_MAX_TICKS, PADDING, padded(body));
@@ -173,6 +173,7 @@ public final class FangGameTests {
     private static void forcePadding(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         forEachPaddedChunk(helper, pos -> {
+            // Left forced on purpose: the GameTest server is discarded, and neighboring tests share padded chunks.
             level.setChunkForced(pos.x(), pos.z(), true);
             level.getChunk(pos.x(), pos.z()); // loads (and generates) it now, waiting for the worker threads
         });
@@ -215,23 +216,23 @@ public final class FangGameTests {
     }
 
     /**
-     * Sends {@code player} to a prepared pocket in the Nether directly above the player's own coordinates (x plus
-     * {@code dx}, the same y and z), so the pocket covers the fang snapshot's columns: 5×4×5 air inside a stone shell
+     * Sends {@code player} to a prepared pocket in the Nether directly above the player's own coordinates (the same
+     * x, y and z), so the pocket covers the fang snapshot's columns: 5×4×5 air inside a stone shell
      * (floor, walls and ceiling), so the player lands alive whatever the terrain there and no lava flows in. Every
      * chunk the pocket touches is forced and loaded first, and every block the shell and pocket replace is recorded.
      * When the test ends, passed or failed ({@link GameTestSupport#whenDone}), the fangs and vexes near the pocket are
      * discarded, the blocks restored, the chunks unforced and the player moved back to {@link #STAND}. Tests in a
-     * batch run at the same time, so each caller passes its own {@code dx} (Task 6's E16: 0; Task 7's E16: 64).
+     * batch run at the same time, but each has its own absolute position, so their pockets are disjoint.
      *
      * @return the player's feet block in the Nether
      */
-    static BlockPos toNether(GameTestHelper helper, ServerPlayer player, int dx) {
+    static BlockPos toNether(GameTestHelper helper, ServerPlayer player) {
         ServerLevel nether = helper.getLevel().getServer().getLevel(Level.NETHER);
         if (nether == null) {
             throw helper.assertionException("no Nether on the GameTest server: move this test to the playtest");
         }
         BlockPos here = player.blockPosition();
-        BlockPos feet = new BlockPos(here.getX() + dx, here.getY(), here.getZ());
+        BlockPos feet = here;
         BlockPos low = feet.offset(-3, -1, -3);
         BlockPos high = feet.offset(3, 4, 3);
         List<ChunkPos> chunks = new ArrayList<>();
@@ -302,7 +303,7 @@ public final class FangGameTests {
     }
 
     /** The int {@code key} of {@code entity}'s saved NBT, or {@link Integer#MIN_VALUE} when absent. */
-    static int savedInt(GameTestHelper helper, Entity entity, String key) {
+    static int savedInt(Entity entity, String key) {
         return saved(entity).getIntOr(key, Integer.MIN_VALUE);
     }
 
@@ -373,9 +374,8 @@ public final class FangGameTests {
                 throw helper.assertionException("the cell north of the caster and the far corner both hold a fang");
             }
             helper.assertValueEqual(
-                    savedInt(helper, farthest, "Warmup") - savedInt(helper, nearest, "Warmup"),
-                    11,
-                    "the far corner's fang waits 11 ticks longer than the nearest"); // neither has ticked yet
+                    savedInt(nearest, "Warmup"), 0, "the fang beside the caster has no warmup"); // none has ticked
+            helper.assertValueEqual(savedInt(farthest, "Warmup"), 11, "the far corner's fang waits 11 ticks");
             helper.succeed();
         });
     }
@@ -411,7 +411,6 @@ public final class FangGameTests {
         pig(helper, FEET.south(3)); // behind the caster: the square holds dz -12...0
         pig(helper, FEET.offset(0, 0, -13)); // one block past the far edge
         pig(helper, FEET.offset(7, 0, 0)); // one block past the east edge (dx -6...6)
-        helper.setBlock(FEET.offset(0, 7, -3), Blocks.STONE); // keeps the high pig from falling in
         pig(helper, FEET.offset(0, 8, -3)); // above the window: y in [feet-6, feet+7)
         drainActionBar(player); // discard what joining the level sent
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.NO_TARGETS, "request");
@@ -427,12 +426,7 @@ public final class FangGameTests {
         });
         helper.runAfterDelay(WARMUP + 7, () -> {
             step(player); // +27: past the moved notice time, so this step sends it
-            List<Component> messages = drainActionBar(player);
-            helper.assertValueEqual(messages.size(), 1, "one notice");
-            helper.assertTrue(
-                    messages.get(0).getContents() instanceof TranslatableContents contents
-                            && contents.getKey().equals(EvokingCaster.NO_TARGETS_KEY),
-                    "the 'no targets' message");
+            assertActionBarKey(helper, player, EvokingCaster.NO_TARGETS_KEY);
             helper.assertTrue(fangs(helper).isEmpty(), "no fangs");
             helper.succeed();
         });
@@ -445,22 +439,17 @@ public final class FangGameTests {
         Wolf pet = helper.spawn(EntityTypes.WOLF, FEET.north(3));
         pet.setNoAi(true);
         pet.tame(player);
-        Vex summon = helper.spawn(EntityTypes.VEX, FEET.north(5));
-        summon.setNoAi(true);
-        summon.setData(AllyAttachments.SUMMONER, player.getUUID());
+        Vex summon = summonedVex(helper, FEET.north(5), player.getUUID());
         helper.assertValueEqual(
                 EvokingCaster.request(player, EvokerSpell.FANGS), Request.NO_TARGETS, "pet and summon are no targets");
         Scoreboard scoreboard = helper.getLevel().getScoreboard();
-        PlayerTeam team = scoreboard.addPlayerTeam("spellcraft_fangs_e4");
-        try {
+        withTeam(scoreboard, "spellcraft_fangs_e4", team -> {
             Pig teammate = pig(helper, FEET.north(7));
             scoreboard.addPlayerToTeam(player.getScoreboardName(), team);
             scoreboard.addPlayerToTeam(teammate.getScoreboardName(), team);
             helper.assertValueEqual(
                     EvokingCaster.request(player, EvokerSpell.FANGS), Request.NO_TARGETS, "a teammate is no target");
-        } finally {
-            scoreboard.removePlayerTeam(team);
-        }
+        });
         summon.discard();
         helper.succeed();
     }
@@ -488,9 +477,7 @@ public final class FangGameTests {
         floor(helper, NORTH);
         ServerPlayer player = caster(helper, NORTH);
         ServerLevel level = helper.getLevel();
-        Vex summon = helper.spawn(EntityTypes.VEX, FEET.north(3));
-        summon.setNoAi(true);
-        summon.setData(AllyAttachments.SUMMONER, player.getUUID());
+        Vex summon = summonedVex(helper, FEET.north(3), player.getUUID());
         Pig stranger = pig(helper, FEET.north(6));
         float vexHealth = summon.getHealth();
         float pigHealth = stranger.getHealth();
@@ -520,7 +507,10 @@ public final class FangGameTests {
         IronGolem golem = helper.spawn(EntityTypes.IRON_GOLEM, FEET.north(5));
         golem.setNoAi(true);
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "first");
-        helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.VEXES), Request.BUSY, "arms up");
+        helper.runAfterDelay(5, () -> {
+            step(player); // nothing is due yet; the arms are still up
+            helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.VEXES), Request.BUSY, "arms up");
+        });
         helper.runAfterDelay(50, () -> {
             step(player); // performs the first cast (due at +20): the arms are down, the interval still runs
             helper.assertFalse(fangs(helper).isEmpty(), "the first cast performed");
@@ -594,7 +584,7 @@ public final class FangGameTests {
         ServerPlayer player = caster(helper, NORTH);
         pig(helper, FEET.north(5));
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
-        BlockPos netherFeet = toNether(helper, player, 0);
+        BlockPos netherFeet = toNether(helper, player);
         ServerLevel nether = player.level();
         helper.runAfterDelay(WARMUP + 2, () -> {
             helper.assertTrue(

@@ -90,6 +90,8 @@ public final class SpellcraftGameTests {
                 entry.function().getId(),
                 new FunctionGameTestInstance(
                         entry.function().getKey(),
+                        // Arguments, in order: environment, dimension, structure, maxTicks, setupTicks, required,
+                        // rotation, manualOnly, maxAttempts, requiredSuccesses, skyAccess, padding (see TestData).
                         new TestData<>(
                                 environment,
                                 Level.OVERWORLD,

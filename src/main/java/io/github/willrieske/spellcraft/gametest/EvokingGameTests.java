@@ -1,5 +1,6 @@
 package io.github.willrieske.spellcraft.gametest;
 
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.assertActionBarKey;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.drainActionBar;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.heldCount;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.hold;
@@ -11,10 +12,7 @@ import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.particle.ModParticles;
 import io.github.willrieske.spellcraft.spell.ModItems;
 import io.github.willrieske.spellcraft.spell.SpellScrollItem;
-import java.util.List;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.effect.MobEffectCategory;
@@ -90,12 +88,7 @@ public final class EvokingGameTests {
         helper.assertValueEqual(useHeld(helper, player), InteractionResult.FAIL, "recast refused");
         helper.assertValueEqual(heldCount(player), 2, "a refused scroll is kept");
         helper.assertTrue(player.hasEffect(ModEffects.EVOKING), "the effect stays");
-        List<Component> messages = drainActionBar(player);
-        helper.assertValueEqual(messages.size(), 1, "one action-bar message");
-        helper.assertTrue(
-                messages.get(0).getContents() instanceof TranslatableContents contents
-                        && contents.getKey().equals(SpellScrollItem.REFUSED_KEY),
-                "the 'scroll not needed' message");
+        assertActionBarKey(helper, player, SpellScrollItem.REFUSED_KEY);
         helper.succeed();
     }
 
