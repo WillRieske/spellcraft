@@ -1,7 +1,7 @@
 # Spellcraft: "Strength of Evoking" (design)
 
 **Date:** 2026-11-06
-**Status:** approved
+**Status:** plan written (`2026-11-06-evoking.md`)
 **Written by:** `/one-shot`, unattended, on 2026-11-06; §10 lists the decisions Will did not state.
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
 **Builds on:** [`2026-09-29-infinity-design.md`](2026-09-29-infinity-design.md) (the shared spell
