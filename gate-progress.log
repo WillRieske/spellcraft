@@ -44,3 +44,4 @@ d13c1a2 follow-up review fixes (owned-only save, ready-chunk test, G28/G12/G19 s
 da0bed5 final review fixes (G28 cleanup, Javadoc, spec wording): build green 182 unit tests; runGameTestServer BUILD SUCCESSFUL (99 required)
 ecbddda Evoking Task 1 (api-notes §19): docs only; markdownlint clean; review clean after 1 fix round
 4de8448 Evoking Task 2 (EvokerSpell, EvokingCast): EvokerSpellTest 3, EvokingCastTest 15, EvokingCastPropertiesTest 2, ArchitectureTest 3 green; build green via gate; review clean after 1 fix round
+f03724d Evoking Task 3 (FangSquare, VexRing, EvokerPose): 28 unit tests + ArchitectureTest green; build green via gate; review clean after 1 fix round
