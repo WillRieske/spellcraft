@@ -340,3 +340,122 @@ Verified 2026-11-04 against the same unpacked sources.
   Runnable)` `:964`, `getBlockState(BlockPos)` `:111` (relative); `CompoundTag.contains(String)` `:293`,
   `getCompoundOrEmpty(String)` `:373`; `ProblemReporter.DISCARDING` (`util/ProblemReporter.java:19`). The GameTest
   server uses `WorldPresets.FLAT_ALL_DIMENSIONS` (`GameTestServer.java:127`), so it has a Nether.
+
+## 19. Evoker spells, synced effect particles, keys, packets and enum extensions (Evoking task)
+
+Verified 2026-11-06 against the same unpacked sources, plus FML `loader-12.0.0-sources.jar` unpacked to
+`build/fml-src`.
+
+- Evoker timings: `monster/illager/Evoker.java` `EvokerAttackSpellGoal.getCastingTime` 40, `getCastingInterval` 100
+  (`:135-142`); `EvokerSummonSpellGoal` 100 / 340 (`:244-251`); warmup `SpellcasterIllager.java`
+  `SpellcasterUseSpellGoal.getCastWarmupTime` 20 (`:219-221`); `start()` sets `spellCastingTickCount = getCastingTime()`
+  and plays the prepare sound (`:196-206`) and sets `nextAttackTickCount = tickCount + getCastingInterval()` (`:199`,
+  so the interval counts from the press); `canUse` (`:185`) refuses while `isCastingSpell()` or before
+  `nextAttackTickCount`; `tick()` performs when the warmup hits 0 and plays `getCastingSoundEvent`
+  (`:209-215`). Fang placement: `Evoker.createSpellEntity` (`:176-204`) walks down from `BlockPos.containing(x, maxY,
+  z)` while `y >= floor(minY) - 1` until the block below `isFaceSturdy(UP)`, adds the cell's collision-shape top, and
+  spawns `new EvokerFangs(level, x, y + topOffset, z, angle, delayTicks, evoker)`; `minY = min(target.y, evoker.y)`,
+  `maxY = max(...) + 1` (`:147-149`); the line pattern's delay is the block index (`:161-173`). Vex summon
+  (`:254-275`): `offset(-2 + random(5), 1, -2 + random(5))` (`:259`), `EntityTypes.VEX.create(level, MOB_SUMMONED)`,
+  `snapTo(pos, 0, 0)`, `finalizeSpawn(level, difficultyAt(pos), MOB_SUMMONED, null)`, `setOwner(this)`,
+  `setBoundOrigin(pos)`, `setLimitedLife(20 * (30 + random(90)))`, team join, `addFreshEntityWithPassengers`.
+- Casting particles: `SpellcasterIllager.tick` (`:81-115`): `bodyAngle = yBodyRot·π/180 + cos(tickCount·0.6662)·0.25`,
+  hands at `(x ± cos·0.6·scale, y + 1.8·scale, z ± sin·0.6·scale)`, `ColorParticleOption.create(ENTITY_EFFECT, r, g, b)`;
+  colors `SUMMON_VEX(0.7, 0.7, 0.8)`, `FANGS(0.4, 0.3, 0.35)` (`:124-125`). Arm pose: `IllagerModel.java:128-136`
+  SPELLCASTING: `xRot = cos(ageInTicks·0.6662)·0.25`, `rightArm.zRot = 3π/4`, `leftArm.zRot = −3π/4`.
+- `EvokerFangs.java`: ctor `(Level, x, y, z, rotationRadians, warmupDelayTicks, LivingEntity owner)` (`:35-41`);
+  the bite at `warmupDelayTicks == -8` over `getBoundingBox().inflate(0.2, 0, 0.2)` (`:87-91`); `dealDamageTo`
+  skips the owner and `owner.isAlliedTo(entity)`, hurts with `indirectMagic(this, owner)` for 6 (`:104-120`);
+  reads `Warmup` (`:58`) and saves it (`:64`). So a fang's damage source has `getDirectEntity()` = the fangs and `getEntity()` = the owner.
+- `Vex.java`: `setOwner(Mob)` (`:177`) cannot take a player; target goals = `HurtByTargetGoal(Raider)`,
+  `VexCopyOwnerTargetGoal`, `NearestAttackableTargetGoal<Player>` (`:93-95`); `setLimitedLife` (`:181`),
+  `setBoundOrigin` (`:149`), `getBoundOrigin` (`:145`); saves `life_ticks` while limited (`:128-130`) and `owner`
+  through `EntityReference.store` (`:132`); `Vex` is an `OwnableEntity` whose `considersEntityAsAlly` is **not**
+  overridden (only `Evoker.considersEntityAsAlly` knows its vexes, `Evoker.java:81-99`). `Mob.goalSelector` and
+  `targetSelector` are public (`Mob.java:135-136`); `GoalSelector.removeAllGoals(Predicate)` (`:32`),
+  `getAvailableGoals()` (`:109`), `WrappedGoal.getGoal()` (`:84`).
+- Targeting: `NearestAttackableTargetGoal(Mob, Class<T>, boolean mustSee, TargetingConditions.Selector)` (`:25`)
+  builds `forCombat().range(getFollowDistance())` **at construction** (`:40`), and `TargetGoal.getFollowDistance`
+  is the `FOLLOW_RANGE` attribute (`:74-76`): set the attribute before adding the goal.
+  `TargetingConditions.test` (`:59-96`): `canBeSeenByAnyone`, the selector, `targeter.canAttack(target)`
+  (`LivingEntity.java:974-976` → `canBeSeenAsEnemy` = `!isInvulnerable() && canBeSeenByAnyone()`, `:978-984`;
+  `Player.java:745-746` adds `!abilities.invulnerable`, so creative and spectator players are never enemies),
+  `isAlliedTo`, range, line of sight. Nothing there checks `attackable()`: `ArmorStand.attackable()` is false
+  (`:622-624`) and the vindicator's goal adds `target.attackable()` to its selector (`Vindicator.java:209`).
+- Effect sync: `LivingEntity.DATA_EFFECT_PARTICLES` is `private static final EntityDataAccessor<List<ParticleOptions>>`
+  (`:188`); `updateSynchronizedMobEffectParticles` (`:923-932`) fills it with the particle options of every effect the
+  `EffectParticleModificationEvent` leaves visible (default `effect.isVisible()`, `EffectParticleModificationEvent.java:32`);
+  the client spawns one of them at a random body position with chance 1/4 per tick (`:892-900`). Effects themselves
+  reach only the entity's own client (`ServerPlayer.java:1783,1795`), passengers (`LivingEntity.java:1127`) and
+  pairing (`PlayerList.java:488-492`), so the synced particle list is the only vanilla channel that tells other clients
+  about an effect. `MobEffect(MobEffectCategory, int color, Function<MobEffectInstance, ParticleOptions>)`
+  (`MobEffect.java:75`) is NeoForge's lazy particle constructor. `MobEffectInstance(effect, duration, amplifier,
+  ambient, visible, showIcon)` (`:65`); the HUD draws only `showIcon()` effects (`Hud.java:552`); the inventory list
+  filters through `IClientMobEffectExtensions.isVisibleInInventory` (`ClientHooks.java:589-591`), registered with
+  `RegisterClientExtensionsEvent.registerMobEffect(extensions, Holder<MobEffect>...)` (`:86`).
+- Particles: `SimpleParticleType(boolean overrideLimiter)` is public (`:11`);
+  `RegisterParticleProvidersEvent.registerSpecial(ParticleType<T>, ParticleProvider<T>)` (`:49`), whose provider may
+  return `null`; `ParticleResources.reload` loads only the `particles/*.json` it lists (`:214-231`), so a special
+  type needs no json. `ColorParticleOption.create(ParticleType<ColorParticleOption>, float, float, float)` (`:52`).
+- Keys: 26.3 key codes are SDL scancodes: `InputConstants.KEY_F = 9`, `KEY_V = 25` (`InputConstants.java:46,62`);
+  `Options.java:676` binds swap-offhand to 9 (F) and `:736` `key.debug.dumpVersion` to 25 (V, an F3 chord).
+  `KeyMapping(String, IKeyConflictContext, InputConstants.Type, int, Category)` (`KeyMapping.java:122`);
+  `same(KeyMapping)` (`:244`), `consumeClick()` (`:201`); `Category(Identifier)` is a public record whose
+  `label()` key is `id.toLanguageKey("key.category")` (`:333-334`); `RegisterKeyMappingsEvent.register` (`:42`) and
+  `registerCategory` (`:49`). `Minecraft.tick` fires `ClientTickEvent.Pre` (`:1837`) before `handleKeybinds()`
+  (`:1865`), which drains `keySwapOffhand.consumeClick()` (`:2000`): clicks consumed in `Pre` never swap.
+- Packets: `RegisterPayloadHandlersEvent.registrar(String)` (`:40`), `PayloadRegistrar.playToServer(Type,
+  StreamCodec, IPayloadHandler)` (`:60`), handlers run on the main thread by default (`:29`);
+  `NeoForgeStreamCodecs.enumCodec(Class)` (`:62`); `ClientPacketDistributor.sendToServer` (`:22`);
+  `CustomPacketPayload.Type(Identifier)` (`:79`); `IPayloadContext.player()`. `RegisterPayloadHandlersEvent`,
+  `RegisterKeyMappingsEvent`, `RegisterParticleProvidersEvent`, `RegisterClientExtensionsEvent` and
+  `RegisterRenderStateModifiersEvent` all implement `IModBusEvent`, as `RegisterGameTestsEvent` does, so a plain
+  `@EventBusSubscriber(modid = …)` class receives them (`SpellcraftGameTests` already relies on this).
+- Render: `AvatarRenderer.extractRenderState` sets `state.leftArmPose`/`rightArmPose` (`:174-178`), then the registered
+  modifiers run: `EntityRenderer.createRenderState` calls `extractRenderState` (`EntityRenderer.java:163`) and then
+  `RenderStateExtensions.onUpdateEntityRenderState` (`:165`);
+  `RegisterRenderStateModifiersEvent.registerAvatarEntityModifier` (`:101`) registers an
+  `AvatarRenderStateModifier` (`accept(T extends Avatar & ClientAvatarEntity, AvatarRenderState)`,
+  `AvatarRenderStateModifier.java:16`); `Avatar extends LivingEntity`. `ArmedEntityRenderState.rightArmPose`/`leftArmPose` are public (`:17,20`);
+  `EntityRenderState.ageInTicks` (`:22`). `HumanoidModel.poseRightArm/poseLeftArm` route an unknown pose to
+  `ArmPose.applyTransform` (`:385,433`), which calls the NeoForge `IArmPoseTransformer(HumanoidModel<?>,
+  HumanoidRenderState, HumanoidArm)` (`:543`); `rightArm`/`leftArm` are public (`:76-77`). `ArmPose` is an
+  `IExtensibleEnum` with the private constructor `(boolean twoHanded, boolean affectsOffhandPose,
+  IArmPoseTransformer)` (`:527`): FML enum extension (`build/fml-src/.../enumextension/EnumPrototype.java:42-104`)
+  reads `META-INF/enumextensions.json` entries `{enum, name, constructor, parameters: {class, field}}`, the `name`
+  must start with the mod id (`:49`), the `field` is an `EnumProxy`; `EnumProxy.getValue()` forces the enum class to load (which applies the
+  extension) and throws an NPE ("Enum not initialized ...") only if `enumextensions.json` did not point a
+  `parameters.field` at this proxy (`EnumProxy.java:38-47`), and the file is named by `enumExtensions=` in `neoforge.mods.toml` (`FMLLoader.java:707`).
+- Allies: `Entity.isAlliedTo(Entity)` is final (`:2879`); `OwnableEntity.getOwnerReference()` and
+  `EntityReference.getUUID()` (`:51`); entities are attachment holders (`Entity.java:162-163`) and save them
+  (`serializeAttachments` `:2176`, `deserializeAttachments` `:2246`); `IAttachmentHolder.hasData(Supplier)`,
+  `getExistingData(Supplier)`, `getData(Supplier)`, `setData(Supplier, T)`.
+- Events: `EntityJoinLevelEvent` is posted for every entity added to a server level, freshly spawned or loaded from
+  disk (`PersistentEntitySectionManager.java:75`, with `loadedFromDisk()`); `LivingIncomingDamageEvent` is posted
+  from `LivingEntity.hurtServer` (`:1237`) and is cancellable; `PlayerTickEvent.Post` (`:52`).
+- Misc: `DerivedLevelData.getGameTime` delegates to the overworld's (`:23-24`), so game time is global;
+  `Player.sendOverlayMessage` (`:1414`); `EntityGetter.getEntitiesOfClass(Class, AABB, Predicate)` (`:23`);
+  `SoundEvents.EVOKER_CAST_SPELL`, `EVOKER_PREPARE_ATTACK`, `EVOKER_PREPARE_SUMMON` (`:608,613,614`);
+  `Entity.snapTo(BlockPos, float, float)` (`:1839`); `Attributes.FOLLOW_RANGE` (`:51`), `AttributeInstance.setBaseValue`
+  (`:45`); `Entity.save(ValueOutput)` (`:2116`), `load(ValueInput)` (`:2203`); `TagValueOutput.createWithContext`
+  (`:27`), `buildResult` (`:159`); `TagValueInput.create(ProblemReporter, HolderLookup.Provider, CompoundTag)` (`:40`);
+  `CompoundTag.getIntOr` (`:321`), `store(String, Codec, T)` (`:508`); `UUIDUtil.CODEC` (`:23`).
+- GameTests: `TestData` has 12 fields (`:15-27`): `environment, dimension, structure, maxTicks, setupTicks, required,
+  rotation, manualOnly, maxAttempts, requiredSuccesses, skyAccess, padding` (padding 0…128). The grid spawner spaces
+  tests by `getTestBounds()` (`StructureGridSpawner.java:65-67`), which `TestInstanceBlockEntity.getTestBounds`
+  inflates by the padding (`:97-99`); `StructureUtils.clearSpaceForStructure` turns the **whole padded box** to air
+  (`clearBlock`, `:119-130`: stone only below the box), so a padded test stands over a pit and lays its own floor.
+  The GameTest server world is flat (`GameTestServer.java:127`, §18) and has a Nether; a player reaches it with
+  `ServerPlayer.teleportTo(ServerLevel, x, y, z, Set<Relative>, yRot, xRot, boolean)`, which returns `boolean`
+  (`:1824`), and `server.getLevel(Level.NETHER)` (`MinecraftServer.java:1205`).
+- Mock players are not ticked: `ServerPlayer.tick()` (`ServerPlayer.java:598`) does not call `Player.tick()`, which is
+  reached only through `ServerPlayer.doTick()` (`:668`), and the only caller of `doTick()` is
+  `ServerGamePacketListenerImpl.tick()` (`:327`) for connections the server tracks. A `MockPlayers.inLevel` player is
+  never ticked: `PlayerTickEvent` does not fire for it, its mob effects do not count down and its `tickCount` does
+  not advance. GameTests step the caster by hand (`FangGameTests.step`).
+- `ClientTickEvent.Post` fires while the game is paused (`Minecraft.java:1941-1942`), but the level tick and the
+  particle engine do not run then, so a `Post` handler must check `Minecraft.isPaused()` itself.
+- `RegisterClientExtensionsEvent.registerMobEffect(IClientMobEffectExtensions, Holder<MobEffect>...)` is
+  `@SafeVarargs` (`:85-86`).
+- `runData` initializes the client subscriber classes and parses the config specs, but not `HumanoidModel.ArmPose`
+  (a class literal does not initialize it), so the enum extension is first applied at client launch.
