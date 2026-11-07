@@ -9,3 +9,9 @@ Scope: `io.github.willrieske.spellcraft.client.upsidedown.*` and `io.github.will
 | 2026-09-29 (Infinity) | 97% (115/119 killed) | 94% (116/123) | None new in `spell.rules` (every `spell.rules` mutant was killed). The same four `UpsideDownRollState` non-killed mutants as above, unchanged: `:44` and `:83` (ConditionalsBoundaryMutator, equivalent or unreachable) and `:84` (NegateConditionalsMutator, VoidMethodCallMutator; no coverage, defensive guard), all justified in the first row. |
 | 2026-11-04 (Trailing, re-run after the review rewrites of the Trail and TrailTracker tests) | 97% (150/154 killed) | 96% (168/175) | None new in `spell.rules` (every `Trail`, `Trail$Flame` and `TrailTracker` mutant was killed, unchanged by the rewrites). The same four `UpsideDownRollState` non-killed mutants as above, unchanged, all justified in the first row. |
 | 2026-11-06 (Evoking) | 98% (229/233 killed; up from 97%, 150/154, on 2026-11-04) | 96% (246/256) | None new in `spell.rules` (every `EvokerSpell`, `EvokingCast`, `FangSquare`, `VexRing` and `EvokerPose` mutant was killed). The same four `UpsideDownRollState` non-killed mutants as above, unchanged, all justified in the first row. |
+
+## Hand-run probes outside the PIT scope
+
+| Date | Probe | Result |
+|---|---|---|
+| 2026-11-06 (Evoking deep review) | `Fangs.perform` `isPositionEntityTicking` guard | Covered by no test. A deterministic test would have to unforce the padded chunks, which are shared with concurrent tests, forced by the framework and held by player simulation distance; unforcing them mid-run breaks neighbors and is timing-dependent. Playtest-only (`docs/playtest-checklist.md`, "Strength of Evoking"). |

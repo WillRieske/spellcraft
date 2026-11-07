@@ -15,7 +15,7 @@ Run from the repo root. In the Bash tool use `./gradlew`; in PowerShell use `.\g
 | `./gradlew build` | spotlessCheck + Error Prone/`-Xlint:all -Werror` + tests + jar |
 | `./gradlew spotlessApply` | Format (palantir-java-format) |
 | `./gradlew runGameTestServer` | GameTests (server rules and common Mixins); non-zero exit on failure. |
-| `./gradlew runData` | Headless client-dist boot (loads client classes and config specs); the only automated check of client code |
+| `./gradlew runData` | Headless client-dist boot (loads client classes and config specs); the only automated check of client code, and it proves the `ArmPose` enum wiring (`EvokingArmPoseCheck`) |
 | `./gradlew runClient` | Dev client, for Will's playtest only |
 | `powershell -ExecutionPolicy Bypass -File scripts\Deploy-TestEnv.ps1` | Gate checks + GameTests, then launch the dev client (or keep a current one); asks before stopping a stale one. `-CheckOnly`: status only. Exit codes in the script header |
 | `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Path scripts/tests -EnableExit"` | Deploy-script unit tests (Pester 3.4; by hand, not in CI) |

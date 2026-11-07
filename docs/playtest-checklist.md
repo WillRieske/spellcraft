@@ -124,7 +124,7 @@ Use a **Survival** world with open ground. `/give @s spellcraft:trailing_scroll`
 
 Use a **Survival** world with open flat ground and a few animals (cows, pigs) about. `/give @s spellcraft:evoking_scroll`, or take it from Tools & Utilities in creative. F and V are the defaults; Controls → Spellcraft shows "Evoking: Fangs" and "Evoking: Summon Vexes". F and V both show red in Controls. F shares its key with Swap Item With Offhand, and V with the F3-chord Dump Version Info. Both conflicts are accepted, and pressing the key still reaches the mod's mapping.
 
-- [ ] The dev client reaches the title screen and a world loads with the mod (the enum extension, key mappings and particle providers link; a malformed extension fails at launch with a loading error; a mis-wired proxy fails at the first casting player's render, covered by the F items).
+- [ ] Launch the client and cast: this proves what `runData` cannot, the real render of the raised arms.
 - [ ] Scroll icon: a light-mint "Y" with raised arms, a one-pixel neck and a square head, on the parchment. Effect icon: the same glyph; the HUD shows "∞".
 - [ ] Recast while the effect is on: "Scroll not needed; already have effect!", the scroll is kept. Sneak + right-click with a scroll: the effect ends. Drink milk: the effect ends.
 - [ ] F with a cow a few blocks ahead: the evoker's "prepare attack" sound; in F5, your arms go up like an evoker's and sway; dark purple particles swirl at both hands for two seconds. A second later fangs ripple outward across a 13×13 square in front of you, one row per tick, none under your own feet; the cow is bitten (6 damage).
@@ -135,11 +135,15 @@ Use a **Survival** world with open flat ground and a few animals (cows, pigs) ab
 - [ ] V: the "prepare summon" sound, arms up for five seconds, pale particles at the hands; after a second three vexes appear 2–3 blocks from you, one block up. They fly around you and ignore you. Tame a wolf: they ignore it. Lead a cow or pig within five blocks of a vex: it charges it. A cow eight blocks away is ignored. The vexes die on their own after 30–120 s.
 - [ ] With vexes out, press F at a cow near them: the fangs do not hurt your vexes. Cast Strength of Trailing and walk your vexes through the trail: unharmed.
 - [ ] Creative players and spectators ahead are not targets (a LAN second client in creative is never bitten).
-- [ ] Press F with Evoking on: your hands do **not** swap. Sneak + scroll to end the effect, then F: hands swap as before. Rebind Fangs to another key in Controls: F swaps again even with Evoking on.
+- [ ] Press F with Evoking on: your hands do **not** swap. Sneak + scroll to end the effect, then F: hands swap as before. Rebind Fangs to another key in Controls: F swaps again even with Evoking on. Rebind Fangs to Shift+F: a plain F press still swaps offhand, Shift+F casts.
 - [ ] Press V, then open the inventory within the five seconds: no "Casting Fangs" / "Casting Vexes" row in the effect list; the HUD shows no icon for them either; the doll in the inventory has its arms raised.
 - [ ] First person during a cast: your own hand particles do not block the view (they may show at the screen edge), and your arms stay vanilla.
 - [ ] No vanilla swirl around the body during a cast, and no extra mint swirl besides the two hand particles.
 - [ ] Type "f" and "v" in chat, and in an anvil rename box: nothing casts (the keys work only in game).
+- [ ] `/tick freeze`, press V, wait a few seconds, `/tick unfreeze`: no burst of hand particles.
+- [ ] Fangs near the edge of simulation distance place no fangs in the far, non-ticking cells.
+- [ ] On Peaceful, press V: the action bar says `Vexes cannot be summoned on Peaceful`, arms stay down, no cooldown: switch to Normal and V casts at once.
+- [ ] With `/gamerule pvp false`, F with only another player in the square gives `No targets in range`; V's vexes ignore other players; with pvp on both attack.
 - [ ] Press Esc (singleplayer) during a V cast and wait ten seconds: nothing piles up; on resume the hand particles continue normally.
 - [ ] Optional (Open to LAN + a second client): the other player sees your arms raised and the hand particles during a cast, and nothing else unusual.
 - [ ] Optional (dedicated server with the built jar, a client joining): the server starts without a client-class error, the client joins, and a cast works.

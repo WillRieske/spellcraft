@@ -42,7 +42,7 @@ the server owns and every client renders (arms and particles) from vanilla-synce
 | **Interval** | How long after an accepted press the same spell can be pressed again: 100 ticks for fangs, 340 for vexes (vanilla `getCastingInterval`). |
 | **Casting effect** | One of two short marker effects (`spellcraft:casting_fangs`, `spellcraft:casting_vexes`) the server puts on the caster for the casting ticks. Its only job is to tell every client "this player is casting this spell". |
 | **Fang square** | The 13×13 block area a fang cast covers. The caster's block is on its edge; where on the edge depends on the caster's yaw. |
-| **Target** | A living entity the fangs or vexes may hurt: alive, visible as an enemy (not a creative or spectator player, not invulnerable, not a spectator), attackable, and not the caster or an ally. |
+| **Target** | A living entity the fangs or vexes may hurt: alive, visible as an enemy (not a creative or spectator player, not invulnerable, not a spectator), attackable, not a player the caster cannot harm (`pvp` rule, team friendly fire), and not the caster or an ally. |
 | **Ally** | Per the shared rule in §3: what vanilla `Entity.isAlliedTo` says (same team, a tamed animal whose owner is the player), or a mob the player summoned (its **summoner** attachment names the player), or any other `OwnableEntity` the player owns. |
 | **Summoner** | A saved entity attachment, `spellcraft:summoner`, holding the UUID of the player who summoned a mob. Evoking puts it on every vex it calls. |
 
@@ -218,16 +218,21 @@ the server stops. `Casting` holds the pure `EvokingCast` state and, for a fang c
 **snapshot** taken at the press (§5).
 
 `request(ServerPlayer player, EvokerSpell spell) → Request` (public, so GameTests can call it
-without a packet):
+without a packet). `Request` is `IGNORED`, `BUSY`, `COOLING`, `NO_TARGETS`, `PEACEFUL` or `STARTED`:
 
 1. Ignore the request (`IGNORED`) unless the player is alive, not a spectator, and has Evoking.
 2. `EvokingCast.readiness(spell, now)` answers `READY`, `BUSY` (another cast's casting ticks are
    running) or `COOLING` (this spell's interval has not passed). `BUSY` and `COOLING` are
    returned and otherwise ignored silently (§10); nothing is scanned.
-3. `FANGS` only, when ready: take the snapshot and scan for targets (§5). With none,
+3. `VEXES` only, when ready, and `EntityTypes.VEX.canSpawn(level)` is false (Peaceful: vanilla
+   refuses to create a vex there): `sendOverlayMessage` with `message.spellcraft.peaceful_vexes`
+   ("Vexes cannot be summoned on Peaceful") at once, the answer is `PEACEFUL`, and nothing else
+   happens: no cast, no casting effect, no sound, no cooldown (§10). Busy and cooling presses
+   stay silent, because step 2 answers them first.
+4. `FANGS` only, when ready: take the snapshot and scan for targets (§5). With none,
    `EvokingCast.noTargets(now)` schedules the notice (below), the answer is `NO_TARGETS`, and
    nothing else happens: no arms, no sound, no cooldown.
-4. Otherwise `EvokingCast.start(spell, now)`, the answer is `STARTED`, the prepare sound plays at
+5. Otherwise `EvokingCast.start(spell, now)`, the answer is `STARTED`, the prepare sound plays at
    the player (`EVOKER_PREPARE_ATTACK` or `EVOKER_PREPARE_SUMMON`, source `PLAYERS`, volume 1,
    pitch 1), and the spell's casting effect goes on for its casting ticks (§2). The player keeps
    moving freely; only the evoker (a mob) stands still to cast.
@@ -256,8 +261,9 @@ tests) asks `due(now)`:
 - `PERFORM(spell)`: if the player is still alive, still has Evoking, and (fangs) is still in the
   snapshot's dimension, perform it (§5 or §6) and play `EVOKER_CAST_SPELL` at the player.
   Otherwise nothing happens; the cooldown stands.
-- `NOTIFY_NO_TARGETS`: `sendOverlayMessage` with `message.spellcraft.no_targets` ("No targets in
-  range"), the same action-bar channel as the refused scroll.
+- `NOTIFY_NO_TARGETS`: only if the player is alive, `sendOverlayMessage` with
+  `message.spellcraft.no_targets` ("No targets in range"), the same action-bar channel as the
+  refused scroll. A dead player gets no notice (§8).
 
 Without Evoking the player's entry is dropped, so a dispel also forgets cooldowns.
 
@@ -288,7 +294,10 @@ At the press, with the caster's feet block `F = blockPosition()` and the square 
 - Targets: `level.getEntitiesOfClass(LivingEntity.class, box, e -> e != caster &&
   e.canBeSeenAsEnemy() && e.attackable() && !Allies.isAllyOf(caster, e))`.
   `canBeSeenAsEnemy` is vanilla's "may a mob attack this": alive, not a spectator, not
-  invulnerable, and for players not creative. `attackable` drops armor stands.
+  invulnerable, and for players not creative. `attackable` drops armor stands. A player the
+  caster cannot harm (`ServerPlayer.canHarmPlayer`: the `pvp` game rule off, or team friendly
+  fire off) is not a target (`Fangs.isTarget`), so fangs never start a cast whose bites vanilla
+  would refuse.
 - No targets: step 2 of §4 (notice only).
 - Otherwise the snapshot is `(dimension, F, S, top, bottom)` with `top = max(F.y, highest
   target's feet y) + 1` and `bottom = min(F.y, lowest target's feet y) − 1`, the evoker's own
@@ -299,7 +308,10 @@ At the press, with the caster's feet block `F = blockPosition()` and the square 
 For each of the 168 cells, at `(F.x + dx, F.z + dz)`: starting at `y = top`, walk down while
 `y ≥ bottom` until the block below is face-sturdy on top (`isFaceSturdy(level, below, UP)`);
 then the fang stands at `y + (the cell's collision shape's max Y, if the cell is not empty)`,
-exactly `Evoker.createSpellEntity`. No sturdy floor in the window: no fang in that cell. Each
+exactly `Evoker.createSpellEntity`. No sturdy floor in the window: no fang in that cell. A cell
+gets a fang only when its chunk is entity-ticking (`ServerLevel.isPositionEntityTicking` at the
+caster's height), not merely loaded: a fang in a non-ticking chunk would be saved with the chunk
+and bite later, and the floor search would load chunks synchronously. Each
 fang is a vanilla `EvokerFangs(level, x + 0.5, y, z + 0.5, angle, delayTicks, caster)` with
 `angle = atan2(dz, dx)` (it faces away from the caster, as the evoker's line does) and the
 cell's `delayTicks`. `addFreshEntity`, no game event (the evoker emits one per fang; 168 of
@@ -330,6 +342,10 @@ Three vexes. For each, with `dice = level.getRandom()`:
   **summoner attachment** = caster's UUID, join the caster's scoreboard team if it has one
   (vanilla does this for the evoker), `addFreshEntityWithPassengers`.
 
+On Peaceful `EntityTypes.VEX.create` returns null (`canSpawn(Level)` is false there), so
+`VexSummons.summon` skips the vex; `EvokingCaster.request` turns the press away first (§4), so
+the skip is only a guard for another caller.
+
 `Vex.setOwner` takes a `Mob`, so the vanilla owner field stays empty; the attachment is the
 ownership record, and it is saved with the entity.
 
@@ -343,15 +359,25 @@ summoner attachment (freshly summoned or loaded from disk), it
 - sets `Attributes.FOLLOW_RANGE` base value to **5** (the targeting range vanilla's goal uses:
   "a 5-block aggro range with themselves at the center");
 - adds `NearestAttackableTargetGoal<>(vex, LivingEntity.class, mustSee = true, selector)` at
-  priority 1, with `selector = (target, level) -> target.attackable() && summoner is online in
-  that level && !Allies.isAllyOf(summoner, target)`. `attackable()` drops armor stands, which
+  priority 1, with `selector = (target, level) -> VexSummons.isPrey(level, summoner, target)`:
+  `target.attackable() && summoner is online in that level && !Allies.isAllyOf(summoner, target)
+  && (target is no player || summoner.canHarmPlayer(target))`. `attackable()` drops armor stands, which
   vanilla's conditions do not check (the vindicator's goal adds the same test,
   `Vindicator.java:209`). Vanilla's combat conditions (`TargetingConditions.test`) add the rest:
   alive, visible as an enemy (no creative or spectator players, nothing invulnerable), not
   `isAlliedTo` the vex, in line of sight, within range.
 
+The goal is an anonymous subclass that overrides `canContinueToUse`: vanilla's
+`TargetGoal.canContinueToUse` re-checks only `canAttack` and never the selector, so the chosen
+target is re-checked against the same rule (`isPrey`) every tick and dropped when it becomes an
+ally (tamed, or marked by the summoner) or the summoner leaves.
+
+The summoner's PvP rules apply to its vexes: `isPrey` also refuses a player the summoner cannot
+harm (`canHarmPlayer`: the `pvp` game rule and team friendly fire).
+
 So a summoned vex never targets its summoner, the summoner's team, pets or other summons, and
-attacks any other living thing (mobs and players alike) that comes within five blocks. With
+attacks any other living thing that comes within five blocks, players included only while the
+summoner may harm them. With
 the summoner offline it attacks nothing (§10). The movement goals (charge, wander around the
 bound origin, look) are vanilla's. Installing on join rather than at the summon means a vex
 that survives a save and reload keeps its manners.
@@ -421,13 +447,23 @@ NeoForge lets a mod add an `HumanoidModel.ArmPose` with a transformer (FML enum 
 
 ```text
 for each (mapping, spell): while mapping.consumeClick(): if player has Evoking: send EvokingRequest(spell)
-if player has Evoking and (fangs or vexes mapping).same(options.keySwapOffhand): while keySwapOffhand.consumeClick() {}
+if player has Evoking and a casting mapping that is .same(options.keySwapOffhand) consumed a click this tick: while keySwapOffhand.consumeClick() {}
 ```
+
+So with Fangs rebound to Shift+F a plain F press still swaps hands and Shift+F casts.
 
 ## 8. Error handling
 
 - A request from a player without Evoking, dead, or a spectator: ignored. The packet is
   trusted for nothing.
+- Evoking and death: Evoking survives death until respawn; `removeAllEffects` is called only by
+  `/effect clear` and the consume effect. The perform-time alive check is what stops a cast. A
+  request from a dead player is ignored (`IGNORED`). No no-targets notice is sent to a dead
+  player.
+- Vexes on Peaceful: the press is refused with the notice `Vexes cannot be summoned on Peaceful`
+  (`PEACEFUL`), no cast, no cooldown (§4).
+- PvP: fangs and vexes treat a player the caster cannot harm (`canHarmPlayer`: the `pvp` game
+  rule, team friendly fire) as no target and no prey (§5, §6).
 - Casting ticks running or interval not passed: `BUSY` / `COOLING`, ignored silently (§10).
 - Evoking lost between press and perform (milk, dispel, `/effect clear`, death): no perform.
   The casting effect, if still present, expires on its own.
@@ -436,16 +472,24 @@ if player has Evoking and (fangs or vexes mapping).same(options.keySwapOffhand):
 - Logout or server stop: the caster's entry is dropped; the casting effect is saved with the
   player and expires after the relog. A fang whose caster has since logged out has no owner and
   bites like a vanilla ownerless fang, allies included; accepted, a one-second window.
-- A cell with no sturdy floor in the window, outside the build limits, or in an unloaded chunk:
-  no fang there. Implemented as `Level.isLoaded(BlockPos)` tested at the caster's y, before the
-  floor walk.
+- A cell with no sturdy floor in the window, outside the build limits, or in a chunk that is not
+  entity-ticking: no fang there. Implemented as `ServerLevel.isPositionEntityTicking(BlockPos)`
+  tested at the caster's y, before the floor walk. A fang in a non-ticking chunk would be saved
+  with the chunk and bite later, and the floor search would load chunks synchronously.
 - Repeated no-target requests from a modified client each cost one 13×13×13 scan and start no
   cooldown; accepted.
 - A vex that fails to `create` (never in vanilla): skipped.
 - Summoner offline: the vex is passive; it starves out within two minutes anyway.
-- `EnumProxy.getValue()` throws at first render if the enum extension file is missing or
-  misnamed: a loud failure at the first casting player, caught by the playtest; `runData`
-  loads client classes but does not render, so it does not prove this.
+- Enum-extension faults come in three cases. A syntax error, wrong prefix or missing file in
+  `enumextensions.json` fails at launch on every dist. A wrong constructor descriptor fails in
+  `runData` (the class literal in `EvokingArmPose`'s initializer loads and transforms `ArmPose`).
+  A wrong `field`, `class` or argument list fails in `ArmPose.<clinit>` at the first humanoid
+  render state, which `runData` now reaches through `EvokingArmPoseCheck` (client datagen,
+  `GatherDataEvent.Client`): it initializes `ArmPose` and checks that `SPELLCRAFT_EVOKING` is
+  `EvokingArmPose.PROXY`'s value, two-handed, and does not affect the offhand pose. The real
+  render of the raised arms stays a playtest item.
+- Under `/tick freeze` the client particle engine does not tick but players do, so
+  `CastingParticles` skips its hand particles when `!level.tickRateManager().runsNormally()`.
 
 ## 9. Testing
 
@@ -534,7 +578,7 @@ with Evoking, flat ground around the structure):
 |---|---|---|
 | E1 | Facing north, a zombie 5 blocks north, `request(FANGS)` | `STARTED`: `casting_fangs` on the player (duration 40, `showIcon` false, `isVisible` true), the synced particle list holds `CASTING_FANGS`; no fangs yet; after 20 ticks 168 `EvokerFangs` whose owner is the player, none on the caster's cell, all inside `x ∈ F.x−6…F.x+6, z ∈ F.z−12…F.z`; the saved `Warmup` of a fang beside the caster is 0 and of the far corner's 11 |
 | E2 | Facing north-east (yaw −135), a pig on the far corner of the square; the caster walks 3 blocks during the warmup | fangs still land on the square frozen at the press: all inside `x ∈ F.x…F.x+12, z ∈ F.z−12…F.z` |
-| E3 | Four strangers just outside the square (behind the caster, past the far edge, past the side edge, above the vertical window) | no casting effect, no fangs; after 20 ticks the action bar holds "No targets in range" (`drainActionBar`); a request 5 ticks later still yields one notice |
+| E3 | Five strangers just outside the square (behind the caster, past the far edge, past the side edge, above the vertical window, below it: the lower edge of the scan window) | no casting effect, no fangs; after 20 ticks the action bar holds "No targets in range" (`drainActionBar`); a request 5 ticks later still yields one notice |
 | E4 | Only allies in the square: a tamed wolf (owner on no team), a zombie on the player's team, a vex with the summoner attachment | treated as no targets |
 | E5 | A creative player and a spectator in the square | no targets; a survival player in it is a target |
 | E6 | `EvokerFangs` with owner = the player, warmup 0, under (a) the player's summoned vex, (b) a stranger zombie; tick past the bite | vex health unchanged; zombie hurt |
@@ -546,7 +590,7 @@ with Evoking, flat ground around the structure):
 | E12 | Owner's trail flame, the owner's summoned vex runs `entityInside`; a stranger's vex does the same | the owner's vex untouched; the stranger's vex ignited and hurt |
 | E13 | `request(FANGS)` accepted, then `removeEffect(EVOKING)` before the perform | no fangs at 20 ticks |
 | E14 | `request(FANGS)` from a player without Evoking; from a spectator with it | nothing: no effect, no fangs, no notice |
-| E15 | `request(FANGS)` accepted, then `PlayerLoggedOutEvent` for the player (constructed as `TrailLayerGameTests` does), then 20 ticks | no fangs; `tick` on the player afterwards does nothing and throws nothing |
+| E15 | `request(FANGS)` accepted, then `PlayerLoggedOutEvent` posted to the bus for the player (constructed as `TrailLayerGameTests` does), then 20 ticks | no fangs; `tick` on the player afterwards does nothing and throws nothing |
 | E16 | Both cases use a prepared Nether pocket in a forced chunk. `request(FANGS)` accepted, then the player is teleported to the Nether before the perform | no fangs in either level; `request(VEXES)` accepted and the same teleport: the three vexes appear beside the player in the Nether |
 | E17 | Zombie in the square; one cell holds a 1-block pillar, one cell is a 2-deep hole, one cell is a hole deeper than the window | the pillar cell's fang stands on the pillar, the shallow hole's fang stands at its floor, the deep hole has no fang |
 | E18 | An armor stand, alone, in the square | no targets (`attackable()` false); a summoned vex 3 blocks from an armor stand never targets it; positive control: a pig farther than the armor stand becomes the target |
@@ -554,6 +598,10 @@ with Evoking, flat ground around the structure):
 | E20 | Each casting effect | neutral category, mint color, carries its own particle (`CASTING_FANGS` / `CASTING_VEXES`) |
 | E21 | `EvokingRequest.STREAM_CODEC` round trip for each spell | the decoded request equals the original |
 | E22 | `request(FANGS)` accepted, then `onServerStopped` | the pending cast is cancelled: no fangs at 20 ticks |
+| E23 | The caster dies (Evoking survives death, so only the alive checks can stop anything): `fangs_e23_death_cancels` after an accepted `request(FANGS)`; `fangs_e23_death_cancels_the_notice` after a `NO_TARGETS` press; `fangs_e23_dead_request_ignored` presses while dead with a pig in the square | no fangs after the warmup; no notice; the request is `IGNORED`, with no casting effect and no fangs |
+| E24 | `fangs_e24_pvp_off_notice`: `pvp` off (own `evoking_pvp_off` environment, rule restored through `whenDone`), the only living thing in the square is another survival player | `NO_TARGETS`, the notice after the warmup, no fangs (E5 is the positive control with `pvp` on) |
+| E25 | `vexes_peaceful_notice`: difficulty Peaceful (own `peaceful` batch, restored through `whenDone`), `request(VEXES)` | `PEACEFUL`, the notice `message.spellcraft.peaceful_vexes` at once, no `casting_vexes`, no vex after the warmup; back on Normal the next press is `STARTED` (no cooldown spent) |
+| E26 | `vexes_target_recheck`: a vex has chosen an untamed wolf, then the summoner tames it | the target is dropped within 3 ticks (`canContinueToUse` re-checks `isPrey`) |
 
 Allies (`Allies.isAllyOf` / `mayHaveAllies`, no Evoking needed):
 
@@ -564,8 +612,9 @@ Allies (`Allies.isAllyOf` / `mayHaveAllies`, no Evoking needed):
 | A3 | A vex with the summoner attachment naming the player; one naming another UUID | ally; not an ally |
 | A4 | A vex loaded from NBT whose `owner` is the player's UUID (no attachment, no team; vanilla never calls it an ally); a stranger's owned vex (random UUID) | ally through the `OwnableEntity` path; the stranger's is not an ally |
 | A5 | A plain zombie, a creeper | `mayHaveAllies` false; `isAllyOf` false for the player |
-| A6 | Direct `VexSummons.isPrey` | a stranger player is prey; a teammate, a tamed wolf, an armor stand and a vex whose summoner is offline are not |
-| A7 | `trail_g7d`: the owner's trail flame, the owner's summoned vex | the flame spares the vex |
+| A6 | Direct `VexSummons.isPrey` (`vexes_prey_rule`) | a stranger player is prey; a teammate, a tamed wolf, an armor stand and a vex whose summoner is offline are not |
+| A6b | `allies_a6_pvp_off`: `pvp` off (own `pvp_off` batch, rule restored through `whenDone`), `isPrey` for a stranger player and for a pig | the stranger is not prey, the pig is |
+| A7 | A mob carrying the owner's mark is an ally: a marked zombie in `allies_a3_summoner_attachment` (a vex alone would pass through `OwnableEntity`), and `trail_g7d_spares_a_summoned_mob`, where the owner's flame spares a marked zombie (not fire-immune, so a burn would show) and burns one marked by a stranger | the attachment alone spares and allies the mob |
 
 ### Script tests
 
@@ -590,7 +639,9 @@ ignore one farther away, and die after 30–120 s; your own fangs and trail spar
 F no longer swaps hands while Evoking is on and does again after sneak + scroll; the inventory
 shows no "Casting" entry; Controls lists "Spellcraft: Evoking: Fangs / Summon Vexes"; pausing
 mid-cast leaves no particles piled up behind the menu; a second
-client (LAN) sees your arms and particles; recast refused; milk clears.
+client (LAN) sees your arms and particles; recast refused; milk clears; on Peaceful V shows the
+notice and casts nothing; with `pvp` off fangs and vexes ignore other players; fangs near the edge
+of simulation distance place nothing in the far cells; no hand-particle burst after `/tick freeze`.
 
 ## 10. Decisions Will did not state
 
@@ -616,7 +667,10 @@ client (LAN) sees your arms and particles; recast refused; milk clears.
 | Game events | None per fang | 168 sculk pings per cast. |
 | Config | None | Every number is the evoker's. |
 | Version bump | Deferred: the delivery does not bump `mod_version` | The release step (bump, tag) follows the final review. |
-| Unloaded chunks and build limits | A cell there gets no fang (`Level.isLoaded` at the caster's y) | A 13×13 square near a chunk edge must not force-load chunks. |
+| Chunks that are not entity-ticking, and build limits | A cell there gets no fang (`ServerLevel.isPositionEntityTicking` at the caster's y) | A fang in a non-ticking chunk would be saved and bite later, and the floor search would force-load chunks; a 13×13 square near the edge of simulation distance must do neither. Alternative: `Level.isLoaded`, which accepts loaded but non-ticking chunks. |
+| PvP | Fangs and vexes never target a player the caster cannot harm (`canHarmPlayer`: the `pvp` game rule and team friendly fire) | A vex's hit names the vex as the cause, so vanilla's PvP gate in `ServerPlayer.hurtServer` never applies to it; without the rule a vex would break `pvp false`. |
+| Peaceful | V is refused at request time with the notice `Vexes cannot be summoned on Peaceful` (lang key `message.spellcraft.peaceful_vexes`, request outcome `PEACEFUL`): no cast, no casting effect, no cooldown; busy and cooling presses stay silent | Vanilla refuses to create a vex on Peaceful, so a cast would show arms and spend the cooldown for nothing. Alternative: a silent no-op. |
+| Vex target re-check | The chosen target is re-checked every tick (`canContinueToUse`) and dropped when it becomes an ally or the summoner leaves | Vanilla's goal re-checks only `canAttack`, so a pet tamed after being chosen would stay a target. |
 | Paused client | No hand particles while `Minecraft.isPaused()` | `ClientTickEvent.Post` fires while paused; particles would pile up behind the pause menu. |
 
 ## 11. Delivery

@@ -462,8 +462,30 @@ Verified 2026-11-06 against the same unpacked sources, plus FML `loader-12.0.0-s
   handler must check `Minecraft.isPaused()` itself.
 - `RegisterClientExtensionsEvent.registerMobEffect(IClientMobEffectExtensions, Holder<MobEffect>...)` is
   `@SafeVarargs` (`:85-86`).
-- `runData` initializes the client subscriber classes and parses the config specs, but not `HumanoidModel.ArmPose`
-  (a class literal does not initialize it), so the enum extension is first applied at client launch.
+- `runData` initializes the client subscriber classes and parses the config specs, and now `HumanoidModel.ArmPose`
+  too, through `EvokingArmPoseCheck` (client datagen, `GatherDataEvent.Client`): it initializes `ArmPose` and checks
+  that `SPELLCRAFT_EVOKING` is `EvokingArmPose.PROXY`'s value, two-handed, and does not affect the offhand pose. Without
+  the check a class literal would not initialize `ArmPose`, and the extension would first apply at the first humanoid
+  render.
+- Enum-extension faults come in three cases: a syntax error, wrong prefix or missing file in `enumextensions.json` fails
+  at launch on every dist; a wrong constructor descriptor fails in `runData` (the class literal in `EvokingArmPose`'s
+  initializer loads and transforms `ArmPose`); a wrong `field`, `class` or argument list fails in `ArmPose.<clinit>` at
+  the first humanoid render state, which `runData` now reaches through the check.
+- Under `/tick freeze` the client particle engine does not tick but players do, so `CastingParticles` skips its hand
+  particles when `!level.tickRateManager().runsNormally()`.
+- `EntityType.canSpawn(Level)` (`EntityType.java:339`) is false on Peaceful for types not allowed there, and `create`
+  returns null then (`:348`): a vex cannot be created on Peaceful.
+- `TargetGoal.canContinueToUse` (`TargetGoal.java:37`) re-checks only `canAttack` and never the selector, so an
+  anonymous subclass is needed to drop a target that became an ally.
+- `ServerPlayer.canHarmPlayer` (`:1047`) adds the `pvp` game rule (`isPvpAllowed`, `:1051`) on top of
+  `Player.canHarmPlayer`'s team check (`Player.java:749`).
+- A vex's hit names the vex as the causing entity (`Mob.doHurtTarget`, `Mob.java:1415-1422`, damage source from
+  `weaponItem.getDamageSource(this)`), so the PvP gate in `ServerPlayer.hurtServer` (`:1036`, which tests `source.getEntity()
+  instanceof Player`) never applies to it.
+- `ServerLevel.isPositionEntityTicking(BlockPos)` (`ServerLevel.java:1937`) reads the chunk's entity-ticking state
+  without loading anything.
+- `MinecraftServer.setDifficulty(Difficulty, boolean ignoreLock)` (`MinecraftServer.java:1308`) works from a GameTest and
+  needs its own batch, since the difficulty is global.
 - `EntityTypes.VEX` is built `.fireImmune()` (`EntityTypes.java:1059`), so a vex never burns: test the Trail flame
   on a vex through `TrailFires.isSpared`, not through fire ticks.
 - The GameTest framework encases every structure in a barrier shell from min-1 to max
