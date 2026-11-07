@@ -16,8 +16,12 @@ public final class SpellDeclarations {
     public static final SpellRules TRAILING =
             new SpellRules("trailing", SpellTier.GOOD, SpellRules.Recast.REFRESH, true, false);
 
+    /** Scroll of Evoking: amazing tier, refuses a recast (no duration to refresh), dispellable by sneaking. */
+    public static final SpellRules EVOKING =
+            new SpellRules("evoking", SpellTier.AMAZING, SpellRules.Recast.REFUSE, true, false);
+
     /** Every declaration, in declaration order. */
-    public static final List<SpellRules> ALL = List.of(UPSIDE_DOWN, INFINITY, TRAILING);
+    public static final List<SpellRules> ALL = List.of(UPSIDE_DOWN, INFINITY, TRAILING, EVOKING);
 
     private SpellDeclarations() {}
 }

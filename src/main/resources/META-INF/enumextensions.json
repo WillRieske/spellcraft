@@ -1,0 +1,13 @@
+{
+  "entries": [
+    {
+      "enum": "net/minecraft/client/model/HumanoidModel$ArmPose",
+      "name": "SPELLCRAFT_EVOKING",
+      "constructor": "(ZZLnet/neoforged/neoforge/client/IArmPoseTransformer;)V",
+      "parameters": {
+        "class": "io/github/willrieske/spellcraft/client/evoking/EvokingArmPose",
+        "field": "PROXY"
+      }
+    }
+  ]
+}

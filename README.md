@@ -1,6 +1,6 @@
 # Spellcraft
 
-A NeoForge mod for Minecraft that adds spells cast from scrolls. Version 1.2.0 has three:
+A NeoForge mod for Minecraft that adds spells cast from scrolls. It has four:
 
 - <img src="src/main/resources/assets/spellcraft/textures/item/upside_down_scroll.png" alt="" width="24" height="24"> **Strength of Upside-Down**: for three minutes (configurable) your view rolls upside down while
   physics stays the same.
@@ -9,14 +9,20 @@ A NeoForge mod for Minecraft that adds spells cast from scrolls. Version 1.2.0 h
   limit; only death or `/effect clear` removes it. If you die with Infinity, you keep your hotbar,
   main inventory and offhand through respawn (armor and XP are lost).
 - <img src="src/main/resources/assets/spellcraft/textures/item/trailing_scroll.png" alt="" width="24" height="24"> **Strength of Trailing**: for eight minutes (configurable) you leave soul fire on most solid blocks
-  you step off. It never hurts you, spares your allies (your team, your pets) while you are in the
+  you step off. It never hurts you, spares your allies (your team, your pets, your own vexes) while you are in the
   same dimension, and burns everything else; it spreads to nothing and lights no TNT. The trail is a fuse: the oldest flame goes out once a
   second (every two seconds over soul sand or soul soil), so it burns back toward you when you stop.
+- <img src="src/main/resources/assets/spellcraft/textures/item/evoking_scroll.png" alt="" width="24" height="24"> **Strength of Evoking**: an evoker's powers, with no time limit. Press **F** to raise your arms
+  and, a second later, carpet the 13×13 square ahead of you with evoker fangs (every block but your
+  own; the square turns with you). Press **V** to call three vexes to your side for 30–120 s. Fangs and
+  vexes spare you and your allies (your team, your pets, your own vexes) and hurt everything else; the
+  vexes attack whatever comes within five blocks of them. The keys rebind in Controls; while Evoking is
+  on, F casts instead of swapping hands. Sneak + scroll or milk turns it off.
 
 Each scroll is single-use. Scribe one by putting paper and lapis in an enchanting table: you get
 a random scroll, and more lapis raises the odds of an extreme-tier spell. Creative players can
 take any scroll from the Tools & Utilities tab, or use `/give @s spellcraft:<spell>_scroll`
-(`upside_down`, `infinity` or `trailing`).
+(`upside_down`, `infinity`, `trailing` or `evoking`).
 
 Minecraft 26.3, NeoForge 26.3.0.23-beta, Java 25. Windows is the development platform.
 
