@@ -122,7 +122,7 @@ Use a **Survival** world with open ground. `/give @s spellcraft:trailing_scroll`
 
 ## Strength of Evoking
 
-Use a **Survival** world with open flat ground and a few animals (cows, pigs) about. `/give @s spellcraft:evoking_scroll`, or take it from Tools & Utilities in creative. F and V are the defaults; Controls → Spellcraft shows "Evoking: Fangs" and "Evoking: Summon Vexes" (F and V both show red in Controls: F shares its key with Swap Item With Offhand, V with the F3-chord Dump Version Info; both conflicts are accepted, and pressing the key still reaches the mod's mapping).
+Use a **Survival** world with open flat ground and a few animals (cows, pigs) about. `/give @s spellcraft:evoking_scroll`, or take it from Tools & Utilities in creative. F and V are the defaults; Controls → Spellcraft shows "Evoking: Fangs" and "Evoking: Summon Vexes". F and V both show red in Controls. F shares its key with Swap Item With Offhand, and V with the F3-chord Dump Version Info. Both conflicts are accepted, and pressing the key still reaches the mod's mapping.
 
 - [ ] The dev client reaches the title screen and a world loads with the mod (the enum extension, key mappings and particle providers link; a bad extension crashes during model baking at startup).
 - [ ] Scroll icon: a light-mint "Y" with raised arms, a one-pixel neck and a square head, on the parchment. Effect icon: the same glyph; the HUD shows "∞".
@@ -148,7 +148,15 @@ Use a **Survival** world with open flat ground and a few animals (cows, pigs) ab
 
 ## Real profile
 
-- [ ] Will copies the jar in `build/libs/` (its name carries `mod_version`) into `%APPDATA%\.minecraft\mods` and removes every older `spellcraft-*.jar` there (`1.0.0` and `1.2.0` are both there now) using the Task 9 Step 6 command from a normal PowerShell, not the Claude app: its shells cannot write to `%APPDATA%`. He launches the NeoForge 26.3 profile and casts each scroll once.
+- [ ] Will installs the new jar. From the repo root, in a normal PowerShell window (the Claude app's shells cannot write under `%APPDATA%`), after `.\gradlew.bat build`, he runs the command below. It copies the jar whose name carries `mod_version` into `%APPDATA%\.minecraft\mods` and removes every other `spellcraft-*.jar` there; the old `1.0.0` and `1.2.0` jars are both there now and go away. He then launches the NeoForge 26.3 profile and casts each scroll once.
+
+  ```powershell
+  $ver = (Select-String '^mod_version=(.+)$' gradle.properties).Matches[0].Groups[1].Value
+  $jar = "build\libs\spellcraft-$ver.jar"
+  if (-not (Test-Path $jar)) { throw "Build first: $jar is missing" }
+  Copy-Item $jar "$env:APPDATA\.minecraft\mods\"
+  Get-ChildItem "$env:APPDATA\.minecraft\mods\spellcraft-*.jar" | Where-Object Name -ne "spellcraft-$ver.jar" | Remove-Item
+  ```
 
 ## Findings
 
