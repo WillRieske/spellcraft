@@ -53,3 +53,4 @@ f03724d Evoking Task 3 (FangSquare, VexRing, EvokerPose): 28 unit tests + Archit
 84c2bdc Evoking Task 9 (docs, CLAUDE.md rule, playtest checklist, mutation row, install hand-off): pitest 98% (229/233); plan-end backstop build green (246 unit tests) + runGameTestServer all 139 required passed; review clean after 1 fix round
 b4192c4 Evoking review fixes (1 Important, 26 Minor): build green 253 unit tests; runGameTestServer all 139 required passed; icon tests 7; pitest 98% (229/233); re-review clean
 c1ac7f3 Evoking deep review fixes (3 Important, 16 Minor; 5 mutation probes): build green 253 unit tests; runGameTestServer all 146 required passed; runData exit 0 (EvokingArmPoseCheck subscribed); pure core untouched, pitest row unchanged
+98e13b5 Evoking deep-review re-review fix (5 Minor): build green 253 unit tests; runGameTestServer all 146 required passed; plan_map --check 0; markdownlint clean
