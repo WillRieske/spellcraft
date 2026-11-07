@@ -9,7 +9,7 @@ A NeoForge mod for Minecraft that adds spells cast from scrolls. It has four:
   limit; only death or `/effect clear` removes it. If you die with Infinity, you keep your hotbar,
   main inventory and offhand through respawn (armor and XP are lost).
 - <img src="src/main/resources/assets/spellcraft/textures/item/trailing_scroll.png" alt="" width="24" height="24"> **Strength of Trailing**: for eight minutes (configurable) you leave soul fire on most solid blocks
-  you step off. It never hurts you, spares your allies (your team, your pets) while you are in the
+  you step off. It never hurts you, spares your allies (your team, your pets, your own vexes) while you are in the
   same dimension, and burns everything else; it spreads to nothing and lights no TNT. The trail is a fuse: the oldest flame goes out once a
   second (every two seconds over soul sand or soul soil), so it burns back toward you when you stop.
 - <img src="src/main/resources/assets/spellcraft/textures/item/evoking_scroll.png" alt="" width="24" height="24"> **Strength of Evoking**: an evoker's powers, with no time limit. Press **F** to raise your arms

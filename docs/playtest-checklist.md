@@ -124,7 +124,7 @@ Use a **Survival** world with open ground. `/give @s spellcraft:trailing_scroll`
 
 Use a **Survival** world with open flat ground and a few animals (cows, pigs) about. `/give @s spellcraft:evoking_scroll`, or take it from Tools & Utilities in creative. F and V are the defaults; Controls → Spellcraft shows "Evoking: Fangs" and "Evoking: Summon Vexes". F and V both show red in Controls. F shares its key with Swap Item With Offhand, and V with the F3-chord Dump Version Info. Both conflicts are accepted, and pressing the key still reaches the mod's mapping.
 
-- [ ] The dev client reaches the title screen and a world loads with the mod (the enum extension, key mappings and particle providers link; a bad extension crashes during model baking at startup).
+- [ ] The dev client reaches the title screen and a world loads with the mod (the enum extension, key mappings and particle providers link; a malformed extension fails at launch with a loading error; a mis-wired proxy fails at the first casting player's render, covered by the F items).
 - [ ] Scroll icon: a light-mint "Y" with raised arms, a one-pixel neck and a square head, on the parchment. Effect icon: the same glyph; the HUD shows "∞".
 - [ ] Recast while the effect is on: "Scroll not needed; already have effect!", the scroll is kept. Sneak + right-click with a scroll: the effect ends. Drink milk: the effect ends.
 - [ ] F with a cow a few blocks ahead: the evoker's "prepare attack" sound; in F5, your arms go up like an evoker's and sway; dark purple particles swirl at both hands for two seconds. A second later fangs ripple outward across a 13×13 square in front of you, one row per tick, none under your own feet; the cow is bitten (6 damage).
@@ -143,16 +143,17 @@ Use a **Survival** world with open flat ground and a few animals (cows, pigs) ab
 - [ ] Press Esc (singleplayer) during a V cast and wait ten seconds: nothing piles up; on resume the hand particles continue normally.
 - [ ] Optional (Open to LAN + a second client): the other player sees your arms raised and the hand particles during a cast, and nothing else unusual.
 - [ ] Optional (dedicated server with the built jar, a client joining): the server starts without a client-class error, the client joins, and a cast works.
-- [ ] In Creative, stand next to a nether portal, press F (then, after it ends, V), and step in: no fangs appear anywhere in the Nether; for V, the vexes appear beside you in the Nether (the portal is instant in Creative).
+- [ ] In Creative, stand next to a nether portal with a cow within six blocks ahead, press F (then, after it ends, V), and step in: no fangs appear anywhere in the Nether; for V, the vexes appear beside you in the Nether (the portal is instant in Creative).
 - [ ] Mods > Spellcraft > Config: unchanged (Evoking has no settings).
 
 ## Real profile
 
-- [ ] Will installs the new jar. From the repo root, in a normal PowerShell window (the Claude app's shells cannot write under `%APPDATA%`), after `.\gradlew.bat build`, he runs the command below. It copies the jar whose name carries `mod_version` into `%APPDATA%\.minecraft\mods` and removes every other `spellcraft-*.jar` there; the old `1.0.0` and `1.2.0` jars are both there now and go away. He then launches the NeoForge 26.3 profile and casts each scroll once.
+- [ ] Will installs the new jar. From the repo root, in a normal PowerShell window (the Claude app's shells cannot write under `%APPDATA%`), he runs the command below. It builds, then copies the jar whose name carries `mod_version` into `%APPDATA%\.minecraft\mods` and removes every other `spellcraft-*.jar` there; the old `1.0.0` jar goes away and the `1.2.0` jar is replaced. He then launches the NeoForge 26.3 profile and casts each scroll once.
 
   ```powershell
   $ver = (Select-String '^mod_version=(.+)$' gradle.properties).Matches[0].Groups[1].Value
   $jar = "build\libs\spellcraft-$ver.jar"
+  & .\gradlew.bat build; if ($LASTEXITCODE -ne 0) { throw "build failed" }
   if (-not (Test-Path $jar)) { throw "Build first: $jar is missing" }
   Copy-Item $jar "$env:APPDATA\.minecraft\mods\"
   Get-ChildItem "$env:APPDATA\.minecraft\mods\spellcraft-*.jar" | Where-Object Name -ne "spellcraft-$ver.jar" | Remove-Item

@@ -45,6 +45,11 @@ public final class EvokingArmPose {
         part.zRot = rotation.zRot();
     }
 
+    /**
+     * Sets both arms of every casting player's render state to the Evoking arm pose.
+     *
+     * @param event the mod-bus event
+     */
     @SubscribeEvent
     public static void onRegisterModifiers(RegisterRenderStateModifiersEvent event) {
         event.registerAvatarEntityModifier(new AvatarRenderStateModifier() {

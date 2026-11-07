@@ -48,6 +48,10 @@ public final class EvokingCast {
     /**
      * Whether {@code spell} may start at {@code now}: {@code BUSY} while any cast's casting ticks run, else
      * {@code COOLING} while this spell's interval runs, else {@code READY}.
+     *
+     * @param spell the spell the player asks to start
+     * @param now the current game time in ticks
+     * @return whether the spell may start
      */
     public Readiness readiness(EvokerSpell spell, long now) {
         if (now < castingUntil) {
@@ -63,6 +67,8 @@ public final class EvokingCast {
      * Starts {@code spell} at {@code now}: the arms go up for its casting ticks, the perform is due after the warmup,
      * the spell's interval starts, and any scheduled notice is dropped.
      *
+     * @param spell the spell to start
+     * @param now the current game time in ticks
      * @throws IllegalStateException if {@link #readiness} is not {@code READY}
      */
     public void start(EvokerSpell spell, long now) {
@@ -77,7 +83,11 @@ public final class EvokingCast {
         noticePending = false;
     }
 
-    /** Schedules the no-targets notice for one warmup after {@code now}; a later call moves it. */
+    /**
+     * Schedules the no-targets notice for one warmup after {@code now}; a later call moves it.
+     *
+     * @param now the current game time in ticks
+     */
     public void noTargets(long now) {
         noticePending = true;
         noticeAt = now + EvokerSpell.WARMUP_TICKS;
@@ -86,6 +96,9 @@ public final class EvokingCast {
     /**
      * What is due at {@code now}, each returned once: the pending perform once its warmup has passed, else the
      * notice once its delay has passed.
+     *
+     * @param now the current game time in ticks
+     * @return what to do now, or empty when nothing is due
      */
     public Optional<Due> due(long now) {
         if (pending.isPresent() && now >= performAt) {
@@ -103,6 +116,9 @@ public final class EvokingCast {
     /**
      * Whether the arms are up at {@code now}: the pure model of the casting-effect window (the GameTests observe it
      * through the synced effect).
+     *
+     * @param now the current game time in ticks
+     * @return true while the casting ticks of the latest start run
      */
     public boolean isCasting(long now) {
         return now < castingUntil;

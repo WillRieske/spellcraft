@@ -45,6 +45,11 @@ public final class EvokingKeys {
 
     private EvokingKeys() {}
 
+    /**
+     * Registers the Evoking key category and the two casting keys.
+     *
+     * @param event the mod-bus event
+     */
     @SubscribeEvent
     public static void onRegisterKeys(RegisterKeyMappingsEvent event) {
         event.registerCategory(CATEGORY);
@@ -52,6 +57,12 @@ public final class EvokingKeys {
         event.register(VEXES);
     }
 
+    /**
+     * Sends one request per click of a casting key while Evoking is on, and swallows the swap-offhand clicks when a
+     * casting key shares that key, so a casting key casts instead of swapping.
+     *
+     * @param event the game-bus event
+     */
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Pre event) {
         Minecraft minecraft = Minecraft.getInstance();

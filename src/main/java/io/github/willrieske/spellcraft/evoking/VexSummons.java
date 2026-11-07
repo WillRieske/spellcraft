@@ -50,6 +50,8 @@ public final class VexSummons {
      * Summons the vexes beside {@code summoner}: random ring cells one block up, iron swords from
      * {@code finalizeSpawn}, the summoner's team if it has one.
      *
+     * @param level the level to summon in
+     * @param summoner the player who summons them
      * @return the vexes, in spawn order
      */
     public static List<Vex> summon(ServerLevel level, ServerPlayer summoner) {

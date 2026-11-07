@@ -17,7 +17,13 @@ import net.minecraft.world.entity.player.Player;
 public final class Allies {
     private Allies() {}
 
-    /** Whether a spell cast by {@code owner} must spare {@code other}. */
+    /**
+     * Whether a spell cast by {@code owner} must spare {@code other}.
+     *
+     * @param owner the caster
+     * @param other the entity the spell might hit
+     * @return true if {@code other} is an ally of {@code owner}
+     */
     public static boolean isAllyOf(Player owner, Entity other) {
         return owner.isAlliedTo(other) || ownedBy(owner.getUUID(), other);
     }
@@ -36,6 +42,9 @@ public final class Allies {
      * {@code :192-206} also borrows the owner's) and {@code Allay.java:160-163} (the player it likes); {@code
      * AbstractIllager} and {@code Evoker} ally only illagers and vexes. The summoner attachment is this mod's own
      * rule.
+     *
+     * @param other the entity to check
+     * @return false only when no player can be its ally
      */
     public static boolean mayHaveAllies(Entity other) {
         return other.getTeam() != null

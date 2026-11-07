@@ -88,6 +88,9 @@ public final class Fangs {
      * caster, with the cell's ripple delay. Nothing happens in another dimension than the snapshot's. Cells outside
      * the build limits or in unloaded chunks get none ({@link Level#isLoaded}; no chunk is loaded or waited on).
      *
+     * @param level the level to place the fangs in
+     * @param caster the owner of the fangs
+     * @param snapshot the square and vertical window taken when the cast started
      * @return true when the snapshot's level matched (so the cast sound plays), even if no cell had a floor
      */
     static boolean perform(ServerLevel level, ServerPlayer caster, Snapshot snapshot) {
@@ -98,9 +101,9 @@ public final class Fangs {
         for (FangSquare.Cell cell : snapshot.square().cells()) {
             int x = feet.getX() + cell.dx();
             int z = feet.getZ() + cell.dz();
+            // At the caster's height this trips only on the horizontal world bounds or an unloaded chunk (spec §8).
             if (!level.isLoaded(new BlockPos(x, feet.getY(), z))) {
-                continue; // at the caster's height this trips only on the horizontal world bounds or an unloaded chunk
-                // (spec §8)
+                continue;
             }
             findFloor(level, x, z, snapshot.top(), snapshot.bottom()).ifPresent(y -> {
                 float angle = (float) Mth.atan2(cell.dz(), cell.dx());

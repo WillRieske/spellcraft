@@ -47,17 +47,34 @@ public final class CastingParticles {
 
     private CastingParticles() {}
 
+    /**
+     * Registers the two casting particle types with no provider: they only mark the state in the synced effect
+     * list, and nothing is drawn for them.
+     *
+     * @param event the mod-bus event
+     */
     @SubscribeEvent
     public static void onRegisterProviders(RegisterParticleProvidersEvent event) {
         event.registerSpecial(ModParticles.CASTING_FANGS.get(), (options, level, x, y, z, xa, ya, za, random) -> null);
         event.registerSpecial(ModParticles.CASTING_VEXES.get(), (options, level, x, y, z, xa, ya, za, random) -> null);
     }
 
+    /**
+     * Hides the two casting effects' HUD and inventory entries.
+     *
+     * @param event the mod-bus event
+     */
     @SubscribeEvent
     public static void onRegisterExtensions(RegisterClientExtensionsEvent event) {
         event.registerMobEffect(HIDDEN, ModEffects.CASTING_FANGS, ModEffects.CASTING_VEXES);
     }
 
+    /**
+     * Adds the two hand particles for every casting player in the level, skipping the tick while the game is paused
+     * (the particle engine does not tick then, so the particles would pile up).
+     *
+     * @param event the game-bus event
+     */
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
         Minecraft minecraft = Minecraft.getInstance();
