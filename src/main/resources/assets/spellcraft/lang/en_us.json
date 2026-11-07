@@ -2,11 +2,16 @@
   "item.spellcraft.upside_down_scroll": "Scroll of Upside-Down",
   "item.spellcraft.infinity_scroll": "Scroll of Infinity",
   "item.spellcraft.trailing_scroll": "Scroll of Trailing",
+  "item.spellcraft.evoking_scroll": "Scroll of Evoking",
   "effect.spellcraft.upside_down": "Strength of Upside-Down",
   "effect.spellcraft.infinity": "Strength of Infinity",
   "effect.spellcraft.trailing": "Strength of Trailing",
+  "effect.spellcraft.evoking": "Strength of Evoking",
+  "effect.spellcraft.casting_fangs": "Casting Fangs",
+  "effect.spellcraft.casting_vexes": "Casting Vexes",
   "block.spellcraft.trail_fire": "Trail Fire",
   "message.spellcraft.scroll_not_needed": "Scroll not needed; already have effect!",
+  "message.spellcraft.no_targets": "No targets in range",
 
   "spellcraft.configuration.title": "Spellcraft Configs",
   "spellcraft.configuration.section.spellcraft.server.toml": "Spellcraft Server Configs",
@@ -21,5 +26,8 @@
   "spellcraft.configuration.durationSeconds": "Duration (seconds)",
   "spellcraft.configuration.transitionSeconds": "Roll transition (seconds)",
   "container.spellcraft.scribe": "Scribe a random scroll",
-  "container.spellcraft.scribe.chance": "%s%% chance of an extreme-tier spell"
+  "container.spellcraft.scribe.chance": "%s%% chance of an extreme-tier spell",
+  "key.category.spellcraft.spells": "Spellcraft",
+  "key.spellcraft.fangs": "Evoking: Fangs",
+  "key.spellcraft.vexes": "Evoking: Summon Vexes"
 }

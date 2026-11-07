@@ -43,9 +43,22 @@ class CastRulesTest {
         "INFINITY,    true,  true,  ADVENTURE, REFUSE",
         "INFINITY,    false, true,  SPECTATOR, REFUSE",
         "INFINITY,    true,  true,  SPECTATOR, REFUSE",
+        // Evoking: refuse on recast yet dispellable, not redundant in creative (the first spell with both).
+        "EVOKING,     false, false, SURVIVAL,  CAST",
+        "EVOKING,     false, false, CREATIVE,  CAST",
+        "EVOKING,     true,  false, SURVIVAL,  CAST",
+        "EVOKING,     false, true,  SURVIVAL,  REFUSE",
+        "EVOKING,     false, true,  CREATIVE,  REFUSE",
+        "EVOKING,     true,  true,  SURVIVAL,  DISPEL",
+        "EVOKING,     true,  true,  CREATIVE,  DISPEL",
+        "EVOKING,     false, false, ADVENTURE, CAST",
+        "EVOKING,     true,  true,  ADVENTURE, DISPEL",
+        "EVOKING,     false, true,  SPECTATOR, REFUSE",
+        "EVOKING,     true,  true,  SPECTATOR, DISPEL",
     })
     void decidesEveryCase(String spell, boolean sneaking, boolean active, PlayerMode mode, CastOutcome expected) {
         SpellRules rules = switch (spell) {
+            case "EVOKING" -> SpellDeclarations.EVOKING;
             case "INFINITY" -> SpellDeclarations.INFINITY;
             case "UPSIDE_DOWN" -> SpellDeclarations.UPSIDE_DOWN;
             default -> throw new IllegalArgumentException("unknown spell in the CSV: " + spell);

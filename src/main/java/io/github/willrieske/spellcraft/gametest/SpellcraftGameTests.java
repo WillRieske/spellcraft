@@ -48,6 +48,7 @@ public final class SpellcraftGameTests {
         TrailGameTests.registerAll();
         TrailEdgeCaseGameTests.registerAll();
         TrailLayerGameTests.registerAll();
+        EvokingGameTests.registerAll();
     }
 
     private SpellcraftGameTests() {}

@@ -189,7 +189,7 @@ public final class ScribingGameTests {
 
     /**
      * Mutates global server config, so it runs alone in the {@code scribing_zero} batch. At 0% the draw comes from
-     * the lower pool, which holds every non-extreme spell (Upside-Down and Trailing). A random draw cannot prove both
+     * the lower pool, which holds every non-extreme spell (Upside-Down, Trailing and Evoking). A random draw cannot prove all
      * are reachable, so {@code ScrollDraw.draw} itself is run first over {@code Scribing.candidates()} with dice that
      * pick each index of the lower pool in turn.
      */
@@ -203,8 +203,14 @@ public final class ScribingGameTests {
             poolSize = dice.poolSize;
         }
         helper.assertTrue(lowerPool.contains(ModItems.TRAILING_SCROLL.get()), "the lower pool holds Trailing");
+        helper.assertTrue(lowerPool.contains(ModItems.EVOKING_SCROLL.get()), "the lower pool holds Evoking");
         helper.assertTrue(lowerPool.contains(ModItems.UPSIDE_DOWN_SCROLL.get()), "the lower pool holds Upside-Down");
-        drawsOnly(helper, List.of(0, 0, 0), ModItems.UPSIDE_DOWN_SCROLL.get(), ModItems.TRAILING_SCROLL.get());
+        drawsOnly(
+                helper,
+                List.of(0, 0, 0),
+                ModItems.UPSIDE_DOWN_SCROLL.get(),
+                ModItems.TRAILING_SCROLL.get(),
+                ModItems.EVOKING_SCROLL.get());
     }
 
     /**

@@ -11,13 +11,19 @@ class SpellDeclarationsTest {
     @Test
     void declaresEverySpellWithItsTier() {
         assertThat(SpellDeclarations.ALL)
-                .containsExactly(SpellDeclarations.UPSIDE_DOWN, SpellDeclarations.INFINITY, SpellDeclarations.TRAILING);
+                .containsExactly(
+                        SpellDeclarations.UPSIDE_DOWN,
+                        SpellDeclarations.INFINITY,
+                        SpellDeclarations.TRAILING,
+                        SpellDeclarations.EVOKING);
         assertThat(SpellDeclarations.UPSIDE_DOWN.tier()).isEqualTo(SpellTier.STARTER);
         assertThat(SpellDeclarations.INFINITY.tier()).isEqualTo(SpellTier.EXTREME);
         assertThat(SpellDeclarations.TRAILING.tier()).isEqualTo(SpellTier.GOOD);
         assertThat(SpellDeclarations.INFINITY.tier().isTop()).isTrue();
         assertThat(SpellDeclarations.UPSIDE_DOWN.tier().isTop()).isFalse();
         assertThat(SpellDeclarations.TRAILING.tier().isTop()).isFalse();
+        assertThat(SpellDeclarations.EVOKING.tier()).isEqualTo(SpellTier.AMAZING);
+        assertThat(SpellDeclarations.EVOKING.tier().isTop()).isFalse();
     }
 
     @Test
@@ -26,6 +32,14 @@ class SpellDeclarationsTest {
         assertThat(SpellDeclarations.TRAILING.recast()).isEqualTo(SpellRules.Recast.REFRESH);
         assertThat(SpellDeclarations.TRAILING.dispellable()).isTrue();
         assertThat(SpellDeclarations.TRAILING.redundantInCreative()).isFalse();
+    }
+
+    @Test
+    void evokingRefusesARecastIsDispellableAndCastsInCreative() {
+        assertThat(SpellDeclarations.EVOKING.name()).isEqualTo("evoking");
+        assertThat(SpellDeclarations.EVOKING.recast()).isEqualTo(SpellRules.Recast.REFUSE);
+        assertThat(SpellDeclarations.EVOKING.dispellable()).isTrue();
+        assertThat(SpellDeclarations.EVOKING.redundantInCreative()).isFalse();
     }
 
     @ParameterizedTest

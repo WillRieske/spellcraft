@@ -26,8 +26,14 @@ public final class Spells {
             SpellDeclarations.TRAILING,
             ServerConfig::trailingDurationTicks);
 
+    public static final Spell EVOKING = new Spell(
+            Spellcraft.id(SpellDeclarations.EVOKING.name()),
+            ModEffects.EVOKING,
+            SpellDeclarations.EVOKING,
+            Spell.INFINITE);
+
     /** Every spell, in declaration order (creative tab, scribing). */
-    public static final List<Spell> ALL = List.of(UPSIDE_DOWN, INFINITY, TRAILING);
+    public static final List<Spell> ALL = List.of(UPSIDE_DOWN, INFINITY, TRAILING, EVOKING);
 
     private Spells() {}
 }

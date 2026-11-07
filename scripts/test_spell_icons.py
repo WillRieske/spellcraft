@@ -72,6 +72,11 @@ class SpellIconsTest(unittest.TestCase):
         on_disk = set((icons.TEXTURES / "item").glob("*_scroll.png")) | set((icons.TEXTURES / "mob_effect").glob("*.png"))
         self.assertEqual(on_disk, expected)
 
+    def test_i7_evoking_glyph_is_a_7x8_mint_y(self):
+        spell = next(s for s in icons.SPELLS if s.id == "evoking")
+        self.assertEqual((len(spell.glyph[0]), len(spell.glyph)), (7, 8))
+        self.assertEqual(spell.ink, (210, 248, 234, 255))  # #D2F8EA
+
 
 if __name__ == "__main__":
     unittest.main()
