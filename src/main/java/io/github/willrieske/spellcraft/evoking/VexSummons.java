@@ -93,7 +93,7 @@ public final class VexSummons {
     /**
      * Replaces the vex's target goals with one: the nearest living thing within {@link #AGGRO_RANGE} that is
      * attackable and no ally of the summoner. The range is set first so the goal's constructor sees five; later
-     * scans re-read the attribute anyway. The vanilla random spawn bonus (up to +11.5% of the base) is removed so the
+     * scans re-read the attribute anyway. The vanilla random spawn bonus (±11.5% of the base, either way) is removed so the
      * effective range is exactly five. Only for a marked vex: on an unmarked one {@code getData} would create the
      * mark with its default, so the only caller, {@link #onJoin}, checks {@code hasData} first.
      */
@@ -108,7 +108,17 @@ public final class VexSummons {
         vex.targetSelector.addGoal(
                 TARGET_GOAL_PRIORITY,
                 new NearestAttackableTargetGoal<>(
-                        vex, LivingEntity.class, true, (target, level) -> isPrey(level, summoner, target)));
+                        vex, LivingEntity.class, true, (target, level) -> isPrey(level, summoner, target)) {
+                    // Vanilla re-checks only canAttack here, never the selector, so a target that became an ally
+                    // (tamed, or marked by the summoner) after it was chosen would be kept. Re-check it.
+                    @Override
+                    public boolean canContinueToUse() {
+                        LivingEntity current = mob.getTarget();
+                        return super.canContinueToUse()
+                                && current != null
+                                && isPrey(getServerLevel(mob), summoner, current);
+                    }
+                });
     }
 
     /**

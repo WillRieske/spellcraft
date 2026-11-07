@@ -73,6 +73,7 @@ public final class VexGameTests {
         FangGameTests.addPadded(SHARED, "vexes_e16_summoned_in_the_nether", VexGameTests::e16SummonedInTheNether);
         FangGameTests.addPadded(SHARED, "vexes_e18_armor_stand", VexGameTests::e18ArmorStand);
         SpellcraftGameTests.add("team_mutation", "vexes_prey_rule", VexGameTests::preyRule);
+        FangGameTests.addPadded(SHARED, "vexes_target_recheck", VexGameTests::targetRecheck);
     }
 
     /** Every vex within 14 blocks of {@code center} in {@code level}. */
@@ -377,6 +378,32 @@ public final class VexGameTests {
                 helper.assertTrue(pig.equals(vex.getTarget()), "the pig behind it is");
             });
         });
+    }
+
+    /**
+     * When a summoned vex has chosen an untamed wolf and the summoner then tames it, should drop the target within a
+     * few ticks. Vanilla's {@code TargetGoal.canContinueToUse} checks only {@code canAttack}, never the selector, so
+     * a plain {@code NearestAttackableTargetGoal} would keep the new ally as its target.
+     *
+     * <p>Method under test: {@code VexSummons.install} (package-private), through the goal it builds
+     */
+    static void targetRecheck(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        discardLeftoverVexes(helper);
+        Vex vex = park(helper, VexSummons.summon(helper.getLevel(), player), VEX_SPOT);
+        Wolf wolf = helper.spawn(EntityTypes.WOLF, PREY_SPOT);
+        whenDone(helper, wolf::discard);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() ->
+                        helper.assertTrue(wolf.equals(vex.getTarget()), "setup: the untamed wolf becomes the target"))
+                .thenExecute(() -> wolf.tame(player))
+                .thenIdle(3)
+                .thenExecute(
+                        () -> helper.assertTrue(vex.getTarget() == null, "the tamed wolf is dropped as the target"))
+                .thenSucceed();
     }
 
     /**
