@@ -451,8 +451,8 @@ Verified 2026-11-06 against the same unpacked sources, plus FML `loader-12.0.0-s
 - Mock players are not ticked: `ServerPlayer.tick()` (`ServerPlayer.java:598-637`) never calls `super.tick()` (the only
   `super.tick()` in the file is in `doTick()`, `:668` with the call at `:671`), and the only caller of `doTick()` is
   `ServerGamePacketListenerImpl.tickPlayer()` (`:322`, call at `:327`), itself called only from
-  `ServerGamePacketListenerImpl.tick()` (`:301`, call at `:307`), which `Connection.tick()` reaches through
-  `TickablePacketListener.tick()` (`Connection.java:361-364`) and `ServerConnectionListener` calls per connection
+  `ServerGamePacketListenerImpl.tick()` (`:301`, call at `:307`), which `Connection.tick()` (`Connection.java:361-364`) reaches
+  through `TickablePacketListener.tick()`, and `ServerConnectionListener` calls per connection
   (`ServerConnectionListener.java:181`), so it runs only for connections the server tracks. A `MockPlayers.inLevel` player is
   never ticked: `PlayerTickEvent` does not fire for it, its mob effects do not count down and its `tickCount` does
   not advance. GameTests step the caster by hand (`FangGameTests.step`).
