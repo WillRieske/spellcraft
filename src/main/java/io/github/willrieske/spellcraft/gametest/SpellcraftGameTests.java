@@ -13,6 +13,8 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.gametest.framework.TestData;
 import net.minecraft.gametest.framework.TestEnvironmentDefinition;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Rotation;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterGameTestsEvent;
@@ -31,12 +33,15 @@ public final class SpellcraftGameTests {
     private static final Identifier EMPTY_STRUCTURE = Spellcraft.id("empty");
     private static final int MAX_TICKS = 20;
 
+    /** One registered test function with its own run limits. */
+    private record Registered(
+            DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> function, int maxTicks, int padding) {}
+
     /**
      * Test functions by environment, in registration order. Batches run one after another, so a test that
      * mutates global state (config, game rules) gets an environment of its own.
      */
-    private static final Map<String, List<DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>>>>
-            BY_ENVIRONMENT = new LinkedHashMap<>();
+    private static final Map<String, List<Registered>> BY_ENVIRONMENT = new LinkedHashMap<>();
 
     static {
         UpsideDownGameTests.registerAll();
@@ -50,31 +55,52 @@ public final class SpellcraftGameTests {
         TrailLayerGameTests.registerAll();
         EvokingGameTests.registerAll();
         AlliesGameTests.registerAll();
+        FangGameTests.registerAll();
     }
 
     private SpellcraftGameTests() {}
 
     static void add(String environment, String name, Consumer<GameTestHelper> body) {
+        add(environment, name, MAX_TICKS, 0, body);
+    }
+
+    /**
+     * Registers a test with its own tick limit and padding. Padding spaces the test's structure from its neighbors
+     * by that many blocks on every side (and clears that box to air, below included): for tests whose fangs or vexes
+     * would otherwise reach another test's mobs.
+     */
+    static void add(String environment, String name, int maxTicks, int padding, Consumer<GameTestHelper> body) {
         BY_ENVIRONMENT
                 .computeIfAbsent(environment, e -> new ArrayList<>())
-                .add(TEST_FUNCTIONS.register(name, () -> body));
+                .add(new Registered(TEST_FUNCTIONS.register(name, () -> body), maxTicks, padding));
     }
 
     @SubscribeEvent
     public static void register(RegisterGameTestsEvent event) {
-        BY_ENVIRONMENT.forEach((environment, functions) -> {
+        BY_ENVIRONMENT.forEach((environment, registered) -> {
             Holder<TestEnvironmentDefinition<?>> holder = event.registerEnvironment(Spellcraft.id(environment));
-            functions.forEach(function -> test(event, holder, function));
+            registered.forEach(entry -> test(event, holder, entry));
         });
     }
 
     private static void test(
-            RegisterGameTestsEvent event,
-            Holder<TestEnvironmentDefinition<?>> environment,
-            DeferredHolder<Consumer<GameTestHelper>, Consumer<GameTestHelper>> function) {
+            RegisterGameTestsEvent event, Holder<TestEnvironmentDefinition<?>> environment, Registered entry) {
         event.registerTest(
-                function.getId(),
+                entry.function().getId(),
                 new FunctionGameTestInstance(
-                        function.getKey(), new TestData<>(environment, EMPTY_STRUCTURE, MAX_TICKS, 0, true)));
+                        entry.function().getKey(),
+                        new TestData<>(
+                                environment,
+                                Level.OVERWORLD,
+                                EMPTY_STRUCTURE,
+                                entry.maxTicks(),
+                                0,
+                                true,
+                                Rotation.NONE,
+                                false,
+                                1,
+                                1,
+                                false,
+                                entry.padding())));
     }
 }

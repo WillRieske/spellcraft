@@ -44,9 +44,14 @@ public final class MockPlayers {
         moveTo(helper, player, new Vec3(1.5, 1, 1.5));
     }
 
-    /** Teleports {@code player} to a position relative to this test's structure. */
+    /** Teleports {@code player} to a position relative to this test's structure, facing south (yaw 0). */
     public static void moveTo(GameTestHelper helper, ServerPlayer player, Vec3 relative) {
+        moveTo(helper, player, relative, 0.0F);
+    }
+
+    /** Teleports {@code player} to a relative position facing {@code yaw} (0 south, 90 west, 180 north, −90 east). */
+    public static void moveTo(GameTestHelper helper, ServerPlayer player, Vec3 relative, float yaw) {
         Vec3 pos = helper.absoluteVec(relative);
-        player.teleportTo(helper.getLevel(), pos.x, pos.y, pos.z, Set.of(), 0.0F, 0.0F, false);
+        player.teleportTo(helper.getLevel(), pos.x, pos.y, pos.z, Set.of(), yaw, 0.0F, false);
     }
 }

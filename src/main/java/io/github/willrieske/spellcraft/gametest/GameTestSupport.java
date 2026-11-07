@@ -7,6 +7,9 @@ import java.util.UUID;
 import net.minecraft.core.Holder;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.gametest.framework.GameTestInfo;
+import net.minecraft.gametest.framework.GameTestListener;
+import net.minecraft.gametest.framework.GameTestRunner;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
@@ -17,11 +20,13 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.TagValueInput;
+import net.minecraft.world.level.storage.TagValueOutput;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /** Small helpers shared by the GameTest classes. */
@@ -54,6 +59,9 @@ public final class GameTestSupport {
         List<Component> messages = new ArrayList<>();
         EmbeddedChannel channel =
                 (EmbeddedChannel) player.connection.getConnection().channel();
+        // Packets sent during a server tick are written but not flushed until the tick ends (MinecraftServer suspends
+        // flushing for every player), so a message sent earlier in this tick is not readable until flushed here.
+        player.connection.getConnection().flushChannel();
         Object packet;
         while ((packet = channel.readOutbound()) != null) {
             if (packet instanceof ClientboundSystemChatPacket chat && chat.overlay()) {
@@ -61,6 +69,41 @@ public final class GameTestSupport {
             }
         }
         return messages;
+    }
+
+    /**
+     * {@code entity} saved the way a chunk save writes it (the {@code TagValueOutput} pattern), for reading its NBT
+     * fields in a test.
+     */
+    public static CompoundTag saved(Entity entity) {
+        TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, entity.registryAccess());
+        entity.save(output);
+        return output.buildResult();
+    }
+
+    /**
+     * Runs {@code cleanup} once when the test ends, passed or failed. Not {@code GameTestHelper.runBeforeTestEnd}: that
+     * runs only if the test is still going one tick before its timeout, and {@code GameTestInfo.tick} runs no
+     * scheduled callback once a test has succeeded or failed, so it never runs after an early {@code succeed()}.
+     */
+    public static void whenDone(GameTestHelper helper, Runnable cleanup) {
+        helper.testInfo.addListener(new GameTestListener() {
+            @Override
+            public void testStructureLoaded(GameTestInfo testInfo) {}
+
+            @Override
+            public void testPassed(GameTestInfo testInfo, GameTestRunner runner) {
+                cleanup.run();
+            }
+
+            @Override
+            public void testFailed(GameTestInfo testInfo, GameTestRunner runner) {
+                cleanup.run();
+            }
+
+            @Override
+            public void testAddedForRerun(GameTestInfo original, GameTestInfo copy, GameTestRunner runner) {}
+        });
     }
 
     /**
