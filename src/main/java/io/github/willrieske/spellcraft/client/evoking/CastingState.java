@@ -15,7 +15,12 @@ import net.minecraft.world.entity.LivingEntity;
 public final class CastingState {
     private CastingState() {}
 
-    /** The spell {@code entity} is casting, if any. */
+    /**
+     * The spell {@code entity} is casting, if any.
+     *
+     * @param entity any living entity, local or remote
+     * @return the spell being cast, or empty
+     */
     public static Optional<EvokerSpell> of(LivingEntity entity) {
         List<ParticleOptions> particles = entity.getEntityData().get(LivingEntity.DATA_EFFECT_PARTICLES);
         if (particles.contains(ModParticles.CASTING_FANGS.get())) {

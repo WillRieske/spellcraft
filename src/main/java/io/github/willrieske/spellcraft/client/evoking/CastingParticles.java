@@ -48,8 +48,9 @@ public final class CastingParticles {
     private CastingParticles() {}
 
     /**
-     * Registers the two casting particle types with no provider: they only mark the state in the synced effect
-     * list, and nothing is drawn for them.
+     * Registers a provider for each casting particle type that returns null (not "no provider"), which
+     * {@code ParticleEngine.createParticle} tolerates (ParticleEngine.java:59-71). They only mark the state in the
+     * synced effect list, so vanilla's effect swirl and {@code /particle} draw nothing for these types.
      *
      * @param event the mod-bus event
      */
@@ -71,7 +72,7 @@ public final class CastingParticles {
 
     /**
      * Adds the two hand particles for every casting player in the level, skipping the tick while the game is paused
-     * (the particle engine does not tick then, so the particles would pile up).
+     * or the level's tick rate is frozen (the particle engine does not tick then, so the particles would pile up).
      *
      * @param event the game-bus event
      */
@@ -79,9 +80,9 @@ public final class CastingParticles {
     public static void onClientTick(ClientTickEvent.Post event) {
         Minecraft minecraft = Minecraft.getInstance();
         ClientLevel level = minecraft.level;
-        if (level == null || minecraft.isPaused()) {
-            // Post fires while paused (Minecraft.java:1941) but the particle engine does not tick: adding would pile
-            // up.
+        if (level == null || minecraft.isPaused() || !level.tickRateManager().runsNormally()) {
+            // Post fires while paused (Minecraft.java:1941) and under /tick freeze; the particle engine does not tick
+            // in either case, but players keep ticking, so adding would pile up.
             return;
         }
         for (AbstractClientPlayer player : level.players()) {
