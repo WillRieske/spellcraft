@@ -51,3 +51,4 @@ f03724d Evoking Task 3 (FangSquare, VexRing, EvokerPose): 28 unit tests + Archit
 74f5481 Evoking Task 7 (VexSummons, VexGameTests): build green; runGameTestServer all 139 required passed; review clean after 2 fix rounds
 3c8cef8 Evoking Task 8 (client keys, CastingState, CastingParticles, EvokingArmPose, enum extension): build green; runGameTestServer all 139 required passed; runData exit 0 grep clean; review clean after 1 fix round
 84c2bdc Evoking Task 9 (docs, CLAUDE.md rule, playtest checklist, mutation row, install hand-off): pitest 98% (229/233); plan-end backstop build green (246 unit tests) + runGameTestServer all 139 required passed; review clean after 1 fix round
+b4192c4 Evoking review fixes (1 Important, 26 Minor): build green 253 unit tests; runGameTestServer all 139 required passed; icon tests 7; pitest 98% (229/233); re-review clean
