@@ -327,12 +327,22 @@ public final class FangGameTests {
         helper.assertFalse(dx == 0 && dz == 0, "a fang on the caster's cell");
     }
 
+    /**
+     * When a caster facing north presses F with a target in the square, should the cast start, the casting effect
+     * sync its particle, and one warmup later one fang per cell stand on its floor (a carpet cell on the carpet's
+     * collision top), owned by the caster, with the ripple delay of its cell.
+     *
+     * <p>Method under test: {@link EvokingCaster#request}
+     */
     static void e1CarpetNorth(GameTestHelper helper) {
+        // Arrange
         floor(helper, NORTH);
         BlockPos carpet = FEET.offset(3, 0, -4); // on the floor layer: its fang stands on the carpet's collision top
         helper.setBlock(carpet, Blocks.MOSS_CARPET);
         ServerPlayer player = caster(helper, NORTH);
         pig(helper, FEET.north(5));
+
+        // Act & Assert
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
         MobEffectInstance casting = requireEffect(helper, player, ModEffects.CASTING_FANGS);
         helper.assertValueEqual(casting.getDuration(), EvokerSpell.FANGS.castingTicks(), "casting ticks");
@@ -390,19 +400,26 @@ public final class FangGameTests {
     }
 
     /**
-     * A caster facing north-east gets the corner square (a target on its far corner counts: the edge is inside), and
-     * the square is the one at the press, though the caster walks on during the warmup.
+     * When a caster facing north-east presses F with a target on the square's far corner and then walks on, should
+     * the fangs fill the corner square taken at the press (the edge is inside), not one from the live position.
+     *
+     * <p>Method under test: {@link EvokingCaster#request}
      */
     static void e2CornerNorthEast(GameTestHelper helper) {
+        // Arrange
         floor(helper, NORTH_EAST);
         ServerPlayer player = caster(helper, NORTH_EAST);
         pig(helper, FEET.offset(12, 0, -12)); // the far corner of the NE square
+
+        // Act
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
         // Walks on during the warmup, onto the square's floor; assertInside measures from FEET, not the player, so a
         // perform from the live position (fangs over x 3...15) fails it.
         MockPlayers.moveTo(helper, player, STAND.add(3, 0, 0), NORTH_EAST);
         helper.runAfterDelay(WARMUP, () -> {
             step(player);
+
+            // Assert
             List<EvokerFangs> fangs = fangs(helper);
             helper.assertValueEqual(fangs.size(), FangSquare.CELL_COUNT, "one fang per cell");
             fangs.forEach(fang -> assertInside(helper, fang, 0, 12, -12, 0));
@@ -411,10 +428,14 @@ public final class FangGameTests {
     }
 
     /**
-     * Targets outside the square or the vertical window do not count: the press only schedules the notice, a second
-     * press moves it, and it arrives once, one warmup after the second press.
+     * When every pig stands outside the square or the vertical window (behind, past an edge, above, below), should
+     * the press only schedule the notice, a second press move it, and the notice arrive once, one warmup after the
+     * second press.
+     *
+     * <p>Method under test: {@link EvokingCaster#request}
      */
     static void e3NoTargetsNotice(GameTestHelper helper) {
+        // Arrange
         floor(helper, NORTH);
         ServerPlayer player = caster(helper, NORTH);
         pig(helper, FEET.south(3)); // behind the caster: the square holds dz -12...0
@@ -424,6 +445,8 @@ public final class FangGameTests {
         helper.setBlock(FEET.offset(0, -9, -3), Blocks.STONE); // a floor for the pig below the window
         pig(helper, FEET.offset(0, -8, -3)); // below the window: its top is under feet-6
         drainActionBar(player); // discard what joining the level sent
+
+        // Act & Assert
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.NO_TARGETS, "request");
         helper.assertFalse(player.hasEffect(ModEffects.CASTING_FANGS), "no arms");
         helper.runAfterDelay(
@@ -443,14 +466,22 @@ public final class FangGameTests {
         });
     }
 
-    /** A tamed wolf (owner on no team), a pig on the caster's team and the caster's own summon are not targets. */
+    /**
+     * When the only living things in the square are a tamed wolf, a pig on the caster's team and the caster's own
+     * summoned vex, should each press find no target.
+     *
+     * <p>Method under test: {@link EvokingCaster#request}
+     */
     static void e4AlliesAreNotTargets(GameTestHelper helper) {
+        // Arrange
         floor(helper, NORTH);
         ServerPlayer player = caster(helper, NORTH);
         Wolf pet = helper.spawn(EntityTypes.WOLF, FEET.north(3));
         pet.setNoAi(true);
         pet.tame(player);
         Vex summon = summonedVex(helper, FEET.north(5), player.getUUID());
+
+        // Act & Assert
         helper.assertValueEqual(
                 EvokingCaster.request(player, EvokerSpell.FANGS), Request.NO_TARGETS, "pet and summon are no targets");
         Scoreboard scoreboard = helper.getLevel().getScoreboard();
@@ -465,14 +496,22 @@ public final class FangGameTests {
         helper.succeed();
     }
 
-    /** Creative and spectator players are not targets; a survival player is. */
+    /**
+     * When the square holds a creative and a spectator player, should the press find no target; when it also holds a
+     * survival player (with {@code pvp} on), should the cast start.
+     *
+     * <p>Method under test: {@link EvokingCaster#request}
+     */
     static void e5PlayerModes(GameTestHelper helper) {
+        // Arrange
         floor(helper, NORTH);
         ServerPlayer player = caster(helper, NORTH);
         ServerPlayer creative = MockPlayers.inLevel(helper, GameType.CREATIVE);
         MockPlayers.moveTo(helper, creative, STAND.add(0, 0, -4));
         ServerPlayer spectator = MockPlayers.inLevel(helper, GameType.SPECTATOR);
         MockPlayers.moveTo(helper, spectator, STAND.add(0, 0, -6));
+
+        // Act & Assert
         helper.assertValueEqual(
                 EvokingCaster.request(player, EvokerSpell.FANGS), Request.NO_TARGETS, "creative and spectator");
         ServerPlayer survival = MockPlayers.inLevel(helper, GameType.SURVIVAL);
@@ -482,9 +521,13 @@ public final class FangGameTests {
     }
 
     /**
-     * A fang owned by the player bites a stranger pig and a vex nobody summoned, and spares the player's summoned vex.
+     * When fangs owned by the player land on a stranger pig, a vex nobody summoned and the player's summoned vex,
+     * should they bite the first two and spare the summon.
+     *
+     * <p>Method under test: {@link Fangs#onIncomingDamage}
      */
     static void e6SpareSummons(GameTestHelper helper) {
+        // Arrange
         floor(helper, NORTH);
         ServerPlayer player = caster(helper, NORTH);
         ServerLevel level = helper.getLevel();
@@ -495,11 +538,14 @@ public final class FangGameTests {
         Vex strangerVex = helper.spawn(EntityTypes.VEX, FEET.north(9));
         strangerVex.setNoAi(true);
         float strangerVexHealth = strangerVex.getHealth();
+
+        // Act
         for (Mob victim : List.of(summon, stranger, strangerVex)) {
             level.addFreshEntity(new EvokerFangs(level, victim.getX(), victim.getY(), victim.getZ(), 0.0F, 0, player));
         }
         // No cast here: the fangs are made directly, so there is nothing to step. They bite on their 8th tick.
         helper.runAfterDelay(12, () -> {
+            // Assert
             helper.assertValueEqual(summon.getHealth(), vexHealth, "the summon's health");
             helper.assertTrue(stranger.getHealth() < pigHealth, "the stranger pig is bitten");
             helper.assertTrue(
@@ -511,12 +557,20 @@ public final class FangGameTests {
         });
     }
 
-    /** Fangs, then vexes while the arms are up (BUSY), fangs within the interval (COOLING), fangs after it. */
+    /**
+     * When a caster presses fangs, then vexes while the arms are up, then fangs within the interval, then fangs after
+     * it, should the answers be BUSY, COOLING and STARTED in turn.
+     *
+     * <p>Method under test: {@link EvokingCaster#request}
+     */
     static void e7BusyAndCooling(GameTestHelper helper) {
+        // Arrange
         floor(helper, NORTH);
         ServerPlayer player = caster(helper, NORTH);
         IronGolem golem = helper.spawn(EntityTypes.IRON_GOLEM, FEET.north(5));
         golem.setNoAi(true);
+
+        // Act & Assert
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "first");
         helper.runAfterDelay(5, () -> {
             step(player); // nothing is due yet; the arms are still up
@@ -535,35 +589,53 @@ public final class FangGameTests {
         });
     }
 
+    /**
+     * When the caster loses Evoking between the press and the perform, should the step drop the cast: no fangs.
+     *
+     * <p>Method under test: {@link EvokingCaster#tick}
+     */
     static void e13LostEvokingCancels(GameTestHelper helper) {
+        // Arrange
         floor(helper, NORTH);
         ServerPlayer player = caster(helper, NORTH);
         pig(helper, FEET.north(5));
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
+
+        // Act
         player.removeEffect(ModEffects.EVOKING);
         helper.runAfterDelay(WARMUP + 2, () -> {
             step(player); // past the perform time: without Evoking the step drops the entry instead
+
+            // Assert
             helper.assertTrue(fangs(helper).isEmpty(), "no fangs without Evoking");
             helper.succeed();
         });
     }
 
-    /** Without Evoking, or as a spectator: no effect, no fangs, no notice (the spec row E14). */
+    /**
+     * When a player without Evoking, or a spectator with it, presses either key with a target in the square, should
+     * the request be ignored: no effect, no fangs, no notice (spec row E14).
+     *
+     * <p>Method under test: {@link EvokingCaster#request}
+     */
     static void e14IgnoredRequests(GameTestHelper helper) {
+        // Arrange
         floor(helper, NORTH);
         loadPadding(helper);
         pig(helper, FEET.north(5)); // a target, so only the ignoring can explain "no fangs"
         ServerPlayer withoutEvoking = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         MockPlayers.moveTo(helper, withoutEvoking, STAND, NORTH);
         drainActionBar(withoutEvoking); // discard what joining the level sent
-        helper.assertValueEqual(
-                EvokingCaster.request(withoutEvoking, EvokerSpell.FANGS), Request.IGNORED, "without Evoking");
-        helper.assertValueEqual(
-                EvokingCaster.request(withoutEvoking, EvokerSpell.VEXES), Request.IGNORED, "without Evoking");
         ServerPlayer spectator = MockPlayers.inLevel(helper, GameType.SPECTATOR);
         spectator.addEffect(EvokingGameTests.evoking());
         MockPlayers.moveTo(helper, spectator, STAND, NORTH);
         drainActionBar(spectator);
+
+        // Act & Assert
+        helper.assertValueEqual(
+                EvokingCaster.request(withoutEvoking, EvokerSpell.FANGS), Request.IGNORED, "without Evoking");
+        helper.assertValueEqual(
+                EvokingCaster.request(withoutEvoking, EvokerSpell.VEXES), Request.IGNORED, "without Evoking");
         helper.assertValueEqual(EvokingCaster.request(spectator, EvokerSpell.FANGS), Request.IGNORED, "spectator");
         helper.assertFalse(spectator.hasEffect(ModEffects.CASTING_FANGS), "no casting effect");
         helper.runAfterDelay(WARMUP + 7, () -> {
@@ -576,25 +648,45 @@ public final class FangGameTests {
         });
     }
 
+    /**
+     * When the caster logs out between the press and the perform (the logout event posted on the bus), should the
+     * cast be dropped: no fangs.
+     *
+     * <p>Method under test: {@link EvokingCaster#onLogout}
+     */
     static void e15LogoutDropsTheCast(GameTestHelper helper) {
+        // Arrange
         floor(helper, NORTH);
         ServerPlayer player = caster(helper, NORTH);
         pig(helper, FEET.north(5));
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
+
+        // Act
         NeoForge.EVENT_BUS.post(new PlayerEvent.PlayerLoggedOutEvent(player));
         helper.runAfterDelay(WARMUP + 2, () -> {
             step(player); // past the perform time, but the logout dropped the entry: nothing to perform
+
+            // Assert
             helper.assertTrue(fangs(helper).isEmpty(), "no fangs after a logout");
             helper.succeed();
         });
     }
 
-    /** A press in the Overworld, a teleport to the Nether before the perform: no fangs anywhere. */
+    /**
+     * When the caster presses in the Overworld and is teleported to the Nether before the perform, should the
+     * dimension guard stop the cast: no fangs in the Overworld, none at the snapshot's coordinates in the Nether, none
+     * around the player.
+     *
+     * <p>Method under test: {@link Fangs#perform}
+     */
     static void e16DimensionChange(GameTestHelper helper) {
+        // Arrange
         floor(helper, NORTH);
         ServerPlayer player = caster(helper, NORTH);
         pig(helper, FEET.north(5));
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
+
+        // Act
         BlockPos netherFeet = toNether(helper, player);
         ServerLevel nether = player.level();
         helper.runAfterDelay(WARMUP + 2, () -> {
@@ -603,6 +695,8 @@ public final class FangGameTests {
                     "setup: still alive with Evoking, so only the dimension guard can stop the fangs");
             helper.assertValueEqual(player.level().dimension(), Level.NETHER, "setup: the player is in the Nether");
             step(player); // past the perform time: the perform runs now, and the dimension guard stops it
+
+            // Assert
             helper.assertTrue(fangs(helper).isEmpty(), "no fangs in the Overworld");
             // A perform without the guard would place them at the snapshot's coordinates, in the Nether.
             AABB snapshotArea = new AABB(helper.absolutePos(FEET)).inflate(14.0, 14.0, 14.0);
@@ -616,8 +710,14 @@ public final class FangGameTests {
         });
     }
 
-    /** A pillar cell gets its fang on top; a pig's shallow hole gets one at its floor; a deep hole gets none. */
+    /**
+     * When the square has a pillar, a shallow hole with a pig in it and a hole too deep for the window, should the
+     * pillar cell's fang stand on top, the shallow hole's fang at its floor, and the deep hole get none.
+     *
+     * <p>Method under test: {@link Fangs#perform}
+     */
     static void e17UnevenFloor(GameTestHelper helper) {
+        // Arrange
         floor(helper, NORTH);
         BlockPos pillar = FEET.offset(2, 0, -3);
         BlockPos shallowHole = FEET.offset(-2, 0, -3);
@@ -629,9 +729,13 @@ public final class FangGameTests {
         helper.setBlock(deepHole.below(6), Blocks.STONE);
         ServerPlayer player = caster(helper, NORTH);
         pig(helper, shallowHole.below(2));
+
+        // Act
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
         helper.runAfterDelay(WARMUP, () -> {
             step(player);
+
+            // Assert
             helper.assertEntityPresent(EntityTypes.EVOKER_FANGS, pillar.above());
             helper.assertEntityPresent(EntityTypes.EVOKER_FANGS, shallowHole.below(2));
             helper.assertEntityNotPresent(EntityTypes.EVOKER_FANGS, deepHole);
@@ -640,10 +744,18 @@ public final class FangGameTests {
         });
     }
 
+    /**
+     * When the only thing in the square is an armor stand, should the press find no target.
+     *
+     * <p>Method under test: {@link EvokingCaster#request}
+     */
     static void e18ArmorStand(GameTestHelper helper) {
+        // Arrange
         floor(helper, NORTH);
         ServerPlayer player = caster(helper, NORTH);
         ArmorStand stand = helper.spawn(EntityTypes.ARMOR_STAND, FEET.north(4));
+
+        // Act & Assert
         helper.assertValueEqual(
                 EvokingCaster.request(player, EvokerSpell.FANGS), Request.NO_TARGETS, "an armor stand is no target");
         stand.discard();

@@ -56,15 +56,33 @@ public final class EvokingGameTests {
         return player;
     }
 
+    /**
+     * When the Evoking effect is asked for its category, should it be beneficial.
+     *
+     * <p>Method under test: {@link ModEffects#EVOKING}
+     */
     static void isBeneficial(GameTestHelper helper) {
+        // Act & Assert
         helper.assertValueEqual(
                 ModEffects.EVOKING.value().getCategory(), MobEffectCategory.BENEFICIAL, "effect category");
         helper.succeed();
     }
 
+    /**
+     * When a survival player uses a Scroll of Evoking, should the effect be infinite with particles hidden and the
+     * icon shown, and one scroll be used up.
+     *
+     * <p>Method under test: {@link SpellScrollItem#use}
+     */
     static void castIsInfiniteAndConsumes(GameTestHelper helper) {
+        // Arrange
         ServerPlayer player = withScrolls(helper, GameType.SURVIVAL);
-        helper.assertValueEqual(useHeld(helper, player), InteractionResult.SUCCESS, "use result");
+
+        // Act
+        InteractionResult result = useHeld(helper, player);
+
+        // Assert
+        helper.assertValueEqual(result, InteractionResult.SUCCESS, "use result");
         helper.assertValueEqual(heldCount(player), 1, "one scroll used up");
         MobEffectInstance instance = requireEffect(helper, player, ModEffects.EVOKING);
         helper.assertTrue(instance.isInfiniteDuration(), "infinite duration");
@@ -73,65 +91,136 @@ public final class EvokingGameTests {
         helper.succeed();
     }
 
+    /**
+     * When a creative player uses a Scroll of Evoking, should the cast not be refused: the effect starts and the
+     * scroll is still used up.
+     *
+     * <p>Method under test: {@link SpellScrollItem#use}
+     */
     static void creativeCasts(GameTestHelper helper) {
+        // Arrange
         ServerPlayer player = withScrolls(helper, GameType.CREATIVE);
-        helper.assertValueEqual(useHeld(helper, player), InteractionResult.SUCCESS, "creative is not refused");
+
+        // Act
+        InteractionResult result = useHeld(helper, player);
+
+        // Assert
+        helper.assertValueEqual(result, InteractionResult.SUCCESS, "creative is not refused");
         helper.assertTrue(player.hasEffect(ModEffects.EVOKING), "creative casts Evoking");
         helper.assertValueEqual(heldCount(player), 1, "creative still uses up the scroll");
         helper.succeed();
     }
 
+    /**
+     * When a player who already has Evoking uses another scroll, should the use be refused: the scroll is kept, the
+     * effect stays, and the refusal notice shows.
+     *
+     * <p>Method under test: {@link SpellScrollItem#use}
+     */
     static void recastRefused(GameTestHelper helper) {
+        // Arrange
         ServerPlayer player = withScrolls(helper, GameType.SURVIVAL);
         player.addEffect(evoking());
         drainActionBar(player); // discard what joining the level sent
-        helper.assertValueEqual(useHeld(helper, player), InteractionResult.FAIL, "recast refused");
+
+        // Act
+        InteractionResult result = useHeld(helper, player);
+
+        // Assert
+        helper.assertValueEqual(result, InteractionResult.FAIL, "recast refused");
         helper.assertValueEqual(heldCount(player), 2, "a refused scroll is kept");
         helper.assertTrue(player.hasEffect(ModEffects.EVOKING), "the effect stays");
         assertActionBarKey(helper, player, SpellScrollItem.REFUSED_KEY);
         helper.succeed();
     }
 
+    /**
+     * When a player with Evoking sneaks and uses a scroll, should the effect be dispelled and a scroll used up.
+     *
+     * <p>Method under test: {@link SpellScrollItem#use}
+     */
     static void sneakDispels(GameTestHelper helper) {
+        // Arrange
         ServerPlayer player = withScrolls(helper, GameType.SURVIVAL);
         player.addEffect(evoking());
         player.setShiftKeyDown(true);
-        helper.assertValueEqual(useHeld(helper, player), InteractionResult.SUCCESS, "dispel is a use");
+
+        // Act
+        InteractionResult result = useHeld(helper, player);
+
+        // Assert
+        helper.assertValueEqual(result, InteractionResult.SUCCESS, "dispel is a use");
         helper.assertFalse(player.hasEffect(ModEffects.EVOKING), "sneak + use while active dispels");
         helper.assertValueEqual(heldCount(player), 1, "dispel uses up a scroll");
         helper.succeed();
     }
 
+    /**
+     * When a player without Evoking sneaks and uses a scroll, should the effect be cast and a scroll used up.
+     *
+     * <p>Method under test: {@link SpellScrollItem#use}
+     */
     static void sneakInactiveCasts(GameTestHelper helper) {
+        // Arrange
         ServerPlayer player = withScrolls(helper, GameType.SURVIVAL);
         player.setShiftKeyDown(true);
-        helper.assertValueEqual(useHeld(helper, player), InteractionResult.SUCCESS, "use result");
+
+        // Act
+        InteractionResult result = useHeld(helper, player);
+
+        // Assert
+        helper.assertValueEqual(result, InteractionResult.SUCCESS, "use result");
         helper.assertTrue(player.hasEffect(ModEffects.EVOKING), "sneak + use while inactive casts");
         helper.assertValueEqual(heldCount(player), 1, "one scroll used up");
         helper.succeed();
     }
 
-    /** Dispel is a scroll action: sneak + use with another item in hand leaves the effect. */
+    /**
+     * When a player with Evoking sneaks and uses another item, should the effect stay: dispel is a scroll action.
+     *
+     * <p>Method under test: {@link net.minecraft.world.item.Item#use}
+     */
     static void sneakOtherItemKeeps(GameTestHelper helper) {
+        // Arrange
         ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         player.addEffect(evoking());
         hold(player, new ItemStack(Items.STICK));
         player.setShiftKeyDown(true);
+
+        // Act
         useHeld(helper, player);
+
+        // Assert
         helper.assertTrue(player.hasEffect(ModEffects.EVOKING), "another item does not dispel");
         helper.succeed();
     }
 
+    /**
+     * When a player with Evoking drinks milk, should the effect be cleared.
+     *
+     * <p>Method under test: {@link net.minecraft.world.item.Item#finishUsingItem}
+     */
     static void milkClears(GameTestHelper helper) {
+        // Arrange
         ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         player.addEffect(evoking());
+
+        // Act
         Items.MILK_BUCKET.finishUsingItem(new ItemStack(Items.MILK_BUCKET), helper.getLevel(), player);
+
+        // Assert
         helper.assertFalse(player.hasEffect(ModEffects.EVOKING), "milk cures Evoking");
         helper.succeed();
     }
 
-    /** Each casting effect is neutral, mint, and carries its own particle: the sync flag of spec section 2. */
+    /**
+     * When each casting effect is asked for its particle, category and color, should it carry its own particle, be
+     * neutral, and be mint: the sync flag of spec section 2.
+     *
+     * <p>Method under test: {@link io.github.willrieske.spellcraft.effect.CastingEffect}
+     */
     static void castingEffectsCarryTheirParticles(GameTestHelper helper) {
+        // Act & Assert
         helper.assertValueEqual(
                 ModEffects.CASTING_FANGS
                         .value()
