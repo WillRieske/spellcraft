@@ -1,11 +1,14 @@
 # Spellcraft: "Strength of Evoking" (design)
 
 **Date:** 2026-11-06
-**Status:** draft (written unattended by `/one-shot`; the decisions in §10 are the ones Will did not state)
+**Status:** approved
+**Written by:** `/one-shot`, unattended, on 2026-11-06; §10 lists the decisions Will did not state.
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
 **Builds on:** [`2026-09-29-infinity-design.md`](2026-09-29-infinity-design.md) (the shared spell
 framework) and [`2026-11-04-trailing-design.md`](2026-11-04-trailing-design.md) (allies). §3 of this
 spec changes the Trailing spec's ally rule; nothing else there is superseded.
+**Amends:** the Trailing spec's glossary row **Ally** and its §4 description of `isSpared` (both
+now defer to §3 here); `CLAUDE.md`'s "No custom packets" rule (§4).
 
 ## Summary
 
@@ -130,14 +133,21 @@ new category `spellcraft:spells` ("Spellcraft"):
 
 | Mapping | Default | Lang key |
 |---|---|---|
-| `key.spellcraft.fangs` | **F** | "Evoking: Fangs" |
-| `key.spellcraft.vexes` | **V** | "Evoking: Summon Vexes" |
+| `key.spellcraft.fangs` | **F** (`InputConstants.KEY_F`) | "Evoking: Fangs" |
+| `key.spellcraft.vexes` | **V** (`InputConstants.KEY_V`) | "Evoking: Summon Vexes" |
+| category `spellcraft:spells` | | `key.category.spellcraft.spells` = "Spellcraft" (`KeyMapping.Category.label()` builds the key from the id) |
+
+Key codes in 26.3 are SDL scancodes, not GLFW codes (`Options.java:676` binds swap-offhand to
+`9`; `InputConstants.java:46,62` name `KEY_F = 9` and `KEY_V = 25`): use the `InputConstants`
+constants and `InputConstants.Type.KEYBOARD`, never `GLFW.GLFW_KEY_*`.
 
 F is vanilla's *Swap Item With Offhand*. **While the local player has Evoking, a press of the
 fangs key casts and does not swap**: the client drains the swap mapping's clicks in the same
 tick when the two mappings are bound to the same key (`KeyMapping.same`). Without Evoking, F
 swaps as always and the mod sends nothing. The player can rebind either key in Controls. V is
-unbound in vanilla.
+vanilla's F3-chord *Dump version info* (`key.debug.dumpVersion`, `Options.java:736`, category
+Debug): the Controls screen shows the pair in red as a conflict, and pressing V without F3 held
+reaches only the mod's mapping. Accepted (Will chose V).
 
 ### Config
 
@@ -204,30 +214,33 @@ keeps a transient `Map<UUID, Casting>` like `TrailLayer`'s trackers: dropped on 
 the server stops. `Casting` holds the pure `EvokingCast` state and, for a fang cast, the
 **snapshot** taken at the press (§5).
 
-`request(ServerPlayer player, EvokerSpell spell)` (public, so GameTests can call it without a
-packet):
+`request(ServerPlayer player, EvokerSpell spell) → Request` (public, so GameTests can call it
+without a packet):
 
-1. Ignore the request unless the player is alive, not a spectator, and has Evoking.
-2. `FANGS` only: take the snapshot and scan for targets (§5). With none,
-   `EvokingCast.noTargets(now)` schedules the notice (below) and nothing else happens: no arms,
-   no sound, no cooldown.
-3. `EvokingCast.request(spell, now)` answers `STARTED`, `BUSY` (another cast's casting ticks are
-   running) or `COOLING` (this spell's interval has not passed). `BUSY` and `COOLING` are ignored
-   silently (§10).
-4. On `STARTED`: play the prepare sound at the player (`EVOKER_PREPARE_ATTACK` or
-   `EVOKER_PREPARE_SUMMON`, source `PLAYERS`, volume 1, pitch 1) and add the spell's casting
-   effect for its casting ticks (§2).
+1. Ignore the request (`IGNORED`) unless the player is alive, not a spectator, and has Evoking.
+2. `EvokingCast.readiness(spell, now)` answers `READY`, `BUSY` (another cast's casting ticks are
+   running) or `COOLING` (this spell's interval has not passed). `BUSY` and `COOLING` are
+   returned and otherwise ignored silently (§10); nothing is scanned.
+3. `FANGS` only, when ready: take the snapshot and scan for targets (§5). With none,
+   `EvokingCast.noTargets(now)` schedules the notice (below), the answer is `NO_TARGETS`, and
+   nothing else happens: no arms, no sound, no cooldown.
+4. Otherwise `EvokingCast.start(spell, now)`, the answer is `STARTED`, the prepare sound plays at
+   the player (`EVOKER_PREPARE_ATTACK` or `EVOKER_PREPARE_SUMMON`, source `PLAYERS`, volume 1,
+   pitch 1), and the spell's casting effect goes on for its casting ticks (§2). The player keeps
+   moving freely; only the evoker (a mob) stands still to cast.
 
-`now` is the level's game time (shared by every dimension).
+`now` is the level's game time (`DerivedLevelData.getGameTime` delegates to the overworld's, so
+every dimension shares it).
 
-`EvokingCast` (pure, `spell.rules`): one player's timers.
+`EvokingCast` (pure, `spell.rules`): one player's timers. Callers ask `readiness` before
+`start` or `noTargets`; `start` throws `IllegalStateException` when not ready.
 
-- `request(spell, now) → Request {STARTED, BUSY, COOLING}`. `STARTED` sets `castingUntil = now +
-  spell.castingTicks()`, `performAt = now + WARMUP`, `pending = spell`, `readyAt[spell] = now +
-  spell.intervalTicks()`, and drops any scheduled notice. `BUSY` when `now < castingUntil`;
-  `COOLING` when `now < readyAt[spell]`; checked in that order.
+- `readiness(spell, now) → Readiness {READY, BUSY, COOLING}`: `BUSY` when `now < castingUntil`;
+  else `COOLING` when `now < readyAt[spell]`; else `READY`.
+- `start(spell, now)`: sets `castingUntil = now + spell.castingTicks()`, `performAt = now +
+  WARMUP`, `pending = spell`, `readyAt[spell] = now + spell.intervalTicks()`, and drops any
+  scheduled notice.
 - `noTargets(now)`: sets `noticeAt = now + WARMUP` (a later press moves it; one notice at most).
-  Ignored while busy (the key was busy anyway).
 - `due(now) → Optional<Due>`: `PERFORM(spell)` the first time `now ≥ performAt` with a pending
   spell, else `NOTIFY_NO_TARGETS` the first time `now ≥ noticeAt`; each is returned once.
 - `isCasting(now)`: `now < castingUntil`.
@@ -327,9 +340,12 @@ summoner attachment (freshly summoned or loaded from disk), it
 - sets `Attributes.FOLLOW_RANGE` base value to **5** (the targeting range vanilla's goal uses:
   "a 5-block aggro range with themselves at the center");
 - adds `NearestAttackableTargetGoal<>(vex, LivingEntity.class, mustSee = true, selector)` at
-  priority 1, with `selector = (target, level) -> summoner is online in that level &&
-  !Allies.isAllyOf(summoner, target)`. Vanilla's combat conditions add the rest: alive, visible
-  as an enemy (no creative or spectator players), attackable, in line of sight, within range.
+  priority 1, with `selector = (target, level) -> target.attackable() && summoner is online in
+  that level && !Allies.isAllyOf(summoner, target)`. `attackable()` drops armor stands, which
+  vanilla's conditions do not check (the vindicator's goal adds the same test,
+  `Vindicator.java:209`). Vanilla's combat conditions (`TargetingConditions.test`) add the rest:
+  alive, visible as an enemy (no creative or spectator players, nothing invulnerable), not
+  `isAlliedTo` the vex, in line of sight, within range.
 
 So a summoned vex never targets its summoner, the summoner's team, pets or other summons, and
 attacks any other living thing (mobs and players alike) that comes within five blocks. With
@@ -360,7 +376,8 @@ the client renders it" literally true.
 
 `RegisterParticleProvidersEvent`: `registerSpecial` for both casting particle types with a
 provider that returns `null`, so vanilla's random effect swirl around the body draws nothing.
-Special providers need no `particles/*.json`.
+Special providers need no `particles/*.json`: `ParticleResources.reload` only loads the json
+files it finds (`ParticleResources.java:214-231`), and a missing file is never looked for.
 
 Every `ClientTickEvent.Post`, for each `AbstractClientPlayer` in the client level with a
 casting state, add two `ENTITY_EFFECT` particles at the hands, the evoker's own formula
@@ -406,7 +423,7 @@ if player has Evoking and FANGS.same(options.keySwapOffhand): while keySwapOffha
 
 - A request from a player without Evoking, dead, or a spectator: ignored. The packet is
   trusted for nothing.
-- Casting ticks running or interval not passed: ignored silently (§10).
+- Casting ticks running or interval not passed: `BUSY` / `COOLING`, ignored silently (§10).
 - Evoking lost between press and perform (milk, dispel, `/effect clear`, death): no perform.
   The casting effect, if still present, expires on its own.
 - Dimension change between press and perform: fangs are not placed (the snapshot is for the
@@ -448,16 +465,16 @@ cells count 168 and exclude the origin; rotating yaw by 90° rotates the center 
 
 | # | Case | Expected |
 |---|---|---|
-| C1 | fresh, `request(FANGS, 100)` | `STARTED`; `isCasting(139)` true, `isCasting(140)` false |
-| C2 | then `request(VEXES, 120)` | `BUSY` (fangs' casting ticks run to 140) |
-| C3 | then `request(FANGS, 150)` | `COOLING` (ready at 200); `request(FANGS, 200)` `STARTED` |
-| C4 | `request(VEXES, 0)` then `request(FANGS, 100)` | `STARTED` (vexes' casting ticks ended at 100; fangs' own interval is free) |
+| C1 | fresh, `readiness(FANGS, 100)` then `start(FANGS, 100)` | `READY`; `isCasting(139)` true, `isCasting(140)` false |
+| C2 | then `readiness(VEXES, 120)` | `BUSY` (fangs' casting ticks run to 140) |
+| C3 | then `readiness(FANGS, 150)` | `COOLING` (ready at 200); `readiness(FANGS, 200)` `READY` |
+| C4 | `start(VEXES, 0)` then `readiness(FANGS, 100)` | `READY` (vexes' casting ticks ended at 100; fangs' own interval is free) |
 | C5 | `due` after a start at 100 | empty at 119, `PERFORM(FANGS)` at 120, empty at 121 and after |
 | C6 | `due` when first asked late (150) | `PERFORM` once, then empty |
 | C7 | `noTargets(100)`, `due` | empty at 119, `NOTIFY_NO_TARGETS` at 120, once |
 | C8 | `noTargets(100)`, `noTargets(110)` | one notice, at 130 |
-| C9 | `noTargets(100)`, `request(FANGS, 105)` started | no notice; `PERFORM` at 125 |
-| C10 | `noTargets` while busy | ignored |
+| C9 | `noTargets(100)`, `start(FANGS, 105)` | no notice; `PERFORM` at 125 |
+| C10 | `start` while `readiness` is not `READY` | `IllegalStateException` |
 
 Properties: `due` never returns the same perform twice; after any sequence, at most one
 perform is pending; `isCasting` is false once `now ≥ start + castingTicks`.
@@ -470,38 +487,62 @@ cell present; `offset(i)` for `i` outside 0…39 throws.
 are opposite. **`EvokerSpell`:** the four numbers and `WARMUP`.
 
 **`SpellDeclarationsTest`** gains Evoking (`AMAZING`, not top, `REFUSE`, dispellable, not
-redundant). **`SpellAssetsTest`** covers the new assets by itself. **`ArchitectureTest`** is
+redundant). **`CastRulesTest.decidesEveryCase`** gains `EVOKING` rows: the first spell that
+refuses a recast *and* dispels on sneak (active + sneaking → `DISPEL`, active → `REFUSE`,
+creative → `CAST`). **`SpellAssetsTest`** covers the new assets by itself. **`ArchitectureTest`** is
 unchanged: `evoking` is common, `client.evoking` is client, `spell.rules` stays pure.
 
 ### GameTests (`./gradlew runGameTestServer`)
 
-Cast rules through `CastRuleGameTests` as Infinity uses it (infinite duration, refused recast):
-cast consumes and grants with "∞"; creative casts; recast refuses and keeps the scroll; sneak
-dispels; sneak while inactive casts; sneak with another item keeps; milk clears; category
-beneficial. The scribing zero-percent test accepts any lower-tier scroll (Upside-Down, Trailing
-or Evoking). `SpellcraftGameTests.add` gains a `maxTicks` overload: evoking tests that wait for
-a perform run with 200 ticks instead of the shared 20.
+Cast rules in `EvokingGameTests`, written like `InfinityGameTests` (`CastRuleGameTests`
+assumes a finite, configured duration and a refreshing recast, so it does not fit): cast
+consumes the scroll and grants an infinite effect (`MobEffectInstance.INFINITE_DURATION`);
+creative casts (not refused); recast refuses, keeps the scroll and shows the refused message;
+sneak + scroll dispels; sneak while inactive casts; sneak with another item keeps the effect;
+milk clears; category beneficial. The scribing zero-percent test accepts any lower-tier scroll
+(Upside-Down, Trailing or Evoking).
+
+`SpellcraftGameTests.add` gains an overload taking `maxTicks` and `padding`, which fills
+`TestData`'s 12-field form (`TestData.java:15-27`: `dimension OVERWORLD`, `rotation NONE`,
+`manualOnly false`, `maxAttempts 1`, `requiredSuccesses 1`, `skyAccess false`). Every test
+below that places fangs or vexes uses **200 ticks and padding 13**: `StructureGridSpawner`
+spaces tests by their padded bounds (`TestInstanceBlockEntity.getTestBounds` inflates by the
+padding), so a 13×13 fang carpet or a vex wandering ±7 blocks never reaches a neighboring
+test's mobs or mock player. The other evoking tests keep the shared 20 ticks and no padding.
 
 Casting (driven through the public `EvokingCaster.request` / `tick`, a mock survival player
 with Evoking, flat ground around the structure):
 
 | # | Setup | Assert |
 |---|---|---|
-| E1 | Facing north, a zombie 5 blocks north, `request(FANGS)` | `STARTED`: `casting_fangs` on the player (duration 40, `showIcon` false, `isVisible` true), the synced particle list holds `CASTING_FANGS`; no fangs yet; after 20 ticks 168 `EvokerFangs` whose owner is the player, none on the caster's cell, all inside `x ∈ F.x−6…F.x+6, z ∈ F.z−12…F.z` |
+| E1 | Facing north, a zombie 5 blocks north, `request(FANGS)` | `STARTED`: `casting_fangs` on the player (duration 40, `showIcon` false, `isVisible` true), the synced particle list holds `CASTING_FANGS`; no fangs yet; after 20 ticks 168 `EvokerFangs` whose owner is the player, none on the caster's cell, all inside `x ∈ F.x−6…F.x+6, z ∈ F.z−12…F.z`; the saved `Warmup` of a fang beside the caster is 0 and of the far corner's 11 |
 | E2 | Facing north-east (yaw −135), zombie inside | all fangs inside `x ∈ F.x…F.x+12, z ∈ F.z−12…F.z` |
 | E3 | No entity in the square (a zombie 20 blocks away) | no casting effect, no fangs; after 20 ticks the action bar holds "No targets in range" (`drainActionBar`); a request 5 ticks later still yields one notice |
 | E4 | Only allies in the square: a tamed wolf (owner on no team), a zombie on the player's team, a vex with the summoner attachment | treated as no targets |
 | E5 | A creative player and a spectator in the square | no targets; a survival player in it is a target |
 | E6 | `EvokerFangs` with owner = the player, warmup 0, under (a) the player's summoned vex, (b) a stranger zombie; tick past the bite | vex health unchanged; zombie hurt |
 | E7 | `request(FANGS)` then `request(VEXES)` 5 ticks later; then `request(FANGS)` at 50 and at 100 ticks | second is `BUSY`, third `COOLING`, fourth `STARTED` |
-| E8 | `request(VEXES)` | `STARTED`, `casting_vexes` for 100 ticks; after 20 ticks exactly 3 vexes at `y = F.y + 1`, each at Chebyshev 2–3 horizontally, each with the summoner attachment, `FOLLOW_RANGE` 5, one target goal, saved NBT `life_ticks` in 600…2400 |
+| E8 | `request(VEXES)` | `STARTED`, `casting_vexes` for 100 ticks; after 20 ticks exactly 3 vexes at `y = F.y + 1`, each at Chebyshev 2–3 horizontally, each with the summoner attachment, `FOLLOW_RANGE` 5, one target goal, `getBoundOrigin()` = its spawn block, saved NBT `life_ticks` in 600…2400 |
 | E9 | Player on a team, `request(VEXES)` | the vexes are on the team |
 | E10 | A summoned vex, the owner 2 blocks away, nothing else | after 40 ticks `getTarget()` is null; add a zombie 3 blocks from the vex: within 40 ticks the target is the zombie; a zombie 8 blocks away is never targeted |
 | E11 | A `Vex` created by hand with the attachment, then `addFreshEntity` | goals installed (one target goal, range 5); a vex without the attachment keeps vanilla's three target goals |
 | E12 | Owner's trail flame, the owner's summoned vex runs `entityInside`; a stranger's vex does the same | the owner's vex untouched; the stranger's vex ignited and hurt |
 | E13 | `request(FANGS)` accepted, then `removeEffect(EVOKING)` before the perform | no fangs at 20 ticks |
 | E14 | `request(FANGS)` from a player without Evoking; from a spectator with it | nothing: no effect, no fangs, no notice |
-| E15 | A level with no Evoking player: `tick` on a player whose entry was dropped by logout | no exception, nothing scheduled |
+| E15 | `request(FANGS)` accepted, then `PlayerLoggedOutEvent` for the player (constructed as `TrailLayerGameTests` does), then 20 ticks | no fangs; `tick` on the player afterwards does nothing and throws nothing |
+| E16 | `request(FANGS)` accepted, then the player is teleported to the Nether before the perform | no fangs in either level; `request(VEXES)` accepted and the same teleport: the three vexes appear beside the player in the Nether |
+| E17 | Zombie in the square; one cell holds a 1-block pillar, one cell is a 2-deep hole, one cell is a hole deeper than the window | the pillar cell's fang stands on the pillar, the shallow hole's fang stands at its floor, the deep hole has no fang |
+| E18 | An armor stand, alone, in the square | no targets (`attackable()` false); a summoned vex 3 blocks from an armor stand never targets it |
+
+Allies (`Allies.isAllyOf` / `mayHaveAllies`, no Evoking needed):
+
+| # | Setup | Assert |
+|---|---|---|
+| A1 | The player and a zombie on one team; a zombie on no team | ally; not an ally |
+| A2 | A tamed wolf of a team-less player | ally; `mayHaveAllies` true |
+| A3 | A vex with the summoner attachment naming the player; one naming another UUID | ally; not an ally |
+| A4 | A vex loaded from NBT whose `owner` is the player's UUID (no attachment, no team; vanilla never calls it an ally) | ally through the `OwnableEntity` path |
+| A5 | A plain zombie, a creeper | `mayHaveAllies` false; `isAllyOf` false for the player |
 
 ### Script tests
 
