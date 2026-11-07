@@ -1,8 +1,10 @@
 package io.github.willrieske.spellcraft.gametest;
 
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.withTeam;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
+import io.github.willrieske.spellcraft.evoking.VexSummons;
 import io.github.willrieske.spellcraft.spell.Allies;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import java.util.UUID;
@@ -11,11 +13,13 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.scores.Scoreboard;
 
 /** The shared ally rule (Evoking spec §3, table A1–A5). Registered in {@link SpellcraftGameTests}. */
@@ -31,6 +35,8 @@ public final class AlliesGameTests {
         SpellcraftGameTests.add(SHARED, "allies_a3_summoner_attachment", AlliesGameTests::a3SummonerAttachment);
         SpellcraftGameTests.add(SHARED, "allies_a4_ownable_owner", AlliesGameTests::a4OwnableOwner);
         SpellcraftGameTests.add(SHARED, "allies_a5_strangers", AlliesGameTests::a5Strangers);
+        // Mutates the global pvp game rule, so it runs alone in its own batch.
+        SpellcraftGameTests.add("pvp_off", "allies_a6_pvp_off", AlliesGameTests::a6PvpOff);
     }
 
     static void a1Team(GameTestHelper helper) {
@@ -103,6 +109,42 @@ public final class AlliesGameTests {
         helper.assertFalse(Allies.isAllyOf(player, zombie), "a zombie is not an ally");
         helper.assertFalse(Allies.isAllyOf(player, creeper), "a creeper is not an ally");
         helper.assertTrue(Allies.isAllyOf(player, player), "the player is their own ally");
+        helper.succeed();
+    }
+
+    /**
+     * When the {@code pvp} game rule is off, should not call a stranger survival player prey of a summoned vex, and
+     * should still call a pig prey. With the rule on, the same stranger is prey (the positive control, also in the
+     * prey-rule test).
+     *
+     * <p>Method under test: {@link VexSummons#isPrey}
+     *
+     * <p>Mutates a global game rule, so it runs alone in the {@code pvp_off} batch; the rule is restored through
+     * {@code whenDone}.
+     */
+    static void a6PvpOff(GameTestHelper helper) {
+        // Arrange
+        ServerLevel level = helper.getLevel();
+        ServerPlayer summoner = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        ServerPlayer stranger = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        Pig pig = helper.spawn(EntityTypes.PIG, SPOT);
+        GameRules rules = level.getGameRules();
+        boolean saved = rules.get(GameRules.PVP);
+        whenDone(helper, () -> {
+            rules.set(GameRules.PVP, saved, level.getServer());
+            pig.discard();
+        });
+        rules.set(GameRules.PVP, true, level.getServer());
+        helper.assertTrue(
+                VexSummons.isPrey(level, summoner.getUUID(), stranger), "setup: with pvp on, a stranger is prey");
+
+        // Act
+        rules.set(GameRules.PVP, false, level.getServer());
+
+        // Assert
+        helper.assertFalse(
+                VexSummons.isPrey(level, summoner.getUUID(), stranger), "with pvp off, a stranger player is not prey");
+        helper.assertTrue(VexSummons.isPrey(level, summoner.getUUID(), pig), "a pig is still prey with pvp off");
         helper.succeed();
     }
 }

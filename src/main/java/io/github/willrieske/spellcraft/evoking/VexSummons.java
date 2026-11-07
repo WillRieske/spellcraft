@@ -113,7 +113,8 @@ public final class VexSummons {
 
     /**
      * Whether a vex summoned by {@code summoner} may attack {@code target}: anything attackable that is no ally of
-     * the summoner, and nothing while the summoner is not in {@code level} (offline or in another dimension). Public
+     * the summoner, no player the summoner cannot harm ({@code canHarmPlayer}: the {@code pvp} game rule and team
+     * friendly-fire), and nothing while the summoner is not in {@code level} (offline or in another dimension). Public
      * for its GameTest in the {@code gametest} package.
      *
      * @param level the level the vex is in
@@ -126,6 +127,10 @@ public final class VexSummons {
             return false;
         }
         Player owner = level.getPlayerByUUID(summoner);
-        return owner != null && !Allies.isAllyOf(owner, target);
+        if (owner == null || Allies.isAllyOf(owner, target)) {
+            return false;
+        }
+        // The summoner's PvP rules apply to its vexes: the pvp gamerule and team friendly-fire.
+        return !(target instanceof Player other) || owner.canHarmPlayer(other);
     }
 }
