@@ -11,6 +11,7 @@ import io.github.willrieske.spellcraft.evoking.VexSummons;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.rules.EvokerSpell;
 import io.github.willrieske.spellcraft.spell.rules.VexRing;
+import io.github.willrieske.spellcraft.trailing.TrailFires;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -35,8 +36,9 @@ import net.minecraft.world.scores.Scoreboard;
 
 /**
  * Vex GameTests for Strength of Evoking (spec §9, table E8–E12, E16 and E18's vex halves, plus the prey rule). The
- * summoning tests register through {@code FangGameTests.addPadded} (padding 13), so a vex wandering ±7 blocks around its origin reaches no
- * other test. The two tests that add a scoreboard team run in the {@code team_mutation} batch, as the Trail tests do.
+ * summoning tests register through {@code FangGameTests.addPadded} (padding 13), so a vex wandering ±7 blocks around
+ * its origin reaches no other test. The two tests that add a scoreboard team run in the {@code team_mutation} batch,
+ * as the Trail tests do.
  */
 public final class VexGameTests {
     private static final BlockPos FEET = FangGameTests.FEET;
@@ -153,7 +155,7 @@ public final class VexGameTests {
                                 .isPresent(),
                         "marked with the summoner");
                 helper.assertValueEqual(
-                        vex.getAttribute(Attributes.FOLLOW_RANGE).getBaseValue(), VexSummons.AGGRO_RANGE, "range");
+                        vex.getAttributeValue(Attributes.FOLLOW_RANGE), VexSummons.AGGRO_RANGE, "range");
                 helper.assertValueEqual(vex.targetSelector.getAvailableGoals().size(), 1, "one target goal");
                 // Created in this tick, so no life has run down yet: the roll bounds are exact.
                 int life = FangGameTests.savedInt(helper, vex, "life_ticks");
@@ -221,9 +223,10 @@ public final class VexGameTests {
 
     /**
      * When the only other living thing is a pig eight blocks from a summoned vex, should never take it as a target
-     * over a 40-tick window (the range is five blocks; one sampled instant would prove little), and should then take
+     * over a 40-tick window (one sampled instant would prove little), and should then take
      * a pig three blocks away. The second half is the control: it shows the vex and its line of sight work out
-     * here, so the empty window is down to the range.
+     * here, so the empty window is down to the range. It proves the range is below 8; the boundary itself is pinned by the
+     * effective-value assertions of E8 and E11.
      *
      * <p>Method under test: {@code VexSummons.install} (package-private), through the goal it builds
      */
@@ -297,10 +300,10 @@ public final class VexGameTests {
 
     /**
      * When the owner's trail flame reaches the owner's summon and a stranger's, should spare the first and not the
-     * second. Asks the flame's ledger rather than burning the vexes: a vex is fire immune, so it could not show a burn.
+     * second. Vexes are fire immune ({@code EntityTypes.VEX} is {@code fireImmune()}), so they could not show a burn;
+     * the decision is tested through the exact call {@code TrailFireBlock} makes.
      *
-     * <p>Method under test: the trail flame's ally check, {@code Allies.isAllyOf} through {@link
-     * AllyAttachments#SUMMONER}
+     * <p>Method under test: {@link TrailFires#isSpared}, through {@link AllyAttachments#SUMMONER}
      */
     static void e12TrailSparesSummons(GameTestHelper helper) {
         // Arrange
@@ -314,6 +317,11 @@ public final class VexGameTests {
         Vex stranger = helper.spawn(EntityTypes.VEX, TrailGameTests.C);
         stranger.setNoAi(true);
         stranger.setData(AllyAttachments.SUMMONER, UUID.randomUUID());
+        whenDone(helper, () -> {
+            TrailGameTests.forget(helper, owner);
+            mine.discard();
+            stranger.discard();
+        });
 
         // Act
         boolean spareMine =
@@ -324,9 +332,6 @@ public final class VexGameTests {
         // Assert
         helper.assertTrue(spareMine, "the flame spares the owner's summon");
         helper.assertFalse(spareStranger, "the flame does not spare a stranger's summon");
-        TrailGameTests.forget(helper, owner);
-        mine.discard();
-        stranger.discard();
         helper.succeed();
     }
 

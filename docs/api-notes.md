@@ -464,3 +464,8 @@ Verified 2026-11-06 against the same unpacked sources, plus FML `loader-12.0.0-s
   `@SafeVarargs` (`:85-86`).
 - `runData` initializes the client subscriber classes and parses the config specs, but not `HumanoidModel.ArmPose`
   (a class literal does not initialize it), so the enum extension is first applied at client launch.
+- `EntityTypes.VEX` is built `.fireImmune()` (`EntityTypes.java:1059`), so a vex never burns: test the Trail flame
+  on a vex through `TrailFires.isSpared`, not through fire ticks.
+- The GameTest framework encases every structure in a barrier shell from min-1 to max (`TestInstanceBlockEntity.java:383-394`,
+  called from `GameTestInfo.java:75`). It blocks `hasLineOfSight` (COLLIDER clip, `LivingEntity.java:3446-3458`), so a
+  targeting test keeps both entities inside the box or both outside it.

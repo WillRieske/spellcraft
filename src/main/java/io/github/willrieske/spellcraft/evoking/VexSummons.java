@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
@@ -36,6 +37,9 @@ public final class VexSummons {
     public static final double AGGRO_RANGE = 5.0;
 
     private static final int TARGET_GOAL_PRIORITY = 1;
+
+    /** The permanent FOLLOW_RANGE modifier {@code Mob.finalizeSpawn} adds ({@code Mob.RANDOM_SPAWN_BONUS_ID}, protected). */
+    private static final Identifier RANDOM_SPAWN_BONUS_ID = Identifier.withDefaultNamespace("random_spawn_bonus");
 
     private VexSummons() {}
 
@@ -84,13 +88,15 @@ public final class VexSummons {
     /**
      * Replaces the vex's target goals with one: the nearest living thing within {@link #AGGRO_RANGE} that is
      * attackable and no ally of the summoner. The range is set first so the goal's constructor sees five; later
-     * scans re-read the attribute anyway. Only for a marked vex: on an unmarked one {@code getData} would create the
+     * scans re-read the attribute anyway. The vanilla random spawn bonus (up to +11.5% of the base) is removed so the
+     * effective range is exactly five. Only for a marked vex: on an unmarked one {@code getData} would create the
      * mark with its default, so the only caller, {@link #onJoin}, checks {@code hasData} first.
      */
     static void install(Vex vex) {
         vex.targetSelector.removeAllGoals(goal -> true);
         AttributeInstance range = vex.getAttribute(Attributes.FOLLOW_RANGE);
         if (range != null) {
+            range.removeModifier(RANDOM_SPAWN_BONUS_ID);
             range.setBaseValue(AGGRO_RANGE);
         }
         UUID summoner = vex.getData(AllyAttachments.SUMMONER);
