@@ -24,6 +24,7 @@ import net.neoforged.neoforge.client.settings.KeyConflictContext;
  */
 @EventBusSubscriber(modid = Spellcraft.MODID, value = Dist.CLIENT)
 public final class EvokingKeys {
+    /** The "spellcraft:spells" controls category both casting keys are listed under. */
     public static final KeyMapping.Category CATEGORY = new KeyMapping.Category(Spellcraft.id("spells"));
 
     /** Default F: vanilla's swap-offhand key, taken over only while Evoking is on. */
