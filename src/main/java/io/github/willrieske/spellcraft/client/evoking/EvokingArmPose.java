@@ -27,8 +27,10 @@ import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEve
 public final class EvokingArmPose {
     /**
      * Named by {@code enumextensions.json}. {@code getValue()} forces the enum class to load (which applies the
-     * extension) and throws a NullPointerException ("Enum not initialized ...") only if the JSON did not point a
-     * {@code parameters.field} at this proxy (FML {@code EnumProxy.java:38-47}).
+     * extension). A wrong {@code field}, {@code class} or argument list in the JSON fails in {@code ArmPose.<clinit>}
+     * at the first humanoid render state ({@code ArmedEntityRenderState}); {@link EvokingArmPoseCheck} now catches
+     * that in {@code runData}. A missing {@code enumExtensions} key, or a JSON pointing at a different proxy, gives a
+     * NullPointerException ("Enum not initialized ...") from {@code getValue()} (FML {@code EnumProxy.java:38-47}).
      */
     public static final EnumProxy<HumanoidModel.ArmPose> PROXY =
             new EnumProxy<>(HumanoidModel.ArmPose.class, true, false, (IArmPoseTransformer) EvokingArmPose::raise);
