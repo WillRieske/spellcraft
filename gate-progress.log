@@ -46,3 +46,4 @@ ecbddda Evoking Task 1 (api-notes §19): docs only; markdownlint clean; review c
 4de8448 Evoking Task 2 (EvokerSpell, EvokingCast): EvokerSpellTest 3, EvokingCastTest 15, EvokingCastPropertiesTest 2, ArchitectureTest 3 green; build green via gate; review clean after 1 fix round
 f03724d Evoking Task 3 (FangSquare, VexRing, EvokerPose): 28 unit tests + ArchitectureTest green; build green via gate; review clean after 1 fix round
 33d1a77 Evoking Task 4 (declaration, effects, particles, scroll, icons, lang, EvokingGameTests): icon tests 7 OK; unit tests green; build green; runGameTestServer all 108 required passed; review clean after 1 fix round
+7b41118 Evoking Task 5 (Allies, summoner attachment, Trailing isSpared, A1-A5, trail_g7d): build green; runGameTestServer all 114 required passed; review clean
