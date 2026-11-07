@@ -448,13 +448,18 @@ Verified 2026-11-06 against the same unpacked sources, plus FML `loader-12.0.0-s
   The GameTest server world is flat (`GameTestServer.java:127`, §18) and has a Nether; a player reaches it with
   `ServerPlayer.teleportTo(ServerLevel, x, y, z, Set<Relative>, yRot, xRot, boolean)`, which returns `boolean`
   (`:1824`), and `server.getLevel(Level.NETHER)` (`MinecraftServer.java:1205`).
-- Mock players are not ticked: `ServerPlayer.tick()` (`ServerPlayer.java:598`) does not call `Player.tick()`, which is
-  reached only through `ServerPlayer.doTick()` (`:668`), and the only caller of `doTick()` is
-  `ServerGamePacketListenerImpl.tick()` (`:327`) for connections the server tracks. A `MockPlayers.inLevel` player is
+- Mock players are not ticked: `ServerPlayer.tick()` (`ServerPlayer.java:598-637`) never calls `super.tick()` (the only
+  `super.tick()` in the file is in `doTick()`, `:668` with the call at `:671`), and the only caller of `doTick()` is
+  `ServerGamePacketListenerImpl.tickPlayer()` (`:322`, call at `:327`), itself called only from
+  `ServerGamePacketListenerImpl.tick()` (`:301`, call at `:307`), which `Connection.tick()` reaches through
+  `TickablePacketListener.tick()` (`Connection.java:361-364`) and `ServerConnectionListener` calls per connection
+  (`ServerConnectionListener.java:181`), so it runs only for connections the server tracks. A `MockPlayers.inLevel` player is
   never ticked: `PlayerTickEvent` does not fire for it, its mob effects do not count down and its `tickCount` does
   not advance. GameTests step the caster by hand (`FangGameTests.step`).
-- `ClientTickEvent.Post` fires while the game is paused (`Minecraft.java:1941-1942`), but the level tick and the
-  particle engine do not run then, so a `Post` handler must check `Minecraft.isPaused()` itself.
+- `ClientTickEvent.Post` fires while the game is paused (`Minecraft.java:1941-1942`, not guarded by `pause`), but the
+  level tick (`tickEntities` `:1876`, `tickBlockEntities` `:1878`, inside `if (!this.pause)` `:1872`) and the particle
+  engine (`particleEngine.tick()` `:1925`, inside `if (!this.pause && ...)` `:1924`) do not run then, so a `Post`
+  handler must check `Minecraft.isPaused()` itself.
 - `RegisterClientExtensionsEvent.registerMobEffect(IClientMobEffectExtensions, Holder<MobEffect>...)` is
   `@SafeVarargs` (`:85-86`).
 - `runData` initializes the client subscriber classes and parses the config specs, but not `HumanoidModel.ArmPose`
