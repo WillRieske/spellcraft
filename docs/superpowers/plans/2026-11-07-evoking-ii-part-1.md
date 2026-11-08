@@ -852,7 +852,7 @@ Then `git log -1 --oneline` shows the commit.
 - Consumes: nothing.
 - Produces: `EvokingKeys.FANGS` named `key.spellcraft.fangs_y`, default `InputConstants.KEY_Y`. Task 8's docs describe it.
 
-- [ ] **Step 1: Write the failing lang-key test**
+- [x] **Step 1: Write the failing lang-key test**
 
 Add to `SpellAssetsTest.java`, after `scrollAndEffectHaveEnglishNames`, with the import `org.junit.jupiter.api.Test`:
 
@@ -877,7 +877,7 @@ Add to `SpellAssetsTest.java`, after `scrollAndEffectHaveEnglishNames`, with the
 Run: `./gradlew test --tests '*SpellAssetsTest*' --console=plain > build/test.log 2>&1; echo "exit=$?"; tail -20 build/test.log`
 Expected: `exit=1`, `castingKeysHaveEnglishNames` fails (the lang file still has `key.spellcraft.fangs`).
 
-- [ ] **Step 2: Rename the lang key**
+- [x] **Step 2: Rename the lang key**
 
 In `en_us.json` replace the line
 
@@ -891,7 +891,7 @@ with
   "key.spellcraft.fangs_y": "Evoking: Fangs",
 ```
 
-- [ ] **Step 3: Change the mapping**
+- [x] **Step 3: Change the mapping**
 
 In `EvokingKeys.java`, replace lines 19–26 (the whole class Javadoc) with:
 
@@ -925,12 +925,12 @@ and replace lines 32–38 (the `FANGS` Javadoc and constant) with:
 
 Leave `VEXES`, `onRegisterKeys`, `onClientTick` and `send` as they are. The result has exactly one doc comment above the class and one above `FANGS` (`-Xlint:all -Werror` flags a dangling doc comment).
 
-- [ ] **Step 4: Check nothing else names the old key**
+- [x] **Step 4: Check nothing else names the old key**
 
 Run: `grep -rn "key.spellcraft.fangs\b\|KEY_F\b" src`
 Expected: no output.
 
-- [ ] **Step 5: Test, then prove the client classes still load**
+- [x] **Step 5: Test, then prove the client classes still load**
 
 Run: `./gradlew spotlessApply --console=plain`
 Run: `./gradlew test --tests '*SpellAssetsTest*' --console=plain > build/test.log 2>&1; echo "exit=$?"; tail -20 build/test.log`
@@ -938,7 +938,7 @@ Expected: `exit=0`.
 Run: `./gradlew runData --console=plain > build/runData.log 2>&1; echo "exit=$?"; tail -20 build/runData.log`
 Expected: `exit=0` (runData initializes the client subscriber classes, `EvokingKeys` included, so the mapping registers without error; the commit gate runs the full `build`).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/main/java/io/github/willrieske/spellcraft/client/evoking/EvokingKeys.java src/main/resources/assets/spellcraft/lang/en_us.json src/test/java/io/github/willrieske/spellcraft/SpellAssetsTest.java
@@ -949,6 +949,8 @@ git commit -m "feat(evoking): cast fangs with Y; rename the mapping so old saves
 ```
 
 Then `git log -1 --oneline` shows the commit.
+
+> **As built (`6fd018f`):** matches plan.
 
 ---
 
