@@ -19,7 +19,7 @@ class VexCapPropertiesTest {
          * <p>Method under test: {@link VexCap#toSummon(int)}
          */
         @Property
-        void neverOverTheCapAndNeverMoreThanABatch(@ForAll @IntRange(min = 0, max = 12) int count) {
+        void neverOverTheCapAndNeverMoreThanABatch(@ForAll @IntRange(min = 0, max = VexCap.CAP) int count) {
             // Act
             int summoned = VexCap.toSummon(count);
             // Assert
@@ -33,7 +33,7 @@ class VexCapPropertiesTest {
          * <p>Method under test: {@link VexCap#toSummon(int)}
          */
         @Property
-        void nothingAtOrOverTheCap(@ForAll @IntRange(min = 12, max = 1000) int count) {
+        void nothingAtOrOverTheCap(@ForAll @IntRange(min = VexCap.CAP, max = 1000) int count) {
             assertThat(VexCap.toSummon(count)).isZero();
         }
 
@@ -43,7 +43,7 @@ class VexCapPropertiesTest {
          * <p>Method under test: {@link VexCap#toSummon(int)}
          */
         @Property
-        void roomMeansAtLeastOne(@ForAll @IntRange(min = 0, max = 11) int count) {
+        void roomMeansAtLeastOne(@ForAll @IntRange(min = 0, max = VexCap.CAP - 1) int count) {
             assertThat(VexCap.toSummon(count)).isPositive();
         }
     }

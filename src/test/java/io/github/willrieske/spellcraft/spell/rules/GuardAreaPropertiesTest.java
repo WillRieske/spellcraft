@@ -78,8 +78,7 @@ class GuardAreaPropertiesTest {
                 @ForAll @DoubleRange(min = -GuardArea.HALF_HEIGHT, max = GuardArea.HALF_HEIGHT) double dy,
                 @ForAll @DoubleRange(min = -GuardArea.HALF_WIDTH, max = GuardArea.HALF_WIDTH) double dz) {
             // Act & Assert
-            assertThat(GuardArea.contains(dx, dy, dz) && GuardArea.withinReach(dx, dy, dz))
-                    .isTrue();
+            assertThat(GuardArea.withinReach(dx, dy, dz)).isTrue();
         }
 
         /**

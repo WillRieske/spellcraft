@@ -44,13 +44,38 @@ class GuardAreaTest {
             assertThat(GuardArea.contains(0, Double.NaN, 0)).isFalse();
             assertThat(GuardArea.contains(0, 0, Double.NaN)).isFalse();
         }
+
+        /**
+         * When any offset is infinite, either sign, contains should answer false.
+         *
+         * <p>Method under test: {@link GuardArea#contains(double, double, double)}
+         */
+        @ParameterizedTest(name = "infinity {0} on axis {1} is outside")
+        @CsvSource({
+            "POSITIVE_INFINITY, 0",
+            "NEGATIVE_INFINITY, 0",
+            "POSITIVE_INFINITY, 1",
+            "NEGATIVE_INFINITY, 1",
+            "POSITIVE_INFINITY, 2",
+            "NEGATIVE_INFINITY, 2"
+        })
+        void infinityIsOutside(String which, int axis) {
+            // Arrange
+            double infinity = which.equals("POSITIVE_INFINITY") ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
+            // Act
+            boolean inside =
+                    GuardArea.contains(axis == 0 ? infinity : 0, axis == 1 ? infinity : 0, axis == 2 ? infinity : 0);
+            // Assert
+            assertThat(inside).isFalse();
+        }
     }
 
     @Nested
     class WithinReach {
         /**
          * When a point is exactly 7.25 blocks away along one axis, withinReach should answer true; a hair farther it
-         * should answer false; the box's far corner (about 6.65 blocks) should be within reach.
+         * should answer false; the box's far corner (4, 3.5, 4, about 6.65 blocks) should be within reach, and a point
+         * just past it (5, 3.5, 5, about 7.9 blocks) should not.
          *
          * <p>Method under test: {@link GuardArea#withinReach(double, double, double)}
          */
@@ -70,17 +95,40 @@ class GuardAreaTest {
         }
 
         /**
-         * When any offset is NaN or infinite, withinReach should answer false.
+         * When any offset is NaN, withinReach should answer false.
          *
          * <p>Method under test: {@link GuardArea#withinReach(double, double, double)}
          */
         @Test
-        void nanAndInfinityAreOutOfReach() {
+        void nanIsOutOfReach() {
             // Act & Assert
             assertThat(GuardArea.withinReach(Double.NaN, 0, 0)).isFalse();
             assertThat(GuardArea.withinReach(0, Double.NaN, 0)).isFalse();
             assertThat(GuardArea.withinReach(0, 0, Double.NaN)).isFalse();
-            assertThat(GuardArea.withinReach(Double.POSITIVE_INFINITY, 0, 0)).isFalse();
+        }
+
+        /**
+         * When any offset is infinite, either sign, withinReach should answer false.
+         *
+         * <p>Method under test: {@link GuardArea#withinReach(double, double, double)}
+         */
+        @ParameterizedTest(name = "infinity {0} on axis {1} is out of reach")
+        @CsvSource({
+            "POSITIVE_INFINITY, 0",
+            "NEGATIVE_INFINITY, 0",
+            "POSITIVE_INFINITY, 1",
+            "NEGATIVE_INFINITY, 1",
+            "POSITIVE_INFINITY, 2",
+            "NEGATIVE_INFINITY, 2"
+        })
+        void infinityIsOutOfReach(String which, int axis) {
+            // Arrange
+            double infinity = which.equals("POSITIVE_INFINITY") ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
+            // Act
+            boolean within =
+                    GuardArea.withinReach(axis == 0 ? infinity : 0, axis == 1 ? infinity : 0, axis == 2 ? infinity : 0);
+            // Assert
+            assertThat(within).isFalse();
         }
     }
 }
