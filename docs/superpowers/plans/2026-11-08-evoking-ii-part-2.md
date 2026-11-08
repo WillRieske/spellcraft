@@ -3378,7 +3378,7 @@ Then `git log -1 --oneline` shows the commit.
 - Consumes: `BoundVex.summoner/inGuardArea/guardArea/scanDue/getMoveControl/getTarget` (Task 3), `BoundVex.SCAN_INTERVAL` (Task 5); `FollowSummonerGoal` and its public `ORBIT_MAX` (Task 4), `BoundVexEvents.onServerStopped` (Task 4); `BoundVexGameTests.FEET/NORTH/boundVex/husk` (Tasks 3–4); `Allies.isAllyOf`; `GolemGameTests.golem(helper, pos, health)`, `GolemGameTests.anger(golem, player)`; api-notes §21.
 - Produces: `FleeCreeperGoal` (`NOTICE_RANGE` 8.0, `SAFE_DISTANCE` 8.0), `DodgeGolemGoal` (`NOTICE_RANGE` 3.0, `FACING` 0.5, `DART` 3.0), `RepairGolemGoal` (`HEAL` 25.0F, `TAP_INTERVAL` 30, `REACH` 1.5; static `clearClaims()`); `GameTestSupport.drainSounds(ServerPlayer)` → `List<SoundEvent>`.
 
-- [ ] **Step 1: The three goals**
+- [x] **Step 1: The three goals**
 
 `src/main/java/io/github/willrieske/spellcraft/evoking/FleeCreeperGoal.java`:
 
@@ -3768,7 +3768,7 @@ In `BoundVex.registerGoals`, add the two quick-reaction goals before the `FloatG
 
 The goal selector then reads 0 flee, 0 dodge, 0 float, 2 repair, 3 charge, 4 follow, 5 wander, 9 and 10 look. In `BoundVexEvents.onServerStopped`, add `RepairGolemGoal.clearClaims();`.
 
-- [ ] **Step 2: The GameTests**
+- [x] **Step 2: The GameTests**
 
 In `GameTestSupport`, after `drainActionBar`, add (imports `net.minecraft.network.protocol.game.ClientboundSoundPacket`, `net.minecraft.sounds.SoundEvent`):
 
@@ -4135,12 +4135,12 @@ Notes for the implementer:
 - In `fightInterruptsARepair`, the golem starts at 25 health so it is still short of full after the first vex's taps when the target arrives (the first tap lands within a few ticks of the claim, the next 30 ticks later, and the target is set as soon as the ingot is seen).
 - The repair tests stand the player within 16 blocks of the vexes, so `drainSounds` sees the broadcast sound.
 
-- [ ] **Step 3: Format, build, GameTests**
+- [x] **Step 3: Format, build, GameTests**
 
 Run: `./gradlew spotlessApply --console=plain`, then `./gradlew build --console=plain > build/build.log 2>&1; echo "exit=$?"; tail -40 build/build.log`. Expected: `exit=0`.
 Run in the background: `./gradlew runGameTestServer --console=plain > build/runGameTestServer.log 2>&1; echo "exit=$?"; grep -n "FAILED\|required tests" build/runGameTestServer.log | tail -5`. Expected: `exit=0`, `All 206 required tests passed` (Task 5's 197 + the nine registered above).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/main/java/io/github/willrieske/spellcraft/evoking/FleeCreeperGoal.java src/main/java/io/github/willrieske/spellcraft/evoking/DodgeGolemGoal.java src/main/java/io/github/willrieske/spellcraft/evoking/RepairGolemGoal.java src/main/java/io/github/willrieske/spellcraft/evoking/BoundVex.java src/main/java/io/github/willrieske/spellcraft/evoking/BoundVexEvents.java src/main/java/io/github/willrieske/spellcraft/gametest/GameTestSupport.java src/main/java/io/github/willrieske/spellcraft/gametest/BoundVexGameTests.java
@@ -4151,6 +4151,8 @@ git commit -m "feat(evoking): Bound Vexes flee a hissing creeper, dodge a golem'
 ```
 
 Then `git log -1 --oneline` shows the commit.
+
+> **As built (`0aeda6f`):** diverged — the tap pitch uses two `nextFloat()` locals (Error Prone `IdentityBinaryExpression` rejects `nextFloat() - nextFloat()`); `GOLEM_SPOT` is `FEET.east(4)` (at `east(3)` the golem's eyes sat in the barrier shell, its wall damage made a full golem hurt and the repair goal pulled vexes off their darts), with the dodge tests moved to match; after the task review: `RepairGolemGoal.canUse` prunes dead claim holders, `DodgeGolemGoal` also filters by distance (a 3-block sphere, not the cube; new test `dodgeIgnoresADiagonalSwingBeyondThreeBlocks`, red run shown), `GameTestSupport.drainOutbound` is shared, the flee Javadoc explains its one-block margin, and the four follow-only tests use a `followOnly` vex without target goals plus a state dump on `followsAgainAfterStay`'s failure (it flaked twice in about ten runs before, cause unproven, then passed 35 runs). 215 GameTests (214 + 1). Reason: implementer and task review.
 
 ---
 
@@ -4297,6 +4299,7 @@ Then `git log -1 --oneline` shows the commit. If the sweep changed a Java Javado
 | 3 | `66c82f6` | `BoundVex` also imports `net.minecraft.world.level.Level` (the plan's constructor used it unimported); `capCountsEveryLevel` polls with `helper.succeedWhen` (count first, then `CAPPED`) instead of asserting at once, because a vex summoned in the tick that forces its Nether chunk is not in `ServerLevel.getEntities` until the ticket takes effect; production code as planned; reason: implementer, accepted by the task review. |
 | 4 | `88373a8` | `sameDimensionTeleportBringsNothing` posts `PlayerChangedDimensionEvent` with `from` = `to` = the test level (not `Level.NETHER`) and asserts the vex is a follower first, so it fails when the `onTravel` same-dimension guard is removed (shown red, then restored); the `TELEPORT_LANDING_MAX` Javadoc gives the worst case for a summoner anywhere in its block (≈ 4.33) and the extra hop; production code as planned; reason: task review (Important finding, controller ruling that the test's intent governs). |
 | 5 | `7d4f5d7` | production code as planned; eight more GameTests (205 in all, not 197): an ally and a hostile whose box touches the guard area while their feet are outside, patrol start sight behind a wall and a drop when unseen (`mustSee`), patrol- and ally-goal drops of a husk that becomes an ally, the summoner's victim before an ally's attacker, and a stale summoner's-attacker memory; reason: task review (the planned tests could not fail without the guard-area filter, `mustSee` or the `keepsTarget` overrides; red runs shown for the guard-area and sight tests). |
+| 6 | `0aeda6f` | the tap pitch uses two `nextFloat()` locals (Error Prone `IdentityBinaryExpression` rejects `nextFloat() - nextFloat()`); `GOLEM_SPOT` is `FEET.east(4)` (at `east(3)` the golem's eyes sat in the barrier shell, its wall damage made a full golem hurt and the repair goal pulled vexes off their darts), with the dodge tests moved to match; after the task review: `RepairGolemGoal.canUse` prunes dead claim holders, `DodgeGolemGoal` also filters by distance (a 3-block sphere, not the cube; new test `dodgeIgnoresADiagonalSwingBeyondThreeBlocks`, red run shown), `GameTestSupport.drainOutbound` is shared, the flee Javadoc explains its one-block margin, and the four follow-only tests use a `followOnly` vex without target goals plus a state dump on `followsAgainAfterStay`'s failure (it flaked twice in about ten runs before, cause unproven, then passed 35 runs). 215 GameTests (214 + 1). Reason: implementer and task review. |
 
 ## Resume State
 

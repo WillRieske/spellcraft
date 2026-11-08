@@ -67,3 +67,4 @@ b1aefe8 Task 8 done (docs, pitest 98% 247/251, minors closed); plan complete; ba
 66c82f6 Task 3: build green; runData green; All 170 required tests passed (runGameTestServer)
 88373a8 Task 4: build green; All 177 required tests passed (twice at 3ef58c8; again after fix round 1); red-with-guard-removed shown
 7d4f5d7 Task 5: build green; All 197 required tests passed twice at 55be865; All 205 required tests passed twice after fix round 1
+0aeda6f Task 6: build green; All 214 required tests passed twice at c00bca8; All 215 required tests passed x3 after fix round 1 (32+ clean runs on the same production code)
