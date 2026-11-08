@@ -9,6 +9,8 @@ framework) and [`2026-11-04-trailing-design.md`](2026-11-04-trailing-design.md) 
 spec changes the Trailing spec's ally rule; nothing else there is superseded.
 **Amends:** the Trailing spec's glossary row **Ally** and its §4 description of `isSpared` (both
 now defer to §3 here); `CLAUDE.md`'s "No custom packets" rule (§4).
+**Amended by:** [`2026-11-07-evoking-ii-design.md`](2026-11-07-evoking-ii-design.md) (§2 keys F → Y;
+§5 a fang per target; §6 Bound Vexes; §3 three new ally kinds).
 
 ## Summary
 
