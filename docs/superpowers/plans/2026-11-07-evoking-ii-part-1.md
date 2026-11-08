@@ -195,7 +195,7 @@ Then `git log -1 --oneline` shows the commit.
 - Consumes: `FangSquare.contains(int dx, int dz)` (existing).
 - Produces: `FangFootprints.Column(int x, int z)` record (absolute block column); `static List<Column> columns(double minX, double minZ, double maxX, double maxZ)`; `static List<Column> inSquare(List<Column> columns, FangSquare square, int feetX, int feetZ)`. Task 5 uses both. Dedupe between targets is **not** here (Divergence 6): it needs the floor, so `Fangs.snapshot` does it.
 
-- [ ] **Step 1: Write the failing unit tests**
+- [x] **Step 1: Write the failing unit tests**
 
 `FangFootprintsTest.java`:
 
@@ -442,12 +442,12 @@ class FangFootprintsPropertiesTest {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `./gradlew test --tests '*FangFootprints*' --console=plain > build/test.log 2>&1; echo "exit=$?"; tail -40 build/test.log`
 Expected: `exit=1`, compilation errors naming `FangFootprints`.
 
-- [ ] **Step 3: Write `FangFootprints`**
+- [x] **Step 3: Write `FangFootprints`**
 
 ```java
 package io.github.willrieske.spellcraft.spell.rules;
@@ -530,12 +530,12 @@ public final class FangFootprints {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew test --tests '*FangFootprints*' --console=plain > build/test.log 2>&1; echo "exit=$?"; tail -40 build/test.log`
 Expected: `exit=0`, BUILD SUCCESSFUL.
 
-- [ ] **Step 5: Format and commit**
+- [x] **Step 5: Format and commit**
 
 Run: `./gradlew spotlessApply --console=plain`
 
@@ -548,6 +548,8 @@ git commit -m "feat(rules): add FangFootprints, the block columns a target cover
 ```
 
 Then `git log -1 --oneline` shows the commit.
+
+> **As built (`f4e5a84`):** matches plan.
 
 ---
 

@@ -54,3 +54,5 @@ f03724d Evoking Task 3 (FangSquare, VexRing, EvokerPose): 28 unit tests + Archit
 b4192c4 Evoking review fixes (1 Important, 26 Minor): build green 253 unit tests; runGameTestServer all 139 required passed; icon tests 7; pitest 98% (229/233); re-review clean
 c1ac7f3 Evoking deep review fixes (3 Important, 16 Minor; 5 mutation probes): build green 253 unit tests; runGameTestServer all 146 required passed; runData exit 0 (EvokingArmPoseCheck subscribed); pure core untouched, pitest row unchanged
 98e13b5 Evoking deep-review re-review fix (5 Minor): build green 253 unit tests; runGameTestServer all 146 required passed; plan_map --check 0; markdownlint clean
+edebf41 Task 1 done (api-notes §20); markdownlint passed, no tests in scope
+f4e5a84 Task 2 done (FangFootprints): 11 focused tests pass; full build green (gate)
