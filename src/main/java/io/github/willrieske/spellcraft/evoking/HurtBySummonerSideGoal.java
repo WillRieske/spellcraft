@@ -15,9 +15,9 @@ import org.jspecify.annotations.Nullable;
  * {@code lastHurtMob} while it lives (docs/api-notes.md §21), so the window is checked here for all four. A creeper
  * is allowed here: it provoked, and so is another player's summon (spec §3.4, the PvP rule in {@code isPrey}).
  */
-final class HurtBySummonerSideGoal extends ScanTargetGoal {
-    /** How old a hurt memory may be, in the remembering entity's ticks. */
-    static final int MEMORY_TICKS = 100;
+public final class HurtBySummonerSideGoal extends ScanTargetGoal {
+    /** How old a hurt memory may be, in the remembering entity's ticks; public for the GameTests. */
+    public static final int MEMORY_TICKS = 100;
 
     HurtBySummonerSideGoal(BoundVex vex) {
         super(vex);

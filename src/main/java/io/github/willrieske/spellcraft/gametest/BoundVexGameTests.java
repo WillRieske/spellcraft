@@ -1,13 +1,17 @@
 package io.github.willrieske.spellcraft.gametest;
 
+import static io.github.willrieske.spellcraft.evoking.HurtBySummonerSideGoal.MEMORY_TICKS;
+import static io.github.willrieske.spellcraft.gametest.FangGameTests.NORTH;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
 import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.BoundVexEvents;
+import io.github.willrieske.spellcraft.evoking.DodgeGolemGoal;
 import io.github.willrieske.spellcraft.evoking.EvokingCaster;
 import io.github.willrieske.spellcraft.evoking.EvokingCaster.Request;
+import io.github.willrieske.spellcraft.evoking.FleeCreeperGoal;
 import io.github.willrieske.spellcraft.evoking.FollowSummonerGoal;
 import io.github.willrieske.spellcraft.evoking.ModEntities;
 import io.github.willrieske.spellcraft.evoking.VexSummons;
@@ -48,12 +52,15 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 /**
  * Bound Vex GameTests (Evoking II spec §3, §11 "Part 2"). Tests whose vex flies or teleports, that need headroom, or
@@ -62,10 +69,16 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
  * the box. Hostiles are husks (they do not burn in daylight).
  */
 public final class BoundVexGameTests {
-    /** The yaw a caster faces; {@code FangGameTests.caster} takes it. */
-    static final float NORTH = 180.0F;
-
     private static final int WARMUP = EvokerSpell.WARMUP_TICKS;
+
+    /**
+     * The batches of the two server-stop tests: the stop handler clears every repair claim and portal note on the
+     * server, so each test runs alone (batches run one after another), as {@code FangGameTests}' server-stop test does.
+     * Two batches, because each test's handler call would clear what the other one is watching.
+     */
+    private static final String SERVER_STOP_NOTES = "bound_vex_server_stop_notes";
+
+    private static final String SERVER_STOP_CLAIMS = "bound_vex_server_stop_claims";
 
     /** The box's top north-west corner: where a test parks the vex. */
     static final BlockPos VEX_SPOT = new BlockPos(0, 2, 0);
@@ -79,11 +92,21 @@ public final class BoundVexGameTests {
     /** A vex this far north of the caster is outside the teleport distance (12) and inside the padding (13). */
     static final int FAR_NORTH = 13;
 
-    /** Ticks for a test that waits for a 10-tick target scan or watches a 40-tick window. */
-    private static final int LONG = 100;
+    /**
+     * Ticks for a test that waits for a 10-tick target scan or watches a 40-tick window (not
+     * {@code FangGameTests}' 200-tick {@code LONG}).
+     */
+    private static final int TARGETING_TICKS = 100;
 
     /** The window over which "never a target" is watched: four target scans. */
     private static final int TARGET_WINDOW = 40;
+
+    /**
+     * Where the golem tests stand the golem: four blocks east of the box's middle, in the padding. Not three: a golem
+     * is 1.4 wide and 2.7 tall, and its eyes would then sit in the box's barrier shell (x = 3), which hurts it
+     * ("inWall", 1 health per tick or so), so a "full" golem would soon need repair.
+     */
+    private static final BlockPos GOLEM_SPOT = FEET.east(4);
 
     /** The box's bottom north-east corner, a second spot inside the box for an ally or a second mob. */
     private static final BlockPos SIDE_SPOT = new BlockPos(2, 1, 0);
@@ -127,43 +150,81 @@ public final class BoundVexGameTests {
                 SHARED,
                 "bound_vex_same_dimension_teleport_brings_nothing",
                 BoundVexGameTests::sameDimensionTeleportBringsNothing);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_logout_drops_the_portal_note", BoundVexGameTests::logoutDropsThePortalNote);
+        FangGameTests.addPadded(
+                SERVER_STOP_NOTES,
+                "bound_vex_server_stop_drops_the_portal_note",
+                BoundVexGameTests::serverStopDropsThePortalNote);
+        FangGameTests.addPadded(
+                SERVER_STOP_CLAIMS,
+                "bound_vex_server_stop_frees_the_repair_claims",
+                BoundVexGameTests::serverStopFreesTheRepairClaims);
         SpellcraftGameTests.add(SHARED, "bound_vex_three_target_goals", BoundVexGameTests::threeTargetGoals);
         SpellcraftGameTests.add(
-                SHARED, "bound_vex_attacks_a_hostile_in_the_area", LONG, 0, BoundVexGameTests::attacksAHostile);
+                SHARED,
+                "bound_vex_attacks_a_hostile_in_the_area",
+                TARGETING_TICKS,
+                0,
+                BoundVexGameTests::attacksAHostile);
         SpellcraftGameTests.add(
-                SHARED, "bound_vex_ignores_a_pig_but_not_a_husk", LONG, 0, BoundVexGameTests::ignoresAPigButNotAHusk);
+                SHARED,
+                "bound_vex_ignores_a_pig_but_not_a_husk",
+                TARGETING_TICKS,
+                0,
+                BoundVexGameTests::ignoresAPigButNotAHusk);
         SpellcraftGameTests.add(
                 SHARED,
                 "bound_vex_ignores_a_creeper_until_provoked",
-                LONG,
+                TARGETING_TICKS,
                 0,
                 BoundVexGameTests::ignoresACreeperUntilProvoked);
         SpellcraftGameTests.add(
                 SHARED,
                 "bound_vex_targets_what_hurt_the_summoner",
-                LONG,
+                TARGETING_TICKS,
                 0,
                 BoundVexGameTests::targetsWhatHurtTheSummoner);
         SpellcraftGameTests.add(
                 SHARED,
                 "bound_vex_targets_what_the_summoner_hit",
-                LONG,
+                TARGETING_TICKS,
                 0,
                 BoundVexGameTests::targetsWhatTheSummonerHit);
         SpellcraftGameTests.add(
-                SHARED, "bound_vex_targets_what_hurt_an_ally", LONG, 0, BoundVexGameTests::targetsWhatHurtAnAlly);
+                SHARED,
+                "bound_vex_targets_what_hurt_an_ally",
+                TARGETING_TICKS,
+                0,
+                BoundVexGameTests::targetsWhatHurtAnAlly);
         SpellcraftGameTests.add(
-                SHARED, "bound_vex_joins_an_allys_fight", LONG, 0, BoundVexGameTests::joinsAnAllysFight);
+                SHARED, "bound_vex_joins_an_allys_fight", TARGETING_TICKS, 0, BoundVexGameTests::joinsAnAllysFight);
         SpellcraftGameTests.add(
-                SHARED, "bound_vex_ally_goal_skips_a_creeper", LONG, 0, BoundVexGameTests::allyGoalSkipsACreeper);
+                SHARED,
+                "bound_vex_ally_goal_skips_a_creeper",
+                TARGETING_TICKS,
+                0,
+                BoundVexGameTests::allyGoalSkipsACreeper);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_ally_goal_skips_a_pig", TARGETING_TICKS, 0, BoundVexGameTests::allyGoalSkipsAPig);
         SpellcraftGameTests.add(
                 SHARED,
                 "bound_vex_patrol_ignores_another_players_vex",
-                LONG,
+                TARGETING_TICKS,
                 0,
                 BoundVexGameTests::patrolIgnoresAnotherPlayersVex);
         SpellcraftGameTests.add(
-                SHARED, "bound_vex_calls_the_summoners_wolves", LONG, 0, BoundVexGameTests::callsTheSummonersWolves);
+                SHARED,
+                "bound_vex_answers_another_players_vex_that_hurt_the_summoner",
+                TARGETING_TICKS,
+                0,
+                BoundVexGameTests::answersAnotherPlayersVexThatHurtTheSummoner);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_calls_the_summoners_wolves",
+                TARGETING_TICKS,
+                0,
+                BoundVexGameTests::callsTheSummonersWolves);
         FangGameTests.addPadded(
                 SHARED, "bound_vex_wolf_call_skips_the_wrong_wolves", BoundVexGameTests::wolfCallSkipsTheWrongWolves);
         SpellcraftGameTests.add(
@@ -172,20 +233,40 @@ public final class BoundVexGameTests {
                 SHARED, "bound_vex_wolf_call_skips_a_creeper", BoundVexGameTests::wolfCallSkipsACreeper);
         FangGameTests.addPadded(
                 SHARED, "bound_vex_drops_a_target_out_of_reach", BoundVexGameTests::dropsATargetOutOfReach);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_drops_a_grudge_target_out_of_reach",
+                BoundVexGameTests::dropsAGrudgeTargetOutOfReach);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_drops_an_ally_fight_target_out_of_reach",
+                BoundVexGameTests::dropsAnAllyFightTargetOutOfReach);
         SpellcraftGameTests.add(
-                SHARED, "bound_vex_drops_a_target_that_becomes_an_ally", LONG, 0, BoundVexGameTests::dropsANewAlly);
+                SHARED,
+                "bound_vex_drops_a_target_that_becomes_an_ally",
+                TARGETING_TICKS,
+                0,
+                BoundVexGameTests::dropsANewAlly);
         SpellcraftGameTests.add(
-                SHARED, "bound_vex_no_summoner_no_target", LONG, 0, BoundVexGameTests::noSummonerNoTarget);
+                SHARED, "bound_vex_no_summoner_no_target", TARGETING_TICKS, 0, BoundVexGameTests::noSummonerNoTarget);
         SpellcraftGameTests.add(
-                SHARED, "bound_vex_held_by_the_patrol_goal", LONG, 0, BoundVexGameTests::heldByThePatrolGoal);
+                SHARED,
+                "bound_vex_held_by_the_patrol_goal",
+                TARGETING_TICKS,
+                0,
+                BoundVexGameTests::heldByThePatrolGoal);
         SpellcraftGameTests.add(
-                SHARED, "bound_vex_ignores_a_stale_memory", LONG, 0, BoundVexGameTests::ignoresAStaleMemory);
+                SHARED, "bound_vex_ignores_a_stale_memory", TARGETING_TICKS, 0, BoundVexGameTests::ignoresAStaleMemory);
         SpellcraftGameTests.add(
-                SHARED, "bound_vex_own_attacker_comes_first", LONG, 0, BoundVexGameTests::ownAttackerComesFirst);
+                SHARED,
+                "bound_vex_own_attacker_comes_first",
+                TARGETING_TICKS,
+                0,
+                BoundVexGameTests::ownAttackerComesFirst);
         SpellcraftGameTests.add(
                 SHARED,
                 "bound_vex_a_creative_attacker_does_not_block",
-                LONG,
+                TARGETING_TICKS,
                 0,
                 BoundVexGameTests::creativeAttackerDoesNotBlock);
         FangGameTests.addPadded(
@@ -205,25 +286,25 @@ public final class BoundVexGameTests {
         SpellcraftGameTests.add(
                 SHARED,
                 "bound_vex_patrol_drops_a_husk_that_becomes_an_ally",
-                LONG,
+                TARGETING_TICKS,
                 0,
                 BoundVexGameTests::patrolDropsAHuskThatBecomesAnAlly);
         SpellcraftGameTests.add(
                 SHARED,
                 "bound_vex_ally_goal_drops_a_husk_that_becomes_an_ally",
-                LONG,
+                TARGETING_TICKS,
                 0,
                 BoundVexGameTests::allyGoalDropsAHuskThatBecomesAnAlly);
         SpellcraftGameTests.add(
                 SHARED,
                 "bound_vex_summoners_victim_comes_before_an_allys_attacker",
-                LONG,
+                TARGETING_TICKS,
                 0,
                 BoundVexGameTests::summonersVictimComesBeforeAnAllysAttacker);
         SpellcraftGameTests.add(
                 SHARED,
                 "bound_vex_ignores_a_stale_attacker_of_the_summoner",
-                LONG,
+                TARGETING_TICKS,
                 0,
                 BoundVexGameTests::ignoresAStaleAttackerOfTheSummoner);
         FangGameTests.addPadded(SHARED, "bound_vex_flees_a_hissing_creeper", BoundVexGameTests::fleesAHissingCreeper);
@@ -247,6 +328,7 @@ public final class BoundVexGameTests {
                 BoundVexGameTests::claimFreesWhenTheVexIsGone);
         FangGameTests.addPadded(
                 SHARED, "bound_vex_a_fight_interrupts_a_repair", BoundVexGameTests::fightInterruptsARepair);
+        FangGameTests.addPadded(SHARED, "bound_vex_flee_interrupts_a_repair", BoundVexGameTests::fleeInterruptsARepair);
         FangGameTests.addPadded(
                 SHARED, "bound_vex_no_repair_for_a_mad_or_full_golem", BoundVexGameTests::noRepairForAMadOrFullGolem);
     }
@@ -301,6 +383,67 @@ public final class BoundVexGameTests {
         return husk;
     }
 
+    /**
+     * Takes the patrol goal away from {@code vex} (the target goal that searches for hostiles), so a hostile in its
+     * area is taken only through a memory or an ally.
+     *
+     * @param vex the vex
+     * @return {@code vex}
+     */
+    static BoundVex withoutPatrol(BoundVex vex) {
+        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+        return vex;
+    }
+
+    /**
+     * Takes every target goal away from {@code vex}, so only the test decides who it targets.
+     *
+     * @param vex the vex
+     * @return {@code vex}
+     */
+    static BoundVex noTargets(BoundVex vex) {
+        vex.targetSelector.removeAllGoals(goal -> true);
+        return vex;
+    }
+
+    /**
+     * Fills the three-high column of {@code block} on top of {@code base}, a wall a vex cannot see through.
+     *
+     * @param helper the test helper
+     * @param base the lowest block of the wall, relative
+     * @param block the block to fill it with ({@code Blocks.AIR} takes the wall down)
+     */
+    private static void wall(GameTestHelper helper, BlockPos base, Block block) {
+        for (int up = 0; up < 3; up++) {
+            helper.setBlock(base.above(up), block);
+        }
+    }
+
+    /** A creeper with no AI, so it neither swells nor walks, discarded when the test ends. */
+    private static Creeper calmCreeper(GameTestHelper helper, BlockPos relative) {
+        Creeper creeper = helper.spawn(EntityTypes.CREEPER, relative);
+        creeper.setNoAi(true);
+        whenDone(helper, creeper::discard);
+        return creeper;
+    }
+
+    /** A Bound Vex with no summoner mark (as {@code /summon} makes one), hovering, discarded when the test ends. */
+    private static BoundVex unmarkedVex(GameTestHelper helper, BlockPos relative) {
+        BoundVex vex = helper.spawn(ModEntities.BOUND_VEX.get(), relative);
+        vex.setNoGravity(true);
+        vex.setDeltaMovement(Vec3.ZERO);
+        whenDone(helper, vex::discard);
+        return vex;
+    }
+
+    /** An untamed wolf with no AI, discarded when the test ends. */
+    private static Wolf untamedWolf(GameTestHelper helper, BlockPos relative) {
+        Wolf wolf = helper.spawn(EntityTypes.WOLF, relative);
+        wolf.setNoAi(true);
+        whenDone(helper, wolf::discard);
+        return wolf;
+    }
+
     /** A survival player with Evoking inside the shared box (no padding wait). */
     private static ServerPlayer summoner(GameTestHelper helper) {
         ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
@@ -341,6 +484,7 @@ public final class BoundVexGameTests {
         vexes.forEach(Entity::discard);
         helper.assertValueEqual(BoundVex.countOwnedBy(server, player.getUUID()), 0, "none counted once gone");
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.VEXES), Request.STARTED, "no cooldown spent");
+        cancelCast(player);
         helper.succeed();
     }
 
@@ -388,9 +532,7 @@ public final class BoundVexGameTests {
         for (int i = 0; i < VexCap.CAP; i++) {
             parked(helper, VEX_SPOT, stranger);
         }
-        BoundVex unmarked = helper.spawn(ModEntities.BOUND_VEX.get(), VEX_SPOT);
-        unmarked.goalSelector.removeAllGoals(goal -> true);
-        whenDone(helper, unmarked::discard);
+        unmarkedVex(helper, VEX_SPOT).goalSelector.removeAllGoals(goal -> true);
         helper.assertValueEqual(
                 BoundVex.countOwnedBy(server, stranger.getUUID()), VexCap.CAP, "setup: stranger capped");
 
@@ -400,7 +542,16 @@ public final class BoundVexGameTests {
         // Assert
         helper.assertValueEqual(BoundVex.countOwnedBy(server, player.getUUID()), 0, "nobody else's vexes counted");
         helper.assertValueEqual(request, Request.STARTED, "this summoner's press starts");
+        cancelCast(player);
         helper.succeed();
+    }
+
+    /**
+     * Drops {@code player}'s pending cast the way a logout does, so a test that ended on a started request leaves no
+     * cast on its mock player (a pending cast would summon vexes into a later test).
+     */
+    private static void cancelCast(ServerPlayer player) {
+        EvokingCaster.onLogout(new PlayerEvent.PlayerLoggedOutEvent(player));
     }
 
     /**
@@ -415,7 +566,12 @@ public final class BoundVexGameTests {
         VexGameTests.discardLeftoverVexes(helper);
         FangGameTests.toNether(helper, player);
         List<BoundVex> inNether = VexSummons.summon(player.level(), player, 1);
-        inNether.forEach(vex -> whenDone(helper, vex::discard));
+        // Staying, so the summoner's trip back brings nothing along: a follower within 16 blocks would be carried to
+        // the Overworld and the count would be twelve in one level, which no per-level count could tell apart.
+        inNether.forEach(vex -> {
+            vex.setStaying(true);
+            whenDone(helper, vex::discard);
+        });
         helper.assertValueEqual(inNether.size(), 1, "setup: one Bound Vex in the Nether");
         MockPlayers.moveIntoTest(helper, player);
         helper.assertValueEqual(player.level().dimension(), helper.getLevel().dimension(), "setup: summoner back");
@@ -484,15 +640,14 @@ public final class BoundVexGameTests {
      * When a Bound Vex has no summoner mark at all (as {@code /summon} makes one), should idle: no summoner, no prey, a
      * click passes, and it is never removed for being far away.
      *
-     * <p>Method under test: {@link BoundVex#summoner}, {@link BoundVex#isPrey(net.minecraft.world.entity.LivingEntity)},
+     * <p>Method under test: {@link BoundVex#summoner}, {@link BoundVex#isPrey(LivingEntity)},
      * {@link BoundVex#removeWhenFarAway}, {@link BoundVex#requiresCustomPersistence}
      */
     static void idlesWithoutASummoner(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = summoner(helper);
-        BoundVex vex = helper.spawn(ModEntities.BOUND_VEX.get(), VEX_SPOT);
+        BoundVex vex = unmarkedVex(helper, VEX_SPOT);
         vex.goalSelector.removeAllGoals(goal -> true);
-        whenDone(helper, vex::discard);
 
         // Act & Assert
         helper.assertTrue(vex.summoner().isEmpty(), "no summoner");
@@ -552,7 +707,7 @@ public final class BoundVexGameTests {
      * When a marked Bound Vex's summoner dies, should idle as if the summoner were offline (spec §10, "as offline until
      * respawn"): no summoner, and a husk that was prey a moment ago no longer is.
      *
-     * <p>Method under test: {@link BoundVex#summoner}, {@link BoundVex#isPrey(net.minecraft.world.entity.LivingEntity)}
+     * <p>Method under test: {@link BoundVex#summoner}, {@link BoundVex#isPrey(LivingEntity)}
      */
     static void idlesWithADeadSummoner(GameTestHelper helper) {
         // Arrange
@@ -575,12 +730,13 @@ public final class BoundVexGameTests {
      * When a marked Bound Vex's summoner goes to another dimension, should idle (spec §3.1: the summoner must be in the
      * vex's level): no summoner, and a husk that was prey a moment ago no longer is.
      *
-     * <p>Method under test: {@link BoundVex#summoner}, {@link BoundVex#isPrey(net.minecraft.world.entity.LivingEntity)}
+     * <p>Method under test: {@link BoundVex#summoner}, {@link BoundVex#isPrey(LivingEntity)}
      */
     static void idlesWithTheSummonerElsewhere(GameTestHelper helper) {
-        // Arrange
+        // Arrange: staying, so the trip to the Nether does not carry the vex along (then no instance is left here)
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
         BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.setStaying(true);
         Husk husk = husk(helper, PREY_SPOT);
         helper.assertTrue(vex.isPrey(husk), "setup: a husk is prey while the summoner is here");
 
@@ -595,7 +751,7 @@ public final class BoundVexGameTests {
 
     /**
      * When another entity's feet are exactly on a face of the 8×8×7 guard box, should count it inside; half a block
-     * past the face (or past the top), outside. The goals of Tasks 5 and 6 all ask this one method.
+     * past the face (or past the top), outside. Every goal asks this one method.
      *
      * <p>Method under test: {@link BoundVex#inGuardArea}
      */
@@ -680,9 +836,7 @@ public final class BoundVexGameTests {
      * test with the full target AI can fail for a reason that has nothing to do with movement.
      */
     private static BoundVex followOnly(GameTestHelper helper, BlockPos relative, ServerPlayer summoner) {
-        BoundVex vex = boundVex(helper, relative, summoner);
-        vex.targetSelector.removeAllGoals(goal -> true);
-        return vex;
+        return noTargets(boundVex(helper, relative, summoner));
     }
 
     /**
@@ -694,10 +848,7 @@ public final class BoundVexGameTests {
     static void followIdlesWithoutASummoner(GameTestHelper helper) {
         // Arrange
         FangGameTests.caster(helper, NORTH);
-        BoundVex vex = helper.spawn(ModEntities.BOUND_VEX.get(), FEET.north(FAR_NORTH));
-        vex.setNoGravity(true);
-        vex.setDeltaMovement(Vec3.ZERO);
-        whenDone(helper, vex::discard);
+        BoundVex vex = unmarkedVex(helper, FEET.north(FAR_NORTH));
         Vec3 start = vex.position();
 
         // Act & Assert
@@ -738,10 +889,13 @@ public final class BoundVexGameTests {
     }
 
     /**
-     * When a staying Bound Vex thirteen blocks out is switched back to following after twenty ticks, should come back
-     * within five blocks of its summoner (once any wander leg under way is done). The vex has no target goals
-     * ({@link #followOnly}): its wander legs reach into the padding where a neighboring test's hostile may stand, and a
-     * target there would hold it (charge outranks follow).
+     * When a staying Bound Vex whose post is thirteen blocks from its summoner is switched back to following after
+     * twenty ticks, should come back within five blocks of its summoner (once any wander leg under way is done). The
+     * post is the structure's middle and the player stands thirteen blocks south, so every wander leg (±7 blocks around
+     * the post) stays inside the padding: a vex that crossed into a chunk the padding did not force would stop ticking
+     * and never fly back (as in {@link #stayingHoldsItsPost}). The vex has no target goals ({@link #followOnly}): the
+     * subject is movement, and its legs still reach four blocks into the padding, where a neighboring test's hostile
+     * may stand and hold it (charge outranks follow).
      *
      * <p>If this fails again, the message names the vex's target, goals and positions ({@code vexState}).
      *
@@ -750,8 +904,9 @@ public final class BoundVexGameTests {
     static void followsAgainAfterStay(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        BoundVex vex = followOnly(helper, FEET.north(FAR_NORTH), player);
+        BoundVex vex = followOnly(helper, FEET, player);
         vex.setStaying(true);
+        MockPlayers.moveTo(helper, player, Vec3.atBottomCenterOf(FEET.south(FAR_NORTH)));
 
         // Act & Assert
         helper.startSequence()
@@ -840,6 +995,78 @@ public final class BoundVexGameTests {
         helper.assertTrue(
                 vex.position().distanceTo(start) < 0.01,
                 "not moved to the summoner, moved " + vex.position().distanceTo(start));
+        helper.succeed();
+    }
+
+    /**
+     * Takes the portal note for {@code player} as a move to the Nether would (the travel event, posted by hand while
+     * the player stays in the Overworld), then stands in for the end of the move: the changed-dimension event from the
+     * Overworld, which brings the noted vexes to the player.
+     */
+    private static void noteThenArrive(ServerPlayer player, Runnable betweenTheEvents) {
+        BoundVexEvents.onTravel(new EntityTravelToDimensionEvent(player, Level.NETHER));
+        betweenTheEvents.run();
+        BoundVexEvents.onChangedDimension(new PlayerEvent.PlayerChangedDimensionEvent(
+                player, player.level().dimension(), Level.NETHER));
+    }
+
+    /**
+     * When a player's portal note is taken and the player then logs out, should leave a later changed-dimension event
+     * of that player (a cancelled travel event leaves a note behind, and the same player id returns) with nothing to
+     * bring: a following vex eight blocks away stays where it is. Without the logout the same two events bring it (the
+     * control).
+     *
+     * <p>Method under test: {@link BoundVexEvents#onLogout}, through {@link BoundVexEvents#onChangedDimension}
+     */
+    static void logoutDropsThePortalNote(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = parked(helper, FEET.north(8), player);
+        Vec3 start = vex.position();
+        noteThenArrive(player, () -> {});
+        helper.assertTrue(
+                vex.position().distanceTo(start) > 2.0,
+                "setup: with the note kept, the vex is brought to the summoner");
+        vex.setPos(start);
+
+        // Act
+        noteThenArrive(player, () -> BoundVexEvents.onLogout(new PlayerEvent.PlayerLoggedOutEvent(player)));
+
+        // Assert
+        helper.assertTrue(
+                vex.position().distanceTo(start) < 0.01,
+                "no note left after the logout, moved " + vex.position().distanceTo(start));
+        helper.succeed();
+    }
+
+    /**
+     * When a player's portal note is taken and the server then stops, should leave a later changed-dimension event
+     * with nothing to bring (single-player loads one server per world in the same JVM): a following vex eight blocks
+     * away stays where it is. Without the stop the same two events bring it (the control).
+     *
+     * <p>Method under test: {@link BoundVexEvents#onServerStopped}, through {@link BoundVexEvents#onChangedDimension}
+     */
+    static void serverStopDropsThePortalNote(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = parked(helper, FEET.north(8), player);
+        Vec3 start = vex.position();
+        noteThenArrive(player, () -> {});
+        helper.assertTrue(
+                vex.position().distanceTo(start) > 2.0,
+                "setup: with the note kept, the vex is brought to the summoner");
+        vex.setPos(start);
+
+        // Act
+        noteThenArrive(
+                player,
+                () -> BoundVexEvents.onServerStopped(
+                        new ServerStoppedEvent(helper.getLevel().getServer())));
+
+        // Assert
+        helper.assertTrue(
+                vex.position().distanceTo(start) < 0.01,
+                "no note left after the server stopped, moved " + vex.position().distanceTo(start));
         helper.succeed();
     }
 
@@ -936,9 +1163,13 @@ public final class BoundVexGameTests {
         // Act
         Husk husk = husk(helper, PREY_SPOT);
 
-        // Assert
-        helper.succeedWhen(
-                () -> helper.assertTrue(targets(vex, husk), "the husk, not the nearer summoner, is the target"));
+        // Assert: the first target it takes is the husk, and the summoner is never one afterwards
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.getTarget() != null, "a target is taken"))
+                .thenExecute(
+                        () -> helper.assertTrue(targets(vex, husk), "the husk, not the nearer summoner, is the target"))
+                .thenExecuteFor(20, () -> helper.assertFalse(targets(vex, player), "the summoner is never the target"))
+                .thenSucceed();
     }
 
     /**
@@ -975,9 +1206,7 @@ public final class BoundVexGameTests {
         // Arrange
         ServerPlayer player = summoner(helper);
         BoundVex vex = parked(helper, VEX_SPOT, player);
-        Creeper creeper = helper.spawn(EntityTypes.CREEPER, PREY_SPOT);
-        creeper.setNoAi(true);
-        whenDone(helper, creeper::discard);
+        Creeper creeper = calmCreeper(helper, PREY_SPOT);
 
         // Act & Assert
         helper.startSequence()
@@ -1000,7 +1229,7 @@ public final class BoundVexGameTests {
         BoundVex vex = parked(helper, VEX_SPOT, player);
         Husk husk = husk(helper, PREY_SPOT);
         // The husk is a hostile in the area too, so block the patrol goal's view of it: the memory must do the work.
-        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+        withoutPatrol(vex);
 
         // Act
         player.hurtServer(helper.getLevel(), helper.getLevel().damageSources().mobAttack(husk), 1.0F);
@@ -1043,7 +1272,7 @@ public final class BoundVexGameTests {
         BoundVex vex = parked(helper, VEX_SPOT, player);
         Wolf wolf = pet(helper, SIDE_SPOT, player);
         Husk husk = husk(helper, PREY_SPOT);
-        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+        withoutPatrol(vex);
 
         // Act
         wolf.hurtServer(helper.getLevel(), helper.getLevel().damageSources().mobAttack(husk), 1.0F);
@@ -1063,7 +1292,7 @@ public final class BoundVexGameTests {
         BoundVex vex = parked(helper, VEX_SPOT, player);
         Wolf wolf = pet(helper, SIDE_SPOT, player);
         Husk husk = husk(helper, PREY_SPOT);
-        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+        withoutPatrol(vex);
 
         // Act
         wolf.setTarget(husk);
@@ -1080,21 +1309,39 @@ public final class BoundVexGameTests {
      * <p>Method under test: {@code BoundVex.huntable}, through {@code AllyFightGoal} (package-private)
      */
     static void allyGoalSkipsACreeper(GameTestHelper helper) {
+        allyGoalSkips(helper, calmCreeper(helper, PREY_SPOT));
+    }
+
+    /**
+     * When the summoner's tamed wolf inside the guard area has a pig as its target, should not join it over forty
+     * ticks (the ally goal joins hostile targets only: "if prey and hostile", spec §3.4 item 2); a husk the wolf targets
+     * next should be joined (the control: the goal works here).
+     *
+     * <p>Method under test: {@code BoundVex.huntable}'s {@code Enemy} test, through {@code AllyFightGoal}
+     * (package-private)
+     */
+    static void allyGoalSkipsAPig(GameTestHelper helper) {
+        allyGoalSkips(helper, pigHere(helper, PREY_SPOT));
+    }
+
+    /**
+     * The body of the two "ally goal skips" tests: a parked vex with the patrol goal off, an ally wolf that targets
+     * {@code skipped} for forty ticks (the vex never takes it), then a husk the wolf targets (the vex joins).
+     */
+    private static void allyGoalSkips(GameTestHelper helper, LivingEntity skipped) {
         // Arrange
         ServerPlayer player = summoner(helper);
-        BoundVex vex = parked(helper, VEX_SPOT, player);
-        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+        BoundVex vex = withoutPatrol(parked(helper, VEX_SPOT, player));
         Wolf wolf = pet(helper, SIDE_SPOT, player);
-        Creeper creeper = helper.spawn(EntityTypes.CREEPER, PREY_SPOT);
-        creeper.setNoAi(true);
-        whenDone(helper, creeper::discard);
         Husk[] husk = new Husk[1];
 
         // Act & Assert
         helper.startSequence()
                 .thenExecuteFor(TARGET_WINDOW, () -> {
-                    wolf.setTarget(creeper);
-                    helper.assertTrue(vex.getTarget() == null, "an ally's fight with a creeper is not joined");
+                    wolf.setTarget(skipped);
+                    helper.assertTrue(
+                            vex.getTarget() == null,
+                            "an ally's fight with a " + skipped.getType().toShortString() + " is not joined");
                 })
                 .thenExecute(() -> {
                     husk[0] = husk(helper, CORNER_SPOT);
@@ -1115,14 +1362,8 @@ public final class BoundVexGameTests {
     static void patrolIgnoresAnotherPlayersVex(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = summoner(helper);
-        ServerPlayer stranger = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         BoundVex vex = parked(helper, VEX_SPOT, player);
-        BoundVex strangersVex = parked(helper, PREY_SPOT, stranger);
-        strangersVex.targetSelector.removeAllGoals(goal -> true);
-        helper.assertTrue(helper.getLevel().isPvpAllowed(), "setup: pvp is on");
-        helper.assertTrue(
-                BoundVex.isPrey(helper.getLevel(), player.getUUID(), strangersVex),
-                "setup: with pvp on, a stranger's vex is prey");
+        BoundVex strangersVex = strangersVexInTheBox(helper, player);
 
         // Act & Assert
         helper.startSequence()
@@ -1133,6 +1374,46 @@ public final class BoundVexGameTests {
                 .thenWaitUntil(
                         () -> helper.assertTrue(targets(vex, strangersVex), "the vex that hurt it is the target"))
                 .thenSucceed();
+    }
+
+    /**
+     * When another player's parked Bound Vex stands in a patrolling vex's guard area with {@code pvp} on and hurts the
+     * patrolling vex's summoner (not the vex itself), should not take it as a target over forty ticks; once the
+     * summoner remembers that vex as its attacker, should take it (the grudge goal answers a hit on the summoner).
+     *
+     * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the summoner's attacker, where the
+     * attacker carries another player's mark and {@link BoundVex#isPrey(ServerLevel, UUID, LivingEntity)} allows it
+     */
+    static void answersAnotherPlayersVexThatHurtTheSummoner(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        BoundVex strangersVex = strangersVexInTheBox(helper, player);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        TARGET_WINDOW,
+                        () -> helper.assertTrue(vex.getTarget() == null, "another player's vex is not patrolled"))
+                .thenExecute(() -> player.setLastHurtByMob(strangersVex))
+                .thenWaitUntil(() ->
+                        helper.assertTrue(targets(vex, strangersVex), "the vex that hurt the summoner is the target"))
+                .thenSucceed();
+    }
+
+    /**
+     * Another player's Bound Vex, parked at {@link #PREY_SPOT} (inside the guard box of a vex parked at
+     * {@link #VEX_SPOT}) with no target goals of its own, after asserting that {@code pvp} is on and so the vex of
+     * {@code player} may take it as prey.
+     */
+    private static BoundVex strangersVexInTheBox(GameTestHelper helper, ServerPlayer player) {
+        ServerPlayer stranger = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        BoundVex strangersVex = noTargets(parked(helper, PREY_SPOT, stranger));
+        helper.assertTrue(helper.getLevel().isPvpAllowed(), "setup: pvp is on");
+        helper.assertTrue(
+                BoundVex.isPrey(helper.getLevel(), player.getUUID(), strangersVex),
+                "setup: with pvp on, a stranger's vex is prey");
+        return strangersVex;
     }
 
     /**
@@ -1172,13 +1453,11 @@ public final class BoundVexGameTests {
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
         ServerPlayer stranger = summoner(helper);
         BoundVex vex = parked(helper, FEET, player);
-        vex.targetSelector.removeAllGoals(goal -> true);
+        noTargets(vex);
         Husk husk = husk(helper, PREY_SPOT);
         Pig pig = pigHere(helper, SIDE_SPOT);
         Wolf idle = pet(helper, FEET.east(2), player);
-        Wolf untamed = helper.spawn(EntityTypes.WOLF, FEET.east(3));
-        untamed.setNoAi(true);
-        whenDone(helper, untamed::discard);
+        Wolf untamed = untamedWolf(helper, FEET.east(3));
         Wolf strangers = pet(helper, FEET.west(2), stranger);
         Wolf busy = pet(helper, FEET.west(3), player);
         busy.setTarget(pig);
@@ -1210,7 +1489,7 @@ public final class BoundVexGameTests {
         // Arrange
         ServerPlayer player = summoner(helper);
         BoundVex vex = parked(helper, VEX_SPOT, player);
-        vex.targetSelector.removeAllGoals(goal -> true);
+        noTargets(vex);
         Husk husk = husk(helper, PREY_SPOT);
         Wolf wolf = pet(helper, SIDE_SPOT, player);
         vex.setTarget(husk);
@@ -1237,10 +1516,8 @@ public final class BoundVexGameTests {
         // Arrange
         ServerPlayer player = summoner(helper);
         BoundVex vex = parked(helper, VEX_SPOT, player);
-        vex.targetSelector.removeAllGoals(goal -> true);
-        Creeper creeper = helper.spawn(EntityTypes.CREEPER, PREY_SPOT);
-        creeper.setNoAi(true);
-        whenDone(helper, creeper::discard);
+        noTargets(vex);
+        Creeper creeper = calmCreeper(helper, PREY_SPOT);
         Wolf wolf = pet(helper, SIDE_SPOT, player);
 
         // Act
@@ -1256,10 +1533,12 @@ public final class BoundVexGameTests {
     }
 
     /**
-     * When a parked Bound Vex's husk target is moved past the 7.25 reach and out of the guard box, should drop it
-     * within a few ticks and not take it again.
+     * When a parked Bound Vex's husk target, held by the patrol goal, is moved past the 7.25 reach and out of the guard
+     * box, should drop it within a few ticks and not take it again. The patrol goal is also bound by vanilla's follow
+     * range (the same 7.25), so this test cannot tell {@code keepsTarget}'s reach clause from vanilla's; the grudge and
+     * ally goals, which never call {@code super}, are tested below.
      *
-     * <p>Method under test: {@link BoundVex#keepsTarget}, through every target goal's {@code canContinueToUse}
+     * <p>Method under test: {@code NearestHostileGoal.canContinueToUse} (package-private), through the target selector
      */
     static void dropsATargetOutOfReach(GameTestHelper helper) {
         // Arrange: both outside the shared box, so the barrier shell is not in the way
@@ -1277,6 +1556,65 @@ public final class BoundVexGameTests {
     }
 
     /**
+     * When a parked Bound Vex holds a husk through the grudge goal (the vex remembers it hurting it, six blocks away,
+     * the patrol goal off) and the husk is then moved eight blocks away, past the 7.25 reach, should drop it within a few
+     * ticks and not take it again, though the memory is still fresh. The grudge goal never calls {@code super}, so
+     * {@code keepsTarget}'s reach clause is the only distance bound it has.
+     *
+     * <p>Method under test: {@link BoundVex#keepsTarget}, through {@code HurtBySummonerSideGoal.canContinueToUse}
+     */
+    static void dropsAGrudgeTargetOutOfReach(GameTestHelper helper) {
+        // Arrange: both outside the shared box, so the barrier shell is not in the way
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = withoutPatrol(parked(helper, FEET.north(5), player));
+        Husk husk = husk(helper, FEET.north(11));
+        husk.setNoGravity(true);
+        vex.setLastHurtByMob(husk);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    helper.assertTrue(targets(vex, husk), "setup: the husk is the target");
+                    helper.assertValueEqual(
+                            runningTargetGoal(vex), "HurtBySummonerSideGoal", "held by the grudge goal");
+                })
+                .thenExecute(() -> FangGameTests.moveTo(helper, husk, FEET, 0, -FAR_NORTH))
+                .thenWaitUntil(() -> helper.assertTrue(vex.getTarget() == null, "dropped once out of reach"))
+                .thenExecuteFor(20, () -> helper.assertTrue(vex.getTarget() == null, "and not taken again"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a parked Bound Vex holds a husk through the ally goal (an ally wolf in its guard area targets the husk, six
+     * blocks from the vex, the patrol goal off) and the husk is then moved eight blocks away, past the 7.25 reach,
+     * should drop it within a few ticks and not take it again, though the wolf still targets it. The ally goal never
+     * calls {@code super}, so {@code keepsTarget}'s reach clause is the only distance bound it has.
+     *
+     * <p>Method under test: {@link BoundVex#keepsTarget}, through {@code AllyFightGoal.canContinueToUse}
+     */
+    static void dropsAnAllyFightTargetOutOfReach(GameTestHelper helper) {
+        // Arrange: both outside the shared box, so the barrier shell is not in the way
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = withoutPatrol(parked(helper, FEET.north(5), player));
+        Wolf wolf = pet(helper, FEET.north(5).east(1), player);
+        wolf.setNoGravity(true);
+        Husk husk = husk(helper, FEET.north(11));
+        husk.setNoGravity(true);
+        wolf.setTarget(husk);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    helper.assertTrue(targets(vex, husk), "setup: the husk is the target");
+                    helper.assertValueEqual(runningTargetGoal(vex), "AllyFightGoal", "held by the ally goal");
+                })
+                .thenExecute(() -> FangGameTests.moveTo(helper, husk, FEET, 0, -FAR_NORTH))
+                .thenWaitUntil(() -> helper.assertTrue(vex.getTarget() == null, "dropped once out of reach"))
+                .thenExecuteFor(20, () -> helper.assertTrue(vex.getTarget() == null, "and not taken again"))
+                .thenSucceed();
+    }
+
+    /**
      * When a parked Bound Vex has an untamed wolf as its target (the summoner hit it) and the summoner then tames it,
      * should drop the target within a few ticks.
      *
@@ -1286,9 +1624,7 @@ public final class BoundVexGameTests {
         // Arrange
         ServerPlayer player = summoner(helper);
         BoundVex vex = parked(helper, VEX_SPOT, player);
-        Wolf wolf = helper.spawn(EntityTypes.WOLF, PREY_SPOT);
-        wolf.setNoAi(true);
-        whenDone(helper, wolf::discard);
+        Wolf wolf = untamedWolf(helper, PREY_SPOT);
         player.setLastHurtMob(wolf);
 
         // Act & Assert
@@ -1303,7 +1639,7 @@ public final class BoundVexGameTests {
      * When a Bound Vex's summoner mark is taken away, should take no target over forty ticks with a husk beside it;
      * once the mark is back, should take the husk (the control: the vex ticks and sees the husk).
      *
-     * <p>Method under test: {@link BoundVex#isPrey(net.minecraft.world.entity.LivingEntity)}, through every target goal
+     * <p>Method under test: {@link BoundVex#isPrey(LivingEntity)}, through every target goal
      */
     static void noSummonerNoTarget(GameTestHelper helper) {
         // Arrange
@@ -1346,25 +1682,32 @@ public final class BoundVexGameTests {
     }
 
     /**
-     * When the summoner hit a pig more than a hundred of its own ticks ago, should take no target over forty ticks; the
-     * same hit made fresh should make the pig the target (the control).
+     * When the summoner hit a pig 101 of its own ticks ago, should take no target over forty ticks; with the clock one
+     * tick earlier (the hit exactly {@code MEMORY_TICKS} old, the last fresh age) should make the pig the target: the
+     * limit is "older than 100", not "100 or older".
      *
      * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the freshness window
      */
     static void ignoresAStaleMemory(GameTestHelper helper) {
-        // Arrange: the mock summoner is never ticked, so its clock is what the test sets
+        // Arrange: the mock summoner's clock advances by one each tick, so the test sets it back at the end of every
+        // tick; the summoner ticks before the vex, so the vex's scan sees the clock one tick on
         ServerPlayer player = summoner(helper);
-        BoundVex vex = parked(helper, VEX_SPOT, player);
+        BoundVex vex = withoutPatrol(parked(helper, VEX_SPOT, player));
         Pig pig = pigHere(helper, PREY_SPOT);
         player.setLastHurtMob(pig);
-        player.tickCount += 500;
+        int hit = player.getLastHurtMobTimestamp();
+        player.tickCount = hit + MEMORY_TICKS;
 
-        // Act & Assert
+        // Act & Assert: the scan sees an age of 101, then of 100
         helper.startSequence()
-                .thenExecuteFor(
-                        TARGET_WINDOW, () -> helper.assertTrue(vex.getTarget() == null, "a stale hit is forgotten"))
-                .thenExecute(() -> player.setLastHurtMob(pig))
-                .thenWaitUntil(() -> helper.assertTrue(targets(vex, pig), "a fresh hit makes the pig the target"))
+                .thenExecuteFor(TARGET_WINDOW, () -> {
+                    player.tickCount = hit + MEMORY_TICKS;
+                    helper.assertTrue(vex.getTarget() == null, "a hit of 101 ticks is forgotten");
+                })
+                .thenWaitUntil(() -> {
+                    player.tickCount = hit + MEMORY_TICKS - 1;
+                    helper.assertTrue(targets(vex, pig), "a hit of exactly 100 ticks is still fresh");
+                })
                 .thenSucceed();
     }
 
@@ -1378,7 +1721,7 @@ public final class BoundVexGameTests {
         // Arrange
         ServerPlayer player = summoner(helper);
         BoundVex vex = parked(helper, VEX_SPOT, player);
-        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+        withoutPatrol(vex);
         Husk own = husk(helper, PREY_SPOT);
         Husk summoners = husk(helper, SIDE_SPOT);
 
@@ -1527,20 +1870,14 @@ public final class BoundVexGameTests {
         Husk husk = husk(helper, FEET.north(9));
         husk.setNoGravity(true);
         BlockPos wall = FEET.north(8);
-        for (int up = 0; up < 3; up++) {
-            helper.setBlock(wall.above(up), Blocks.STONE);
-        }
+        wall(helper, wall, Blocks.STONE);
 
         // Act & Assert
         helper.startSequence()
                 .thenExecuteFor(
                         TARGET_WINDOW,
                         () -> helper.assertTrue(vex.getTarget() == null, "a husk behind stone is unseen"))
-                .thenExecute(() -> {
-                    for (int up = 0; up < 3; up++) {
-                        helper.setBlock(wall.above(up), Blocks.AIR);
-                    }
-                })
+                .thenExecute(() -> wall(helper, wall, Blocks.AIR))
                 .thenWaitUntil(() -> helper.assertTrue(targets(vex, husk), "with the wall gone, the husk is taken"))
                 .thenSucceed();
     }
@@ -1562,11 +1899,7 @@ public final class BoundVexGameTests {
         // Act & Assert
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(targets(vex, husk), "setup: the husk is the target"))
-                .thenExecute(() -> {
-                    for (int up = 0; up < 3; up++) {
-                        helper.setBlock(wall.above(up), Blocks.STONE);
-                    }
-                })
+                .thenExecute(() -> wall(helper, wall, Blocks.STONE))
                 .thenWaitUntil(() -> helper.assertTrue(vex.getTarget() == null, "dropped once unseen for long enough"))
                 .thenExecuteFor(20, () -> helper.assertTrue(vex.getTarget() == null, "and not taken again"))
                 .thenSucceed();
@@ -1605,7 +1938,7 @@ public final class BoundVexGameTests {
         // Arrange
         ServerPlayer player = summoner(helper);
         BoundVex vex = parked(helper, VEX_SPOT, player);
-        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+        withoutPatrol(vex);
         Wolf wolf = pet(helper, SIDE_SPOT, player);
         Husk husk = husk(helper, PREY_SPOT);
         wolf.setTarget(husk);
@@ -1632,7 +1965,7 @@ public final class BoundVexGameTests {
         // Arrange
         ServerPlayer player = summoner(helper);
         BoundVex vex = parked(helper, VEX_SPOT, player);
-        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+        withoutPatrol(vex);
         Pig pig = pigHere(helper, PREY_SPOT);
         Husk husk = husk(helper, SIDE_SPOT);
         Wolf wolf = pet(helper, CORNER_SPOT, player);
@@ -1650,59 +1983,52 @@ public final class BoundVexGameTests {
     }
 
     /**
-     * When the summoner's attacker was remembered more than a hundred of the summoner's ticks ago, should take no
-     * target over forty ticks; the same memory made fresh should make the husk the target (the control). The
-     * summoner's memory is the one a test can age: a vex's own and an ally's are cleared by vanilla at that age.
+     * When the summoner's attacker was remembered 101 of the summoner's ticks ago, should take no target over forty
+     * ticks; with the clock one tick earlier (exactly {@code MEMORY_TICKS} old, the last fresh age) should make the
+     * husk the target. The summoner's memory is the one a test can age: a vex's own and an ally's are cleared by
+     * vanilla at that age.
      *
      * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the freshness window
      */
     static void ignoresAStaleAttackerOfTheSummoner(GameTestHelper helper) {
-        // Arrange: the mock summoner is never ticked, so its clock is what the test sets
+        // Arrange: the mock summoner's clock advances by one each tick, so the test sets it back at the end of every
+        // tick; the summoner ticks before the vex, so the vex's scan sees the clock one tick on
         ServerPlayer player = summoner(helper);
-        BoundVex vex = parked(helper, VEX_SPOT, player);
-        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+        BoundVex vex = withoutPatrol(parked(helper, VEX_SPOT, player));
         Husk husk = husk(helper, PREY_SPOT);
         player.setLastHurtByMob(husk);
-        player.tickCount += 500;
+        int hit = player.getLastHurtByMobTimestamp();
+        player.tickCount = hit + MEMORY_TICKS;
 
-        // Act & Assert
+        // Act & Assert: the scan sees an age of 101 (a stale attacker is forgotten); then the attacker is remembered
+        // afresh, and the scan sees an age of 100
+        int[] second = new int[1];
         helper.startSequence()
-                .thenExecuteFor(
-                        TARGET_WINDOW,
-                        () -> helper.assertTrue(vex.getTarget() == null, "a stale attacker is forgotten"))
-                .thenExecute(() -> player.setLastHurtByMob(husk))
-                .thenWaitUntil(() -> helper.assertTrue(targets(vex, husk), "a fresh memory makes the husk the target"))
+                .thenExecuteFor(TARGET_WINDOW, () -> {
+                    player.tickCount = hit + MEMORY_TICKS;
+                    helper.assertTrue(vex.getTarget() == null, "an attacker of 101 ticks is forgotten");
+                })
+                .thenExecute(() -> {
+                    player.setLastHurtByMob(husk);
+                    second[0] = player.getLastHurtByMobTimestamp();
+                })
+                .thenWaitUntil(() -> {
+                    player.tickCount = second[0] + MEMORY_TICKS - 1;
+                    helper.assertTrue(targets(vex, husk), "an attacker of exactly 100 ticks is still fresh");
+                })
                 .thenSucceed();
     }
 
-    /** The flee goal's safe distance (spec §3.5); the goal is package-private in {@code evoking}. */
-    private static final double SAFE_DISTANCE = 8.0;
-
-    /** The dodge goal's notice range ({@code DodgeGolemGoal.NOTICE_RANGE}, spec §3.6). */
-    private static final double DODGE_NOTICE_RANGE = 3.0;
-
-    /** The flee goal's notice range ({@code FleeCreeperGoal.NOTICE_RANGE}, spec §3.5). */
-    private static final double FLEE_NOTICE_RANGE = 8.0;
-
     /**
-     * Where the golem tests stand the golem: four blocks east of the box's middle, in the padding. Not three: a golem
-     * is 1.4 wide and 2.7 tall, and its eyes would then sit in the box's barrier shell (x = 3), which hurts it
-     * ("inWall", 1 health per tick or so), so a "full" golem would soon need repair.
-     */
-    private static final BlockPos GOLEM_SPOT = FEET.east(4);
-
-    /**
-     * A creeper with no AI whose fuse is so long that it hisses without exploding once {@code setSwellDir(1)} is
+     * A {@link #calmCreeper} whose fuse is so long that it hisses without exploding once {@code setSwellDir(1)} is
      * called: the fuse is the {@code Fuse} short tag, written over the creeper's own save and loaded back.
      */
     private static Creeper patientCreeper(GameTestHelper helper, BlockPos relative) {
-        Creeper creeper = helper.spawn(EntityTypes.CREEPER, relative);
-        creeper.setNoAi(true);
+        Creeper creeper = calmCreeper(helper, relative);
         CompoundTag tag = GameTestSupport.saved(creeper);
         tag.putShort("Fuse", Short.MAX_VALUE);
         creeper.load(TagValueInput.create(
                 ProblemReporter.DISCARDING, helper.getLevel().registryAccess(), tag));
-        whenDone(helper, creeper::discard);
         return creeper;
     }
 
@@ -1724,6 +2050,11 @@ public final class BoundVexGameTests {
         return vex;
     }
 
+    /** {@link #unleashed} without its target goals, so a repair test's vex has a target only when the test gives one. */
+    private static BoundVex unleashedWithoutTargets(GameTestHelper helper, BlockPos relative, ServerPlayer summoner) {
+        return noTargets(unleashed(helper, relative, summoner));
+    }
+
     /** Turns {@code golem}'s body and head to {@code yaw} (−90 east, 90 west, 0 south, 180 north). */
     private static void face(IronGolem golem, float yaw) {
         golem.setYRot(yaw);
@@ -1732,58 +2063,75 @@ public final class BoundVexGameTests {
     }
 
     /**
-     * When a creeper two blocks from a following Bound Vex starts swelling, should fly to eight blocks from it and hold;
-     * when the creeper calms down, should come back to the summoner.
+     * When a creeper two blocks from a following Bound Vex, four blocks from its summoner, starts swelling, should fly
+     * to eight blocks from it and hold, which puts it more than five blocks from the summoner; when the creeper calms
+     * down, should come back to the summoner (the follow goal resumes). The vex has no target goals
+     * ({@link #followOnly}): it ends up eleven blocks out, near the edge of its padding.
      *
-     * <p>Method under test: {@code FleeCreeperGoal} (package-private), through the goal selector
+     * <p>Method under test: {@link FleeCreeperGoal}, through the goal selector
      */
     static void fleesAHissingCreeper(GameTestHelper helper) {
-        // Arrange
+        // Arrange: the creeper is between the vex and the summoner, so fleeing it means flying away from the summoner
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        Creeper creeper = patientCreeper(helper, FEET.north(4));
-        BoundVex vex = boundVex(helper, FEET.north(2), player);
+        Creeper creeper = patientCreeper(helper, FEET.north(2));
+        BoundVex vex = followOnly(helper, FEET.north(4), player);
 
         // Act & Assert
         helper.startSequence()
                 .thenExecute(() -> creeper.setSwellDir(1))
                 .thenWaitUntil(() -> helper.assertTrue(
-                        vex.distanceTo(creeper) >= SAFE_DISTANCE,
+                        vex.distanceTo(creeper) >= FleeCreeperGoal.SAFE_DISTANCE,
                         "eight blocks from the creeper, got " + vex.distanceTo(creeper)))
                 .thenExecuteFor(
-                        20, () -> helper.assertTrue(vex.distanceTo(creeper) >= SAFE_DISTANCE - 1.0, "holds there"))
+                        20,
+                        () -> helper.assertTrue(
+                                vex.distanceTo(creeper) >= FleeCreeperGoal.SAFE_DISTANCE - 1.0, "holds there"))
+                .thenExecute(() -> helper.assertTrue(
+                        vex.distanceTo(player) > FollowSummonerGoal.ORBIT_MAX + 1.0,
+                        "setup: it fled away from its summoner, so the way back needs the follow goal, got "
+                                + vex.distanceTo(player)))
                 .thenExecute(() -> creeper.setSwellDir(-1))
                 .thenWaitUntil(() -> helper.assertTrue(
                         vex.distanceTo(player) <= FollowSummonerGoal.ORBIT_MAX + 1.0,
-                        "back with the summoner once the creeper calms"))
+                        "back with the summoner once the creeper calms, got " + vex.distanceTo(player)))
                 .thenSucceed();
     }
 
     /**
-     * When a calm creeper hovers two blocks from a Bound Vex and a swelling one about 8.5 blocks away (outside the
-     * eight-block range but inside the cube a box query covers), should stay with its summoner for forty ticks; once
-     * the near creeper swells, should flee it (the control).
+     * When a Bound Vex six blocks from its summoner has a calm creeper between them (two blocks from the vex) and a
+     * swelling one about 8.5 blocks from the vex (outside the eight-block range but inside the cube a box query
+     * covers), should fly in to its summoner: a flee goal wrongly started by either creeper would hold the move flag
+     * and keep the follow goal from flying it. Once the near creeper, put beside the vex, swells, should flee it (the
+     * control). The vex has no target goals ({@link #followOnly}): the subject is movement.
      *
-     * <p>Method under test: {@code FleeCreeperGoal} (package-private): the swelling and range filters
+     * <p>Method under test: {@link FleeCreeperGoal}: the swelling and range filters
      */
     static void fleeIgnoresACalmOrFarCreeper(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        BoundVex vex = boundVex(helper, FEET.north(2), player);
+        BoundVex vex = followOnly(helper, FEET.north(6), player);
         Creeper near = patientCreeper(helper, FEET.north(4));
-        Creeper far = patientCreeper(helper, FEET.offset(6, 0, 4)); // (6, 0, 6) from the vex: about 8.49 blocks
+        near.setNoGravity(true);
+        Creeper far = patientCreeper(helper, FEET.offset(6, 0, -12)); // (6, 0, -6) from the vex: about 8.49 blocks
         far.setSwellDir(1);
-        helper.assertTrue(vex.distanceTo(far) > FLEE_NOTICE_RANGE, "setup: the swelling creeper is out of range");
+        helper.assertTrue(
+                vex.distanceTo(far) > FleeCreeperGoal.NOTICE_RANGE, "setup: the swelling creeper is out of range");
+        helper.assertTrue(
+                vex.distanceTo(player) > FollowSummonerGoal.ORBIT_MAX + 1.0,
+                "setup: the vex must fly to be with its summoner");
 
         // Act & Assert
         helper.startSequence()
-                .thenExecuteFor(
-                        TARGET_WINDOW,
-                        () -> helper.assertTrue(
-                                vex.distanceTo(player) <= FollowSummonerGoal.ORBIT_MAX,
-                                "stays with the summoner, got " + vex.distanceTo(player)))
-                .thenExecute(() -> near.setSwellDir(1))
                 .thenWaitUntil(() -> helper.assertTrue(
-                        vex.distanceTo(near) >= SAFE_DISTANCE, "flees the near creeper once it swells"))
+                        vex.distanceTo(player) <= FollowSummonerGoal.ORBIT_MAX + 1.0,
+                        "flies in past a calm creeper, with a far one hissing, got " + vex.distanceTo(player)))
+                .thenExecute(() -> {
+                    near.setPos(vex.position().add(0.0, 0.0, -2.0));
+                    near.setSwellDir(1);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(
+                        vex.distanceTo(near) >= FleeCreeperGoal.SAFE_DISTANCE,
+                        "flees the near creeper once it swells, got " + vex.distanceTo(near)))
                 .thenSucceed();
     }
 
@@ -1873,7 +2221,7 @@ public final class BoundVexGameTests {
         BoundVex vex = boundVex(helper, GOLEM_SPOT.offset(3, 0, 2), player);
         face(golem, (float) Math.toDegrees(Math.atan2(-3.0, 2.0)));
         Vec3 before = vex.position();
-        helper.assertTrue(vex.distanceTo(golem) > DODGE_NOTICE_RANGE, "setup: the golem is out of range");
+        helper.assertTrue(vex.distanceTo(golem) > DodgeGolemGoal.NOTICE_RANGE, "setup: the golem is out of range");
 
         // Act
         golem.handleEntityEvent((byte) 4);
@@ -1988,14 +2336,13 @@ public final class BoundVexGameTests {
      * When a Bound Vex repairing a golem takes a target after the first tap, should stop: its sword comes back and the
      * golem is free, so a second vex (with no target goals) repairs it to full.
      *
-     * <p>Method under test: {@code RepairGolemGoal.canContinueToUse} and {@code stop} (package-private), Divergence 7
+     * <p>Method under test: {@code RepairGolemGoal.canContinueToUse} and {@code stop} (package-private)
      */
     static void fightInterruptsARepair(GameTestHelper helper) {
         // Arrange: target goals off, so only the test decides who has a target
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
         IronGolem golem = golemOnStone(helper, GOLEM_SPOT, 25.0F);
-        BoundVex first = unleashed(helper, GOLEM_SPOT.above(2), player);
-        first.targetSelector.removeAllGoals(goal -> true);
+        BoundVex first = unleashedWithoutTargets(helper, GOLEM_SPOT.above(2), player);
         Husk husk = husk(helper, GOLEM_SPOT.west(2));
 
         // Act & Assert
@@ -2008,10 +2355,77 @@ public final class BoundVexGameTests {
                 .thenExecute(() -> {
                     float now = golem.getHealth();
                     helper.assertTrue(now < 100.0F, "setup: stopped before full, at " + now);
-                    BoundVex second = unleashed(helper, GOLEM_SPOT.above(2), player);
-                    second.targetSelector.removeAllGoals(goal -> true);
+                    unleashedWithoutTargets(helper, GOLEM_SPOT.above(2), player);
                 })
                 .thenWaitUntil(() -> helper.assertValueEqual(golem.getHealth(), 100.0F, "the second vex finished it"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a Bound Vex repairing a golem has a hissing creeper come within eight blocks, should stop: the flee goal
+     * (priority 0) outranks the repair (2) on the move flag, so the vex's sword comes back and it does not take the
+     * ingot again while the creeper hisses, though the golem is still hurt.
+     *
+     * <p>Method under test: {@code RepairGolemGoal.stop} (package-private), through {@link FleeCreeperGoal} taking the
+     * move flag
+     */
+    static void fleeInterruptsARepair(GameTestHelper helper) {
+        // Arrange: target goals off, so only the creeper can end the repair; the creeper stands three blocks off
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        IronGolem golem = golemOnStone(helper, GOLEM_SPOT, 10.0F);
+        BoundVex vex = unleashedWithoutTargets(helper, GOLEM_SPOT.above(2), player);
+        Creeper creeper = patientCreeper(helper, GOLEM_SPOT.above(2).north(3));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.getMainHandItem().is(Items.IRON_INGOT), "setup: repairing"))
+                .thenExecute(() -> creeper.setSwellDir(1))
+                .thenWaitUntil(() -> helper.assertTrue(
+                        vex.getMainHandItem().is(Items.IRON_SWORD), "the sword is back once the vex flees"))
+                .thenExecute(() -> {
+                    float now = golem.getHealth();
+                    helper.assertTrue(now < 100.0F, "setup: the golem is still hurt, at " + now);
+                })
+                .thenExecuteFor(
+                        20,
+                        () -> helper.assertTrue(
+                                vex.getMainHandItem().is(Items.IRON_SWORD), "no new ingot while the creeper hisses"))
+                .thenSucceed();
+    }
+
+    /**
+     * When the server stops while a Bound Vex repairs a golem and a second vex comes to it, should free the claim: the
+     * second vex stays off the golem while the claim stands (twelve ticks, over a scan) and takes it once the stop
+     * handler has run, while the first still taps. The handler runs on its own batch ({@link #SERVER_STOP_CLAIMS}): it clears
+     * every claim on the server.
+     *
+     * <p>Method under test: {@link BoundVexEvents#onServerStopped}, through {@code RepairGolemGoal}'s claim map
+     * (package-private)
+     */
+    static void serverStopFreesTheRepairClaims(GameTestHelper helper) {
+        // Arrange: a golem that needs four taps, so the first vex is still repairing when the second takes over
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        IronGolem golem = golemOnStone(helper, GOLEM_SPOT, 10.0F);
+        BoundVex first = unleashedWithoutTargets(helper, GOLEM_SPOT.above(2), player);
+        BoundVex[] second = new BoundVex[1];
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        first.getMainHandItem().is(Items.IRON_INGOT), "setup: the first vex holds the claim"))
+                .thenExecute(() -> second[0] = unleashedWithoutTargets(helper, GOLEM_SPOT.above(2), player))
+                .thenExecuteFor(
+                        12,
+                        () -> helper.assertFalse(
+                                second[0].getMainHandItem().is(Items.IRON_INGOT),
+                                "the claim keeps the second vex off the golem"))
+                .thenExecute(() -> {
+                    helper.assertTrue(golem.getHealth() < 100.0F, "setup: the golem still needs repair");
+                    BoundVexEvents.onServerStopped(
+                            new ServerStoppedEvent(helper.getLevel().getServer()));
+                })
+                .thenWaitUntil(() -> helper.assertTrue(
+                        second[0].getMainHandItem().is(Items.IRON_INGOT), "the second vex takes the freed golem"))
                 .thenSucceed();
     }
 
@@ -2029,7 +2443,7 @@ public final class BoundVexGameTests {
         GolemGameTests.anger(mad, player);
         IronGolem full = golemOnStone(helper, GOLEM_SPOT.south(2), 100.0F);
         BoundVex vex = unleashed(helper, GOLEM_SPOT.south(1).above(2), player);
-        vex.targetSelector.removeAllGoals(goal -> true);
+        noTargets(vex);
 
         // Act & Assert
         helper.startSequence()

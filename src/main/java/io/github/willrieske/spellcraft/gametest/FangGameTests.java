@@ -75,7 +75,10 @@ public final class FangGameTests {
     static final BlockPos FEET = new BlockPos(1, 1, 1);
 
     private static final Vec3 STAND = new Vec3(1.5, 1, 1.5);
-    private static final float NORTH = 180.0F;
+
+    /** The yaw a caster faces to look north; the vex GameTests share it. */
+    static final float NORTH = 180.0F;
+
     private static final float NORTH_EAST = -135.0F;
     private static final int WARMUP = EvokerSpell.WARMUP_TICKS;
     private static final int LONG = 200;

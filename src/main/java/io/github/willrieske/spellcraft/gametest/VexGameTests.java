@@ -1,5 +1,6 @@
 package io.github.willrieske.spellcraft.gametest;
 
+import static io.github.willrieske.spellcraft.gametest.FangGameTests.NORTH;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.isSummonedBy;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.requireEffect;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.summonedVex;
@@ -50,7 +51,6 @@ import net.minecraft.world.scores.Scoreboard;
  */
 public final class VexGameTests {
     private static final BlockPos FEET = FangGameTests.FEET;
-    private static final float NORTH = 180.0F;
     private static final int WARMUP = EvokerSpell.WARMUP_TICKS;
 
     private VexGameTests() {}
@@ -227,7 +227,7 @@ public final class VexGameTests {
     /**
      * When a player presses V on Peaceful, should send the notice at once, start no cast (no casting effect, no vex
      * after the warmup) and not use up the cooldown: on Normal the same player's next press starts. The Bound Vex type
-     * is {@code notInPeaceful} (Divergence 2), so it cannot be created there and {@code Mob.checkDespawn} removes one
+     * is {@code notInPeaceful} (docs/api-notes.md §21), so it cannot be created there and {@code Mob.checkDespawn} removes one
      * already out (spec §10).
      *
      * <p>Method under test: {@link EvokingCaster#request}, and {@link net.minecraft.world.entity.Mob#checkDespawn}
