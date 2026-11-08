@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 import javax.imageio.ImageIO;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -53,5 +54,21 @@ class SpellAssetsTest {
     void scrollAndEffectHaveEnglishNames(String name) throws IOException {
         String lang = Files.readString(ASSETS.resolve("lang/en_us.json"));
         assertThat(lang).contains("\"item.spellcraft." + name + "_scroll\"", "\"effect.spellcraft." + name + "\"");
+    }
+
+    /**
+     * When the lang file is read, it should name both casting keys by their current mapping names and not the old
+     * fangs name: a mismatch with {@code EvokingKeys} would show a raw key in Controls (the client class cannot be
+     * loaded here, so the names are spelled out).
+     *
+     * <p>Method under test: the lang file against {@code EvokingKeys}
+     */
+    @Test
+    void castingKeysHaveEnglishNames() throws IOException {
+        // Act
+        String lang = Files.readString(ASSETS.resolve("lang/en_us.json"));
+        // Assert
+        assertThat(lang).contains("\"key.spellcraft.fangs_y\"", "\"key.spellcraft.vexes\"");
+        assertThat(lang).doesNotContain("\"key.spellcraft.fangs\"");
     }
 }

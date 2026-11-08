@@ -29,6 +29,6 @@
   "container.spellcraft.scribe": "Scribe a random scroll",
   "container.spellcraft.scribe.chance": "%s%% chance of an extreme-tier spell",
   "key.category.spellcraft.spells": "Spellcraft",
-  "key.spellcraft.fangs": "Evoking: Fangs",
+  "key.spellcraft.fangs_y": "Evoking: Fangs",
   "key.spellcraft.vexes": "Evoking: Summon Vexes"
 }
