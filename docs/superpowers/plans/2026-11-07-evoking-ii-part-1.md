@@ -566,7 +566,7 @@ Then `git log -1 --oneline` shows the commit.
 - Consumes: nothing.
 - Produces: `GolemMercyRule.MERCY_HEALTH = 25.0F`; `static float clamp(float health, float damage)` (total: never throws); `static boolean forgives(float health)`. Task 7 uses all three.
 
-- [ ] **Step 1: Write the failing unit tests**
+- [x] **Step 1: Write the failing unit tests**
 
 `GolemMercyRuleTest.java`:
 
@@ -767,12 +767,12 @@ class GolemMercyRulePropertiesTest {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `./gradlew test --tests '*GolemMercyRule*' --console=plain > build/test.log 2>&1; echo "exit=$?"; tail -40 build/test.log`
 Expected: `exit=1`, compilation errors naming `GolemMercyRule`.
 
-- [ ] **Step 3: Write `GolemMercyRule`**
+- [x] **Step 3: Write `GolemMercyRule`**
 
 ```java
 package io.github.willrieske.spellcraft.spell.rules;
@@ -816,12 +816,12 @@ public final class GolemMercyRule {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew test --tests '*GolemMercyRule*' --console=plain > build/test.log 2>&1; echo "exit=$?"; tail -40 build/test.log`
 Expected: `exit=0`.
 
-- [ ] **Step 5: Format and commit**
+- [x] **Step 5: Format and commit**
 
 Run: `./gradlew spotlessApply --console=plain`
 
@@ -834,6 +834,8 @@ git commit -m "feat(rules): add GolemMercyRule, the 25-health clamp and forgiven
 ```
 
 Then `git log -1 --oneline` shows the commit.
+
+> **As built (`18fbc02`):** matches plan.
 
 ---
 
