@@ -938,7 +938,7 @@ public final class FangGameTests {
 
     /**
      * When the square holds a ravager (1.95 wide, on a block center), a pig, two pigs stacked in one column on one
-     * floor, and two pigs in one column on different floors (one on the ground, one on a ledge three blocks up),
+     * floor, and two pigs in one column on different floors (one on the ground, one on a stone ledge whose top is three blocks up),
      * should one fang rise under every block the ravager covers (3×3), one under the lone pig, one for the stacked
      * pair (same spot: duplicates collapse), two for the ledge pair (different floors), and none on an empty cell:
      * thirteen in all.

@@ -1,9 +1,10 @@
 package io.github.willrieske.spellcraft.spell.rules;
 
 /**
- * The 13×13 block area a fang cast scans for targets (Evoking spec §5, Evoking II §2.2), as offsets from the caster's block. The caster's block is always
- * on an edge: the facing vector {@code (−sin yaw, cos yaw)} is scaled so its larger component is ±1 and the center is
- * 6 blocks along it, so one center offset is exactly ±6 and the other sweeps −6…6 as the player turns.
+ * The 13×13 block area a fang cast scans for targets (Evoking spec §5, Evoking II §2.2), as offsets from the
+ * caster's block. The caster's block is always on an edge: the facing vector {@code (−sin yaw, cos yaw)} is scaled so
+ * its larger component is ±1 and the center is 6 blocks along it, so one center offset is exactly ±6 and the other
+ * sweeps −6…6 as the player turns.
  *
  * @param centerDx the square's center, east of the caster's block
  * @param centerDz the square's center, south of the caster's block
