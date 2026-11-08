@@ -107,7 +107,7 @@ The spec was written before these lines of game code were read; the plan follows
 - Consumes: nothing.
 - Produces: the section every later task's Javadoc and comments cite (`docs/api-notes.md §21`), so this task runs first.
 
-- [ ] **Step 1: Append §21 to `docs/api-notes.md`**
+- [x] **Step 1: Append §21 to `docs/api-notes.md`**
 
 Append after the last line of §20:
 
@@ -240,7 +240,7 @@ Verified 2026-11-08 against the same unpacked sources (`build/mc-src`, `build/nf
   large `Fuse` hisses without exploding until the swell counts up to `maxSwell`.
 ````
 
-- [ ] **Step 2: Correct the §19 `canContinueToUse` bullet**
+- [x] **Step 2: Correct the §19 `canContinueToUse` bullet**
 
 In `docs/api-notes.md` §19, replace the bullet
 
@@ -257,7 +257,7 @@ with
   needed to drop a target that became an ally.
 ```
 
-- [ ] **Step 3: Lint and commit**
+- [x] **Step 3: Lint and commit**
 
 Run: `pre-commit run markdownlint-cli2 --files docs/api-notes.md`
 Expected: `Passed`.
@@ -271,6 +271,8 @@ git commit -m "docs(api-notes): record the Evoking II Part 2 facts (vex internal
 ```
 
 Then `git log -1 --oneline` shows the commit.
+
+> **As built (`d999052`):** matches plan.
 
 ---
 
