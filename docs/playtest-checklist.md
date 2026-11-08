@@ -102,7 +102,7 @@ Use a **Survival** world with open ground. `/give @s spellcraft:trailing_scroll`
 - [ ] Walk over soul sand or soul soil: those flames linger about twice as long before going out.
 - [ ] Walk over a snow layer: the flame replaces the snow. Walk over carpet or along the top of slabs: no flames there (accepted).
 - [ ] Walk back through your own trail: no damage, no burning.
-- [ ] A zombie, cow or villager in the trail catches fire and takes damage. A dropped item burns up.
+- [ ] A zombie, cow or pig in the trail catches fire and takes damage. A villager, a wandering trader or an iron golem does not. A dropped item burns up.
 - [ ] Tame a wolf, then lure it into the trail: it is unharmed. (Optional, LAN: a teammate via `/team` is unharmed; a player on no team burns.)
 - [ ] Walk through an obsidian portal frame (4×5) in the Overworld: no portal lights.
 - [ ] Walk past TNT and along wooden planks: nothing catches; the flames never spread.
@@ -122,33 +122,48 @@ Use a **Survival** world with open ground. `/give @s spellcraft:trailing_scroll`
 
 ## Strength of Evoking
 
-Use a **Survival** world with open flat ground and a few animals (cows, pigs) about. `/give @s spellcraft:evoking_scroll`, or take it from Tools & Utilities in creative. F and V are the defaults; Controls → Spellcraft shows "Evoking: Fangs" and "Evoking: Summon Vexes". F and V both show red in Controls. F shares its key with Swap Item With Offhand, and V with the F3-chord Dump Version Info. Both conflicts are accepted, and pressing the key still reaches the mod's mapping.
+Use a **Survival** world with open flat ground and a few animals (cows, pigs) about. `/give @s spellcraft:evoking_scroll`, or take it from Tools & Utilities in creative. Y and V are the defaults; Controls → Spellcraft shows "Evoking: Fangs" and "Evoking: Summon Vexes". Y shows no conflict; V shows red (it shares the F3-chord Dump Version Info, accepted).
 
 - [ ] Launch the client and cast: this proves what `runData` cannot, the real render of the raised arms.
 - [ ] Scroll icon: a light-mint "Y" with raised arms, a one-pixel neck and a square head, on the parchment. Effect icon: the same glyph; the HUD shows "∞".
 - [ ] Recast while the effect is on: "Scroll not needed; already have effect!", the scroll is kept. Sneak + right-click with a scroll: the effect ends. Drink milk: the effect ends.
-- [ ] F with a cow a few blocks ahead: the evoker's "prepare attack" sound; in F5, your arms go up like an evoker's and sway; dark purple particles swirl at both hands for two seconds. A second later fangs ripple outward across a 13×13 square in front of you, one row per tick, none under your own feet; the cow is bitten (6 damage).
-- [ ] Turn slowly on the spot and press F each time it is ready (every five seconds): the square turns with you, your block sliding block by block along its edge; facing a corner direction you stand on the corner.
-- [ ] F with nothing ahead: no arms, no sound; after a second "No targets in range" above the hotbar. Press F twice quickly with nothing ahead: one message.
-- [ ] F while the arms are still up, or within five seconds of a cast: nothing happens (no message; a known decision, say if you want a hint).
+- [ ] Y with a cow a few blocks ahead: the evoker's "prepare attack" sound; in F5, your arms go up like an evoker's and sway; dark purple particles swirl at both hands for two seconds. A second later one fang rises under the cow (none anywhere else) and bites it (6 damage).
+- [ ] Turn slowly on the spot and press Y each time it is ready (every five seconds): each time, the fangs find a cow ahead of you, wherever the square points.
+- [ ] Y with nothing ahead: no arms, no sound; after a second "No targets in range" above the hotbar. Press Y twice quickly with nothing ahead: one message.
+- [ ] Y while the arms are still up, or within five seconds of a cast: nothing happens (no message; a known decision, say if you want a hint).
 - [ ] Stand on a hill above a cow, and in a pit below one: the fangs find the ground at both heights.
 - [ ] V: the "prepare summon" sound, arms up for five seconds, pale particles at the hands; after a second three vexes appear 2–3 blocks from you, one block up. They fly around you and ignore you. Tame a wolf: they ignore it. Lead a cow or pig within five blocks of a vex: it charges it. A cow eight blocks away is ignored. The vexes die on their own after 30–120 s.
-- [ ] With vexes out, press F at a cow near them: the fangs do not hurt your vexes. Cast Strength of Trailing and walk your vexes through the trail: unharmed.
+- [ ] With vexes out, press Y at a cow near them: the fangs do not hurt your vexes. Cast Strength of Trailing and walk your vexes through the trail: unharmed.
 - [ ] Creative players and spectators ahead are not targets (a LAN second client in creative is never bitten).
-- [ ] Press F with Evoking on: your hands do **not** swap. Sneak + scroll to end the effect, then F: hands swap as before. Rebind Fangs to another key in Controls: F swaps again even with Evoking on. Rebind Fangs to Shift+F: a plain F press still swaps offhand, Shift+F casts.
+- [ ] Press F with Evoking on: your hands swap as normal. Press Y: the cast starts and nothing swaps (Y is free in vanilla). Rebind Fangs to F in Controls: F casts instead of swapping while Evoking is on, and swaps again once the effect ends. Rebind Fangs to Shift+F: a plain F press swaps, Shift+F casts.
 - [ ] Press V, then open the inventory within the five seconds: no "Casting Fangs" / "Casting Vexes" row in the effect list; the HUD shows no icon for them either; the doll in the inventory has its arms raised.
 - [ ] First person during a cast: your own hand particles do not block the view (they may show at the screen edge), and your arms stay vanilla.
 - [ ] No vanilla swirl around the body during a cast, and no extra mint swirl besides the two hand particles.
-- [ ] Type "f" and "v" in chat, and in an anvil rename box: nothing casts (the keys work only in game).
+- [ ] Type "y" and "v" in chat, and in an anvil rename box: nothing casts (the keys work only in game).
 - [ ] `/tick freeze`, press V, wait a few seconds, `/tick unfreeze`: no burst of hand particles.
 - [ ] Fangs near the edge of simulation distance place no fangs in the far, non-ticking cells.
 - [ ] On Peaceful, press V: the action bar says `Vexes cannot be summoned on Peaceful`, arms stay down, no cooldown: switch to Normal and V casts at once.
-- [ ] With `/gamerule pvp false`, F with only another player in the square gives `No targets in range`; V's vexes ignore other players; with pvp on both attack.
+- [ ] With `/gamerule pvp false`, Y with only another player in the square gives `No targets in range`; V's vexes ignore other players; with pvp on both attack.
 - [ ] Press Esc (singleplayer) during a V cast and wait ten seconds: nothing piles up; on resume the hand particles continue normally.
 - [ ] Optional (Open to LAN + a second client): the other player sees your arms raised and the hand particles during a cast, and nothing else unusual.
 - [ ] Optional (dedicated server with the built jar, a client joining): the server starts without a client-class error, the client joins, and a cast works.
-- [ ] In Creative, stand next to a nether portal with a cow within six blocks ahead, press F (then, after it ends, V), and step in: no fangs appear anywhere in the Nether; for V, the vexes appear beside you in the Nether (the portal is instant in Creative).
+- [ ] In Creative, stand next to a nether portal with a cow within six blocks ahead, press Y (then, after it ends, V), and step in: no fangs appear anywhere in the Nether; for V, the vexes appear beside you in the Nether (the portal is instant in Creative).
 - [ ] Mods > Spellcraft > Config: unchanged (Evoking has no settings).
+
+## Evoking II (Part 1)
+
+Survival world, open ground, a village nearby if you can. The items below add to the Strength of Evoking ones above. Where a golem can hurt you, use Creative or give yourself Resistance (`/effect give @s resistance 600 4`).
+
+- [ ] Use the same game profile where you had Fangs on F (its saved settings carry over): Controls shows Fangs on Y, not F.
+- [ ] Y at a group of three cows standing apart: three fangs, one under each, none on the grass between them.
+- [ ] Y at a ravager (`/summon ravager` is fine) or at an iron golem that is mad at you (hit a village golem once first, then step back): several fangs rise under it, one on each block it stands on.
+- [ ] Stand on a cliff 10–14 blocks above a cow and press Y: the fang reaches it. A cow on a ledge 6 blocks above you: bitten. A cow 7 or more blocks above you, or 15 or more below: "No targets in range".
+- [ ] Hit a pig so it runs, then press Y at it while it flees: a fang rises where it was, and a second one where it ran to; no third.
+- [ ] Y with only a villager, a wandering trader, or a calm iron golem ahead: "No targets in range". Vexes ignore them too.
+- [ ] Hit a village iron golem with a sword again and again: when it is about half cracked (25 health; `/data get entity @e[type=iron_golem,limit=1,sort=nearest] Health` reads `25.0f`) it stops losing health, and on that hit it stops chasing you. Your tamed wolf (have one with you) and your fangs stop there too.
+- [ ] Make a golem mad at you, then call your vexes next to it: the vexes fight it, it ends at 25 health and calms down.
+- [ ] With Strength of Trailing on too, make a mad golem chase you across your fire trail: the golem is not hurt and does not catch fire.
+- [ ] Summon vexes near a village golem: the golem never swings at them.
 
 ## Real profile
 
