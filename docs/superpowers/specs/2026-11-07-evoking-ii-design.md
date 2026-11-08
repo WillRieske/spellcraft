@@ -1,7 +1,8 @@
 # Spellcraft: Evoking II, Bound Vexes (design)
 
 **Date:** 2026-11-07
-**Status:** plan written (`2026-11-07-evoking-ii-part-1.md`); phase 2 plan not yet written
+**Status:** plan written (`2026-11-08-evoking-ii-part-2.md`); phase 3 plan not yet written
+<!-- child-plans: 2026-11-07-evoking-ii-part-1.md, 2026-11-08-evoking-ii-part-2.md -->
 **Shape:** built in seven parts (§1), each with its own plan, branch and PR
 **Written by:** brainstorm with Will on 2026-11-07; §13 lists the decisions Will did not state
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
