@@ -2464,7 +2464,7 @@ Then `git log -1 --oneline` shows the commit.
 - Consumes: `BoundVex.summoner/isPrey/keepsTarget/inGuardArea/guardArea/scanDue` (Task 3); `BoundVexGameTests.FEET/FAR_NORTH` (Task 4), `boundVex/parked/husk/summoner/VEX_SPOT/PREY_SPOT/NORTH` (Task 3); `Allies.isAllyOf`; api-notes §21 (the goal clock, `TargetGoal`, memories).
 - Produces: `HurtBySummonerSideGoal`, `AllyFightGoal`, `NearestHostileGoal` (package-private `TargetGoal`s; `HurtBySummonerSideGoal.MEMORY_TICKS` 100); `BoundVex.SCAN_INTERVAL` 10 (package-private; Task 6's repair goal reads it), `BoundVex.WOLF_CALL_RANGE` 16.0, `BoundVex.alliesInGuardArea(ServerPlayer)` → `List<Mob>` (package-private), and the `setTarget` override.
 
-- [ ] **Step 1: The three target goals**
+- [x] **Step 1: The three target goals**
 
 `src/main/java/io/github/willrieske/spellcraft/evoking/HurtBySummonerSideGoal.java`:
 
@@ -2769,7 +2769,7 @@ In `BoundVex`:
 
 - Update the class Javadoc's goal sentence to name the three target goals.
 
-- [ ] **Step 2: The GameTests**
+- [x] **Step 2: The GameTests**
 
 In `BoundVexGameTests.registerAll`, add (the tests that wait on a scan pass their own tick limit `LONG`; a scan comes at most every 10 ticks, so 20 ticks is the floor and 100 the margin):
 
@@ -3340,12 +3340,12 @@ Imports to add: `java.util.Map`, `java.util.TreeMap`, `net.minecraft.world.entit
 
 In `ignoresAnAllyOutsideTheArea` the wolf's attacker memory ages on the wolf's own clock (a NoAI mob still ticks), about 40 ticks by the time it moves in, inside the 100-tick window, so either goal may take the husk then; the test only asks that one does.
 
-- [ ] **Step 3: Format, build, GameTests**
+- [x] **Step 3: Format, build, GameTests**
 
 Run: `./gradlew spotlessApply --console=plain`, then `./gradlew build --console=plain > build/build.log 2>&1; echo "exit=$?"; tail -40 build/build.log`. Expected: `exit=0`.
 Run in the background: `./gradlew runGameTestServer --console=plain > build/runGameTestServer.log 2>&1; echo "exit=$?"; grep -n "FAILED\|required tests" build/runGameTestServer.log | tail -5`. Expected: `exit=0`, `All 197 required tests passed` (Task 4's 177 + the twenty registered above). Then run it a second time: a test that passes once and fails once depends on entity-id parity or a random roll, which this task's clock is meant to rule out.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/main/java/io/github/willrieske/spellcraft/evoking/HurtBySummonerSideGoal.java src/main/java/io/github/willrieske/spellcraft/evoking/AllyFightGoal.java src/main/java/io/github/willrieske/spellcraft/evoking/NearestHostileGoal.java src/main/java/io/github/willrieske/spellcraft/evoking/BoundVex.java src/main/java/io/github/willrieske/spellcraft/gametest/BoundVexGameTests.java
@@ -3356,6 +3356,8 @@ git commit -m "feat(evoking): Bound Vexes fight what their side fights and call 
 ```
 
 Then `git log -1 --oneline` shows the commit.
+
+> **As built (`7d4f5d7`):** diverged — production code as planned; eight more GameTests (205 in all, not 197): an ally and a hostile whose box touches the guard area while their feet are outside, patrol start sight behind a wall and a drop when unseen (`mustSee`), patrol- and ally-goal drops of a husk that becomes an ally, the summoner's victim before an ally's attacker, and a stale summoner's-attacker memory; reason: task review (the planned tests could not fail without the guard-area filter, `mustSee` or the `keepsTarget` overrides; red runs shown for the guard-area and sight tests).
 
 ---
 
@@ -4294,6 +4296,7 @@ Then `git log -1 --oneline` shows the commit. If the sweep changed a Java Javado
 | 2 | `78efc58` | `reachIsASphere` adds `@Scale(3)` to its yaw and pitch parameters; reason: jqwik's default scale of 2 rejects the three-decimal `@DoubleRange` bounds (6.283, 1.57), so the test as written could not run; intent unchanged (implementer, accepted by the task review). |
 | 3 | `66c82f6` | `BoundVex` also imports `net.minecraft.world.level.Level` (the plan's constructor used it unimported); `capCountsEveryLevel` polls with `helper.succeedWhen` (count first, then `CAPPED`) instead of asserting at once, because a vex summoned in the tick that forces its Nether chunk is not in `ServerLevel.getEntities` until the ticket takes effect; production code as planned; reason: implementer, accepted by the task review. |
 | 4 | `88373a8` | `sameDimensionTeleportBringsNothing` posts `PlayerChangedDimensionEvent` with `from` = `to` = the test level (not `Level.NETHER`) and asserts the vex is a follower first, so it fails when the `onTravel` same-dimension guard is removed (shown red, then restored); the `TELEPORT_LANDING_MAX` Javadoc gives the worst case for a summoner anywhere in its block (≈ 4.33) and the extra hop; production code as planned; reason: task review (Important finding, controller ruling that the test's intent governs). |
+| 5 | `7d4f5d7` | production code as planned; eight more GameTests (205 in all, not 197): an ally and a hostile whose box touches the guard area while their feet are outside, patrol start sight behind a wall and a drop when unseen (`mustSee`), patrol- and ally-goal drops of a husk that becomes an ally, the summoner's victim before an ally's attacker, and a stale summoner's-attacker memory; reason: task review (the planned tests could not fail without the guard-area filter, `mustSee` or the `keepsTarget` overrides; red runs shown for the guard-area and sight tests). |
 
 ## Resume State
 
