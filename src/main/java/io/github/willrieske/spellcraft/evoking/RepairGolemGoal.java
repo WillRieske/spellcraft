@@ -73,6 +73,9 @@ final class RepairGolemGoal extends Goal {
         if (!vex.scanDue(BoundVex.SCAN_INTERVAL) || vex.getTarget() != null) {
             return false;
         }
+        // A vex that died, was discarded or unloaded never ran stop(); drop its claim so the map does not keep it
+        // (and its level) reachable. Such a claim already counts as free in claimedByAnother.
+        CLAIMED.values().removeIf(holder -> holder.isRemoved() || !holder.isAlive());
         ServerPlayer owner = vex.summoner().orElse(null);
         if (owner == null) {
             return false;

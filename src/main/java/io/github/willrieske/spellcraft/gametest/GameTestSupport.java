@@ -66,18 +66,27 @@ public final class GameTestSupport {
      */
     public static List<Component> drainActionBar(ServerPlayer player) {
         List<Component> messages = new ArrayList<>();
-        EmbeddedChannel channel =
-                (EmbeddedChannel) player.connection.getConnection().channel();
-        // Packets sent during a server tick are written but not flushed until the tick ends (MinecraftServer suspends
-        // flushing for every player), so a message sent earlier in this tick is not readable until flushed here.
-        player.connection.getConnection().flushChannel();
-        Object packet;
-        while ((packet = channel.readOutbound()) != null) {
+        for (Object packet : drainOutbound(player)) {
             if (packet instanceof ClientboundSystemChatPacket chat && chat.overlay()) {
                 messages.add(chat.content());
             }
         }
         return messages;
+    }
+
+    /** Flushes and empties the mock player's outbound packet buffer, returning every packet it held. */
+    private static List<Object> drainOutbound(ServerPlayer player) {
+        EmbeddedChannel channel =
+                (EmbeddedChannel) player.connection.getConnection().channel();
+        // Packets sent during a server tick are written but not flushed until the tick ends (MinecraftServer suspends
+        // flushing for every player), so a message sent earlier in this tick is not readable until flushed here.
+        player.connection.getConnection().flushChannel();
+        List<Object> packets = new ArrayList<>();
+        Object packet;
+        while ((packet = channel.readOutbound()) != null) {
+            packets.add(packet);
+        }
+        return packets;
     }
 
     /**
@@ -87,11 +96,7 @@ public final class GameTestSupport {
      */
     public static List<SoundEvent> drainSounds(ServerPlayer player) {
         List<SoundEvent> sounds = new ArrayList<>();
-        EmbeddedChannel channel =
-                (EmbeddedChannel) player.connection.getConnection().channel();
-        player.connection.getConnection().flushChannel();
-        Object packet;
-        while ((packet = channel.readOutbound()) != null) {
+        for (Object packet : drainOutbound(player)) {
             if (packet instanceof ClientboundSoundPacket sound) {
                 sounds.add(sound.getSound().value());
             }

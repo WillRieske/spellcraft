@@ -16,6 +16,7 @@ import io.github.willrieske.spellcraft.spell.rules.EvokerSpell;
 import io.github.willrieske.spellcraft.spell.rules.GuardArea;
 import io.github.willrieske.spellcraft.spell.rules.VexCap;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -224,6 +225,10 @@ public final class BoundVexGameTests {
         FangGameTests.addPadded(SHARED, "bound_vex_dodges_a_golems_swing", BoundVexGameTests::dodgesAGolemsSwing);
         FangGameTests.addPadded(
                 SHARED, "bound_vex_dodge_ignores_a_swing_away_or_far", BoundVexGameTests::dodgeIgnoresASwingAwayOrFar);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_dodge_ignores_a_diagonal_swing_beyond_three_blocks",
+                BoundVexGameTests::dodgeIgnoresADiagonalSwingBeyondThreeBlocks);
         FangGameTests.addPadded(
                 SHARED, "bound_vex_repairs_a_hurt_ally_golem", BoundVexGameTests::repairsAHurtAllyGolem);
         FangGameTests.addPadded(SHARED, "bound_vex_repairs_two_golems_apart", BoundVexGameTests::repairsTwoGolemsApart);
@@ -595,14 +600,14 @@ public final class BoundVexGameTests {
      * When a following Bound Vex hovers seven blocks from its summoner, should fly into the orbit band: three ticks in
      * it is still more than six blocks out (a teleport would have put it within {@code TELEPORT_LANDING_MAX}), and it
      * then comes within five blocks (the band's edge plus one; a flight toward a spot inside the band always crosses
-     * that line).
+     * that line). The vex has no target goals ({@link #followOnly}), so no hostile can pull it off its flight.
      *
      * <p>Method under test: {@link FollowSummonerGoal}, through the vex's goal selector
      */
     static void followFliesIntoTheOrbit(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        BoundVex vex = boundVex(helper, FEET.north(7), player);
+        BoundVex vex = followOnly(helper, FEET.north(7), player);
         helper.assertTrue(vex.distanceTo(player) > FollowSummonerGoal.ORBIT_MAX + 2.0, "setup: seven blocks out");
 
         // Act & Assert
@@ -621,14 +626,15 @@ public final class BoundVexGameTests {
 
     /**
      * When a following Bound Vex is thirteen blocks from its summoner, should be beside the summoner within five ticks:
-     * a flight could not cover that distance so fast, so it teleported.
+     * a flight could not cover that distance so fast, so it teleported. The vex has no target goals
+     * ({@link #followOnly}), so no hostile in a neighboring structure can hold it.
      *
      * <p>Method under test: {@link FollowSummonerGoal}, through the vex's goal selector
      */
     static void followTeleportsFromThirteen(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        BoundVex vex = boundVex(helper, FEET.north(FAR_NORTH), player);
+        BoundVex vex = followOnly(helper, FEET.north(FAR_NORTH), player);
 
         // Act & Assert
         helper.runAfterDelay(5, () -> {
@@ -637,6 +643,18 @@ public final class BoundVexGameTests {
                     "beside the summoner after a teleport, got " + vex.distanceTo(player));
             helper.succeed();
         });
+    }
+
+    /**
+     * {@link #boundVex} without its target goals, for a test whose subject is movement. A vex thirteen or more blocks
+     * out hovers at the edge of its padding, where a hostile in a neighboring test's structure can be within its guard
+     * area and reach; with a target the charge goal (3) outranks follow (4) and the vex chases it away, so a movement
+     * test with the full target AI can fail for a reason that has nothing to do with movement.
+     */
+    private static BoundVex followOnly(GameTestHelper helper, BlockPos relative, ServerPlayer summoner) {
+        BoundVex vex = boundVex(helper, relative, summoner);
+        vex.targetSelector.removeAllGoals(goal -> true);
+        return vex;
     }
 
     /**
@@ -668,14 +686,15 @@ public final class BoundVexGameTests {
     /**
      * When a staying Bound Vex's post is thirteen blocks from its summoner, should neither fly nor teleport to the
      * summoner over sixty ticks. The post is the structure's middle and the player stands thirteen blocks south, so
-     * the wander (±7 blocks around the post) stays inside the padding.
+     * the wander (±7 blocks around the post) stays inside the padding. The vex has no target goals
+     * ({@link #followOnly}), so the distance check cannot be spoiled by a chase.
      *
      * <p>Method under test: {@link FollowSummonerGoal} and {@code BoundVex.StayWanderGoal}, through the goal selector
      */
     static void stayingHoldsItsPost(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        BoundVex vex = boundVex(helper, FEET, player);
+        BoundVex vex = followOnly(helper, FEET, player);
         vex.setStaying(true);
         MockPlayers.moveTo(helper, player, Vec3.atBottomCenterOf(FEET.south(FAR_NORTH)));
 
@@ -692,14 +711,18 @@ public final class BoundVexGameTests {
 
     /**
      * When a staying Bound Vex thirteen blocks out is switched back to following after twenty ticks, should come back
-     * within five blocks of its summoner (once any wander leg under way is done).
+     * within five blocks of its summoner (once any wander leg under way is done). The vex has no target goals
+     * ({@link #followOnly}): its wander legs reach into the padding where a neighboring test's hostile may stand, and a
+     * target there would hold it (charge outranks follow).
+     *
+     * <p>If this fails again, the message names the vex's target, goals and positions ({@code vexState}).
      *
      * <p>Method under test: {@link BoundVex#setStaying} and {@link FollowSummonerGoal}, through the goal selector
      */
     static void followsAgainAfterStay(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        BoundVex vex = boundVex(helper, FEET.north(FAR_NORTH), player);
+        BoundVex vex = followOnly(helper, FEET.north(FAR_NORTH), player);
         vex.setStaying(true);
 
         // Act & Assert
@@ -712,7 +735,7 @@ public final class BoundVexGameTests {
                 })
                 .thenWaitUntil(() -> helper.assertTrue(
                         vex.distanceTo(player) <= FollowSummonerGoal.ORBIT_MAX + 1.0,
-                        "back beside the summoner, got " + vex.distanceTo(player)))
+                        "back beside the summoner, got " + vex.distanceTo(player) + "; " + vexState(vex, player)))
                 .thenSucceed();
     }
 
@@ -812,6 +835,29 @@ public final class BoundVexGameTests {
     private static boolean targets(Mob mob, LivingEntity expected) {
         LivingEntity target = mob.getTarget();
         return target != null && target.getUUID().equals(expected.getUUID());
+    }
+
+    /**
+     * What a failing follow test needs to say why: the vex's target (type and distance), staying flag, whether the move
+     * control holds a wanted spot, the running movement and target goals, and the vex's and player's positions.
+     */
+    private static String vexState(BoundVex vex, ServerPlayer player) {
+        LivingEntity target = vex.getTarget();
+        String targetText = target == null
+                ? "none"
+                : target.getType().toShortString() + " at " + vex.distanceTo(target) + " blocks";
+        return "target " + targetText + ", staying " + vex.isStaying() + ", wanted "
+                + vex.getMoveControl().hasWanted() + ", running goals "
+                + runningGoals(vex.goalSelector.getAvailableGoals())
+                + ", running target goals " + runningGoals(vex.targetSelector.getAvailableGoals()) + ", vex at "
+                + vex.position() + ", player at " + player.position();
+    }
+
+    private static List<String> runningGoals(Collection<WrappedGoal> goals) {
+        return goals.stream()
+                .filter(WrappedGoal::isRunning)
+                .map(wrapped -> wrapped.getGoal().getClass().getSimpleName())
+                .toList();
     }
 
     /** The simple class name of the vex's running target goal, or {@code "none"}. */
@@ -1541,6 +1587,9 @@ public final class BoundVexGameTests {
     /** The flee goal's safe distance (spec §3.5); the goal is package-private in {@code evoking}. */
     private static final double SAFE_DISTANCE = 8.0;
 
+    /** The dodge goal's notice range ({@code DodgeGolemGoal.NOTICE_RANGE}, spec §3.6). */
+    private static final double DODGE_NOTICE_RANGE = 3.0;
+
     /** The flee goal's notice range ({@code FleeCreeperGoal.NOTICE_RANGE}, spec §3.5). */
     private static final double FLEE_NOTICE_RANGE = 8.0;
 
@@ -1715,6 +1764,44 @@ public final class BoundVexGameTests {
                 })
                 .thenWaitUntil(() -> helper.assertTrue(
                         Math.abs(vex.position().z - before.z) >= 1.0, "darts once the golem faces it"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a golem facing a Bound Vex swings from 3.6 blocks away diagonally (three east and two south: inside the
+     * three-block box the search covers, outside the three-block range), should not dart for ten ticks; once the golem
+     * stands 2.8 blocks away and swings facing it, should dart (the control).
+     *
+     * <p>Method under test: {@code DodgeGolemGoal} (package-private): the range is a sphere, not the search box
+     */
+    static void dodgeIgnoresADiagonalSwingBeyondThreeBlocks(GameTestHelper helper) {
+        // Arrange: the golem looks straight at the vex
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        MockPlayers.moveTo(helper, player, new Vec3(9.5, 1, 3.5), NORTH);
+        IronGolem golem = golemOnStone(helper, GOLEM_SPOT, 100.0F);
+        BoundVex vex = boundVex(helper, GOLEM_SPOT.offset(3, 0, 2), player);
+        face(golem, (float) Math.toDegrees(Math.atan2(-3.0, 2.0)));
+        Vec3 before = vex.position();
+        helper.assertTrue(vex.distanceTo(golem) > DODGE_NOTICE_RANGE, "setup: the golem is out of range");
+
+        // Act
+        golem.handleEntityEvent((byte) 4);
+
+        // Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        10,
+                        () -> helper.assertTrue(
+                                vex.position().distanceTo(before) < 0.5,
+                                "no dart from a swing beyond three blocks, moved "
+                                        + vex.position().distanceTo(before)))
+                .thenExecute(() -> {
+                    placeBeside(vex, golem, -2, -2);
+                    face(golem, (float) Math.toDegrees(Math.atan2(-2.0, 2.0)));
+                    golem.handleEntityEvent((byte) 4);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(
+                        vex.position().distanceTo(before) >= 1.0, "darts once the golem is within three blocks"))
                 .thenSucceed();
     }
 

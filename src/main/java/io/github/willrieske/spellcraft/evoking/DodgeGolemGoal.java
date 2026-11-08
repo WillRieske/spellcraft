@@ -16,7 +16,7 @@ import org.jspecify.annotations.Nullable;
  * waits out the swing's ten ticks before it can start again.
  */
 final class DodgeGolemGoal extends Goal {
-    /** How near a swinging golem must be: the half-size of the box searched around the vex. */
+    /** How near a swinging golem must be, feet to feet; the box searched around the vex has this half-size. */
     static final double NOTICE_RANGE = 3.0;
 
     /** How squarely the golem must face the vex: the dot of two unit vectors. */
@@ -58,7 +58,8 @@ final class DodgeGolemGoal extends Goal {
     }
 
     private boolean isSwingingAtVex(IronGolem candidate) {
-        if (candidate.getAttackAnimationTick() <= 0) {
+        // The box query is a cube; this makes the range the sphere the spec names (as FleeCreeperGoal does).
+        if (candidate.getAttackAnimationTick() <= 0 || vex.distanceToSqr(candidate) > NOTICE_RANGE * NOTICE_RANGE) {
             return false;
         }
         Vec3 toVex = vex.getBoundingBox().getCenter().subtract(candidate.getEyePosition());

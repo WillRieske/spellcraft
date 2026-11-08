@@ -67,7 +67,12 @@ final class FleeCreeperGoal extends Goal {
         return true;
     }
 
-    /** Aims for the point {@link #SAFE_DISTANCE} + 1 blocks from the creeper, straight away from it, at the vex's height. */
+    /**
+     * Aims for the point {@link #SAFE_DISTANCE} + 1 blocks from the creeper, straight away from it, at the vex's
+     * height, and stops steering once the vex is {@link #SAFE_DISTANCE} away. The extra block is deliberate: the move
+     * control treats a spot within the vex's own size as reached, so aiming one block past the safe distance lets the
+     * vex coast to at least the safe distance rather than stopping short of it.
+     */
     @Override
     public void tick() {
         if (creeper == null) {
