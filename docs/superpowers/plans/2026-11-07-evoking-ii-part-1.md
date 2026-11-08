@@ -968,7 +968,7 @@ Then `git log -1 --oneline` shows the commit.
 - Consumes: `FangFootprints.columns`, `FangFootprints.inSquare`, `FangFootprints.Column` (Task 2); `FangSquare`, `Allies.isAllyOf`, `EvokingCaster.request/tick` (existing).
 - Produces: `Fangs.SCAN_DEPTH = 14`, `Fangs.SCAN_HEIGHT = 6`, `Fangs.CHASE_RANGE = 16.0`, `Fangs.BITE_TICK = 8`; `Fangs.Spot(Column column, double y)`; `Fangs.Footprint(UUID target, List<Column> columns, List<Spot> spots)`; `Fangs.Snapshot(ResourceKey<Level> dimension, BlockPos feet, FangSquare square, List<Footprint> footprints)`; `static Optional<Snapshot> snapshot(ServerLevel, ServerPlayer)` and `static boolean perform(ServerLevel, ServerPlayer, Snapshot)` keep their signatures (so `EvokingCaster` is untouched); `public static boolean hasChaseRecord(EvokerFangs)` for the GameTests. `SCAN_HALF_HEIGHT` is removed: `grep -rn SCAN_HALF_HEIGHT src` finds only `Fangs.java` (e3's range comment is rewritten in Step 1(e)). `FangSquare.Cell`, `CELL_COUNT` and `cells()` are removed: after this task nothing reads them (`grep -rn "CELL_COUNT\|\.cells()\|FangSquare.Cell" src` must find nothing).
 
-- [ ] **Step 1: Update the fang GameTests to the new behavior**
+- [x] **Step 1: Update the fang GameTests to the new behavior**
 
 (They compile only once Step 2 lands; there is no red run for GameTests.) In `FangGameTests.java`:
 
@@ -1448,13 +1448,13 @@ Add the imports `io.github.willrieske.spellcraft.evoking.Fangs`, `io.github.will
 
 Timing note for the implementer: `runAfterDelay(WARMUP)` places the fangs during that tick's GameTest phase, which runs after every level has ticked (api-notes §20), so the fangs tick for the first time on the next server tick and bite on tick `WARMUP + 9` relative to the request at the latest; `+ 10` is the earliest safe check, and a chase fang placed then bites around `+ 17`. In `iiChase` the runner is moved again at `+ 10`, before the chase fang bites, so its health never changes; that is the point of the last assertion.
 
-- [ ] **Step 2: Remove the ripple from `FangSquare` and its tests**
+- [x] **Step 2: Remove the ripple from `FangSquare` and its tests**
 
 In `FangSquare.java`: delete the `CELL_COUNT` constant with its Javadoc (lines 22–23), the `Cell` record with its Javadoc (lines 25–32) and the `cells()` method with its Javadoc (lines 85–98); drop the now-unused imports `java.util.ArrayList`, `java.util.Collections`, `java.util.List`. In the class Javadoc, change "The 13×13 block area a fang cast covers (spec §5)" to "The 13×13 block area a fang cast scans for targets (Evoking spec §5, Evoking II §2.2)". `HALF`, `SIZE`, `of`, `minDx`…`maxDz` and `contains` stay.
 
 In `FangSquareTest.java`: delete the `@Nested class Cells { … }` block (both tests in it) and the imports `io.github.willrieske.spellcraft.spell.rules.FangSquare.Cell` and `java.util.List`. In `FangSquarePropertiesTest.java`: delete the `@Group class Cells { … }` block and the same two imports.
 
-- [ ] **Step 3: Rewrite `Fangs.java`**
+- [x] **Step 3: Rewrite `Fangs.java`**
 
 ```java
 package io.github.willrieske.spellcraft.evoking;
@@ -1798,18 +1798,18 @@ public final class Fangs {
 
 `EvokingCaster` needs no change: it stores `Optional<Fangs.Snapshot>` and calls `snapshot`/`perform` with the same signatures.
 
-- [ ] **Step 4: Build (unit tests included)**
+- [x] **Step 4: Build (unit tests included)**
 
 Run: `./gradlew spotlessApply --console=plain`
 Run: `./gradlew build --console=plain > build/build.log 2>&1; echo "exit=$?"; tail -40 build/build.log`
 Expected: `exit=0` (Error Prone may flag an unused import; fix it). The `FangSquare` tests still pass without their `Cells` groups.
 
-- [ ] **Step 5: Run the GameTests (background; minutes)**
+- [x] **Step 5: Run the GameTests (background; minutes)**
 
 Run: `./gradlew runGameTestServer --console=plain > build/runGameTestServer.log 2>&1; echo "exit=$?"; grep -n "fangs_\|FAILED\|passed\|failed" build/runGameTestServer.log | tail -40`
 Expected: `exit=0`; every test passes, the seven `fangs_ii_*` included. (`fangs_e7_busy_and_cooling` still uses a golem until Task 6 and passes here, since golems are not allies yet.)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/main/java/io/github/willrieske/spellcraft/evoking/Fangs.java src/main/java/io/github/willrieske/spellcraft/spell/rules/FangSquare.java src/test/java/io/github/willrieske/spellcraft/spell/rules/FangSquareTest.java src/test/java/io/github/willrieske/spellcraft/spell/rules/FangSquarePropertiesTest.java src/main/java/io/github/willrieske/spellcraft/gametest/FangGameTests.java
@@ -1820,6 +1820,8 @@ git commit -m "feat(evoking): fangs rise only under targets, 14 blocks down, wit
 ```
 
 Then `git log -1 --oneline` shows the commit.
+
+> **As built (`9cb7f71`):** matches plan.
 
 ---
 
