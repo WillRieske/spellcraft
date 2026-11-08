@@ -4306,8 +4306,8 @@ Then `git log -1 --oneline` shows the commit. If the sweep changed a Java Javado
 
 ## Resume State
 
-- Last completed task: None
-- Commit SHA: none yet
-- Checkboxes: 0/56 ticked
-- Next task: Task 1
-- Known-failing tests / caveats: none yet. The checkbox count includes 22 `- [ ]` lines inside Task 7's fenced Markdown blocks (playtest-checklist text, not steps); the plan has 34 step checkboxes. Nothing is pushed: the branch is pushed once, after Task 7.
+- Last completed task: Task 7: Docs, playtest items, mutation testing
+- Commit SHA: 1a40c79
+- Checkboxes: 34/56 ticked (`count_boxes`; the other 22 are sample checklist lines inside Task 7's fenced blocks, so `checkbox_counts` reads 34/34 complete)
+- Next task: none (plan complete)
+- Known-failing tests / caveats: branch `feat/evoking-ii-part-2` is stacked on `feat/evoking-ii-part-1` (draft PR WillRieske/spellcraft#3) and nothing is pushed yet; plan-end backstop at this SHA: build green, `All 215 required tests passed`; `bound_vex_follows_again_after_stay` flaked twice in about ten runs during Tasks 5-6 (cause unproven; the follow-only tests now run without target goals and its failure message dumps the vex state), 35+ clean runs since; deferred task-review minors are in the SDD ledger for `/review-will` to triage; visual and feel checks are Will's (`docs/playtest-checklist.md`, Evoking II (Part 2))
