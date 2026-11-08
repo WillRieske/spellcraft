@@ -4,7 +4,7 @@ import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.withTeam;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
-import io.github.willrieske.spellcraft.evoking.VexSummons;
+import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.spell.Allies;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import java.util.UUID;
@@ -13,6 +13,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.monster.Creeper;
@@ -194,11 +195,11 @@ public final class AlliesGameTests {
     }
 
     /**
-     * When the {@code pvp} game rule is off, should not call a stranger survival player prey of a summoned vex, and
-     * should still call a pig prey. With the rule on, the same stranger is prey (the positive control, also in the
-     * prey-rule test).
+     * When the {@code pvp} game rule is off, should not call a stranger survival player prey of a summoned vex, nor a
+     * Bound Vex that stranger summoned (Divergence 15), nor a mob summoned by an offline player, and should still call
+     * a pig prey. With the rule on, the same stranger is prey (the positive control, also in the prey-rule test).
      *
-     * <p>Method under test: {@link VexSummons#isPrey}
+     * <p>Method under test: {@link BoundVex#isPrey(ServerLevel, UUID, LivingEntity)}
      *
      * <p>Mutates a global game rule, so it runs alone in the {@code pvp_off} batch; the rule is restored through
      * {@code whenDone}.
@@ -209,23 +210,39 @@ public final class AlliesGameTests {
         ServerPlayer summoner = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         ServerPlayer stranger = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         Pig pig = helper.spawn(EntityTypes.PIG, SPOT);
+        BoundVex strangersVex = BoundVexGameTests.parked(helper, SPOT, stranger);
+        Pig offlinesPig = helper.spawn(EntityTypes.PIG, SPOT);
+        offlinesPig.setData(AllyAttachments.SUMMONER, UUID.randomUUID());
         GameRules rules = level.getGameRules();
         boolean saved = rules.get(GameRules.PVP);
         whenDone(helper, () -> {
             rules.set(GameRules.PVP, saved, level.getServer());
             pig.discard();
+            offlinesPig.discard();
         });
         rules.set(GameRules.PVP, true, level.getServer());
         helper.assertTrue(
-                VexSummons.isPrey(level, summoner.getUUID(), stranger), "setup: with pvp on, a stranger is prey");
+                BoundVex.isPrey(level, summoner.getUUID(), stranger), "setup: with pvp on, a stranger is prey");
+        helper.assertTrue(
+                BoundVex.isPrey(level, summoner.getUUID(), strangersVex),
+                "setup: with pvp on, a stranger's Bound Vex is prey");
+        helper.assertTrue(
+                BoundVex.isPrey(level, summoner.getUUID(), offlinesPig),
+                "setup: with pvp on, an offline player's summon is prey");
 
         // Act
         rules.set(GameRules.PVP, false, level.getServer());
 
         // Assert
         helper.assertFalse(
-                VexSummons.isPrey(level, summoner.getUUID(), stranger), "with pvp off, a stranger player is not prey");
-        helper.assertTrue(VexSummons.isPrey(level, summoner.getUUID(), pig), "a pig is still prey with pvp off");
+                BoundVex.isPrey(level, summoner.getUUID(), stranger), "with pvp off, a stranger player is not prey");
+        helper.assertFalse(
+                BoundVex.isPrey(level, summoner.getUUID(), strangersVex),
+                "with pvp off, a stranger's Bound Vex is not prey");
+        helper.assertFalse(
+                BoundVex.isPrey(level, summoner.getUUID(), offlinesPig),
+                "with pvp off, an offline player's summon is not prey");
+        helper.assertTrue(BoundVex.isPrey(level, summoner.getUUID(), pig), "a pig is still prey with pvp off");
         helper.succeed();
     }
 }
