@@ -87,7 +87,10 @@ public final class TrailFireBlock extends BaseFireBlock {
         }
     }
 
-    /** Server only; spared entities (the owner, their allies, and every iron golem) feel nothing, everyone else gets soul fire's. */
+    /**
+     * Server only; spared entities (the owner, their allies, and every iron golem) feel nothing, everyone else gets
+     * soul fire's.
+     */
     @Override
     protected void entityInside(
             BlockState state,

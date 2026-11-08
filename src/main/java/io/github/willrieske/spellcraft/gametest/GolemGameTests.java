@@ -151,7 +151,8 @@ public final class GolemGameTests {
         // Arrange
         ServerLevel level = helper.getLevel();
         // The structure is 3 blocks of air: at SPOT the golem's head (2.7 tall) pokes out of the top and it suffocates
-        // for 1 a tick, so this long-lived golem stands on a floor one block lower.
+        // for 1 damage a tick, so this long-lived golem stands on a floor one block lower (the stone at relative y -1
+        // relies on the test environment placing nothing under the box).
         BlockPos low = SPOT.below();
         helper.setBlock(low.below(), Blocks.STONE);
         ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);

@@ -390,9 +390,9 @@ public final class TrailFires {
         if (owner.equals(entity.getUUID())) {
             return true;
         }
-        // Every iron golem, mad or not (Evoking II §2.3): fire damage carries no attacker, so golem mercy could not
-        // tell
-        // this flame's burn from lava. Only an owned flame spares it; a /setblock flame burns like vanilla fire.
+        // Every iron golem, mad or not (Evoking II §2.3): fire damage carries no attacker, so golem
+        // mercy could not tell this flame's burn from lava. Only an owned flame spares it; a /setblock flame burns
+        // like vanilla fire.
         if (entity instanceof IronGolem) {
             return true;
         }
