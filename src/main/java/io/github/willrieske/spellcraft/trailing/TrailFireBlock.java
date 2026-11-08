@@ -17,7 +17,7 @@ import net.minecraft.world.level.block.state.BlockState;
 /**
  * The flame a trailing player leaves behind (spec §3). Looks like soul fire (its models), sits on any sturdy block,
  * spreads to nothing, has no scheduled tick (so never ignites TNT; its random tick only cleans up orphans), lights no
- * portal, and spares the owner and their allies.
+ * portal, and spares the owner, their allies and every iron golem.
  */
 public final class TrailFireBlock extends BaseFireBlock {
     /** Soul fire's damage. */
