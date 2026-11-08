@@ -4171,7 +4171,7 @@ Then `git log -1 --oneline` shows the commit.
 - Consumes: everything above.
 - Produces: the docs Will reads.
 
-- [ ] **Step 1: README**
+- [x] **Step 1: README**
 
 Replace the Strength of Evoking bullet (lines 15–24) with:
 
@@ -4196,7 +4196,7 @@ Replace the Strength of Evoking bullet (lines 15–24) with:
   being mad at you. The keys rebind in Controls. Sneak + scroll or milk turns it off.
 ```
 
-- [ ] **Step 2: Playtest checklist, the Evoking sections**
+- [x] **Step 2: Playtest checklist, the Evoking sections**
 
 In `docs/playtest-checklist.md`, replace line 135 (the V item) with:
 
@@ -4216,7 +4216,7 @@ Replace line 164 (the mad-golem item of Evoking II Part 1) with:
 - [ ] Make a golem mad at you, then call your vexes next to it: once it hits you (or you hit it), the vexes fight it; it ends at 25 health and calms down.
 ```
 
-- [ ] **Step 3: Playtest checklist, the new section**
+- [x] **Step 3: Playtest checklist, the new section**
 
 Insert before "## Real profile", with one blank line between the section's last item and that heading:
 
@@ -4246,7 +4246,7 @@ Survival world, open ground, a village nearby if you can, with Strength of Evoki
 - [ ] If this world still has round-one vexes (summoned before this update): those vanilla vexes may attack you for their remaining seconds, then die on their own.
 ```
 
-- [ ] **Step 4: Mutation testing**
+- [x] **Step 4: Mutation testing**
 
 Run: `./gradlew pitest --console=plain > build/pitest.log 2>&1; echo "exit=$?"; grep -n "Generated\|mutations\|Line Coverage\|Mutation score\|killed" build/pitest.log | tail -10`
 Expected: `exit=0`. Read the totals and the survivors in `VexCap` and `GuardArea` from `build/reports/pitest/index.html` (or the log summary); Task 2 already ran PIT on them, so expect none. If a `VexCap` or `GuardArea` mutant survives and is not equivalent, add the unit test that kills it (same style as Task 2), run `./gradlew spotlessApply --console=plain`, commit it on its own as `test(rules): kill the <Class> <mutator> survivor` (stage, then commit, as two calls), then re-run `pitest` and record the final numbers. `VexRing`'s `lifeTicks` mutants are gone with the method.
@@ -4257,18 +4257,18 @@ Add a row to the PIT table in `docs/mutation-testing.md` (the date is the run's 
 | <run date> (Evoking II Part 2) | <score>% (<killed>/<total> killed; from 98%, 247/251, on 2026-11-08) | <line>% (<covered>/<lines>) | <"None new in `spell.rules` (every `VexCap` and `GuardArea` mutant was killed; `VexRing` lost its `lifeTicks` mutants with the life limit)" or each survivor with its file:line, mutator and why it is equivalent>. The same four `UpsideDownRollState` non-killed mutants as above, unchanged, all justified in the first row. |
 ```
 
-- [ ] **Step 5: Lint the docs**
+- [x] **Step 5: Lint the docs**
 
 Run: `pre-commit run markdownlint-cli2 --files README.md docs/playtest-checklist.md docs/mutation-testing.md`
 Expected: `Passed`.
 
-- [ ] **Step 6: Closing sweep**
+- [x] **Step 6: Closing sweep**
 
 Run: `grep -rn "30–120\|30-120\|limited life\|life_ticks\|lifeTicks\|five blocks\|AGGRO_RANGE\|VexSummons.isPrey\|install(\|onJoin\|EntityJoinLevelEvent\|vanilla vex\|how long they live" README.md docs/api-notes.md docs/playtest-checklist.md docs/mutation-testing.md src/main/java src/test/java`
 Then read every `vex` line of `docs/playtest-checklist.md` (`grep -n -i "vex" docs/playtest-checklist.md`: at least lines 125, 135, 136, 139, 145, 146, 150, 162, 164, 166 and the new section).
 Read every hit and fix any statement Tasks 3–6 made false (a vex that dies after 30–120 s, a five-block aggro range, a goal installed on join, a vex that attacks a player or a mad golem unprovoked). Hits in api-notes §19–§21 (vanilla's evoker and vex, `EvokerFangs.lifeTicks`) and in `docs/mutation-testing.md`'s older rows are history, not statements about the mod: leave them. Spec files under `docs/superpowers` are out of scope for this task.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add README.md docs/playtest-checklist.md docs/mutation-testing.md
@@ -4280,6 +4280,8 @@ git commit -m "docs: describe Evoking II Part 2 (Bound Vexes: no timer, cap, fol
 
 Then `git log -1 --oneline` shows the commit. If the sweep changed a Java Javadoc, stage and commit that file first as `docs(java): fix Javadoc made stale by Evoking II Part 2`.
 
+> **As built (`4754fb1`):** diverged — the docs match the plan; an extra test commit (`e336697`) adds two `CsvSource` rows that kill the two `FangFootprints.requireBox` boundary survivors (Part 1 code) the pitest run found, noted in the mutation row (264/268 killed, 99%; line coverage 270/284); reason: implementer, accepted by the task review.
+
 ---
 
 ## Self-review (done while writing; redone after the plan review)
@@ -4287,7 +4289,7 @@ Then `git log -1 --oneline` shows the commit. If the sweep changed a Java Javado
 - **Spec coverage.** §3.1 mob, registration, no egg/spawn/loot, no timer, summoner, synced `STAYING`, renderer, `VexSummons.summon` → Task 3 (Divergences 1–3, 9, 11–13); `MobCategory.MONSTER` → Task 3. §3.2 cap → Task 2 (`VexCap`), Task 3 (`countOwnedBy`, `CAPPED`, the notice, the top-up; `capRefusesAtTwelve`, `capTopsUpToTwelve` from ten and from eleven, `capIsPerSummoner`, `capCountsEveryLevel`). §3.3 goals and priorities → Tasks 3–6 (`registerGoals`; `threeTargetGoals`; Divergences 4, 7, 14); follow/orbit/teleport → Task 4 (`followFliesIntoTheOrbit`, `followTeleportsFromThirteen`, `followIdlesWithoutASummoner`); stay toggle and wander → Tasks 3–4 (`stayToggle`, `stayingHoldsItsPost`, `followsAgainAfterStay`); portals → Task 4 (`portalFollow`, `sameDimensionTeleportBringsNothing`; Divergence 5). §3.4 `isPrey` → Task 3 (`preyRule`, `a6PvpOff` with another player's and an offline player's summons; Divergence 15), the guard box → Tasks 2–3 (`GuardArea`, `guardAreaEdges`), the three target goals, their clock and `keepsTarget` → Task 5 (every `bound_vex_*` targeting test: `attacksAHostile`, `ignoresAPigButNotAHusk`, `ignoresACreeperUntilProvoked`, `targetsWhatHurtTheSummoner`, `targetsWhatTheSummonerHit`, `targetsWhatHurtAnAlly`, `joinsAnAllysFight`, `dropsATargetOutOfReach`, `dropsANewAlly`, `heldByThePatrolGoal`, `ignoresAStaleMemory`, `ownAttackerComesFirst`, `creativeAttackerDoesNotBlock`, `ignoresAnAllyOutsideTheArea`; Divergences 6, 16), wolves join → Task 5 (`callsTheSummonersWolves`, `wolfCallSkipsTheWrongWolves`, `wolfCallOnlyOnANewTarget`, `wolfCallSkipsACreeper`). §3.5 → Task 6 (`fleesAHissingCreeper`, `fleeIgnoresACalmOrFarCreeper`). §3.6 golems never target Bound Vexes → Part 1's `GolemMercy` (the mark); dodge → Task 6 (`dodgesAGolemsSwing`, `dodgeIgnoresASwingAwayOrFar`). §3.7 → Task 6 (`repairsAHurtAllyGolem` with the sound, `repairsTwoGolemsApart`, `claimFreesWhenTheVexIsGone`, `fightInterruptsARepair`, `noRepairForAMadOrFullGolem`; Divergences 7, 8). §10: no summoner → `idlesWithoutASummoner`, `noSummonerNoTarget`, `followIdlesWithoutASummoner`; dead summoner → `idlesWithADeadSummoner`; summoner in another dimension → `idlesWithTheSummonerElsewhere` and the far vex of `portalFollow`; cap across dimensions → `capCountsEveryLevel`; Peaceful removal → `peacefulNotice` (`checkDespawn`); `/summon` → `idlesWithoutASummoner`. §11 pure core `VexCap`, `GuardArea` → Task 2 (with PIT); GameTests for Part 2 → all named above; `runData` → Task 3. §12 docs → Tasks 1, 7; `mod_version` untouched; mod description unchanged (no new spell). §13 cap counting, partial summon, mob category, wolves join, dodge always, repair scope → Tasks 2–6; the accepted behaviors (shared ring cells, a wander leg finished before following, vexes that only follow while their chunk ticks, repair outranking follow) → Task 7's playtest items.
 - **Placeholders.** None; the mutation row's angle-bracket fields are filled from the run.
 - **Type consistency.** `BoundVex.isPrey(ServerLevel, UUID, LivingEntity)` static and `isPrey(LivingEntity)`; `keepsTarget(@Nullable LivingEntity)`, `inGuardArea(Entity)`, `scanDue(int)`, `guardArea()`, `summoner()` → `Optional<ServerPlayer>`, `isSummonedBy(UUID)`, `countOwnedBy(MinecraftServer, UUID)` are defined in Task 3 and used as such in Tasks 4–6; `SCAN_INTERVAL`, `WOLF_CALL_RANGE` and `alliesInGuardArea` are defined in Task 5 and read there and in Task 6; `FollowSummonerGoal`'s public constants are defined in Task 4 and read by the GameTests of Tasks 4 and 6; `VexSummons.summon(ServerLevel, ServerPlayer, int)` matches `EvokingCaster.perform`'s call; `VexCap.toSummon(int)` matches `request`'s call; the GameTest helpers `boundVex`, `parked`, `husk`, `summoner`, `pet`, `pigHere`, `targets`, `runningTargetGoal`, `patientCreeper`, `golemOnStone`, `unleashed`, `face` and `GameTestSupport.drainSounds` are defined before they are used; `GolemGameTests.golem(helper, pos)`, `golem(helper, pos, health)` and `anger(golem, player)` exist on the base branch.
-- **Expected GameTest totals.** 164 at the start (Part 1's run log); Task 3: −5 + 11 = 170; Task 4: +7 = 177; Task 5: +20 = 197; Task 6: +9 = 206. Each task names its registrations; if a fix changes them, recount the `registerAll` lines.
+- **Expected GameTest totals.** 164 at the start (Part 1's run log); Task 3: −5 + 11 = 170; Task 4: +7 = 177; Task 5: +20 = 197; Task 6: +9 = 206. Each task names its registrations; if a fix changes them, recount the `registerAll` lines. As built: Task 5 205 (+8 from its review), Task 6 215 (+1 from its review); see the Divergence index.
 
 ## Divergence index
 
@@ -4300,6 +4302,7 @@ Then `git log -1 --oneline` shows the commit. If the sweep changed a Java Javado
 | 4 | `88373a8` | `sameDimensionTeleportBringsNothing` posts `PlayerChangedDimensionEvent` with `from` = `to` = the test level (not `Level.NETHER`) and asserts the vex is a follower first, so it fails when the `onTravel` same-dimension guard is removed (shown red, then restored); the `TELEPORT_LANDING_MAX` Javadoc gives the worst case for a summoner anywhere in its block (≈ 4.33) and the extra hop; production code as planned; reason: task review (Important finding, controller ruling that the test's intent governs). |
 | 5 | `7d4f5d7` | production code as planned; eight more GameTests (205 in all, not 197): an ally and a hostile whose box touches the guard area while their feet are outside, patrol start sight behind a wall and a drop when unseen (`mustSee`), patrol- and ally-goal drops of a husk that becomes an ally, the summoner's victim before an ally's attacker, and a stale summoner's-attacker memory; reason: task review (the planned tests could not fail without the guard-area filter, `mustSee` or the `keepsTarget` overrides; red runs shown for the guard-area and sight tests). |
 | 6 | `0aeda6f` | the tap pitch uses two `nextFloat()` locals (Error Prone `IdentityBinaryExpression` rejects `nextFloat() - nextFloat()`); `GOLEM_SPOT` is `FEET.east(4)` (at `east(3)` the golem's eyes sat in the barrier shell, its wall damage made a full golem hurt and the repair goal pulled vexes off their darts), with the dodge tests moved to match; after the task review: `RepairGolemGoal.canUse` prunes dead claim holders, `DodgeGolemGoal` also filters by distance (a 3-block sphere, not the cube; new test `dodgeIgnoresADiagonalSwingBeyondThreeBlocks`, red run shown), `GameTestSupport.drainOutbound` is shared, the flee Javadoc explains its one-block margin, and the four follow-only tests use a `followOnly` vex without target goals plus a state dump on `followsAgainAfterStay`'s failure (it flaked twice in about ten runs before, cause unproven, then passed 35 runs). 215 GameTests (214 + 1). Reason: implementer and task review. |
+| 7 | `4754fb1` | the docs match the plan; an extra test commit (`e336697`) adds two `CsvSource` rows that kill the two `FangFootprints.requireBox` boundary survivors (Part 1 code) the pitest run found, noted in the mutation row (264/268 killed, 99%; line coverage 270/284); reason: implementer, accepted by the task review. |
 
 ## Resume State
 
