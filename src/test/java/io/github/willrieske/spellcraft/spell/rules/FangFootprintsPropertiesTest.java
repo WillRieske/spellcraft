@@ -55,8 +55,8 @@ class FangFootprintsPropertiesTest {
             List<Column> expected = new ArrayList<>();
             for (int z = (int) Math.floor(minZ) - 1; z <= (int) Math.ceil(maxZ); z++) {
                 for (int x = (int) Math.floor(minX) - 1; x <= (int) Math.ceil(maxX); x++) {
-                    boolean xIn = (x + 1 > minX && x < maxX) || (width == 0.0 && x == (int) Math.floor(minX));
-                    boolean zIn = (z + 1 > minZ && z < maxZ) || (width == 0.0 && z == (int) Math.floor(minZ));
+                    boolean xIn = (x + 1 > minX && x < maxX) || (maxX == minX && x == (int) Math.floor(minX));
+                    boolean zIn = (z + 1 > minZ && z < maxZ) || (maxZ == minZ && z == (int) Math.floor(minZ));
                     if (xIn && zIn) {
                         expected.add(new Column(x, z));
                     }

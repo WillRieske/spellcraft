@@ -39,7 +39,7 @@ class GolemMercyRuleTest {
          * <p>Method under test: {@link GolemMercyRule#clamp(float, float)}
          */
         @Test
-        void atOrUnderTwentyFiveNothingLands() {
+        void atOrUnderTwentyFiveNothingLandsAndJustAboveLandsTheStep() {
             // Act & Assert
             assertThat(GolemMercyRule.clamp(25, 6)).isZero();
             assertThat(GolemMercyRule.clamp(20, 6)).isZero();
@@ -60,7 +60,7 @@ class GolemMercyRuleTest {
         }
 
         /**
-         * When health or damage is NaN or infinite, clamp should still answer a finite, non-negative value: NaN means
+         * When health or damage is NaN or infinite, clamp should still answer a non-negative value: NaN means
          * nothing lands, infinite damage lands the whole room, infinite health leaves every hit whole.
          *
          * <p>Method under test: {@link GolemMercyRule#clamp(float, float)}
@@ -72,6 +72,7 @@ class GolemMercyRuleTest {
             "50, Infinity, 25",
             "50, -Infinity, 0",
             "Infinity, 6, 6",
+            "Infinity, Infinity, Infinity",
             "-Infinity, 6, 0"
         })
         void nonFiniteInputsNeverThrow(float health, float damage, float expected) {

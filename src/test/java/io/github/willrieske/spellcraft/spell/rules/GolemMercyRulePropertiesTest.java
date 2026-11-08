@@ -72,7 +72,7 @@ class GolemMercyRulePropertiesTest {
         @Property
         void aHitThatLeavesMoreThanTwentyFiveIsNotForgiven(
                 @ForAll @FloatRange(min = 26.0f, max = 100.0f) float health,
-                @ForAll @FloatRange(min = 0.0f, max = 0.5f) float fraction) {
+                @ForAll @FloatRange(min = 0.0f, max = 0.99f) float fraction) {
             // Arrange: damage strictly less than the room above 25
             float damage = (health - GolemMercyRule.MERCY_HEALTH) * fraction;
             // Act
