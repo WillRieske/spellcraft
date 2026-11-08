@@ -1842,7 +1842,7 @@ Then `git log -1 --oneline` shows the commit.
 - Consumes: `AllyAttachments.SUMMONER` (existing); `TrailGameTests.A/C/D/floors/trailingPlayer/teleport/light/stepInto/assertSpared/assertBurned/forget` (existing package-private statics).
 - Produces: `Allies.isAllyOf` and `mayHaveAllies` with the two new kinds; `public static boolean isMadAt(IronGolem golem, Player owner)`; `GolemGameTests` with `registerAll()`, `SPOT`, `golem(helper, relative)` and `anger(golem, player)`, which Task 7 extends.
 
-- [ ] **Step 1: Write the GameTests (they compile only with Step 2's code)**
+- [x] **Step 1: Write the GameTests (they compile only with Step 2's code)**
 
 (a) `FangGameTests.e7BusyAndCooling`: a calm golem becomes an ally in this task, so it can no longer be the target. Replace
 
@@ -2036,7 +2036,7 @@ public final class GolemGameTests {
 
 (d) `SpellcraftGameTests` static block (lines 46–60): add `GolemGameTests.registerAll();` after `VexGameTests.registerAll();`.
 
-- [ ] **Step 2: Change `Allies`**
+- [x] **Step 2: Change `Allies`**
 
 Replace the file:
 
@@ -2139,7 +2139,7 @@ public final class Allies {
 }
 ```
 
-- [ ] **Step 3: Change `TrailFires.isSpared` and the block's Javadoc**
+- [x] **Step 3: Change `TrailFires.isSpared` and the block's Javadoc**
 
 In `TrailFires.java`, add to the end of the `isSpared` Javadoc (lines 372–383) the sentence "An iron golem is always spared once the flame has an owner (Evoking II §2.3)." and replace the body (lines 384–397) with
 
@@ -2175,7 +2175,7 @@ In `TrailFireBlock.java` line 90, change the Javadoc to
 
 (Spotless may wrap it.)
 
-- [ ] **Step 4: Build and run the GameTests**
+- [x] **Step 4: Build and run the GameTests**
 
 Run: `./gradlew spotlessApply --console=plain`
 Run: `./gradlew build --console=plain > build/build.log 2>&1; echo "exit=$?"; tail -40 build/build.log`
@@ -2183,7 +2183,7 @@ Expected: `exit=0`.
 Run (background): `./gradlew runGameTestServer --console=plain > build/runGameTestServer.log 2>&1; echo "exit=$?"; grep -n "FAILED\|passed\|failed" build/runGameTestServer.log | tail -20`
 Expected: `exit=0`; every test passes, `allies_a7_villagers_and_traders`, `golems_ii_allies_unless_mad`, `golems_ii_trail_spares_every_golem` and the pig-targeted `fangs_e7_busy_and_cooling` included.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/io/github/willrieske/spellcraft/spell/Allies.java src/main/java/io/github/willrieske/spellcraft/trailing/TrailFires.java src/main/java/io/github/willrieske/spellcraft/trailing/TrailFireBlock.java src/main/java/io/github/willrieske/spellcraft/gametest/FangGameTests.java src/main/java/io/github/willrieske/spellcraft/gametest/AlliesGameTests.java src/main/java/io/github/willrieske/spellcraft/gametest/GolemGameTests.java src/main/java/io/github/willrieske/spellcraft/gametest/SpellcraftGameTests.java
@@ -2194,6 +2194,8 @@ git commit -m "feat(allies): villagers, traders and calm iron golems are allies;
 ```
 
 Then `git log -1 --oneline` shows the commit.
+
+> **As built (`14b2545`):** matches plan.
 
 ---
 

@@ -59,3 +59,4 @@ f4e5a84 Task 2 done (FangFootprints): 11 focused tests pass; full build green (g
 18fbc02 Task 3 done (GolemMercyRule): 26 focused test runs pass; full build green (gate)
 6fd018f Task 4 done (fangs on Y): SpellAssetsTest 17/17; runData exit 0; full build green (gate)
 9cb7f71 Task 5 done (fangs under targets, chase): build green; runGameTestServer all 153 required passed; FangSquare properties restored in a fix round
+14b2545 Task 6 done (new allies, trail spares golems): build green; runGameTestServer all 156 required passed
