@@ -13,7 +13,9 @@ import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.evoking.EvokingCaster;
 import io.github.willrieske.spellcraft.evoking.EvokingCaster.Request;
 import io.github.willrieske.spellcraft.evoking.EvokingRequest;
+import io.github.willrieske.spellcraft.evoking.Fangs;
 import io.github.willrieske.spellcraft.particle.ModParticles;
+import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.rules.EvokerSpell;
 import io.github.willrieske.spellcraft.spell.rules.FangSquare;
 import io.netty.buffer.Unpooled;
@@ -40,6 +42,7 @@ import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.entity.monster.Ravager;
 import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.projectile.EvokerFangs;
 import net.minecraft.world.level.ChunkPos;
@@ -60,12 +63,13 @@ import net.neoforged.neoforge.network.connection.ConnectionType;
 
 /**
  * Fang GameTests for Strength of Evoking (spec §9, table E1–E7, E13–E18, E19 for the real tick subscriber, E21 for
- * the request codec and E22 for the server stop), driven through the public {@link EvokingCaster#request}. A mock
+ * the request codec and E22 for the server stop) and Evoking II Part 1 (the {@code fangs_ii_*} tests: fangs only under
+ * targets, the 14-down scan and the chase fang), driven through the public {@link EvokingCaster#request}. A mock
  * player is never ticked by the server (docs/api-notes.md §19), so the tests drive the caster with {@link #step}
  * inside each delayed callback, and E19 posts the player-tick event itself. Every test that places fangs registers
  * with padding 13 and {@link #PADDED_MAX_TICKS} (the body's 200 ticks plus the wait for the padded chunks; its padded
  * box is cleared to air, so {@link #floor} lays stone under the square). The caster stands at {@link #FEET}, the
- * structure's middle; targets are pigs or an iron golem (zombies burn in daylight).
+ * structure's middle; targets are pigs or a ravager (zombies burn in daylight; a calm iron golem is an ally).
  */
 public final class FangGameTests {
     /** The caster's block (relative): the middle of the 3×3×3 structure, one above its floor layer. */
@@ -119,6 +123,13 @@ public final class FangGameTests {
         addPadded(SHARED, "fangs_e23_death_cancels_the_notice", FangGameTests::e23DeathCancelsTheNotice);
         addPadded(SHARED, "fangs_e23_dead_request_ignored", FangGameTests::e23DeadRequestIgnored);
         addPadded(PVP_OFF, "fangs_e24_pvp_off_notice", FangGameTests::e24PvpOffNotice);
+        addPadded(SHARED, "fangs_ii_footprints", FangGameTests::iiFootprints);
+        addPadded(SHARED, "fangs_ii_scan_window", FangGameTests::iiScanWindow);
+        addPadded(SHARED, "fangs_ii_floating_targets", FangGameTests::iiFloatingTargets);
+        addPadded(SHARED, "fangs_ii_chase", FangGameTests::iiChase);
+        addPadded(SHARED, "fangs_ii_chase_once_per_target", FangGameTests::iiChaseOncePerTarget);
+        addPadded(SHARED, "fangs_ii_chase_range", FangGameTests::iiChaseRange);
+        addPadded(SHARED, "fangs_ii_chase_record_leaves_with_the_fang", FangGameTests::iiChaseRecordLeaves);
         addPadded(SERVER_STOP, "fangs_server_stop_drops_the_cast", FangGameTests::serverStopDropsTheCast);
         SpellcraftGameTests.add(SHARED, "fangs_request_codec_round_trip", FangGameTests::requestCodecRoundTrip);
     }
@@ -328,9 +339,9 @@ public final class FangGameTests {
     }
 
     /**
-     * When a caster facing north presses F with a target in the square, should the cast start, the casting effect
-     * sync its particle, and one warmup later one fang per cell stand on its floor (a carpet cell on the carpet's
-     * collision top), owned by the caster, with the ripple delay of its cell.
+     * When a caster facing north presses the key with a pig on a carpet in the square, should the cast start, the
+     * casting effect sync its particle, and one warmup later exactly one fang stand under the pig, on the carpet's
+     * collision top, owned by the caster, with no warmup delay.
      *
      * <p>Method under test: {@link EvokingCaster#request}
      */
@@ -340,7 +351,7 @@ public final class FangGameTests {
         BlockPos carpet = FEET.offset(3, 0, -4); // on the floor layer: its fang stands on the carpet's collision top
         helper.setBlock(carpet, Blocks.MOSS_CARPET);
         ServerPlayer player = caster(helper, NORTH);
-        pig(helper, FEET.north(5));
+        pig(helper, carpet);
 
         // Act & Assert
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
@@ -358,50 +369,26 @@ public final class FangGameTests {
                                 .contains(ModParticles.CASTING_FANGS.get()),
                         "the synced particle list carries the casting particle"));
         helper.runAfterDelay(WARMUP, () -> {
-            step(player); // the perform is due now: the fangs are placed by this call and have not ticked yet
+            step(player); // the perform is due now: the fang is placed by this call and has not ticked yet
             List<EvokerFangs> fangs = fangs(helper);
-            helper.assertValueEqual(fangs.size(), FangSquare.CELL_COUNT, "one fang per cell");
-            EvokerFangs nearest = null;
-            EvokerFangs farthest = null;
-            BlockPos feet = helper.absolutePos(FEET);
-            for (EvokerFangs fang : fangs) {
-                assertInside(helper, fang, -6, 6, -12, 0);
-                helper.assertTrue(
-                        fang.getOwner() != null && fang.getOwner().getUUID().equals(player.getUUID()),
-                        "the caster owns the fang");
-                BlockPos pos = fang.blockPosition();
-                if (pos.equals(feet.north())) {
-                    nearest = fang;
-                }
-                if (pos.equals(feet.offset(-6, 0, -12))) {
-                    farthest = fang;
-                }
-            }
-            EvokerFangs onCarpet = null;
-            for (EvokerFangs fang : fangs) {
-                if (fang.blockPosition().equals(helper.absolutePos(carpet))) {
-                    onCarpet = fang;
-                }
-            }
-            if (onCarpet == null) {
-                throw helper.assertionException("the carpet's cell holds a fang");
-            }
+            helper.assertValueEqual(fangs.size(), 1, "one fang, under the pig");
+            EvokerFangs fang = fangs.get(0);
+            assertInside(helper, fang, -6, 6, -12, 0);
+            helper.assertValueEqual(fang.blockPosition(), helper.absolutePos(carpet), "the fang is on the pig's block");
             helper.assertTrue(
-                    Math.abs(onCarpet.getY() - (helper.absolutePos(carpet).getY() + 1.0 / 16.0)) < 1.0E-6,
-                    "the fang on the carpet stands at the floor's collision top, one sixteenth up: " + onCarpet.getY());
-            if (nearest == null || farthest == null) {
-                throw helper.assertionException("the cell north of the caster and the far corner both hold a fang");
-            }
-            helper.assertValueEqual(
-                    savedInt(nearest, "Warmup"), 0, "the fang beside the caster has no warmup"); // none has ticked
-            helper.assertValueEqual(savedInt(farthest, "Warmup"), 11, "the far corner's fang waits 11 ticks");
+                    fang.getOwner() != null && fang.getOwner().getUUID().equals(player.getUUID()),
+                    "the caster owns the fang");
+            helper.assertTrue(
+                    Math.abs(fang.getY() - (helper.absolutePos(carpet).getY() + 1.0 / 16.0)) < 1.0E-6,
+                    "the fang stands at the carpet's collision top, one sixteenth up: " + fang.getY());
+            helper.assertValueEqual(savedInt(fang, "Warmup"), 0, "no ripple: the fang has no warmup"); // not ticked yet
             helper.succeed();
         });
     }
 
     /**
-     * When a caster facing north-east presses F with a target on the square's far corner and then walks on, should
-     * the fangs fill the corner square taken at the press (the edge is inside), not one from the live position.
+     * When a caster facing north-east presses the key with a target on the square's far corner and then walks on,
+     * should the one fang stand on the corner cell taken at the press, not one from the live position.
      *
      * <p>Method under test: {@link EvokingCaster#request}
      */
@@ -421,8 +408,9 @@ public final class FangGameTests {
 
             // Assert
             List<EvokerFangs> fangs = fangs(helper);
-            helper.assertValueEqual(fangs.size(), FangSquare.CELL_COUNT, "one fang per cell");
+            helper.assertValueEqual(fangs.size(), 1, "one fang, under the pig on the corner");
             fangs.forEach(fang -> assertInside(helper, fang, 0, 12, -12, 0));
+            helper.assertEntityPresent(EntityTypes.EVOKER_FANGS, FEET.offset(12, 0, -12));
             helper.succeed();
         });
     }
@@ -441,9 +429,12 @@ public final class FangGameTests {
         pig(helper, FEET.south(3)); // behind the caster: the square holds dz -12...0
         pig(helper, FEET.offset(0, 0, -13)); // one block past the far edge
         pig(helper, FEET.offset(7, 0, 0)); // one block past the east edge (dx -6...6)
-        pig(helper, FEET.offset(0, 8, -3)); // above the window: y in [feet-6, feet+7)
-        helper.setBlock(FEET.offset(0, -9, -3), Blocks.STONE); // a floor for the pig below the window
-        pig(helper, FEET.offset(0, -8, -3)); // below the window: its top is under feet-6
+        pig(helper, FEET.offset(0, 8, -3)); // above the window: y in [feet-14, feet+7)
+        helper.assertTrue(
+                helper.absolutePos(FEET).getY() - 17 > helper.getLevel().getMinY(),
+                "setup: the world has room 17 blocks under the caster");
+        helper.setBlock(FEET.offset(0, -17, -3), Blocks.STONE); // a floor for the pig below the window
+        pig(helper, FEET.offset(0, -16, -3)); // below the window: its top (0.9 tall) is under feet-14
         drainActionBar(player); // discard what joining the level sent
 
         // Act & Assert
@@ -711,8 +702,9 @@ public final class FangGameTests {
     }
 
     /**
-     * When the square has a pillar, a shallow hole with a pig in it and a hole too deep for the window, should the
-     * pillar cell's fang stand on top, the shallow hole's fang at its floor, and the deep hole get none.
+     * When the square has a pig on a one-block pillar, a pig at the bottom of a two-deep hole and a pig at the bottom
+     * of a five-deep hole (all within the 14-down scan), should each get one fang at its own floor height and no other
+     * cell get one.
      *
      * <p>Method under test: {@link Fangs#perform}
      */
@@ -728,7 +720,9 @@ public final class FangGameTests {
         helper.setBlock(deepHole.below(), Blocks.AIR);
         helper.setBlock(deepHole.below(6), Blocks.STONE);
         ServerPlayer player = caster(helper, NORTH);
+        pig(helper, pillar.above());
         pig(helper, shallowHole.below(2));
+        pig(helper, deepHole.below(5));
 
         // Act
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
@@ -738,8 +732,8 @@ public final class FangGameTests {
             // Assert
             helper.assertEntityPresent(EntityTypes.EVOKER_FANGS, pillar.above());
             helper.assertEntityPresent(EntityTypes.EVOKER_FANGS, shallowHole.below(2));
-            helper.assertEntityNotPresent(EntityTypes.EVOKER_FANGS, deepHole);
-            helper.assertValueEqual(fangs(helper).size(), FangSquare.CELL_COUNT - 1, "every other cell has a fang");
+            helper.assertEntityPresent(EntityTypes.EVOKER_FANGS, deepHole.below(5));
+            helper.assertValueEqual(fangs(helper).size(), 3, "one fang per pig and none elsewhere");
             helper.succeed();
         });
     }
@@ -764,7 +758,7 @@ public final class FangGameTests {
 
     /**
      * When the server posts the player-tick event after the warmup, should the real subscriber perform the cast:
-     * one fang per cell.
+     * one fang under the pig.
      *
      * <p>Method under test: {@link EvokingCaster#onPlayerTick}
      */
@@ -779,7 +773,7 @@ public final class FangGameTests {
             NeoForge.EVENT_BUS.post(new PlayerTickEvent.Post(player));
 
             // Assert
-            helper.assertValueEqual(fangs(helper).size(), FangSquare.CELL_COUNT, "one fang per cell");
+            helper.assertValueEqual(fangs(helper).size(), 1, "one fang, under the pig");
             helper.succeed();
         });
     }
@@ -901,24 +895,320 @@ public final class FangGameTests {
 
     /**
      * When the server stops between the press and the perform, should the cast be dropped: no fangs once the
-     * warmup has passed (the map is transient, like {@code TrailLayer}'s trackers).
+     * warmup has passed (the map is transient, like {@code TrailLayer}'s trackers). When it stops after a fang with a
+     * chase record was placed, should the record be gone too.
      *
-     * <p>Method under test: {@link EvokingCaster#onServerStopped}
+     * <p>Method under test: {@link EvokingCaster#onServerStopped}, and {@link Fangs#onServerStopped}
      */
     static void serverStopDropsTheCast(GameTestHelper helper) {
         // Arrange
         floor(helper, NORTH);
         ServerPlayer player = caster(helper, NORTH);
         pig(helper, FEET.north(5));
+        ServerStoppedEvent stopped = new ServerStoppedEvent(helper.getLevel().getServer());
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
 
         // Act
-        EvokingCaster.onServerStopped(new ServerStoppedEvent(helper.getLevel().getServer()));
+        EvokingCaster.onServerStopped(stopped);
 
         // Assert
         helper.runAfterDelay(WARMUP + 2, () -> {
             step(player); // past the perform time, but the entry is gone: nothing to perform
             helper.assertTrue(fangs(helper).isEmpty(), "no fangs after the server stopped");
+        });
+        // Arrange: a second cast that performs, so a fang carries a chase record
+        helper.runAfterDelay(WARMUP + EvokerSpell.FANGS.intervalTicks(), () -> {
+            step(player);
+            helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "second cast");
+        });
+        helper.runAfterDelay(2 * WARMUP + EvokerSpell.FANGS.intervalTicks(), () -> {
+            step(player);
+            List<EvokerFangs> fangs = fangs(helper);
+            helper.assertValueEqual(fangs.size(), 1, "the second cast placed its fang");
+            helper.assertTrue(Fangs.hasChaseRecord(fangs.get(0)), "setup: the fang has a chase record");
+
+            // Act
+            Fangs.onServerStopped(stopped);
+
+            // Assert
+            helper.assertFalse(Fangs.hasChaseRecord(fangs.get(0)), "the stop dropped the chase record");
+            helper.succeed();
+        });
+    }
+
+    /**
+     * When the square holds a ravager (1.95 wide, on a block center), a pig, two pigs stacked in one column on one
+     * floor, and two pigs in one column on different floors (one on the ground, one on a ledge three blocks up),
+     * should one fang rise under every block the ravager covers (3×3), one under the lone pig, one for the stacked
+     * pair (same spot: duplicates collapse), two for the ledge pair (different floors), and none on an empty cell:
+     * thirteen in all.
+     *
+     * <p>Method under test: {@link Fangs#snapshot}, through {@link EvokingCaster#request}
+     */
+    static void iiFootprints(GameTestHelper helper) {
+        // Arrange
+        floor(helper, NORTH);
+        ServerPlayer player = caster(helper, NORTH);
+        BlockPos ravagerBlock = FEET.offset(0, 0, -6);
+        Ravager ravager = helper.spawn(EntityTypes.RAVAGER, ravagerBlock);
+        ravager.setNoAi(true);
+        BlockPos lonePig = FEET.offset(4, 0, -3);
+        pig(helper, lonePig);
+        BlockPos stacked = FEET.offset(-4, 0, -3);
+        pig(helper, stacked);
+        pig(helper, stacked.above()); // its box covers the same column and its floor search finds the same floor
+        BlockPos ground = FEET.offset(-4, 0, -8);
+        BlockPos ledge = ground.above(2); // a stone ledge two blocks over the ground pig's head
+        helper.setBlock(ledge, Blocks.STONE);
+        pig(helper, ground);
+        pig(helper, ledge.above()); // standing on the ledge: a different floor in the same column
+
+        // Act
+        helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
+        helper.runAfterDelay(WARMUP, () -> {
+            step(player);
+
+            // Assert
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    helper.assertEntityPresent(EntityTypes.EVOKER_FANGS, ravagerBlock.offset(dx, 0, dz));
+                }
+            }
+            helper.assertEntityPresent(EntityTypes.EVOKER_FANGS, lonePig);
+            helper.assertEntityPresent(EntityTypes.EVOKER_FANGS, stacked);
+            helper.assertEntityPresent(EntityTypes.EVOKER_FANGS, ground);
+            helper.assertEntityPresent(EntityTypes.EVOKER_FANGS, ledge.above());
+            helper.assertValueEqual(
+                    fangs(helper).size(), 13, "9 under the ravager, 1 under the pig, 1 for the stack, 2 for the ledge");
+            ravager.discard();
+            helper.succeed();
+        });
+    }
+
+    /**
+     * When one pig stands 14 blocks below the caster and one 6 above (the last blocks inside the scan), while one
+     * stands 15 below and one 7 above (the first blocks outside), should the two outside ones alone give the
+     * no-targets answer, and with the two inside ones added the cast start and place a fang under each, at its own
+     * height.
+     *
+     * <p>Method under test: {@link Fangs#snapshot}, through {@link EvokingCaster#request}
+     */
+    static void iiScanWindow(GameTestHelper helper) {
+        // Arrange
+        floor(helper, NORTH);
+        helper.assertTrue(
+                helper.absolutePos(FEET).getY() - 17 > helper.getLevel().getMinY(),
+                "setup: the world has room 17 blocks under the caster");
+        ServerPlayer player = caster(helper, NORTH);
+        BlockPos tooDeep = FEET.offset(-3, -15, -3);
+        BlockPos tooHigh = FEET.offset(3, 7, -3);
+        helper.setBlock(tooDeep.below(), Blocks.STONE);
+        helper.setBlock(tooHigh.below(), Blocks.STONE);
+        pig(helper, tooDeep); // its top is under feet-14
+        pig(helper, tooHigh); // its feet are at feet+7, the window's open end
+
+        // Act & Assert: the two outside the window
+        helper.assertValueEqual(
+                EvokingCaster.request(player, EvokerSpell.FANGS), Request.NO_TARGETS, "15 down and 7 up are outside");
+
+        // Arrange: the two inside
+        BlockPos deep = FEET.offset(-3, -14, -5);
+        BlockPos high = FEET.offset(3, 6, -5);
+        helper.setBlock(deep.below(), Blocks.STONE);
+        helper.setBlock(high.below(), Blocks.STONE);
+        pig(helper, deep);
+        pig(helper, high);
+
+        // Act & Assert: the cast finds them and the fangs stand at their heights
+        helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "14 down and 6 up");
+        helper.runAfterDelay(WARMUP, () -> {
+            step(player);
+            List<EvokerFangs> fangs = helper.getLevel()
+                    .getEntitiesOfClass(
+                            EvokerFangs.class, new AABB(helper.absolutePos(FEET)).inflate(14.0, 20.0, 14.0));
+            helper.assertValueEqual(fangs.size(), 2, "one fang per pig inside the window");
+            helper.assertEntityPresent(EntityTypes.EVOKER_FANGS, deep);
+            helper.assertEntityPresent(EntityTypes.EVOKER_FANGS, high);
+            helper.succeed();
+        });
+    }
+
+    /**
+     * When a pig hangs two blocks over the floor (inside the floor window) and another three blocks over it (outside),
+     * should the first get a fang on the floor under it and the second none: the floor search runs from one block
+     * above a target's feet to two below.
+     *
+     * <p>Method under test: {@link Fangs#snapshot}
+     */
+    static void iiFloatingTargets(GameTestHelper helper) {
+        // Arrange
+        floor(helper, NORTH);
+        ServerPlayer player = caster(helper, NORTH);
+        BlockPos twoUp = FEET.offset(-4, 2, -3); // feet two blocks over the floor at FEET.y
+        BlockPos threeUp = FEET.offset(4, 3, -3);
+        pig(helper, twoUp); // a no-AI pig does not fall
+        pig(helper, threeUp);
+
+        // Act
+        helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
+        helper.runAfterDelay(WARMUP, () -> {
+            step(player);
+
+            // Assert
+            helper.assertEntityPresent(EntityTypes.EVOKER_FANGS, FEET.offset(-4, 0, -3));
+            helper.assertEntityNotPresent(EntityTypes.EVOKER_FANGS, FEET.offset(4, 0, -3));
+            helper.assertValueEqual(fangs(helper).size(), 1, "only the pig within two blocks of a floor gets a fang");
+            helper.succeed();
+        });
+    }
+
+    /**
+     * When a pig steps three blocks east after its fang is placed and before it bites, should one chase fang rise under
+     * the pig's new block on the bite tick, a second move give no further fang, and a pig that became the caster's
+     * ally after the press get no chase.
+     *
+     * <p>Method under test: {@link Fangs#onEntityTick}
+     */
+    static void iiChase(GameTestHelper helper) {
+        // Arrange
+        floor(helper, NORTH);
+        ServerPlayer player = caster(helper, NORTH);
+        BlockPos start = FEET.north(5);
+        Pig runner = pig(helper, start);
+        BlockPos allyStart = FEET.offset(-3, 0, -3);
+        Pig turnedAlly = pig(helper, allyStart);
+        float runnerHealth = runner.getHealth();
+
+        // Act
+        helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
+        helper.runAfterDelay(WARMUP, () -> {
+            step(player);
+            helper.assertValueEqual(fangs(helper).size(), 2, "one fang under each pig");
+            // Both pigs move before the bite (the fangs' 8th tick); one has become an ally meanwhile.
+            Vec3 moved = helper.absoluteVec(new Vec3(start.getX() + 3.5, start.getY(), start.getZ() + 0.5));
+            runner.teleportTo(moved.x, moved.y, moved.z);
+            turnedAlly.setData(AllyAttachments.SUMMONER, player.getUUID());
+            Vec3 allyMoved =
+                    helper.absoluteVec(new Vec3(allyStart.getX() + 2.5, allyStart.getY(), allyStart.getZ() + 0.5));
+            turnedAlly.teleportTo(allyMoved.x, allyMoved.y, allyMoved.z);
+        });
+        helper.runAfterDelay(WARMUP + Fangs.BITE_TICK + 2, () -> {
+            // Assert: one chase fang, under the runner's new block, none for the ally
+            helper.assertEntityPresent(EntityTypes.EVOKER_FANGS, start.east(3));
+            helper.assertEntityNotPresent(EntityTypes.EVOKER_FANGS, allyStart.east(2));
+            helper.assertValueEqual(fangs(helper).size(), 3, "the two first fangs and one chase fang");
+            // Act: the runner moves again before the chase fang bites
+            Vec3 again = helper.absoluteVec(new Vec3(start.getX() + 5.5, start.getY(), start.getZ() + 0.5));
+            runner.teleportTo(again.x, again.y, again.z);
+        });
+        helper.runAfterDelay(WARMUP + 2 * Fangs.BITE_TICK + 4, () -> {
+            // Assert: no second chase; the first fangs may have died by now, so check only the new cell
+            helper.assertEntityNotPresent(EntityTypes.EVOKER_FANGS, start.east(5));
+            helper.assertValueEqual(runner.getHealth(), runnerHealth, "a chase fang never chases; the runner escaped");
+            helper.succeed();
+        });
+    }
+
+    /**
+     * When a ravager with nine fangs under it steps four blocks east before they bite, should exactly nine chase fangs
+     * rise under its new footprint (the nine first fangs settle one chase, not nine); when a pig shifts within its own
+     * block, should no chase fang rise (it still stands on its column).
+     *
+     * <p>Method under test: {@link Fangs#onEntityTick}
+     */
+    static void iiChaseOncePerTarget(GameTestHelper helper) {
+        // Arrange
+        floor(helper, NORTH);
+        ServerPlayer player = caster(helper, NORTH);
+        BlockPos ravagerBlock = FEET.offset(-2, 0, -6);
+        Ravager ravager = helper.spawn(EntityTypes.RAVAGER, ravagerBlock);
+        ravager.setNoAi(true);
+        BlockPos pigBlock = FEET.offset(4, 0, -3);
+        Pig shifter = pig(helper, pigBlock);
+        whenDone(helper, ravager::discard);
+
+        // Act
+        helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
+        helper.runAfterDelay(WARMUP, () -> {
+            step(player);
+            helper.assertValueEqual(fangs(helper).size(), 10, "nine under the ravager, one under the pig");
+            Vec3 east = helper.absoluteVec(
+                    new Vec3(ravagerBlock.getX() + 4.5, ravagerBlock.getY(), ravagerBlock.getZ() + 0.5));
+            ravager.teleportTo(east.x, east.y, east.z);
+            Vec3 shifted = helper.absoluteVec(new Vec3(pigBlock.getX() + 0.8, pigBlock.getY(), pigBlock.getZ() + 0.2));
+            shifter.teleportTo(shifted.x, shifted.y, shifted.z); // still inside its block
+        });
+        helper.runAfterDelay(WARMUP + Fangs.BITE_TICK + 2, () -> {
+            // Assert
+            for (int dx = 3; dx <= 5; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    helper.assertEntityPresent(EntityTypes.EVOKER_FANGS, ravagerBlock.offset(dx, 0, dz));
+                }
+            }
+            helper.assertValueEqual(fangs(helper).size(), 19, "ten first fangs and exactly nine chase fangs");
+            helper.succeed();
+        });
+    }
+
+    /**
+     * When the caster has walked more than 16 blocks from a pig by the time its fang bites, and the pig has stepped off
+     * its block, should no chase fang rise.
+     *
+     * <p>Method under test: {@link Fangs#onEntityTick}
+     */
+    static void iiChaseRange(GameTestHelper helper) {
+        // Arrange
+        floor(helper, NORTH);
+        ServerPlayer player = caster(helper, NORTH);
+        BlockPos start = FEET.north(5);
+        Pig runner = pig(helper, start);
+
+        // Act
+        helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
+        helper.runAfterDelay(WARMUP, () -> {
+            step(player);
+            helper.assertValueEqual(fangs(helper).size(), 1, "one fang under the pig");
+            // The caster walks 12 blocks south (still inside the padded, ticking box): 17 blocks from the pig.
+            MockPlayers.moveTo(helper, player, STAND.add(0, 0, 12), NORTH);
+            Vec3 moved = helper.absoluteVec(new Vec3(start.getX() + 2.5, start.getY(), start.getZ() + 0.5));
+            runner.teleportTo(moved.x, moved.y, moved.z);
+            helper.assertTrue(player.distanceTo(runner) > Fangs.CHASE_RANGE, "setup: the pig is out of chase range");
+        });
+        helper.runAfterDelay(WARMUP + Fangs.BITE_TICK + 2, () -> {
+            // Assert
+            helper.assertEntityNotPresent(EntityTypes.EVOKER_FANGS, start.east(2));
+            helper.assertValueEqual(fangs(helper).size(), 1, "no chase fang beyond 16 blocks");
+            helper.succeed();
+        });
+    }
+
+    /**
+     * When a fang with a chase record bites and then dies of age, should its record exist while it lives and be gone
+     * once the fang is removed.
+     *
+     * <p>Method under test: {@link Fangs#onEntityLeave}
+     */
+    static void iiChaseRecordLeaves(GameTestHelper helper) {
+        // Arrange
+        floor(helper, NORTH);
+        ServerPlayer player = caster(helper, NORTH);
+        pig(helper, FEET.north(5));
+        EvokerFangs[] placed = new EvokerFangs[1];
+
+        // Act
+        helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "request");
+        helper.runAfterDelay(WARMUP, () -> {
+            step(player);
+            List<EvokerFangs> fangs = fangs(helper);
+            helper.assertValueEqual(fangs.size(), 1, "one fang");
+            placed[0] = fangs.get(0);
+            helper.assertTrue(Fangs.hasChaseRecord(placed[0]), "the fang has a chase record while it lives");
+        });
+        // A fang with delay 0 bites on its 8th tick and discards itself on its 23rd (docs/api-notes.md §20).
+        helper.runAfterDelay(WARMUP + 40, () -> {
+            // Assert
+            helper.assertTrue(placed[0].isRemoved(), "the fang died of age");
+            helper.assertFalse(Fangs.hasChaseRecord(placed[0]), "its record left with it");
             helper.succeed();
         });
     }
