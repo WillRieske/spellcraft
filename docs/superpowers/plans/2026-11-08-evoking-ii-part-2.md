@@ -761,7 +761,7 @@ What changes in each modified file is in the steps below. **This task's commit i
 - Consumes: `VexCap.toSummon`, `GuardArea.REACH/HALF_WIDTH/HALF_HEIGHT/contains/withinReach` (Task 2); `AllyAttachments.SUMMONER`, `Allies.isAllyOf` (Part 1); `VexRing.offset/COUNT/SUMMON_COUNT`; api-notes §21.
 - Produces: `ModEntities.BOUND_VEX` (`DeferredHolder<EntityType<?>, EntityType<BoundVex>>`); `BoundVex` with `isStaying()`, `setStaying(boolean)`, `summonerId()` → `Optional<UUID>`, `isSummonedBy(UUID)`, `summoner()` → `Optional<ServerPlayer>` (online, alive, in this level), static `isPrey(ServerLevel, UUID, LivingEntity)`, `isPrey(LivingEntity)` (false without a `summoner()`), public `inGuardArea(Entity)` (the closed 8×8×7 box, through `GuardArea.contains`), package-private `scanDue(int interval)` (the goal clock: `(tickCount + getId()) % interval == 0`), `keepsTarget(@Nullable LivingEntity)` (alive, `canAttack`, prey, within reach), `withinReach(Entity)`, `guardArea()` → `AABB` (the broad-phase box for entity queries only; filter its hits through `inGuardArea`), static `countOwnedBy(MinecraftServer, UUID)` → int, and `registerGoals()` where Tasks 4–6 add lines; `VexSummons.summon(ServerLevel, ServerPlayer)` and `summon(ServerLevel, ServerPlayer, int count)` → `List<BoundVex>`; `EvokingCaster.Request.CAPPED`, `EvokingCaster.TOO_MANY_KEY`; GameTest helpers `BoundVexGameTests.boundVex(helper, relative, summoner)`, `parked(helper, relative, summoner)`, `husk(helper, relative)`, constants `VEX_SPOT`, `PREY_SPOT`, `NORTH`.
 
-- [ ] **Step 1: The entity, its registration and its renderer**
+- [x] **Step 1: The entity, its registration and its renderer**
 
 `src/main/java/io/github/willrieske/spellcraft/evoking/ModEntities.java`:
 
@@ -1297,7 +1297,7 @@ and after the `message.spellcraft.peaceful_vexes` line:
   "message.spellcraft.too_many_vexes": "You have too many vexes",
 ```
 
-- [ ] **Step 2: Summon Bound Vexes, count them at the press**
+- [x] **Step 2: Summon Bound Vexes, count them at the press**
 
 Replace `src/main/java/io/github/willrieske/spellcraft/evoking/VexSummons.java` with:
 
@@ -1415,7 +1415,7 @@ In `EvokingCaster.java`:
 
 In `VexRing.java`, remove `LIFE_ROLL_BOUND`, `TICKS_PER_SECOND`, `MIN_LIFE_SECONDS` and `lifeTicks` and the "and how long they live … the evoker's life formula" words of the class Javadoc; in `src/test/java/io/github/willrieske/spellcraft/spell/rules/VexRingTest.java` remove the `LifeTicks` nested class (no other test names `lifeTicks`). After Step 3's `VexGameTests` edits, `grep -rn "lifeTicks\|LIFE_ROLL_BOUND" src/test src/main` must find nothing.
 
-- [ ] **Step 3: The GameTests**
+- [x] **Step 3: The GameTests**
 
 In `SpellcraftGameTests.java`'s static block, add `BoundVexGameTests.registerAll();` after `VexGameTests.registerAll();`.
 
@@ -1907,7 +1907,7 @@ public final class BoundVexGameTests {
 
 `Husk` is `net.minecraft.world.entity.monster.zombie.Husk`. `EvokingGameTests.evoking()` is the effect instance `FangGameTests.caster` uses; it is package-private, so it is reachable here. The padded tests use `FangGameTests.caster` (it loads the padding and stands the player at the box's middle); `FangGameTests.toNether` needs the Evoking effect `caster` gives, and its cleanup discards every vex near the Nether pocket.
 
-- [ ] **Step 4: Format, build, GameTests, client load**
+- [x] **Step 4: Format, build, GameTests, client load**
 
 Run: `./gradlew spotlessApply --console=plain`, then `./gradlew build --console=plain > build/build.log 2>&1; echo "exit=$?"; tail -40 build/build.log`
 Expected: `exit=0`. Unit tests: the `VexRingTest` life group is gone; everything else green.
@@ -1918,7 +1918,7 @@ Expected: `exit=0`, `All N required tests passed` with N = 164 − 5 removed + 1
 Run: `./gradlew runData --console=plain > build/runData.log 2>&1; echo "exit=$?"; tail -20 build/runData.log`
 Expected: `exit=0` (the client subscriber `BoundVexRenderers` and `ModEntities` load; `EvokingArmPoseCheck` still passes).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/io/github/willrieske/spellcraft/Spellcraft.java src/main/java/io/github/willrieske/spellcraft/evoking/ModEntities.java src/main/java/io/github/willrieske/spellcraft/evoking/BoundVex.java src/main/java/io/github/willrieske/spellcraft/evoking/VexSummons.java src/main/java/io/github/willrieske/spellcraft/evoking/EvokingCaster.java src/main/java/io/github/willrieske/spellcraft/client/evoking/BoundVexRenderers.java src/main/java/io/github/willrieske/spellcraft/spell/rules/VexRing.java src/main/resources/assets/spellcraft/lang/en_us.json src/main/java/io/github/willrieske/spellcraft/gametest/SpellcraftGameTests.java src/main/java/io/github/willrieske/spellcraft/gametest/VexGameTests.java src/main/java/io/github/willrieske/spellcraft/gametest/AlliesGameTests.java src/main/java/io/github/willrieske/spellcraft/gametest/BoundVexGameTests.java src/test/java/io/github/willrieske/spellcraft/spell/rules/VexRingTest.java
@@ -1929,6 +1929,8 @@ git commit -m "feat(evoking): add the Bound Vex, summon it on V with a cap of tw
 ```
 
 Then `git log -1 --oneline` shows the commit.
+
+> **As built (`66c82f6`):** diverged — `BoundVex` also imports `net.minecraft.world.level.Level` (the plan's constructor used it unimported); `capCountsEveryLevel` polls with `helper.succeedWhen` (count first, then `CAPPED`) instead of asserting at once, because a vex summoned in the tick that forces its Nether chunk is not in `ServerLevel.getEntities` until the ticket takes effect; production code as planned; reason: implementer, accepted by the task review.
 
 ---
 
@@ -4288,6 +4290,7 @@ Then `git log -1 --oneline` shows the commit. If the sweep changed a Java Javado
 | Task | SHA | Divergence |
 |---|---|---|
 | 2 | `78efc58` | `reachIsASphere` adds `@Scale(3)` to its yaw and pitch parameters; reason: jqwik's default scale of 2 rejects the three-decimal `@DoubleRange` bounds (6.283, 1.57), so the test as written could not run; intent unchanged (implementer, accepted by the task review). |
+| 3 | `66c82f6` | `BoundVex` also imports `net.minecraft.world.level.Level` (the plan's constructor used it unimported); `capCountsEveryLevel` polls with `helper.succeedWhen` (count first, then `CAPPED`) instead of asserting at once, because a vex summoned in the tick that forces its Nether chunk is not in `ServerLevel.getEntities` until the ticket takes effect; production code as planned; reason: implementer, accepted by the task review. |
 
 ## Resume State
 
