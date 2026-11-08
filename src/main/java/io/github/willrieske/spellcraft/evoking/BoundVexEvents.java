@@ -121,5 +121,6 @@ public final class BoundVexEvents {
     @SubscribeEvent
     public static void onServerStopped(ServerStoppedEvent event) {
         FOLLOWERS.clear();
+        RepairGolemGoal.clearClaims();
     }
 }

@@ -90,7 +90,10 @@ public class BoundVex extends Vex {
      */
     @Override
     protected void registerGoals() {
+        goalSelector.addGoal(0, new FleeCreeperGoal(this));
+        goalSelector.addGoal(0, new DodgeGolemGoal(this));
         goalSelector.addGoal(0, new FloatGoal(this));
+        goalSelector.addGoal(2, new RepairGolemGoal(this));
         goalSelector.addGoal(3, new ChargeGoal());
         goalSelector.addGoal(4, new FollowSummonerGoal(this));
         goalSelector.addGoal(5, new StayWanderGoal());

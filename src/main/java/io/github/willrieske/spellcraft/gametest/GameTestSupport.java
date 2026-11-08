@@ -16,9 +16,11 @@ import net.minecraft.gametest.framework.GameTestRunner;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -76,6 +78,25 @@ public final class GameTestSupport {
             }
         }
         return messages;
+    }
+
+    /**
+     * Empties the mock player's outbound packet buffer, as {@link #drainActionBar} does, and returns the sounds it was
+     * sent ({@code ClientboundSoundPacket}s: what {@code Entity.playSound} on the server broadcasts to players within
+     * 16 blocks). Draining drops every other packet too.
+     */
+    public static List<SoundEvent> drainSounds(ServerPlayer player) {
+        List<SoundEvent> sounds = new ArrayList<>();
+        EmbeddedChannel channel =
+                (EmbeddedChannel) player.connection.getConnection().channel();
+        player.connection.getConnection().flushChannel();
+        Object packet;
+        while ((packet = channel.readOutbound()) != null) {
+            if (packet instanceof ClientboundSoundPacket sound) {
+                sounds.add(sound.getSound().value());
+            }
+        }
+        return sounds;
     }
 
     /**

@@ -22,10 +22,13 @@ import java.util.TreeMap;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
@@ -35,6 +38,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
+import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.monster.Creeper;
@@ -44,6 +48,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.NeoForge;
@@ -211,6 +216,25 @@ public final class BoundVexGameTests {
                 LONG,
                 0,
                 BoundVexGameTests::ignoresAStaleAttackerOfTheSummoner);
+        FangGameTests.addPadded(SHARED, "bound_vex_flees_a_hissing_creeper", BoundVexGameTests::fleesAHissingCreeper);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_flee_ignores_a_calm_or_far_creeper",
+                BoundVexGameTests::fleeIgnoresACalmOrFarCreeper);
+        FangGameTests.addPadded(SHARED, "bound_vex_dodges_a_golems_swing", BoundVexGameTests::dodgesAGolemsSwing);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_dodge_ignores_a_swing_away_or_far", BoundVexGameTests::dodgeIgnoresASwingAwayOrFar);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_repairs_a_hurt_ally_golem", BoundVexGameTests::repairsAHurtAllyGolem);
+        FangGameTests.addPadded(SHARED, "bound_vex_repairs_two_golems_apart", BoundVexGameTests::repairsTwoGolemsApart);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_repair_claim_frees_when_the_vex_is_gone",
+                BoundVexGameTests::claimFreesWhenTheVexIsGone);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_a_fight_interrupts_a_repair", BoundVexGameTests::fightInterruptsARepair);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_no_repair_for_a_mad_or_full_golem", BoundVexGameTests::noRepairForAMadOrFullGolem);
     }
 
     /**
@@ -1511,6 +1535,336 @@ public final class BoundVexGameTests {
                         () -> helper.assertTrue(vex.getTarget() == null, "a stale attacker is forgotten"))
                 .thenExecute(() -> player.setLastHurtByMob(husk))
                 .thenWaitUntil(() -> helper.assertTrue(targets(vex, husk), "a fresh memory makes the husk the target"))
+                .thenSucceed();
+    }
+
+    /** The flee goal's safe distance (spec §3.5); the goal is package-private in {@code evoking}. */
+    private static final double SAFE_DISTANCE = 8.0;
+
+    /** The flee goal's notice range ({@code FleeCreeperGoal.NOTICE_RANGE}, spec §3.5). */
+    private static final double FLEE_NOTICE_RANGE = 8.0;
+
+    /**
+     * Where the golem tests stand the golem: four blocks east of the box's middle, in the padding. Not three: a golem
+     * is 1.4 wide and 2.7 tall, and its eyes would then sit in the box's barrier shell (x = 3), which hurts it
+     * ("inWall", 1 health per tick or so), so a "full" golem would soon need repair.
+     */
+    private static final BlockPos GOLEM_SPOT = FEET.east(4);
+
+    /**
+     * A creeper with no AI whose fuse is so long that it hisses without exploding once {@code setSwellDir(1)} is
+     * called: the fuse is the {@code Fuse} short tag, written over the creeper's own save and loaded back.
+     */
+    private static Creeper patientCreeper(GameTestHelper helper, BlockPos relative) {
+        Creeper creeper = helper.spawn(EntityTypes.CREEPER, relative);
+        creeper.setNoAi(true);
+        CompoundTag tag = GameTestSupport.saved(creeper);
+        tag.putShort("Fuse", Short.MAX_VALUE);
+        creeper.load(TagValueInput.create(
+                ProblemReporter.DISCARDING, helper.getLevel().registryAccess(), tag));
+        whenDone(helper, creeper::discard);
+        return creeper;
+    }
+
+    /**
+     * A golem with no AI at {@code relative} and {@code health}, standing on a stone block (the padded box is air), and
+     * discarded when the test ends (it stands in the padding, outside the structure's own cleanup).
+     */
+    private static IronGolem golemOnStone(GameTestHelper helper, BlockPos relative, float health) {
+        helper.setBlock(relative.below(), Blocks.STONE);
+        IronGolem golem = GolemGameTests.golem(helper, relative, health);
+        whenDone(helper, golem::discard);
+        return golem;
+    }
+
+    /** {@link #boundVex} without its follow goal, so it stays where a repair test puts it until a job moves it. */
+    private static BoundVex unleashed(GameTestHelper helper, BlockPos relative, ServerPlayer summoner) {
+        BoundVex vex = boundVex(helper, relative, summoner);
+        vex.goalSelector.removeAllGoals(goal -> goal instanceof FollowSummonerGoal);
+        return vex;
+    }
+
+    /** Turns {@code golem}'s body and head to {@code yaw} (−90 east, 90 west, 0 south, 180 north). */
+    private static void face(IronGolem golem, float yaw) {
+        golem.setYRot(yaw);
+        golem.setYHeadRot(yaw);
+        golem.yBodyRot = yaw;
+    }
+
+    /**
+     * When a creeper two blocks from a following Bound Vex starts swelling, should fly to eight blocks from it and hold;
+     * when the creeper calms down, should come back to the summoner.
+     *
+     * <p>Method under test: {@code FleeCreeperGoal} (package-private), through the goal selector
+     */
+    static void fleesAHissingCreeper(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        Creeper creeper = patientCreeper(helper, FEET.north(4));
+        BoundVex vex = boundVex(helper, FEET.north(2), player);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecute(() -> creeper.setSwellDir(1))
+                .thenWaitUntil(() -> helper.assertTrue(
+                        vex.distanceTo(creeper) >= SAFE_DISTANCE,
+                        "eight blocks from the creeper, got " + vex.distanceTo(creeper)))
+                .thenExecuteFor(
+                        20, () -> helper.assertTrue(vex.distanceTo(creeper) >= SAFE_DISTANCE - 1.0, "holds there"))
+                .thenExecute(() -> creeper.setSwellDir(-1))
+                .thenWaitUntil(() -> helper.assertTrue(
+                        vex.distanceTo(player) <= FollowSummonerGoal.ORBIT_MAX + 1.0,
+                        "back with the summoner once the creeper calms"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a calm creeper hovers two blocks from a Bound Vex and a swelling one about 8.5 blocks away (outside the
+     * eight-block range but inside the cube a box query covers), should stay with its summoner for forty ticks; once
+     * the near creeper swells, should flee it (the control).
+     *
+     * <p>Method under test: {@code FleeCreeperGoal} (package-private): the swelling and range filters
+     */
+    static void fleeIgnoresACalmOrFarCreeper(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = boundVex(helper, FEET.north(2), player);
+        Creeper near = patientCreeper(helper, FEET.north(4));
+        Creeper far = patientCreeper(helper, FEET.offset(6, 0, 4)); // (6, 0, 6) from the vex: about 8.49 blocks
+        far.setSwellDir(1);
+        helper.assertTrue(vex.distanceTo(far) > FLEE_NOTICE_RANGE, "setup: the swelling creeper is out of range");
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        TARGET_WINDOW,
+                        () -> helper.assertTrue(
+                                vex.distanceTo(player) <= FollowSummonerGoal.ORBIT_MAX,
+                                "stays with the summoner, got " + vex.distanceTo(player)))
+                .thenExecute(() -> near.setSwellDir(1))
+                .thenWaitUntil(() -> helper.assertTrue(
+                        vex.distanceTo(near) >= SAFE_DISTANCE, "flees the near creeper once it swells"))
+                .thenSucceed();
+    }
+
+    /**
+     * When an iron golem two blocks from a Bound Vex swings with its head facing it, should dart two to four and a half
+     * blocks sideways (perpendicular to the golem's look; the dart is three) within twelve ticks and not away from it.
+     * The summoner stands two blocks east of the vex, so the follow goal is idle on either side of the dart (about 3.6
+     * blocks away).
+     *
+     * <p>Method under test: {@code DodgeGolemGoal} (package-private), through the goal selector
+     */
+    static void dodgesAGolemsSwing(GameTestHelper helper) {
+        // Arrange: the golem looks east; the vex hovers two blocks east of it
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        MockPlayers.moveTo(helper, player, new Vec3(9.5, 1, 1.5), NORTH);
+        IronGolem golem = golemOnStone(helper, GOLEM_SPOT, 100.0F);
+        face(golem, -90.0F);
+        BoundVex vex = boundVex(helper, GOLEM_SPOT.east(2), player);
+        Vec3 before = vex.position();
+
+        // Act
+        golem.handleEntityEvent((byte) 4);
+
+        // Assert
+        helper.assertTrue(golem.getAttackAnimationTick() > 0, "setup: the golem is mid-swing");
+        helper.runAfterDelay(12, () -> {
+            Vec3 moved = vex.position().subtract(before);
+            helper.assertTrue(
+                    Math.abs(moved.z) >= 2.0 && Math.abs(moved.z) <= 4.5,
+                    "darted about three blocks sideways (north or south), got dz " + moved.z);
+            helper.assertTrue(Math.abs(moved.x) < 1.5, "not away from the golem, got dx " + moved.x);
+            helper.succeed();
+        });
+    }
+
+    /**
+     * When one golem two blocks from a Bound Vex swings with its head turned away, and another five blocks away swings
+     * facing it, should not dart for ten ticks; once the near golem turns to face it and swings, should dart (the
+     * control).
+     *
+     * <p>Method under test: {@code DodgeGolemGoal} (package-private): the facing and range filters
+     */
+    static void dodgeIgnoresASwingAwayOrFar(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        MockPlayers.moveTo(helper, player, new Vec3(9.5, 1, 1.5), NORTH);
+        IronGolem away = golemOnStone(helper, GOLEM_SPOT, 100.0F);
+        face(away, 90.0F); // looks west, the vex is east
+        IronGolem far = golemOnStone(helper, GOLEM_SPOT.east(2).north(5), 100.0F);
+        face(far, 0.0F); // looks south, at the vex five blocks off
+        BoundVex vex = boundVex(helper, GOLEM_SPOT.east(2), player);
+        Vec3 before = vex.position();
+
+        // Act
+        away.handleEntityEvent((byte) 4);
+        far.handleEntityEvent((byte) 4);
+
+        // Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        10,
+                        () -> helper.assertTrue(
+                                vex.position().distanceTo(before) < 0.5,
+                                "no dart from a swing away or far, moved "
+                                        + vex.position().distanceTo(before)))
+                .thenExecute(() -> {
+                    face(away, -90.0F);
+                    away.handleEntityEvent((byte) 4);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(
+                        Math.abs(vex.position().z - before.z) >= 1.0, "darts once the golem faces it"))
+                .thenSucceed();
+    }
+
+    /**
+     * When an ally golem at half health stands in the guard area of two idle Bound Vexes, both out of reach of its
+     * chest, should have exactly one vex fly in and take it (holding an iron ingot while the other keeps its sword),
+     * heal it by 25 on the first tap with the repair sound and by 25 more thirty ticks later, and give the vex its
+     * sword back once the golem is full.
+     *
+     * <p>Method under test: {@code RepairGolemGoal} (package-private), through the goal selector
+     */
+    static void repairsAHurtAllyGolem(GameTestHelper helper) {
+        // Arrange: each vex starts about 2.1 blocks from the chest (reach 1.5), so the one that claims must fly
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        MockPlayers.moveTo(helper, player, new Vec3(6.5, 1, 1.5), NORTH);
+        IronGolem golem = golemOnStone(helper, GOLEM_SPOT, 50.0F);
+        BoundVex first = boundVex(helper, GOLEM_SPOT.north(2).above(2), player);
+        BoundVex second = boundVex(helper, GOLEM_SPOT.south(2).above(2), player);
+        List<BoundVex> vexes = List.of(first, second);
+        GameTestSupport.drainSounds(player);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(golem.getHealth() >= 75.0F, "one tap: 25 healed"))
+                .thenExecute(() -> {
+                    long ingots = vexes.stream()
+                            .filter(vex -> vex.getMainHandItem().is(Items.IRON_INGOT))
+                            .count();
+                    long swords = vexes.stream()
+                            .filter(vex -> vex.getMainHandItem().is(Items.IRON_SWORD))
+                            .count();
+                    helper.assertValueEqual(ingots, 1L, "one vex holds the ingot");
+                    helper.assertValueEqual(swords, 1L, "the other keeps its sword");
+                    helper.assertTrue(golem.getHealth() < 100.0F, "setup: not full after one tap");
+                    helper.assertTrue(
+                            GameTestSupport.drainSounds(player).contains(SoundEvents.IRON_GOLEM_REPAIR),
+                            "the tap played the repair sound");
+                })
+                .thenWaitUntil(() -> helper.assertValueEqual(golem.getHealth(), 100.0F, "full after the second tap"))
+                .thenWaitUntil(() -> helper.assertTrue(
+                        vexes.stream().allMatch(vex -> vex.getMainHandItem().is(Items.IRON_SWORD)),
+                        "both hold swords again once the golem is full"))
+                .thenSucceed();
+    }
+
+    /**
+     * When two hurt ally golems stand eight blocks apart with one Bound Vex beside each (each golem in only its own
+     * vex's guard area), should have both golems repaired. Two vexes spawned one after the other have one odd and one
+     * even entity id, so a scan gate that opens only for one parity fails here (docs/api-notes.md §21, the goal clock).
+     *
+     * <p>Method under test: {@code RepairGolemGoal} (package-private), through {@code BoundVex.scanDue}
+     */
+    static void repairsTwoGolemsApart(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        IronGolem east = golemOnStone(helper, FEET.east(4), 50.0F);
+        IronGolem west = golemOnStone(helper, FEET.west(4), 50.0F);
+        unleashed(helper, FEET.east(4).above(2), player);
+        unleashed(helper, FEET.west(4).above(2), player);
+
+        // Act & Assert
+        helper.succeedWhen(() -> {
+            helper.assertTrue(east.getHealth() >= 75.0F, "the east golem is repaired, got " + east.getHealth());
+            helper.assertTrue(west.getHealth() >= 75.0F, "the west golem is repaired, got " + west.getHealth());
+        });
+    }
+
+    /**
+     * When the Bound Vex repairing a golem is removed mid-repair (as death, Peaceful or an unload removes it, with no
+     * goal {@code stop()}), should leave the golem free: a second vex then repairs it to full.
+     *
+     * <p>Method under test: {@code RepairGolemGoal}'s claim map (package-private)
+     */
+    static void claimFreesWhenTheVexIsGone(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        IronGolem golem = golemOnStone(helper, GOLEM_SPOT, 50.0F);
+        BoundVex first = unleashed(helper, GOLEM_SPOT.above(2), player);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(golem.getHealth() >= 75.0F, "setup: the first vex tapped once"))
+                .thenExecute(() -> {
+                    helper.assertTrue(golem.getHealth() < 100.0F, "setup: not full yet");
+                    first.discard();
+                    unleashed(helper, GOLEM_SPOT.above(2), player);
+                })
+                .thenWaitUntil(() -> helper.assertValueEqual(golem.getHealth(), 100.0F, "the second vex finished it"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a Bound Vex repairing a golem takes a target after the first tap, should stop: its sword comes back and the
+     * golem is free, so a second vex (with no target goals) repairs it to full.
+     *
+     * <p>Method under test: {@code RepairGolemGoal.canContinueToUse} and {@code stop} (package-private), Divergence 7
+     */
+    static void fightInterruptsARepair(GameTestHelper helper) {
+        // Arrange: target goals off, so only the test decides who has a target
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        IronGolem golem = golemOnStone(helper, GOLEM_SPOT, 25.0F);
+        BoundVex first = unleashed(helper, GOLEM_SPOT.above(2), player);
+        first.targetSelector.removeAllGoals(goal -> true);
+        Husk husk = husk(helper, GOLEM_SPOT.west(2));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(
+                        () -> helper.assertTrue(first.getMainHandItem().is(Items.IRON_INGOT), "setup: repairing"))
+                .thenExecute(() -> first.setTarget(husk))
+                .thenWaitUntil(
+                        () -> helper.assertTrue(first.getMainHandItem().is(Items.IRON_SWORD), "the sword is back"))
+                .thenExecute(() -> {
+                    float now = golem.getHealth();
+                    helper.assertTrue(now < 100.0F, "setup: stopped before full, at " + now);
+                    BoundVex second = unleashed(helper, GOLEM_SPOT.above(2), player);
+                    second.targetSelector.removeAllGoals(goal -> true);
+                })
+                .thenWaitUntil(() -> helper.assertValueEqual(golem.getHealth(), 100.0F, "the second vex finished it"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a golem mad at the summoner stands at half health and a full-health ally golem stands beside it, both in a
+     * Bound Vex's guard area, should repair neither for sixty ticks (the vex keeps its sword); once the mad golem calms
+     * down, should repair it (the control).
+     *
+     * <p>Method under test: {@code RepairGolemGoal} (package-private): the ally and health filters
+     */
+    static void noRepairForAMadOrFullGolem(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        IronGolem mad = golemOnStone(helper, GOLEM_SPOT, 50.0F);
+        GolemGameTests.anger(mad, player);
+        IronGolem full = golemOnStone(helper, GOLEM_SPOT.south(2), 100.0F);
+        BoundVex vex = unleashed(helper, GOLEM_SPOT.south(1).above(2), player);
+        vex.targetSelector.removeAllGoals(goal -> true);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(60, () -> {
+                    helper.assertValueEqual(mad.getHealth(), 50.0F, "a mad golem is not repaired");
+                    helper.assertValueEqual(full.getHealth(), 100.0F, "setup: the full golem stays full");
+                    helper.assertTrue(vex.getMainHandItem().is(Items.IRON_SWORD), "no ingot for either golem");
+                })
+                .thenExecute(() -> {
+                    mad.setTarget(null);
+                    mad.stopBeingAngry();
+                })
+                .thenWaitUntil(() -> helper.assertTrue(mad.getHealth() >= 75.0F, "repaired once it calms down"))
                 .thenSucceed();
     }
 }
