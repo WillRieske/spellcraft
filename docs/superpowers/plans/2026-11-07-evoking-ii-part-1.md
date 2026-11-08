@@ -2549,7 +2549,7 @@ Insert before "## Real profile":
 
 ## Evoking II (Part 1)
 
-Survival world, open ground, a village nearby if you can. The items below add to the Strength of Evoking ones above. Where a golem can hurt you, use Creative or give yourself Resistance (`/effect give @s resistance 600 4`).
+Survival world, open ground, a village nearby if you can. The items below add to the Strength of Evoking ones above. Where a golem can hurt you, give yourself Resistance (`/effect give @s resistance 600 4`). (Creative players cannot make a golem mad.)
 
 - [ ] Use the same game profile where you had Fangs on F (its saved settings carry over): Controls shows Fangs on Y, not F.
 - [ ] Y at a group of three cows standing apart: three fangs, one under each, none on the grass between them.
@@ -2557,7 +2557,7 @@ Survival world, open ground, a village nearby if you can. The items below add to
 - [ ] Stand on a cliff 10–14 blocks above a cow and press Y: the fang reaches it. A cow on a ledge 6 blocks above you: bitten. A cow 7 or more blocks above you, or 15 or more below: "No targets in range".
 - [ ] Hit a pig so it runs, then press Y at it while it flees: a fang rises where it was, and a second one where it ran to; no third.
 - [ ] Y with only a villager, a wandering trader, or a calm iron golem ahead: "No targets in range". Vexes ignore them too.
-- [ ] Hit a village iron golem with a sword again and again: when it is about half cracked (25 health; `/data get entity @e[type=iron_golem,limit=1,sort=nearest] Health` reads `25.0f`) it stops losing health, and on that hit it stops chasing you. Your tamed wolf (have one with you) and your fangs stop there too.
+- [ ] Hit a village iron golem with a sword again and again: when its health reads 25.0 (use the `/data get entity @e[type=iron_golem,limit=1,sort=nearest] Health` command, which shows `25.0f`) it stops losing health, and on that hit it stops chasing you. Your tamed wolf (have one with you) and your fangs stop there too.
 - [ ] Make a golem mad at you, then call your vexes next to it: the vexes fight it, it ends at 25 health and calms down.
 - [ ] With Strength of Trailing on too, make a mad golem chase you across your fire trail: the golem is not hurt and does not catch fire.
 - [ ] Summon vexes near a village golem: the golem never swings at them.
@@ -2598,7 +2598,7 @@ git commit -m "docs: describe Part 1 of Evoking II (Y key, fangs under targets, 
 
 Then `git log -1 --oneline` shows the commit. If the sweep changed a Java Javadoc, stage and commit that file first as `docs(java): fix Javadoc made stale by Evoking II Part 1`.
 
-> **As built (`b1aefe8`):** diverged — the six deferred Minor review notes of Tasks 2, 3, 6 and 7 were closed here (`5c57e5f`, `9aac17e`, `fdce6dc`) and a new test kills the `FangSquare.maxDz` PIT survivor (`1abce29`); reason: review notes folded in by the controller.
+> **As built (`b1aefe8`):** diverged — the six deferred Minor review notes of Tasks 2, 3, 6 and 7 were closed here (`5c57e5f`, `9aac17e`, `fdce6dc`) and a new test kills the `FangSquare.maxDz` PIT survivor (`1abce29`); reason: review notes folded in by the controller. The branch review then reworded two of the new checklist lines (no Creative advice for angering a golem; "health reads 25.0" instead of "half cracked"; `92fede3`).
 
 ---
 
@@ -2618,7 +2618,7 @@ Then `git log -1 --oneline` shows the commit. If the sweep changed a Java Javado
 | 3 | `18fbc02` | the code matches the plan, but the tests grew after the task: tightened in Task 8 (`9aac17e`), and the branch review split the two-behaviour clamp test in two (`92fede3`); reason: review notes, folded in by the controller. |
 | 5 | `9cb7f71` | Task 8 added a `FangSquare.maxDz` test for a PIT survivor (`1abce29`), and the branch review added a server-side guard to `Fangs.onEntityLeave` (the leave event also fires for client levels), an `addFreshEntity` check, a `floorUnder` helper and more chase and footprint GameTests (`92fede3` and the fix commit before it); reason: review findings, folded in by the controller. |
 | 7 | `3401186` | mercyClampsAFangBite's golem stands at SPOT.below() on a stone block at relative y −1 (the 2.7-tall golem at SPOT suffocated in the 3×3×3 box's ceiling, 1 damage a tick, so the clamp test read 24); assertions, ticks and padding unchanged; reason: test-setup artifact, implementer's fix, reviewer approved. |
-| 8 | `b1aefe8` | the six deferred Minor review notes of Tasks 2, 3, 6 and 7 were closed here (`5c57e5f`, `9aac17e`, `fdce6dc`) and a new test kills the `FangSquare.maxDz` PIT survivor (`1abce29`); reason: review notes folded in by the controller. |
+| 8 | `b1aefe8` | the six deferred Minor review notes of Tasks 2, 3, 6 and 7 were closed here (`5c57e5f`, `9aac17e`, `fdce6dc`) and a new test kills the `FangSquare.maxDz` PIT survivor (`1abce29`); reason: review notes folded in by the controller. The branch review then reworded two of the new checklist lines (no Creative advice for angering a golem; "health reads 25.0" instead of "half cracked"; `92fede3`). |
 
 ## Resume State
 
