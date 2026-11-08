@@ -491,3 +491,71 @@ Verified 2026-11-06 against the same unpacked sources, plus FML `loader-12.0.0-s
 - The GameTest framework encases every structure in a barrier shell from min-1 to max
   (`TestInstanceBlockEntity.java:383-394`, called from `GameTestInfo.java:75`). It blocks `hasLineOfSight` (COLLIDER clip, `LivingEntity.java:3446-3458`), so a
   targeting test keeps both entities inside the box or both outside it.
+
+## 20. Evoking II, Part 1: fang footprints, chase, golem mercy (Evoking II Part 1 task)
+
+Verified 2026-11-07 against the same unpacked sources. Paths relative to `build/mc-src` or `build/nf-src`.
+
+- Key: `InputConstants.KEY_Y = 28` (`com/mojang/blaze3d/platform/InputConstants.java:65`); no `new KeyMapping(` line in
+  `Options.java` binds 28 (checked for the spec). `KEY_F = 9` (`:46`) stays swap-offhand's.
+- Fang bite tick: `EvokerFangs.tick` (`world/entity/projectile/EvokerFangs.java:85-97`) runs `--warmupDelayTicks < 0`
+  once per server tick, bites when the counter is `-8`, over `getBoundingBox().inflate(0.2, 0.0, 0.2)`, and
+  discards itself when `lifeTicks` (22) runs out: a fang placed with `delayTicks 0` bites on its 8th tick and dies of
+  age on its 23rd, 15 ticks after the bite. `ServerLevel.tickNonPassenger` runs `entity.commonTick()`
+  (`Entity.java:525-536`, `tickCount++` at `:535`; `Entity.tick` → `baseTick` never touches `tickCount`), then
+  `entity.tick()`, then posts `EntityTickEvent.Post` (`server/level/ServerLevel.java:863-865`), so on the fang's
+  Nth `tick()` the public `tickCount` (`Entity.java:255`) is N when `Post` fires: 8 on the bite tick. A fang added
+  during a tick is not ticked until the next one (`EntityTickList` iterates a snapshot). GameTests run after every
+  level has ticked (`MinecraftServer.java:1145`).
+- `EntityTickEvent.Post` (`nf-src/.../event/tick/EntityTickEvent.java:51`) fires for every entity, as above.
+  `EntityLeaveLevelEvent(Entity, Level)` (`nf-src/.../event/entity/EntityLeaveLevelEvent.java:22-33`) is posted from
+  the entity callbacks' `onTrackingEnd` (`ServerLevel.java:2079`, the post at `:2108`): for a discarded fang it comes
+  through `PersistentEntitySectionManager.onRemove` (`:466-468`), and it also fires when the entity's chunk stops
+  being accessible with no removal (`:143-146`). `Level.getEntity(UUID)` (`world/level/Level.java:846`);
+  `Entity.distanceTo(Entity)` (`Entity.java:1888`); `Entity.isRemoved()`; `Entity.getBoundingBox()` is final
+  (`:3582`) and `AABB.minX/maxX/minZ/maxZ` are public finals (`world/phys/AABB.java:16-21`).
+- Damage pipeline: `LivingEntity.hurtServer` (`world/entity/LivingEntity.java:1223`) → `actuallyHurt` (`:1290`) fires
+  `LivingDamageEvent.Pre` after the armor and magic reductions (`:2035-2043`; killing the entity in `Pre` throws) and
+  applies `getNewDamage()` to health (`setHealth` is skipped when it is 0, `:2056-2060`); **then**
+  `resolveMobResponsibleForDamage` (`:1298`, body `:1431-1437`) calls `setLastHurtByMob(source.getEntity())` for
+  any living causer not tagged `NO_ANGER`, and `resolvePlayerResponsibleForDamage` (`:1299`, `:1439-1450`) records
+  the player or a tame animal's owner; then `LivingDamageEvent.Post` (`:1355`), which fires even when the damage was
+  clamped to 0 (`hurtServer` has no `damage <= 0` early return, `:1223-1358`). So anger cleared in `Pre` is re-set;
+  clear it in `Post`. The hurt cooldown is `damageCooldownTime` (`:242`, set `:1288/:1292`, compared `:1272`):
+  while it runs, a hit no larger than `lastHurt` returns false before any event. `Entity.invulnerableTime` is a
+  different field that `hurtServer` never sets.
+  `LivingDamageEvent.Pre`: `getSource()`, `getNewDamage()`, `setNewDamage(float)` (non-negative,
+  `DamageContainer.java:91-93`) (`nf-src/.../living/LivingDamageEvent.java:48-83`); `Post`: `getSource()`,
+  `getOriginalDamage()`, `getInflictedDamage()`, `getHealthDamage()` (`:97-160`).
+  `DamageSource.getEntity()` (`world/damagesource/DamageSource.java:61`) is the causing entity: the owner for
+  `indirectMagic(fangs, owner)` (`DamageSources.java:243`), the mob for `mobAttack(LivingEntity)` (`:195`; a vex's
+  and a wolf's hits go through `Mob.doHurtTarget`, `Mob.java:1422`), the player for `playerAttack`.
+  `OwnableEntity.getOwner()` returns `@Nullable LivingEntity` (`world/entity/OwnableEntity.java:13`).
+- `HurtByTargetGoal.canUse` (`world/entity/ai/goal/target/HurtByTargetGoal.java:33-36`) needs `getLastHurtByMob() !=
+  null` and a new `getLastHurtByMobTimestamp()`; `LivingEntity.setLastHurtByMob` (`:668-671`) sets both.
+- Anger: `NeutralMob.isAngryAt(LivingEntity, ServerLevel)` (`world/entity/NeutralMob.java:95-106`) = `canAttack(entity)`
+  and (universal anger, or the persistent anger target matches); `stopBeingAngry()` (`:136-141`) =
+  `setLastHurtByMob(null)`, `setPersistentAngerTarget(null)`, `setTarget(null)`, `setPersistentAngerEndTime(-1L)`;
+  `updatePersistentAnger(level, true)` (`:58-89`) copies `getTarget()` into the persistent target each tick.
+- `IronGolem` (`world/entity/animal/golem/IronGolem.java:53`, `implements NeutralMob`, no armor attribute `:93-99`, not
+  fire immune, `EntityTypes.java:590-592`): target goals (`:76-84`) `DefendVillageTargetGoal` 1, `HurtByTargetGoal` 2,
+  players via `isAngryAt` 3, `Mob` that is `Enemy && !Creeper` 3; `doPush` (`:107-114`) targets a pushing `Enemy` 1
+  time in 20; `aiStep` (`:116-130`) runs `updatePersistentAnger(level, true)` every tick, **also with AI off**
+  (`setNoAi` skips goals and movement, not `aiStep`); `canAttack` (`:138-144`) is false for players when
+  player-created and false for creepers; `MAX_HEALTH` 100 (`:95`); `hurtServer` (`:209-217`) plays the crack sound;
+  `Crackiness.GOLEM` thresholds are 0.75, 0.5, 0.25 with `fraction < threshold` (`Crackiness.java:6,19-25`), so a
+  golem at exactly 25 of 100 shows medium cracks, not the heaviest; `mobInteract` heals 25 with an ingot (`:262-277`);
+  `setPersistentAngerTarget` (`:176`), `startPersistentAngerTimer` (`:161`), `isPlayerCreated` (`:289`), `getTarget()`
+  from `Mob`. Builder `.sized(1.4F, 2.7F)` (`EntityTypes.java:591`).
+- `Mob.setTarget` (`world/entity/Mob.java:257-263`) posts `LivingChangeTargetEvent` (cancellable,
+  `nf-src/.../living/LivingChangeTargetEvent.java:33`) with `MOB_TARGET`; when cancelled the old target stays.
+  `getNewAboutToBeSetTarget()` (`:51`).
+- Classes: `AbstractVillager` (`world/entity/npc/villager/AbstractVillager.java:55`, abstract, extends `AgeableMob`;
+  `Villager` `:99` and `npc/wanderingtrader/WanderingTrader.java` extend it; `ZombieVillager` extends `Zombie`,
+  `ZombieVillager.java:61`, not `AbstractVillager`), `animal/wolf/Wolf.java`, `monster/Ravager.java` (`.sized(1.95F,
+  2.2F)`, `EntityTypes.java:868`), villager and trader `.sized(0.6F, 1.95F)` (`:1068`, `:1081`).
+- `EntityReference.of(T)` (`world/entity/EntityReference.java:43`) builds the reference `setPersistentAngerTarget` takes.
+- GameTest server: default difficulty Normal (`GameTestServer.java:113`), so `canAttack(player)` holds; a finished
+  batch's entities are not cleared (`StructureGridSpawner(..., clearOnBatch = false)`, `GameTestServer.java:338`) and
+  the next batch starts the same tick (`GameTestRunner.java:107-115`), so a test must never count global state that
+  another batch's leftover fangs can change.
