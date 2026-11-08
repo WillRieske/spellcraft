@@ -98,13 +98,13 @@ scan box's vertical window becomes `y ∈ [F.y − 14, F.y + 7)`: fourteen block
 every target, the set of block columns its bounding box covers at the press (`AABB` floored to
 `BlockPos` columns, intersected with the square), each with the target's feet `y`. A ravager covers
 several columns and gets a fang in each; a zombie gets one. The caster's own column is skipped as
-before. Duplicates between targets collapse into one fang per column.
+before. For each column the floor is found at the press (the search below), so a footprint is a list of **spots** (column + floor height). Two targets sharing a spot get one fang (the first found keeps it); two targets in one column on different floors (one on a ledge) get one each. A target over no floor gets nothing.
 
-**Perform.** For each footprint column `(x, z)` with feet `y0`: floor search from `y0 + 1` down to
-`y0 − 2` (the evoker's own window around one target), the same sturdy-face rule and chunk check as
-today; a fang with `delayTicks = 0` (no ripple: the fangs are scattered, so they all snap together
-one second after the press). Angle = `atan2(dz, dx)` from the caster's feet as before. The game
-event stays off.
+**Perform.** The floor search (run at the press) is the evoker's own window around one target: from
+`y0 + 1` down to `y0 − 2` for a target with feet `y0`, the same sturdy-face rule as today; the chunk
+check runs at the perform; a fang per spot with `delayTicks = 0` (no ripple: the fangs are scattered, so they all snap together
+one second after the press). Angle = `atan2(dz, dx)` from the caster's block at the press, as before (a chase
+fang uses the same block). The `ENTITY_PLACE` game event is posted per fang, as in round one.
 
 **Chase fang.** A fang records its intended target (the `Fangs` snapshot keeps `(column → target
 UUID)`; the perform stores it in a transient map `fang entity id → (target UUID, caster UUID)`,
@@ -141,11 +141,14 @@ is amended by this line.
 `LivingDamageEvent.Pre`. When the victim is an `IronGolem` and the damage comes from a player's
 side, the new damage is clamped to `max(0, health − 25)`. "A player's side" means the damage
 source's causing entity is a player (fangs: `indirectMagic(fangs, caster)`; a sword hit is also the
-player: Will's own hits are clamped too, see §13), or a tamed wolf whose owner is a player, or (from Part 2 on, when the class exists) a Bound Vex
-(`source.getEntity() instanceof BoundVex`). Lava, falls, other mobs and `/kill` are untouched.
+player: Will's own hits are clamped too, see §13), or a tamed wolf whose owner is a player, or any mob carrying the **summoner** attachment (round one's vexes
+now, Bound Vexes from Part 2 on: the mark is the test, not the class). "A player" is any player, not
+only the fangs' owner. Lava, falls, other mobs and `/kill` are untouched.
 
-**Forgiveness.** In the same handler, when the clamp leaves the golem at 25 or the hit lands it at
-≤ 25: `golem.stopBeingAngry()`, `golem.setTarget(null)`, `golem.setLastHurtByMob(null)`. The golem
+**Forgiveness.** On `LivingDamageEvent.Post` (not in the clamp's handler: vanilla records the attacker
+*after* the damage lands, `LivingEntity.resolveMobResponsibleForDamage`, so a clear in `Pre` would be
+undone), when the hit leaves the golem at ≤ 25: `golem.stopBeingAngry()`, which clears the target, the
+persistent anger and its timer, and the hit's memory. The golem
 is an ally again at once (`isAngryAtPlayer` is false). It gets mad again only through vanilla's
 rules (you hit it or a villager). Repair is Part 2 (§3.7).
 
@@ -259,8 +262,8 @@ Overworld (vanilla's `NearestAttackableTargetGoal` cadence) and every tick where
 not sitting gets `setTarget(sameTarget)`. Wolves are the only tamed mob that fights; golems already
 fight hostiles on their own (§13).
 
-**Mercy** applies to a Bound Vex's hits on a golem through `GolemMercy` (§2.3): `source.getEntity()
-instanceof BoundVex`.
+**Mercy** applies to a Bound Vex's hits on a golem through `GolemMercy` (§2.3) by its summoner
+attachment; nothing new is needed here.
 
 ### 3.5 Fleeing a hissing creeper
 
@@ -647,10 +650,12 @@ Methodology as round one: pure core TDD with jqwik properties, GameTests for ser
 
 - `FangFootprints` (`spell.rules`): columns of a box intersected with a square; dedupe; the caster
   column skipped. Properties: every column is inside the square; a box within one block gives one
-  column; a 3×3 box gives ≤ 9.
+  column; a box `w` wide gives at most `(⌈w⌉ + 1)²` columns (a 3-wide box across block edges touches
+  4 per axis). The collapse of shared spots is not here: it needs the floor, so `Fangs.snapshot` does it.
 - `GuardArea` (`spell.rules`): the 8×8×7 box math and the 7.25 reach test; properties: symmetric,
   a point at the box edge is inside, a point at reach + ε is out.
-- `GolemMercy.clamp(health, damage)` (pure): `min(damage, max(0, health − 25))`; property: health
+- `GolemMercyRule.clamp(health, damage)` (`spell.rules`, pure; `GolemMercy` in `spell` is the event
+  subscriber): `min(damage, max(0, health − 25))`, total (NaN → 0; infinities follow the arithmetic); property: health
   after is never below 25 when it was above, and a hit at ≤ 25 does 0.
 - `VexCap.toSummon(count)`: 3 / `12 − count` / 0; property: count + result ≤ 12.
 - `TeamMoveRules` (pure): roster sizes from free count (Shield 3 or 9, Evader 1–3, Raid 12 or
@@ -660,7 +665,7 @@ Methodology as round one: pure core TDD with jqwik properties, GameTests for ser
 GameTests per part (the plan names them; the shape):
 
 - **Part 1:** fang per target column (one zombie → one fang; a ravager → its footprint; empty
-  cells → none); 14-down scan finds a target 13 below; chase fang appears once under a moved
+  cells → none); 14-down scan finds a target 14 below and not 15; chase fang appears once under a moved
   target and never twice; villager, trader, golem are allies; a golem whose target is the player
   is not; mercy clamps a fang bite at 25 and the golem forgives (`isAngryAt` false, target null);
   trail never lights a golem; a golem never takes a summoned vex as target (event cancelled).
