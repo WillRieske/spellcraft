@@ -2510,7 +2510,7 @@ Then `git log -1 --oneline` shows the commit.
 - Consumes: everything above.
 - Produces: the docs Will reads.
 
-- [ ] **Step 1: README**
+- [x] **Step 1: README**
 
 Replace the Strength of Trailing bullet's ally list (lines 11–14): "spares your allies (your team, your pets, your own vexes) while you are in the same dimension, and burns everything else" becomes "spares your allies (your team, your pets, your own vexes, villagers, wandering traders) while you are in the same dimension, never burns an iron golem, and burns everything else".
 
@@ -2529,7 +2529,7 @@ Replace the Strength of Evoking bullet (lines 15–20) with:
   in Controls. Sneak + scroll or milk turns it off.
 ```
 
-- [ ] **Step 2: Playtest checklist, Trailing and Evoking sections**
+- [x] **Step 2: Playtest checklist, Trailing and Evoking sections**
 
 In `docs/playtest-checklist.md`:
 
@@ -2541,11 +2541,13 @@ In `docs/playtest-checklist.md`:
 - Line 138: replace the whole item with "- [ ] Press F with Evoking on: your hands swap as normal. Press Y: the cast starts and nothing swaps (Y is free in vanilla). Rebind Fangs to F in Controls: F casts instead of swapping while Evoking is on, and swaps again once the effect ends. Rebind Fangs to Shift+F: a plain F press swaps, Shift+F casts."
 - Then run `grep -n "\bF\b" docs/playtest-checklist.md | sed -n '/Strength of Evoking/,$p'` by eye: inside the Evoking section the only F left should be in line 138's rebind-to-F sentences.
 
-- [ ] **Step 3: Playtest checklist, the new section**
+- [x] **Step 3: Playtest checklist, the new section**
 
 Insert before "## Real profile":
 
 ```markdown
+
+> **As built (`b1aefe8`):** matches plan, plus the six deferred Minor review notes of Tasks 2, 3, 6 and 7 closed here (two extra commits), and one new test killing the FangSquare.maxDz PIT survivor; reason: review notes folded in by the controller.
 ## Evoking II (Part 1)
 
 Survival world, open ground, a village nearby if you can. The items below add to the Strength of Evoking ones above. Where a golem can hurt you, use Creative or give yourself Resistance (`/effect give @s resistance 600 4`).
@@ -2612,3 +2614,11 @@ Then `git log -1 --oneline` shows the commit. If the sweep changed a Java Javado
 | Task | SHA | Divergence |
 |---|---|---|
 | 7 | `3401186` | mercyClampsAFangBite's golem stands at SPOT.below() on a stone block at relative y −1 (the 2.7-tall golem at SPOT suffocated in the 3×3×3 box's ceiling, 1 damage a tick, so the clamp test read 24); assertions, ticks and padding unchanged; reason: test-setup artifact, implementer's fix, reviewer approved. |
+
+## Resume State
+
+- Last completed task: None
+- Commit SHA: b1aefe8
+- Checkboxes: 35/50 ticked
+- Next task: none (plan complete)
+- Known-failing tests / caveats: GameTests last ran at Task 7 (160 required tests, none failed); Task 8 changed docs, comments and unit tests only, and the pre-push gate runs runGameTestServer again. /review-will and the PR are still to do. No release: mod_version bumps once after Part 7.
