@@ -29,8 +29,10 @@ public final class FollowSummonerGoal extends Goal {
     public static final int TELEPORT_SPREAD = 2;
 
     /**
-     * The farthest a teleported vex lands from the summoner's feet: a cell 2 blocks off on both horizontal axes and 2
-     * up, entered at its center, is √(2² + 2.5² + 2²) ≈ 3.8 blocks away; 4.5 leaves room for a few ticks of hover.
+     * The farthest a teleported vex lands from the summoner's feet. The summoner stands anywhere in its block, so a
+     * cell 2 blocks off on both horizontal axes and 2 up, entered at its center (2.5 from the block's far corner on
+     * each axis), is at worst √(3 · 2.5²) ≈ 4.33 blocks away; 4.5 bounds that and leaves room for a few ticks of
+     * hover. A teleported vex can land just outside the {@link #ORBIT_MAX} band and take one more hop.
      */
     public static final double TELEPORT_LANDING_MAX = 4.5;
 

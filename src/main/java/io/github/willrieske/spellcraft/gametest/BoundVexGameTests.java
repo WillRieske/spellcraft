@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -636,12 +637,13 @@ public final class BoundVexGameTests {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
         BoundVex vex = parked(helper, FEET.north(2), player);
+        helper.assertFalse(vex.isStaying(), "setup: a follower, so a note would have been taken");
         Vec3 start = vex.position();
 
-        // Act
+        // Act: the event's "from" is the vex's own level, so a stale note would find the vex and move it
         MockPlayers.moveTo(helper, player, Vec3.atBottomCenterOf(FEET.south(10)));
-        NeoForge.EVENT_BUS.post(new PlayerEvent.PlayerChangedDimensionEvent(
-                player, Level.NETHER, helper.getLevel().dimension()));
+        ResourceKey<Level> here = helper.getLevel().dimension();
+        NeoForge.EVENT_BUS.post(new PlayerEvent.PlayerChangedDimensionEvent(player, here, here));
 
         // Assert
         helper.assertTrue(vex.isAlive(), "the same vex is still here");
