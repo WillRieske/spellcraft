@@ -38,7 +38,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.decoration.ArmorStand;
@@ -558,8 +557,7 @@ public final class FangGameTests {
         // Arrange
         floor(helper, NORTH);
         ServerPlayer player = caster(helper, NORTH);
-        IronGolem golem = helper.spawn(EntityTypes.IRON_GOLEM, FEET.north(5));
-        golem.setNoAi(true);
+        pig(helper, FEET.north(5));
 
         // Act & Assert
         helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.FANGS), Request.STARTED, "first");
@@ -938,10 +936,10 @@ public final class FangGameTests {
 
     /**
      * When the square holds a ravager (1.95 wide, on a block center), a pig, two pigs stacked in one column on one
-     * floor, and two pigs in one column on different floors (one on the ground, one on a stone ledge whose top is three blocks up),
-     * should one fang rise under every block the ravager covers (3×3), one under the lone pig, one for the stacked
-     * pair (same spot: duplicates collapse), two for the ledge pair (different floors), and none on an empty cell:
-     * thirteen in all.
+     * floor, and two pigs in one column on different floors (one on the ground, one on a stone ledge whose top is
+     * three blocks up), should one fang rise under every block the ravager covers (3×3), one under the lone pig, one
+     * for the stacked pair (same spot: duplicates collapse), two for the ledge pair (different floors), and none on an
+     * empty cell: thirteen in all.
      *
      * <p>Method under test: {@link Fangs#snapshot}, through {@link EvokingCaster#request}
      */

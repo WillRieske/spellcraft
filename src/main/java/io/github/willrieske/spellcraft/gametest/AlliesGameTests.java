@@ -18,6 +18,9 @@ import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.monster.zombie.Zombie;
+import net.minecraft.world.entity.monster.zombie.ZombieVillager;
+import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.entity.npc.wanderingtrader.WanderingTrader;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.scores.Scoreboard;
@@ -35,6 +38,7 @@ public final class AlliesGameTests {
         SpellcraftGameTests.add(SHARED, "allies_a3_summoner_attachment", AlliesGameTests::a3SummonerAttachment);
         SpellcraftGameTests.add(SHARED, "allies_a4_ownable_owner", AlliesGameTests::a4OwnableOwner);
         SpellcraftGameTests.add(SHARED, "allies_a5_strangers", AlliesGameTests::a5Strangers);
+        SpellcraftGameTests.add(SHARED, "allies_a7_villagers_and_traders", AlliesGameTests::a7VillagersAndTraders);
         // Mutates the global pvp game rule, so it runs alone in its own batch.
         SpellcraftGameTests.add("pvp_off", "allies_a6_pvp_off", AlliesGameTests::a6PvpOff);
     }
@@ -156,6 +160,36 @@ public final class AlliesGameTests {
         helper.assertFalse(Allies.isAllyOf(player, zombie), "a zombie is not an ally");
         helper.assertFalse(Allies.isAllyOf(player, creeper), "a creeper is not an ally");
         helper.assertTrue(Allies.isAllyOf(player, player), "the player is their own ally");
+        helper.succeed();
+    }
+
+    /**
+     * When a villager and a wandering trader stand near a player with no team, should both be allies and may have
+     * allies, though neither has a team, an owner or a summoner mark; a zombie villager (a {@code Zombie}, not an
+     * {@code AbstractVillager}) should not be an ally (Evoking II §2.3).
+     *
+     * <p>Method under test: {@link Allies#isAllyOf}, and {@link Allies#mayHaveAllies}
+     */
+    static void a7VillagersAndTraders(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        helper.assertTrue(player.getTeam() == null, "setup: the player is on no team");
+        Villager villager = helper.spawn(EntityTypes.VILLAGER, SPOT);
+        villager.setNoAi(true);
+        WanderingTrader trader = helper.spawn(EntityTypes.WANDERING_TRADER, SPOT);
+        trader.setNoAi(true);
+        ZombieVillager zombieVillager = helper.spawn(EntityTypes.ZOMBIE_VILLAGER, SPOT);
+        zombieVillager.setNoAi(true);
+        helper.assertFalse(villager.hasData(AllyAttachments.SUMMONER), "setup: the villager carries no mark");
+        helper.assertFalse(trader.hasData(AllyAttachments.SUMMONER), "setup: the trader carries no mark");
+
+        // Act & Assert
+        helper.assertTrue(Allies.isAllyOf(player, villager), "a villager is an ally");
+        helper.assertTrue(Allies.isAllyOf(player, trader), "a wandering trader is an ally");
+        helper.assertTrue(Allies.mayHaveAllies(villager), "a villager may have allies");
+        helper.assertTrue(Allies.mayHaveAllies(trader), "a trader may have allies");
+        helper.assertFalse(Allies.isAllyOf(player, zombieVillager), "a zombie villager is not an ally");
+        zombieVillager.discard();
         helper.succeed();
     }
 

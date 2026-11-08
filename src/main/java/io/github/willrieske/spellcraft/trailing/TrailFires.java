@@ -25,6 +25,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
@@ -374,7 +375,7 @@ public final class TrailFires {
      * level) any ally of the owner per {@link Allies} (spec 2026-11-06 section 3). An orphan spares nobody.
      *
      * <p>The owner lookup is skipped when {@link Allies#mayHaveAllies} is false; why that is safe is documented
-     * there.
+     * there. An iron golem is always spared once the flame has an owner (Evoking II §2.3).
      *
      * @param level the level the flame is in
      * @param pos the flame's position
@@ -387,6 +388,12 @@ public final class TrailFires {
             return false;
         }
         if (owner.equals(entity.getUUID())) {
+            return true;
+        }
+        // Every iron golem, mad or not (Evoking II §2.3): fire damage carries no attacker, so golem mercy could not
+        // tell
+        // this flame's burn from lava. Only an owned flame spares it; a /setblock flame burns like vanilla fire.
+        if (entity instanceof IronGolem) {
             return true;
         }
         if (!Allies.mayHaveAllies(entity)) {
