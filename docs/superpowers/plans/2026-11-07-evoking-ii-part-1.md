@@ -94,8 +94,6 @@ Append after the last line of §19:
 
 ````markdown
 
-> **As built (`c45ad64`):** matches plan.
-
 ## 20. Evoking II, Part 1: fang footprints, chase, golem mercy (Evoking II Part 1 task)
 
 Verified 2026-11-07 against the same unpacked sources. Paths relative to `build/mc-src` or `build/nf-src`.
@@ -165,7 +163,7 @@ Verified 2026-11-07 against the same unpacked sources. Paths relative to `build/
   another batch's leftover fangs can change.
 ````
 
-- [ ] **Step 2: Lint and commit**
+- [x] **Step 2: Lint and commit**
 
 Run: `pre-commit run markdownlint-cli2 --files docs/api-notes.md`
 Expected: `Passed`.
@@ -179,6 +177,8 @@ git commit -m "docs(api-notes): record the Evoking II Part 1 facts (bite tick, d
 ```
 
 Then `git log -1 --oneline` shows the commit.
+
+> **As built (`c45ad64`):** matches plan.
 
 ---
 
@@ -549,7 +549,7 @@ git commit -m "feat(rules): add FangFootprints, the block columns a target cover
 
 Then `git log -1 --oneline` shows the commit.
 
-> **As built (`f4e5a84`):** matches plan.
+> **As built (`f4e5a84`):** diverged — the code matches the plan, but the tests grew after the task: the property test was tightened in Task 8 (`9aac17e`) and the branch review added `Columns` edge cases, a parameterized rejection test and an out-of-int-range guard in `requireBox` (`92fede3`); reason: review notes, folded in by the controller.
 
 ---
 
@@ -835,7 +835,7 @@ git commit -m "feat(rules): add GolemMercyRule, the 25-health clamp and forgiven
 
 Then `git log -1 --oneline` shows the commit.
 
-> **As built (`18fbc02`):** matches plan.
+> **As built (`18fbc02`):** diverged — the code matches the plan, but the tests grew after the task: tightened in Task 8 (`9aac17e`), and the branch review split the two-behaviour clamp test in two (`92fede3`); reason: review notes, folded in by the controller.
 
 ---
 
@@ -1821,7 +1821,7 @@ git commit -m "feat(evoking): fangs rise only under targets, 14 blocks down, wit
 
 Then `git log -1 --oneline` shows the commit.
 
-> **As built (`9cb7f71`):** matches plan.
+> **As built (`9cb7f71`):** diverged — Task 8 added a `FangSquare.maxDz` test for a PIT survivor (`1abce29`), and the branch review added a server-side guard to `Fangs.onEntityLeave` (the leave event also fires for client levels), an `addFreshEntity` check, a `floorUnder` helper and more chase and footprint GameTests (`92fede3` and the fix commit before it); reason: review findings, folded in by the controller.
 
 ---
 
@@ -2547,7 +2547,6 @@ Insert before "## Real profile":
 
 ```markdown
 
-> **As built (`b1aefe8`):** matches plan, plus the six deferred Minor review notes of Tasks 2, 3, 6 and 7 closed here (two extra commits), and one new test killing the FangSquare.maxDz PIT survivor; reason: review notes folded in by the controller.
 ## Evoking II (Part 1)
 
 Survival world, open ground, a village nearby if you can. The items below add to the Strength of Evoking ones above. Where a golem can hurt you, use Creative or give yourself Resistance (`/effect give @s resistance 600 4`).
@@ -2564,7 +2563,7 @@ Survival world, open ground, a village nearby if you can. The items below add to
 - [ ] Summon vexes near a village golem: the golem never swings at them.
 ```
 
-- [ ] **Step 4: Mutation testing**
+- [x] **Step 4: Mutation testing**
 
 Run: `./gradlew pitest --console=plain > build/pitest.log 2>&1; echo "exit=$?"; grep -n "Generated\|mutations\|Line Coverage\|Mutation score\|killed" build/pitest.log | tail -10`
 Expected: `exit=0`. Read the totals and the survivors in `FangFootprints` and `GolemMercyRule` from `build/reports/pitest/index.html` (or the log summary). If a `FangFootprints` or `GolemMercyRule` mutant survives and is not equivalent, add the unit test that kills it (same style as Tasks 2–3), run `./gradlew spotlessApply --console=plain`, commit it on its own as `test(rules): kill the <Class> <mutator> survivor` (stage, then commit, as two calls), then re-run `pitest` and record the final numbers.
@@ -2577,17 +2576,17 @@ Add a row to the PIT table in `docs/mutation-testing.md` (the date is the run's 
 
 In the hand-run probes table, change the 2026-11-06 row's probe text from "`Fangs.perform` `isPositionEntityTicking` guard" to "`Fangs.perform` `isPositionEntityTicking` guard (since Evoking II Part 1 the guard is in `Fangs.place`, called by `perform` and the chase)".
 
-- [ ] **Step 5: Lint the docs**
+- [x] **Step 5: Lint the docs**
 
 Run: `pre-commit run markdownlint-cli2 --files README.md docs/playtest-checklist.md docs/mutation-testing.md`
 Expected: `Passed`.
 
-- [ ] **Step 6: Closing sweep**
+- [x] **Step 6: Closing sweep**
 
 Run: `grep -rn "spare\|villager\|Fangs.perform\|press F\|Press F\|\*\*F\*\*" README.md docs/api-notes.md docs/playtest-checklist.md docs/mutation-testing.md src/main/java --include=*.md --include=*.java | grep -v "docs/superpowers"`
 Read every hit and fix any statement Tasks 4–7 made false (a villager that burns, a fang carpet, F as the fang key, a guard named in the wrong method). Spec files under `docs/superpowers` are out of scope for this task.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add README.md docs/playtest-checklist.md docs/mutation-testing.md
@@ -2598,6 +2597,8 @@ git commit -m "docs: describe Part 1 of Evoking II (Y key, fangs under targets, 
 ```
 
 Then `git log -1 --oneline` shows the commit. If the sweep changed a Java Javadoc, stage and commit that file first as `docs(java): fix Javadoc made stale by Evoking II Part 1`.
+
+> **As built (`b1aefe8`):** diverged — the six deferred Minor review notes of Tasks 2, 3, 6 and 7 were closed here (`5c57e5f`, `9aac17e`, `fdce6dc`) and a new test kills the `FangSquare.maxDz` PIT survivor (`1abce29`); reason: review notes folded in by the controller.
 
 ---
 
@@ -2613,12 +2614,16 @@ Then `git log -1 --oneline` shows the commit. If the sweep changed a Java Javado
 
 | Task | SHA | Divergence |
 |---|---|---|
+| 2 | `f4e5a84` | the code matches the plan, but the tests grew after the task: the property test was tightened in Task 8 (`9aac17e`) and the branch review added `Columns` edge cases, a parameterized rejection test and an out-of-int-range guard in `requireBox` (`92fede3`); reason: review notes, folded in by the controller. |
+| 3 | `18fbc02` | the code matches the plan, but the tests grew after the task: tightened in Task 8 (`9aac17e`), and the branch review split the two-behaviour clamp test in two (`92fede3`); reason: review notes, folded in by the controller. |
+| 5 | `9cb7f71` | Task 8 added a `FangSquare.maxDz` test for a PIT survivor (`1abce29`), and the branch review added a server-side guard to `Fangs.onEntityLeave` (the leave event also fires for client levels), an `addFreshEntity` check, a `floorUnder` helper and more chase and footprint GameTests (`92fede3` and the fix commit before it); reason: review findings, folded in by the controller. |
 | 7 | `3401186` | mercyClampsAFangBite's golem stands at SPOT.below() on a stone block at relative y −1 (the 2.7-tall golem at SPOT suffocated in the 3×3×3 box's ceiling, 1 damage a tick, so the clamp test read 24); assertions, ticks and padding unchanged; reason: test-setup artifact, implementer's fix, reviewer approved. |
+| 8 | `b1aefe8` | the six deferred Minor review notes of Tasks 2, 3, 6 and 7 were closed here (`5c57e5f`, `9aac17e`, `fdce6dc`) and a new test kills the `FangSquare.maxDz` PIT survivor (`1abce29`); reason: review notes folded in by the controller. |
 
 ## Resume State
 
-- Last completed task: None
-- Commit SHA: b1aefe8
-- Checkboxes: 35/50 ticked
+- Last completed task: Task 8: Docs, playtest items, mutation testing (the helper names Task 7 because Task 8's ten unticked boxes are the fenced playtest-checklist sample, which stays unticked by design)
+- Commit SHA: 92fede3
+- Checkboxes: 40/50 ticked
 - Next task: none (plan complete)
-- Known-failing tests / caveats: GameTests last ran at Task 7 (160 required tests, none failed); Task 8 changed docs, comments and unit tests only, and the pre-push gate runs runGameTestServer again. /review-will and the PR are still to do. No release: mod_version bumps once after Part 7.
+- Known-failing tests / caveats: GameTests last ran after the branch review fixes (163 required tests, none failed; 92fede3). The review's one accepted gap: the chase's absent-caster exit has no GameTest. The PR is still to open. No release: mod_version bumps once after Part 7.
