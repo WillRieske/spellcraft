@@ -57,6 +57,7 @@ public final class GolemGameTests {
                 SHARED, "golems_ii_mercy_clamps_a_fang_bite", 60, 0, GolemGameTests::mercyClampsAFangBite);
         SpellcraftGameTests.add(
                 SHARED, "golems_ii_mercy_sword_wolf_and_summon", GolemGameTests::mercySwordWolfAndSummon);
+        SpellcraftGameTests.add(SHARED, "golems_ii_mercy_offline_wolf_owner", GolemGameTests::mercyOfflineWolfOwner);
         SpellcraftGameTests.add(SHARED, "golems_ii_other_damage_untouched", GolemGameTests::otherDamageUntouched);
         SpellcraftGameTests.add(SHARED, "golems_ii_never_targets_a_summon", GolemGameTests::neverTargetsASummon);
         SpellcraftGameTests.add(UNIVERSAL_ANGER, "golems_ii_universal_anger", GolemGameTests::universalAnger);
@@ -324,6 +325,32 @@ public final class GolemGameTests {
         helper.assertValueEqual(alreadyUnder.getHealth(), 20.0F, "under 25 nothing lands");
         helper.assertTrue(alreadyUnder.getLastHurtByMob() == null, "and no grudge");
         summon.discard();
+        helper.succeed();
+    }
+
+    /**
+     * When a tamed wolf whose owner is not in the level would take a golem from 40 to 20, should the golem still land
+     * at 25 with no grudge: a tame wolf is the player's side whether or not its owner is online.
+     *
+     * <p>Method under test: {@link GolemMercy#onDamagePre}, and {@link GolemMercy#onDamagePost}
+     */
+    static void mercyOfflineWolfOwner(GameTestHelper helper) {
+        // Arrange
+        ServerLevel level = helper.getLevel();
+        IronGolem golem = golem(helper, SPOT, 40.0F);
+        Wolf pet = helper.spawn(EntityTypes.WOLF, SPOT);
+        pet.setNoAi(true);
+        pet.setTame(true, false);
+        pet.setOwnerReference(EntityReference.of(UUID.randomUUID()));
+        helper.assertTrue(pet.isTame(), "setup: the wolf is tame");
+        helper.assertTrue(pet.getOwner() == null, "setup: its owner is not in the level");
+
+        // Act
+        golem.hurtServer(level, level.damageSources().mobAttack(pet), 20.0F);
+
+        // Assert
+        helper.assertValueEqual(golem.getHealth(), 25.0F, "the wolf stops at 25 with its owner offline");
+        helper.assertTrue(golem.getLastHurtByMob() == null, "forgiven: no grudge against the wolf");
         helper.succeed();
     }
 

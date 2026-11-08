@@ -155,6 +155,30 @@ class FangFootprintsTest {
         }
 
         /**
+         * When the caster faces east, so the square lies to the east (dx 0…12, dz -6…6), and columns lie on the caster's
+         * own block, on the far corner, one past the east edge, one past the north edge and on the north edge, inSquare
+         * should keep the far corner and the north edge column, in order, and drop the rest (the caster's own block
+         * included, though it is on the west edge).
+         *
+         * <p>Method under test: {@link FangFootprints#inSquare(List, FangSquare, int, int)}
+         */
+        @Test
+        void keepsTheSquaresColumnsWhenFacingEast() {
+            // Arrange: facing east from (10, 20): dx 0…12, dz -6…6
+            FangSquare square = FangSquare.of(-90);
+            List<Column> columns = List.of(
+                    new Column(10, 20), // the caster's block: dropped
+                    new Column(22, 26), // the far corner, on the edge: kept
+                    new Column(23, 20), // dx 13: past the east edge
+                    new Column(16, 13), // dz -7: past the north edge
+                    new Column(16, 14)); // dz -6: on the north edge, kept
+            // Act
+            List<Column> kept = FangFootprints.inSquare(columns, square, 10, 20);
+            // Assert
+            assertThat(kept).containsExactly(new Column(22, 26), new Column(16, 14));
+        }
+
+        /**
          * When no column is inside, inSquare should answer an empty list.
          *
          * <p>Method under test: {@link FangFootprints#inSquare(List, FangSquare, int, int)}
