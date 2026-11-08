@@ -26,9 +26,10 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 /**
- * Turns key presses into casts (spec §4; vex requests also check the cap of twelve, Evoking II spec §3.2): validates each request, keeps every player's pure {@link EvokingCast}
- * timers, and performs the pending spell on the player tick once its warmup has passed. The map is transient, like
- * {@code TrailLayer}'s trackers: dropped on logout and when the server stops, so a relog forgets cooldowns.
+ * Turns key presses into casts (spec §4; vex requests also check the cap of twelve, Evoking II spec §3.2): validates
+ * each request, keeps every player's pure {@link EvokingCast} timers, and performs the pending spell on the player tick
+ * once its warmup has passed. The map is transient, like {@code TrailLayer}'s trackers: dropped on logout and when the
+ * server stops, so a relog forgets cooldowns.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class EvokingCaster {
@@ -42,7 +43,7 @@ public final class EvokingCaster {
         COOLING,
         /** Fangs with nothing to bite: only the notice, one warmup later. */
         NO_TARGETS,
-        /** Vexes on Peaceful, where the Bound Vex type cannot be created: only the notice, at once; no cast, no cooldown. */
+        /** Vexes on Peaceful, where the Bound Vex type cannot be created: only the notice, at once; no cooldown. */
         PEACEFUL,
         /** Vexes at the cap of twelve: only the notice, at once; no cast, no cooldown. */
         CAPPED,

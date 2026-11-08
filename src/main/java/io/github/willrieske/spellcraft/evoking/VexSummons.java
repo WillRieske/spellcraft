@@ -12,8 +12,9 @@ import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.scores.PlayerTeam;
 
 /**
- * The vex summon (Evoking spec §6, Evoking II §3.1–§3.2): Bound Vexes beside the summoner, marked with the summoner
- * attachment, with no life limit. How many is the caster's call ({@code VexCap}); the goals are the mob's own.
+ * The vex summon (Evoking spec §6, Evoking II §3.1–§3.2): Bound Vexes beside the summoner, marked with the
+ * summoner attachment, with no life limit. How many is the caster's call ({@code VexCap}); the goals are the mob's
+ * own.
  */
 public final class VexSummons {
     private VexSummons() {}
@@ -36,8 +37,8 @@ public final class VexSummons {
      * @param level the level to summon in
      * @param summoner the player who summons them
      * @param count how many; {@code EvokingCaster} takes it from {@code VexCap.toSummon} at the press
-     * @return the vexes, in spawn order; empty on Peaceful, where the type cannot be created ({@code EvokingCaster.request}
-     *     refuses first, so this is only a guard for another caller)
+     * @return the vexes, in spawn order; empty on Peaceful, where the type cannot be created
+     *     ({@code EvokingCaster.request} refuses first, so this is only a guard for another caller)
      */
     public static List<BoundVex> summon(ServerLevel level, ServerPlayer summoner, int count) {
         RandomSource random = level.getRandom();

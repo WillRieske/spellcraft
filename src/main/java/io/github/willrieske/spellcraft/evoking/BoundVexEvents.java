@@ -25,7 +25,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  * it ends. Two events, because the arrival event no longer knows where the player left (docs/api-notes.md §21): the
  * followers are noted on {@code EntityTravelToDimensionEvent} and moved on {@code PlayerChangedDimensionEvent}. Staying
  * vexes stay; a moved vex is a new entity instance that keeps its mark (an attachment) and its stay flag (saved as
- * NBT). Each follower draws its ring cell on its own, so two may share one (harmless for vexes, which clip).
+ * NBT). Each follower draws its ring cell on its own, so two may share one (harmless for vexes, which clip). The
+ * same class resets the repair goal's claims when the server stops ({@link #onServerStopped}).
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class BoundVexEvents {
@@ -114,7 +115,8 @@ public final class BoundVexEvents {
     }
 
     /**
-     * Drops every note when the server stops (single-player loads one server per world in the same JVM).
+     * Drops every note and every repair claim when the server stops (single-player loads one server per world in the
+     * same JVM, so neither may outlive its world).
      *
      * @param event the server-stopped event
      */
