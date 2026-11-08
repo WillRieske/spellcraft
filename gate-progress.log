@@ -62,3 +62,4 @@ f4e5a84 Task 2 done (FangFootprints): 11 focused tests pass; full build green (g
 14b2545 Task 6 done (new allies, trail spares golems): build green; runGameTestServer all 156 required passed
 3401186 Task 7 done (golem mercy): build green; runGameTestServer 160 tests none failed
 b1aefe8 Task 8 done (docs, pitest 98% 247/251, minors closed); plan complete; backstop build green
+16f08d6 Task 1 (d999052): docs only; markdownlint 0 errors; build green (commit gate)
