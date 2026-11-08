@@ -7,6 +7,8 @@ import io.github.willrieske.spellcraft.spell.rules.FangFootprints.Column;
 import java.util.List;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class FangFootprintsTest {
     @Nested
@@ -81,19 +83,47 @@ class FangFootprintsTest {
         }
 
         /**
-         * When a coordinate is NaN or infinite, or max is below min, columns should throw.
+         * When the box has no width on one axis only, columns should still claim the column on that axis and every
+         * column the other axis covers.
          *
          * <p>Method under test: {@link FangFootprints#columns(double, double, double, double)}
          */
         @Test
-        void rejectsNonFiniteOrInvertedBoxes() {
-            // Act & Assert
-            assertThatThrownBy(() -> FangFootprints.columns(Double.NaN, 0, 1, 1))
+        void aBoxWithNoWidthOnOneAxisKeepsTheOtherAxisSpan() {
+            assertThat(FangFootprints.columns(2.5, 0.2, 2.5, 1.8)).containsExactly(new Column(2, 0), new Column(2, 1));
+        }
+
+        /**
+         * When the box's edge sits on a block boundary at negative coordinates, columns should not claim the block
+         * beyond it: [-3.0, -2.0] is column -3 alone.
+         *
+         * <p>Method under test: {@link FangFootprints#columns(double, double, double, double)}
+         */
+        @Test
+        void anEdgeOnANegativeBoundaryClaimsNoBlockBeyondIt() {
+            assertThat(FangFootprints.columns(-3.0, 0, -2.0, 1)).containsExactly(new Column(-3, 0));
+        }
+
+        /**
+         * When a coordinate is NaN, infinite or outside the int range, or max is below min, columns should throw.
+         *
+         * <p>Method under test: {@link FangFootprints#columns(double, double, double, double)}
+         */
+        @ParameterizedTest(name = "box x [{0}, {2}], z [{1}, {3}]")
+        @CsvSource({
+            "NaN, 0, 1, 1",
+            "0, 0, Infinity, 1",
+            "-Infinity, 0, 1, 1",
+            "0, 0, 1, NaN",
+            "2, 0, 1, 1",
+            "0, 2, 1, 1",
+            "0, 0, 1E10, 1",
+            "-1E10, 0, 1, 1",
+            "0, 0, 1, 2147483648"
+        })
+        void rejectsNonFiniteOutOfRangeOrInvertedBoxes(double minX, double minZ, double maxX, double maxZ) {
+            assertThatThrownBy(() -> FangFootprints.columns(minX, minZ, maxX, maxZ))
                     .isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(() -> FangFootprints.columns(0, 0, Double.POSITIVE_INFINITY, 1))
-                    .isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(() -> FangFootprints.columns(2, 0, 1, 1)).isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(() -> FangFootprints.columns(0, 2, 1, 1)).isInstanceOf(IllegalArgumentException.class);
         }
     }
 

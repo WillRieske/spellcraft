@@ -152,7 +152,7 @@ Use a **Survival** world with open flat ground and a few animals (cows, pigs) ab
 
 ## Evoking II (Part 1)
 
-Survival world, open ground, a village nearby if you can. The items below add to the Strength of Evoking ones above. Where a golem can hurt you, use Creative or give yourself Resistance (`/effect give @s resistance 600 4`).
+Survival world, open ground, a village nearby if you can. The items below add to the Strength of Evoking ones above. Where a golem can hurt you, give yourself Resistance (`/effect give @s resistance 600 4`). (Creative players cannot make a golem mad.)
 
 - [ ] Use the same game profile where you had Fangs on F (its saved settings carry over): Controls shows Fangs on Y, not F.
 - [ ] Y at a group of three cows standing apart: three fangs, one under each, none on the grass between them.
@@ -160,7 +160,7 @@ Survival world, open ground, a village nearby if you can. The items below add to
 - [ ] Stand on a cliff 10–14 blocks above a cow and press Y: the fang reaches it. A cow on a ledge 6 blocks above you: bitten. A cow 7 or more blocks above you, or 15 or more below: "No targets in range".
 - [ ] Hit a pig so it runs, then press Y at it while it flees: a fang rises where it was, and a second one where it ran to; no third.
 - [ ] Y with only a villager, a wandering trader, or a calm iron golem ahead: "No targets in range". Vexes ignore them too.
-- [ ] Hit a village iron golem with a sword again and again: when it is about half cracked (25 health; `/data get entity @e[type=iron_golem,limit=1,sort=nearest] Health` reads `25.0f`) it stops losing health, and on that hit it stops chasing you. Your tamed wolf (have one with you) and your fangs stop there too.
+- [ ] Hit a village iron golem with a sword again and again: when its health reads 25.0 (use the `/data get entity @e[type=iron_golem,limit=1,sort=nearest] Health` command, which shows `25.0f`) it stops losing health, and on that hit it stops chasing you. Your tamed wolf (have one with you) and your fangs stop there too.
 - [ ] Make a golem mad at you, then call your vexes next to it: the vexes fight it, it ends at 25 health and calms down.
 - [ ] With Strength of Trailing on too, make a mad golem chase you across your fire trail: the golem is not hurt and does not catch fire.
 - [ ] Summon vexes near a village golem: the golem never swings at them.

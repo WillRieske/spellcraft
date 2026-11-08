@@ -8,6 +8,10 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
@@ -57,18 +61,28 @@ class SpellAssetsTest {
     }
 
     /**
-     * When the lang file is read, it should name both casting keys by their current mapping names and not the old
-     * fangs name: a mismatch with {@code EvokingKeys} would show a raw key in Controls (the client class cannot be
-     * loaded here, so the names are spelled out).
+     * When {@code EvokingKeys.java} is read as text, every casting-key name it spells out should be a key in the lang
+     * file, and the old fangs name should be gone: a mismatch would show a raw key in Controls. The client class is
+     * never loaded, so the client-only rule holds.
      *
      * <p>Method under test: the lang file against {@code EvokingKeys}
      */
     @Test
     void castingKeysHaveEnglishNames() throws IOException {
-        // Act
+        // Arrange
+        String keys = Files.readString(
+                Path.of("src/main/java/io/github/willrieske/spellcraft/client/evoking/EvokingKeys.java"));
         String lang = Files.readString(ASSETS.resolve("lang/en_us.json"));
-        // Assert
-        assertThat(lang).contains("\"key.spellcraft.fangs_y\"", "\"key.spellcraft.vexes\"");
+        List<String> names = new ArrayList<>();
+        Matcher matcher = Pattern.compile("\"(key\\.spellcraft\\.[a-z_]+)\"").matcher(keys);
+        while (matcher.find()) {
+            names.add(matcher.group(1));
+        }
+        // Act & Assert
+        assertThat(names).as("key names found in EvokingKeys").hasSizeGreaterThanOrEqualTo(2);
+        for (String name : names) {
+            assertThat(lang).as("lang key for " + name).contains("\"" + name + "\"");
+        }
         assertThat(lang).doesNotContain("\"key.spellcraft.fangs\"");
     }
 }

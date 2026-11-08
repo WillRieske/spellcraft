@@ -69,13 +69,14 @@ public final class GolemMercy {
 
     /**
      * Whether the damage comes from a player's side: its causing entity is a player (a sword, or fangs through
-     * {@code indirectMagic(fangs, caster)}), a wolf a player owns, or any mob carrying a summoner mark (round one's
+     * {@code indirectMagic(fangs, caster)}), a tamed wolf (every tamed wolf is a player's, even while its owner is
+     * offline and {@code getOwner()} cannot resolve it), or any mob carrying a summoner mark (round one's
      * vexes, Bound Vexes from Part 2 on). Lava, falls, other mobs and {@code /kill} are not.
      */
     private static boolean isPlayersSide(DamageSource source) {
         Entity cause = source.getEntity();
         return cause instanceof Player
-                || (cause instanceof Wolf wolf && wolf.getOwner() instanceof Player)
+                || (cause instanceof Wolf wolf && wolf.isTame())
                 || (cause != null && cause.hasData(AllyAttachments.SUMMONER));
     }
 }

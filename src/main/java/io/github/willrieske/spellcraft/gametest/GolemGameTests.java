@@ -1,6 +1,7 @@
 package io.github.willrieske.spellcraft.gametest;
 
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.summonedVex;
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 import static io.github.willrieske.spellcraft.gametest.TrailGameTests.A;
 import static io.github.willrieske.spellcraft.gametest.TrailGameTests.C;
@@ -10,6 +11,7 @@ import static io.github.willrieske.spellcraft.gametest.TrailGameTests.assertSpar
 import static io.github.willrieske.spellcraft.gametest.TrailGameTests.floors;
 import static io.github.willrieske.spellcraft.gametest.TrailGameTests.forget;
 import static io.github.willrieske.spellcraft.gametest.TrailGameTests.light;
+import static io.github.willrieske.spellcraft.gametest.TrailGameTests.ownerOf;
 import static io.github.willrieske.spellcraft.gametest.TrailGameTests.stepInto;
 import static io.github.willrieske.spellcraft.gametest.TrailGameTests.teleport;
 import static io.github.willrieske.spellcraft.gametest.TrailGameTests.trailingPlayer;
@@ -22,6 +24,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityReference;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.animal.golem.IronGolem;
@@ -31,6 +34,7 @@ import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.entity.projectile.EvokerFangs;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.gamerules.GameRules;
 
 /**
  * Iron golems as allies, the trail's golem clause, golem mercy and forgiveness, and the rule that a golem never targets
@@ -38,6 +42,9 @@ import net.minecraft.world.level.block.Blocks;
  */
 public final class GolemGameTests {
     static final BlockPos SPOT = new BlockPos(1, 1, 1);
+
+    /** The environment of the one test that changes the {@code universal_anger} game rule. */
+    private static final String UNIVERSAL_ANGER = "universal_anger";
 
     private GolemGameTests() {}
 
@@ -52,12 +59,17 @@ public final class GolemGameTests {
                 SHARED, "golems_ii_mercy_sword_wolf_and_summon", GolemGameTests::mercySwordWolfAndSummon);
         SpellcraftGameTests.add(SHARED, "golems_ii_other_damage_untouched", GolemGameTests::otherDamageUntouched);
         SpellcraftGameTests.add(SHARED, "golems_ii_never_targets_a_summon", GolemGameTests::neverTargetsASummon);
+        SpellcraftGameTests.add(UNIVERSAL_ANGER, "golems_ii_universal_anger", GolemGameTests::universalAnger);
     }
 
     /**
      * A golem with no AI: no goals, so no target selection or movement. Its {@code aiStep} still runs, and with it the
      * anger upkeep ({@code updatePersistentAnger}, docs/api-notes.md §20), which is why {@link #anger} also starts the
      * anger timer.
+     *
+     * @param helper the test helper
+     * @param relative where to spawn it, relative to the test's structure
+     * @return the golem
      */
     static IronGolem golem(GameTestHelper helper, BlockPos relative) {
         IronGolem golem = helper.spawn(EntityTypes.IRON_GOLEM, relative);
@@ -66,9 +78,41 @@ public final class GolemGameTests {
     }
 
     /**
+     * {@link #golem(GameTestHelper, BlockPos)} at {@code health}.
+     *
+     * @param helper the test helper
+     * @param relative where to spawn it, relative to the test's structure
+     * @param health the golem's starting health
+     * @return the golem
+     */
+    static IronGolem golem(GameTestHelper helper, BlockPos relative, float health) {
+        IronGolem golem = golem(helper, relative);
+        golem.setHealth(health);
+        return golem;
+    }
+
+    /**
+     * Asserts that {@code golem} remembers {@code entity} as the last mob that hurt it.
+     *
+     * @param helper the test helper
+     * @param golem the golem
+     * @param entity the expected attacker
+     * @param message what the assertion says when it fails
+     */
+    static void assertRemembers(GameTestHelper helper, IronGolem golem, Entity entity, String message) {
+        helper.assertTrue(
+                golem.getLastHurtByMob() != null
+                        && golem.getLastHurtByMob().getUUID().equals(entity.getUUID()),
+                message);
+    }
+
+    /**
      * Makes {@code golem} mad at {@code player} the way vanilla does: target, persistent anger target and the anger
-     * timer (without the timer the upkeep in {@code aiStep} would clear the anger on the next tick; Task 7's 35-tick
-     * mercy test depends on this).
+     * timer (without the timer the upkeep in {@code aiStep} would clear the anger on the next tick; {@link
+     * #mercyClampsAFangBite}, which lets the golem live 35 ticks, depends on this).
+     *
+     * @param golem the golem to anger
+     * @param player the player it becomes mad at
      */
     static void anger(IronGolem golem, ServerPlayer player) {
         golem.setTarget(player);
@@ -79,7 +123,9 @@ public final class GolemGameTests {
     /**
      * When a calm golem stands near the player, should be an ally and may have allies; with the player as its target,
      * or with its persistent anger naming the player, should not be an ally; after it stops being angry, should be one
-     * again.
+     * again; a player-created golem (vanilla's {@code canAttack} says no to players, so it is never angry at one)
+     * should stay an ally with only its anger naming the player, and still be clamped by mercy; a golem angry at a
+     * second player should still be an ally of the first.
      *
      * <p>Method under test: {@link Allies#isAllyOf}, {@link Allies#isMadAt}, and {@link Allies#mayHaveAllies}
      */
@@ -103,13 +149,61 @@ public final class GolemGameTests {
         helper.assertFalse(Allies.isAllyOf(player, golem), "a golem whose anger names the player is not an ally");
         golem.stopBeingAngry();
         helper.assertTrue(Allies.isAllyOf(player, golem), "forgiven: an ally again");
+
+        // A player-created golem never counts as angry at a player (canAttack is false), so its anger alone, with no
+        // target set, leaves it an ally; the mercy clamp does not depend on anger and still applies.
+        IronGolem built = golem(helper, SPOT, 30.0F);
+        built.setPlayerCreated(true);
+        built.setPersistentAngerTarget(EntityReference.of(player));
+        built.startPersistentAngerTimer();
+        helper.assertFalse(built.isAngryAt(player, level), "setup: a player-created golem is not angry at a player");
+        helper.assertTrue(Allies.isAllyOf(player, built), "a player-created golem stays an ally");
+        built.hurtServer(level, level.damageSources().playerAttack(player), 10.0F);
+        helper.assertValueEqual(built.getHealth(), 25.0F, "and mercy still clamps it");
+
+        // A golem mad at someone else is no enemy of this player.
+        ServerPlayer other = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        IronGolem madAtOther = golem(helper, SPOT);
+        anger(madAtOther, other);
+        helper.assertTrue(Allies.isMadAt(madAtOther, other), "setup: the golem is mad at the other player");
+        helper.assertFalse(Allies.isMadAt(madAtOther, player), "it is not mad at the first player");
+        helper.assertTrue(Allies.isAllyOf(player, madAtOther), "a golem mad at another player is still an ally");
+        helper.succeed();
+    }
+
+    /**
+     * When the {@code universal_anger} game rule is on and a golem has anger with no persistent target, should the
+     * golem be angry at every player: mad at the player and no ally.
+     *
+     * <p>Method under test: {@link Allies#isMadAt}, and {@link Allies#isAllyOf}
+     *
+     * <p>Changes a game rule, so it runs in the {@code universal_anger} environment, restored afterwards.
+     */
+    static void universalAnger(GameTestHelper helper) {
+        // Arrange
+        ServerLevel level = helper.getLevel();
+        GameRules rules = level.getGameRules();
+        boolean saved = rules.get(GameRules.UNIVERSAL_ANGER);
+        whenDone(helper, () -> rules.set(GameRules.UNIVERSAL_ANGER, saved, level.getServer()));
+        rules.set(GameRules.UNIVERSAL_ANGER, true, level.getServer());
+        ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        IronGolem golem = golem(helper, SPOT);
+
+        // Act
+        golem.startPersistentAngerTimer();
+
+        // Assert
+        helper.assertTrue(golem.isAngryAtAllPlayers(level), "setup: universal anger with no persistent target");
+        helper.assertTrue(Allies.isMadAt(golem, player), "the golem is mad at the player");
+        helper.assertFalse(Allies.isAllyOf(player, golem), "and no ally");
         helper.succeed();
     }
 
     /**
      * When a calm golem, then a golem mad at the owner, then the same golem with the owner offline step into the
      * owner's flame, should none of them burn, while a zombie stepping in does (the flame works). The offline case
-     * pins that the golem clause does not go through the ally path, which spares only while the owner is online.
+     * pins that the golem clause does not go through the ally path, which spares only while the owner is online. A
+     * golem stepping into a flame no ledger entry owns (the negative control) should burn.
      *
      * <p>Method under test: {@link TrailFires#isSpared}
      */
@@ -137,6 +231,10 @@ public final class GolemGameTests {
         stepInto(helper, A, golem);
         assertSpared(helper, golem, "a golem with the owner offline");
         forget(helper, owner);
+        helper.assertTrue(ownerOf(helper, A).isEmpty(), "setup: the flame at A has no owner now");
+        IronGolem unowned = golem(helper, C);
+        stepInto(helper, A, unowned);
+        assertBurned(helper, unowned, "a golem in an ownerless flame");
         helper.succeed();
     }
 
@@ -150,9 +248,9 @@ public final class GolemGameTests {
     static void mercyClampsAFangBite(GameTestHelper helper) {
         // Arrange
         ServerLevel level = helper.getLevel();
-        // The structure is 3 blocks of air: at SPOT the golem's head (2.7 tall) pokes out of the top and it suffocates
-        // for 1 damage a tick, so this long-lived golem stands on a floor one block lower (the stone at relative y -1
-        // relies on the test environment placing nothing under the box).
+        // The structure is 3 blocks of air under a barrier ceiling: at SPOT the golem's head (2.7 tall) reaches into
+        // the barrier and it suffocates for 1 damage a tick, so this long-lived golem stands one block lower, where
+        // its head stays under the ceiling (the stone replaces the barrier shell's floor at relative y -1).
         BlockPos low = SPOT.below();
         helper.setBlock(low.below(), Blocks.STONE);
         ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
@@ -197,20 +295,15 @@ public final class GolemGameTests {
         // Arrange
         ServerLevel level = helper.getLevel();
         ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
-        IronGolem bySword = golem(helper, SPOT);
-        bySword.setHealth(30.0F);
-        IronGolem byWolf = golem(helper, SPOT);
-        byWolf.setHealth(40.0F);
+        IronGolem bySword = golem(helper, SPOT, 30.0F);
+        IronGolem byWolf = golem(helper, SPOT, 40.0F);
         Wolf pet = helper.spawn(EntityTypes.WOLF, SPOT);
         pet.setNoAi(true);
         pet.tame(player);
-        IronGolem byVex = golem(helper, SPOT);
-        byVex.setHealth(30.0F);
+        IronGolem byVex = golem(helper, SPOT, 30.0F);
         Vex summon = summonedVex(helper, SPOT, player.getUUID());
-        IronGolem roomLeft = golem(helper, SPOT);
-        roomLeft.setHealth(40.0F);
-        IronGolem alreadyUnder = golem(helper, SPOT);
-        alreadyUnder.setHealth(20.0F);
+        IronGolem roomLeft = golem(helper, SPOT, 40.0F);
+        IronGolem alreadyUnder = golem(helper, SPOT, 20.0F);
 
         // Act
         bySword.hurtServer(level, level.damageSources().playerAttack(player), 10.0F);
@@ -227,10 +320,7 @@ public final class GolemGameTests {
         helper.assertValueEqual(byVex.getHealth(), 25.0F, "the summoned vex stops at 25");
         helper.assertTrue(byVex.getLastHurtByMob() == null, "forgiven: no grudge against the vex");
         helper.assertValueEqual(roomLeft.getHealth(), 30.0F, "above 25 the hit lands whole");
-        helper.assertTrue(
-                roomLeft.getLastHurtByMob() != null
-                        && roomLeft.getLastHurtByMob().getUUID().equals(player.getUUID()),
-                "above 25 the golem remembers the player");
+        assertRemembers(helper, roomLeft, player, "above 25 the golem remembers the player");
         helper.assertValueEqual(alreadyUnder.getHealth(), 20.0F, "under 25 nothing lands");
         helper.assertTrue(alreadyUnder.getLastHurtByMob() == null, "and no grudge");
         summon.discard();
@@ -246,14 +336,14 @@ public final class GolemGameTests {
     static void otherDamageUntouched(GameTestHelper helper) {
         // Arrange
         ServerLevel level = helper.getLevel();
-        IronGolem byMagic = golem(helper, SPOT);
-        byMagic.setHealth(30.0F);
-        IronGolem byZombie = golem(helper, SPOT);
-        byZombie.setHealth(30.0F);
+        IronGolem byMagic = golem(helper, SPOT, 30.0F);
+        IronGolem byZombie = golem(helper, SPOT, 30.0F);
         Zombie zombie = helper.spawn(EntityTypes.ZOMBIE, SPOT);
         zombie.setNoAi(true);
-        IronGolem byStrayWolf = golem(helper, SPOT);
-        byStrayWolf.setHealth(30.0F);
+        // Fighting the zombie already: mercy forgiving it would clear this target and memory.
+        byZombie.setTarget(zombie);
+        byZombie.setLastHurtByMob(zombie);
+        IronGolem byStrayWolf = golem(helper, SPOT, 30.0F);
         Wolf stray = helper.spawn(EntityTypes.WOLF, SPOT);
         stray.setNoAi(true);
 
@@ -265,6 +355,10 @@ public final class GolemGameTests {
         // Assert
         helper.assertValueEqual(byMagic.getHealth(), 20.0F, "ownerless magic lands whole");
         helper.assertValueEqual(byZombie.getHealth(), 20.0F, "a zombie's hit lands whole");
+        assertRemembers(helper, byZombie, zombie, "the golem still remembers the zombie: no forgiveness at 20");
+        helper.assertTrue(
+                byZombie.getTarget() != null && byZombie.getTarget().getUUID().equals(zombie.getUUID()),
+                "and still targets it");
         helper.assertValueEqual(byStrayWolf.getHealth(), 20.0F, "an unowned wolf's hit lands whole");
         zombie.discard();
         helper.succeed();

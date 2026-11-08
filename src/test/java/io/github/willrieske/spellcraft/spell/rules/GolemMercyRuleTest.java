@@ -33,19 +33,29 @@ class GolemMercyRuleTest {
         }
 
         /**
-         * When the golem is at or under 25, clamp should answer 0 whatever the damage; one float step above 25 it
-         * should answer that step.
+         * When the golem is at or under 25, clamp should answer 0 whatever the damage.
          *
          * <p>Method under test: {@link GolemMercyRule#clamp(float, float)}
          */
         @Test
-        void atOrUnderTwentyFiveNothingLandsAndJustAboveLandsTheStep() {
+        void atOrUnderTwentyFiveNothingLands() {
             // Act & Assert
             assertThat(GolemMercyRule.clamp(25, 6)).isZero();
             assertThat(GolemMercyRule.clamp(20, 6)).isZero();
             assertThat(GolemMercyRule.clamp(0, 6)).isZero();
             assertThat(GolemMercyRule.clamp(-5, 6)).isZero();
+        }
+
+        /**
+         * When the golem is one float step above 25, clamp should answer that step.
+         *
+         * <p>Method under test: {@link GolemMercyRule#clamp(float, float)}
+         */
+        @Test
+        void justAboveTwentyFiveLandsTheStep() {
+            // Arrange
             float justAbove = Math.nextUp(25.0F);
+            // Act & Assert
             assertThat(GolemMercyRule.clamp(justAbove, 6)).isEqualTo(justAbove - 25.0F);
         }
 

@@ -30,7 +30,7 @@ public final class FangFootprints {
      * @param maxX the box's east edge
      * @param maxZ the box's south edge
      * @return the columns, west to east within each row, north to south
-     * @throws IllegalArgumentException if a coordinate is not finite or a max is below its min
+     * @throws IllegalArgumentException if a coordinate is not finite or outside the int range, or a max is below its min
      */
     public static List<Column> columns(double minX, double minZ, double maxX, double maxZ) {
         requireBox(minX, maxX);
@@ -59,19 +59,21 @@ public final class FangFootprints {
      * @return the kept columns
      */
     public static List<Column> inSquare(List<Column> columns, FangSquare square, int feetX, int feetZ) {
-        List<Column> kept = new ArrayList<>();
-        for (Column column : columns) {
-            int dx = column.x() - feetX;
-            int dz = column.z() - feetZ;
-            if ((dx != 0 || dz != 0) && square.contains(dx, dz)) {
-                kept.add(column);
-            }
-        }
-        return Collections.unmodifiableList(kept);
+        return columns.stream()
+                .filter(column -> {
+                    int dx = column.x() - feetX;
+                    int dz = column.z() - feetZ;
+                    return (dx != 0 || dz != 0) && square.contains(dx, dz);
+                })
+                .toList();
     }
 
     private static void requireBox(double min, double max) {
-        if (!Double.isFinite(min) || !Double.isFinite(max) || max < min) {
+        if (!Double.isFinite(min)
+                || !Double.isFinite(max)
+                || max < min
+                || Math.abs(min) >= Integer.MAX_VALUE
+                || Math.abs(max) >= Integer.MAX_VALUE) {
             throw new IllegalArgumentException("not a box: [" + min + ", " + max + "]");
         }
     }

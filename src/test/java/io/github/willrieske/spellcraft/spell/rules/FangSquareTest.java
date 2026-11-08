@@ -135,6 +135,23 @@ class FangSquareTest {
     }
 
     @Nested
+    class Size {
+        /**
+         * When the square faces north, its edges should span exactly SIZE blocks on both axes.
+         *
+         * <p>Method under test: {@link FangSquare#minDx()}, {@link FangSquare#maxDz()}
+         */
+        @Test
+        void aNorthFacingSquareSpansSizeBlocksOnBothAxes() {
+            // Arrange
+            FangSquare square = FangSquare.of(180);
+            // Act & Assert
+            assertThat(square.maxDx() - square.minDx() + 1).isEqualTo(FangSquare.SIZE);
+            assertThat(square.maxDz() - square.minDz() + 1).isEqualTo(FangSquare.SIZE);
+        }
+    }
+
+    @Nested
     class Contains {
         /**
          * When asked about cells on and beyond the square's edge, contains should answer true on the edge and false
