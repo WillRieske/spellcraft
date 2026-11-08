@@ -1,0 +1,732 @@
+# Spellcraft: Evoking II, Bound Vexes (design)
+
+**Date:** 2026-11-07
+**Status:** approved design; built in seven parts (§1), each with its own plan, branch and PR
+**Written by:** brainstorm with Will on 2026-11-07; §13 lists the decisions Will did not state
+**Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
+**Builds on:** [`2026-11-06-evoking-design.md`](2026-11-06-evoking-design.md) (Evoking: keys, casting,
+fangs, vexes), [`2026-11-04-trailing-design.md`](2026-11-04-trailing-design.md) (allies) and
+[`2026-09-29-infinity-design.md`](2026-09-29-infinity-design.md) (the spell framework).
+**Amends:** the Evoking spec's §2 keys (F → Y), §5 fangs (a fang per target, not a carpet), §6
+vexes (vanilla vexes → Bound Vexes), §3 allies (three new ally kinds); the Trailing spec's spared
+rule (iron golems are never lit, §2.3); `CLAUDE.md`'s packet rule (the one packet gains a second
+request kind, §7.1).
+
+## Summary
+
+This is the second round of **Strength of Evoking**. Will played the first round and asked for
+changes. The biggest one: the three vexes you summon with **V** become **Bound Vexes**, a new mob
+of this mod that looks like a vex but acts like a loyal pet. Bound Vexes follow you (through
+portals too), never fade away on a timer, guard you and your allies, fight what you fight, and run
+from a hissing creeper. You can hand them armor and weapons, and they hand back what they held.
+They cure zombie villagers with a golden apple and a splash potion, bribe an evoker's vexes with
+an emerald, repair iron golems with iron ingots, and in the Nether and the End they do more:
+knock Ghast fireballs back, pull you from lava, catch you over the void. Twelve of them can team
+up for special moves (Shield, Multishot, Evader, Raid), and one in three is a **Caster** that
+casts two new spells, **Mirror** (thirteen copies of you) and **Ghostrail** (fly through walls,
+unhurt). Those two spells are real scrolls players can use too, evokers and illagers can carry
+them, and a villager that dies to monsters leaves a **ghost** that comes back to help when you
+need it.
+
+Smaller changes ride along: fangs are cast with **Y** instead of F, they come up only under
+enemies (and chase a mob that steps off), they reach 14 blocks down, and villagers, wandering
+traders and iron golems count as allies, with a mercy rule for a golem that is mad at you.
+
+The work is split into seven parts, built in order, each small enough for one plan and one PR.
+
+## Glossary
+
+| Term | Meaning |
+|---|---|
+| **Bound Vex** | `spellcraft:bound_vex`, this mod's own mob, a subclass of vanilla `Vex`. What **V** summons from now on. Carries the **summoner** attachment. |
+| **Summoner** | The player who summoned a Bound Vex (attachment `spellcraft:summoner`, from the Evoking spec). "You" in this document. |
+| **Ally** | What `Allies.isAllyOf(player, entity)` says: vanilla's allies (team, pets, allays), the player's summons and owned mobs, and now villagers, wandering traders and iron golems (§2.3). |
+| **Hostile** | A mob that implements `Enemy` (every `Monster`, slimes, ghasts, phantoms, shulkers, the dragon, the wither). Creepers are hostile but Bound Vexes skip them unless provoked (§3.4). |
+| **Guard area** | The box around a Bound Vex in which it looks for hostiles: 8 × 8 × 7 blocks (±4 east/west, ±4 north/south, ±3.5 up/down). |
+| **Reach** | 7.25 blocks: how far a Bound Vex keeps a chosen target before it gives up on it, and its `FOLLOW_RANGE`. |
+| **Staying** | A Bound Vex told to hold its spot (empty-hand right-click toggles it). It still fights in its guard area but does not follow. |
+| **Conjured gear** | Items a Bound Vex pulls out by itself (team moves, the cure, the bribe, repairs). They vanish when their job is done, cannot be taken, and never drop. |
+| **Given gear** | Items you hand a Bound Vex, plus its own iron sword. Real: you can take them back and they drop on death. |
+| **Team move** | One of Shield, Multishot, Evader, Raid (§8): several Bound Vexes acting together with conjured gear. |
+| **Caster** | A Bound Vex rolled as a spellcaster at summon time (1 in 3). It casts scrolls instead of fighting, and wears a torn purple-and-magenta robe. |
+| **Mirror**, **Ghostrail** | The two new spells (§9). Scrolls in the spell framework, castable by players; also cast by Casters, evokers, illagers and villager ghosts. |
+| **Villager ghost** | `spellcraft:villager_ghost`: the spirit of a villager that monsters killed. Appears when you need help nearby, casts Mirror and Ghostrail on you, then fades, and can come back. |
+| **Mercy** | A hit from your side can never take an iron golem below 25 health; at 25 it forgives you. |
+
+## 1. Scope and the seven parts
+
+Everything below is in scope. It is built in this order; each part is one plan, one branch, one PR,
+and each lands before the next starts, so Will can play each one.
+
+| Part | Name | What lands | Spec |
+|---|---|---|---|
+| 1 | Small fixes | Y key; fangs under targets, chase fang, 14 blocks down; villagers, traders and golems as allies; golem anger, mercy and forgiveness | §2 |
+| 2 | Bound Vex basics | The mob, V summons it, no timer, cap of 12, follow/stay/teleport/portals, who it fights, wolves join, creeper flight, golem rules, golem repair | §3 |
+| 3 | Gear | Armor you can see, weapons, shields, potions and arrows, taking a weapon back, drops | §4 |
+| 4 | Cure and bribes | The zombie-villager cure; bribing an evoker's vexes | §5 |
+| 5 | World helpers | Overworld, Nether and End behaviors | §6 |
+| 6 | Team moves | Shield, Multishot, Evader, Raid; the automatic/manual setting and keys | §7–§8 |
+| 7 | Casters, scrolls, ghosts | The Caster variant, Mirror, Ghostrail, illagers with scrolls, villager ghosts | §9 |
+
+**Out of scope:** a spawn egg for any new mob (Will: none); Wololo; boots or elytra on vexes (they
+have no feet and their wings are their own); any new clientbound packet (§7.1 keeps the one
+packet, client → server); configuration beyond the one team-move setting (§7.3).
+
+Cross-cutting rules: §10 (error handling), §11 (testing), §12 (docs and delivery), §13
+(decisions).
+
+## 2. Part 1: small fixes
+
+### 2.1 Fangs on Y
+
+`key.spellcraft.fangs` gets default `InputConstants.KEY_Y` (28; no vanilla binding uses Y, checked
+in `Options.java`). The mapping is renamed `key.spellcraft.fangs_y` so a saved `options.txt` from
+round one does not pin F: vanilla stores bindings by mapping name, and a new name falls back to the
+new default. The lang entry stays "Evoking: Fangs". The swap-offhand swallow in `EvokingKeys` is
+kept as is: it only fires when a casting key is `.same` as swap-offhand, so with Y it is inert and
+with a user rebind to F it still works. V is unchanged.
+
+### 2.2 Fangs only under enemies
+
+**Scan.** `Fangs.snapshot` keeps the 13×13 square ahead and the target rule (`isTarget`), but the
+scan box's vertical window becomes `y ∈ [F.y − 14, F.y + 7)`: fourteen blocks down, six up
+(`SCAN_DEPTH = 14`, `SCAN_HEIGHT = 6`, replacing `SCAN_HALF_HEIGHT`).
+
+**Snapshot.** Instead of `top`/`bottom`, the snapshot records a list of **target footprints**: for
+every target, the set of block columns its bounding box covers at the press (`AABB` floored to
+`BlockPos` columns, intersected with the square), each with the target's feet `y`. A ravager covers
+several columns and gets a fang in each; a zombie gets one. The caster's own column is skipped as
+before. Duplicates between targets collapse into one fang per column.
+
+**Perform.** For each footprint column `(x, z)` with feet `y0`: floor search from `y0 + 1` down to
+`y0 − 2` (the evoker's own window around one target), the same sturdy-face rule and chunk check as
+today; a fang with `delayTicks = 0` (no ripple: the fangs are scattered, so they all snap together
+one second after the press). Angle = `atan2(dz, dx)` from the caster's feet as before. The game
+event stays off.
+
+**Chase fang.** A fang records its intended target (the `Fangs` snapshot keeps `(column → target
+UUID)`; the perform stores it in a transient map `fang entity id → (target UUID, caster UUID)`,
+dropped when the fang is removed). When a fang bites (the mod listens on `EntityTickEvent.Post` for
+the fangs in its map and acts on the tick vanilla deals damage: `EvokerFangs.tick` bites when its
+warmup counter reaches −8, so eight ticks after the warmup ends; the plan verifies the number
+against `build/mc-src`) and its target is alive, within 16 blocks of
+the caster, not an ally, and **not standing on any of the fang's columns**, one more fang is placed
+under the target's current footprint with the same floor search, `delayTicks 0`, and **no further
+chase** (the chase fang carries no target record). One chase per target per cast.
+
+**No targets:** unchanged (the notice, no cooldown).
+
+### 2.3 New allies: villagers, wandering traders, iron golems
+
+`Allies.isAllyOf(owner, other)` adds: `other instanceof AbstractVillager` (villagers and wandering
+traders) → ally; `other instanceof IronGolem golem && !golem.isAngryAtPlayer(owner)` → ally. Every
+golem counts, village-made or player-made (Will: every golem, decision §13).
+
+`Allies.mayHaveAllies(other)` adds `AbstractVillager` and `IronGolem` so Trailing's fast path keeps
+working.
+
+**A mad golem.** `IronGolem` is a `NeutralMob`; `isAngryAtPlayer(owner)` is
+`golem.getTarget() == owner || golem.isAngryAt(owner, level)` (a new helper in `Allies`, since
+`isAngryAt` needs the level). While it is mad at you it is not your ally: your fangs, vexes and
+wolves may fight it. The Trailing flame is the exception: fire damage carries no attacker, so mercy
+(below) could not tell your flame's burn from lava. **`TrailFires.isSpared` spares every
+`IronGolem`, mad or not** (an extra clause before the ally check). The Trailing spec's spared rule
+is amended by this line.
+
+**Mercy.** `GolemMercy` (`spell` package, `@EventBusSubscriber`) listens on
+`LivingDamageEvent.Pre`. When the victim is an `IronGolem` and the damage comes from a player's
+side, the new damage is clamped to `max(0, health − 25)`. "A player's side" means the damage
+source's causing entity is a player (fangs: `indirectMagic(fangs, caster)`; a sword hit is also the
+player: Will's own hits are clamped too, see §13), or a tamed wolf whose owner is a player, or a
+Bound Vex (Part 2; `source.getEntity() instanceof BoundVex`). Lava, falls, other mobs and
+`/kill` are untouched.
+
+**Forgiveness.** In the same handler, when the clamp leaves the golem at 25 or the hit lands it at
+≤ 25: `golem.stopBeingAngry()`, `golem.setTarget(null)`, `golem.setLastHurtByMob(null)`. The golem
+is an ally again at once (`isAngryAtPlayer` is false). It gets mad again only through vanilla's
+rules (you hit it or a villager). Repair is Part 2 (§3.7).
+
+**Golems and summons.** Vanilla golems attack any `Enemy` but creepers (`IronGolem.registerGoals`,
+the `NearestAttackableTargetGoal<Mob>` with `target instanceof Enemy && !(target instanceof
+Creeper)`). A Bound Vex is a `Monster`, so a golem would attack it. `GolemMercy` also cancels
+`LivingChangeTargetEvent` when an `IronGolem` picks a mob that carries the **summoner**
+attachment (round one's vanilla vexes in Part 1, Bound Vexes from Part 2 on, since they carry it
+too). Villagers do not flee a Bound Vex: their hostile sensor lists `EntityType.VEX`, and the
+Bound Vex is its own type.
+
+## 3. Part 2: Bound Vex basics
+
+### 3.1 The mob
+
+`io.github.willrieske.spellcraft.evoking.BoundVex extends Vex`. `Vex` is a public, non-final class
+with a public constructor (`Vex.java:47,57`), so subclassing is clean: the move control, the charge
+and wander goals, the no-clip flight and the vex model are inherited. What changes:
+
+- **Registration:** `ModEntities.BOUND_VEX` (`DeferredRegister<EntityType<?>>`,
+  `EntityType.Builder.of(BoundVex::new, MobCategory.MONSTER).sized(0.4F, 0.8F)` with vex's
+  tracking settings), attributes = `Vex.createAttributes()` with `FOLLOW_RANGE` 7.25, registered in
+  `EntityAttributeCreationEvent`. `MobCategory.MONSTER` keeps vanilla's hostile-mob bookkeeping (it
+  is still a monster to golems and villagers, handled in §2.3).
+- **No spawn egg, no natural spawn, no loot table** (it drops only gear, §4.5). Will asked for no
+  egg; `/summon spellcraft:bound_vex` works for testing and sets no summoner, so such a vex idles.
+- **No timer:** `BoundVex` never calls `setLimitedLife`; `Vex.tick` only counts down when
+  `hasLimitedLife` is true (`Vex.java:79`). `removeWhenFarAway` returns false and
+  `requiresCustomPersistence` returns true, so it never despawns.
+- **Summoner:** the attachment from round one. `summoner()` returns `Optional<ServerPlayer>`
+  (online, same level). Without a summoner the vex idles: hovers, fights nothing (§3.4 needs the
+  summoner to compute allies), takes no interactions but still shows its gear.
+- **Synced data:** `STAYING` (boolean), `CASTER` (boolean, §9.1), `TEAM_MOVE` (byte, §8).
+- **Renderer:** `BoundVexRenderer extends VexRenderer`, same texture and model in Part 2 (the armor
+  layer comes in Part 3), registered in `EntityRenderersEvent.RegisterRenderers`
+  (`client.evoking`).
+- **`VexSummons.summon`** creates `ModEntities.BOUND_VEX` instead of `EntityTypes.VEX`, keeps the
+  ring offsets, `finalizeSpawn` (iron sword), bound origin, team join, and drops the
+  `setLimitedLife` line and the `onJoin` goal install (goals are the class's own now). `isPrey`
+  becomes `BoundVex.isPrey` (§3.4). `EvokingCaster.request(VEXES)` on Peaceful: unchanged; a
+  `Monster` subclass still refuses to spawn on Peaceful via `EntityType.create`.
+
+### 3.2 The cap of twelve
+
+`EvokingCaster.request(VEXES)`, when ready and not Peaceful, counts the summoner's living Bound
+Vexes in every loaded level (`server.getAllLevels()`, `level.getEntities(ModEntities.BOUND_VEX,
+v -> summoner matches)`; unloaded vexes are not counted, accepted §13).
+
+- `count ≥ 12`: the answer is the new outcome `CAPPED`, `sendOverlayMessage` with
+  `message.spellcraft.too_many_vexes` ("You have too many vexes"), no cast, no cooldown, no sound.
+- `9 < count < 12`: the cast starts as usual and `VexSummons.summon` summons `12 − count`.
+- otherwise three.
+
+### 3.3 Following, staying, teleporting, portals
+
+Goals (goal selector, in priority order; the target selector is §3.4):
+
+0. `FleeCreeperGoal` (§3.5) and `DodgeGolemGoal` (§3.6).
+1. `TeamMoveGoal` (Part 6, a no-op until then).
+2. The job goals of later parts (cure §5.1, bribe §5.2, repair §3.7, world helpers §6).
+3. `Vex.VexChargeAttackGoal` (vanilla, inherited; also drives melee with given weapons).
+4. `FollowSummonerGoal`: when not staying and no target, hover within an orbit band of the summoner
+   (default 2–4 blocks, §6 tightens it per dimension); when farther than **12 blocks**, teleport to
+   a free cell within 2 blocks of the summoner (vexes clip through blocks, so any air cell works).
+   It also remembers the summoner's **last ground position** (the last block the summoner stood on
+   with `onGround()`), used by the void rescue (§6.3).
+5. `Vex.VexRandomMoveGoal` (vanilla wander around the bound origin) **only while staying**: the
+   bound origin is set to the stay position when stay is toggled on, so a staying vex drifts around
+   its post.
+6. `LookAtPlayerGoal`, `RandomLookAroundGoal` (vanilla).
+
+**Stay/follow toggle:** `mobInteract` with an empty main hand and no sneak toggles `STAYING`; a
+small sound (`VEX_AMBIENT`) and `InteractionResult.SUCCESS`. Sneak + empty hand is Part 3 (§4.4).
+Interactions are accepted only from the summoner.
+
+**Portals:** `PlayerEvent.PlayerChangedDimensionEvent`: every non-staying Bound Vex of that player
+within 16 blocks of where the player left is teleported to the player's arrival position via
+`Entity.teleport(TeleportTransition)` (`Entity.java:3177`), placed on the ring cells around the
+player. Staying vexes stay. A vex arriving with the player keeps gear, flags and summoner.
+
+**Logout:** nothing is removed. The vexes idle where they are and resume when the summoner is back
+in their level. Death of the summoner: same as logout until respawn; after respawn they are in the
+old level and follow again when the summoner returns there (no cross-dimension teleport on respawn;
+§13).
+
+### 3.4 Who a Bound Vex fights
+
+`BoundVex.isPrey(level, summonerUuid, target)` keeps round one's base rule (attackable, summoner
+online in the level, not an ally, PvP rule for players) and the target selector installs, in
+priority order:
+
+1. `HurtBySummonerSideGoal` (a `TargetGoal` the mod writes): the newest of these, if it passes
+   `isPrey`: the mob that last hurt **this vex** (`getLastHurtByMob`), the mob that last hurt **the
+   summoner** (`summoner.getLastHurtByMob`), the mob the summoner last **hit**
+   (`summoner.getLastHurtMob`), or the mob that last hurt **an ally** within the guard area (the
+   ally's `getLastHurtByMob`, allies scanned every 10 ticks). A creeper is allowed here (provoked).
+2. `AllyFightGoal`: the current target of any **ally `Mob`** within the guard area (an iron golem's
+   or a wolf's `getTarget()`), if `isPrey` and hostile. Vexes join fights allies start.
+3. `NearestHostileGoal`: `NearestAttackableTargetGoal<LivingEntity>` over the guard area (a custom
+   `getTargetSearchArea` returning the 8×8×7 box) with selector `isPrey(...) && target instanceof
+   Enemy && !(target instanceof Creeper)`. Line of sight is vanilla's (`mustSee`). A vanilla `Vex`
+   (an evoker's) is an `Enemy`, so it is engaged; Part 4 makes that engagement a bribe attempt
+   first (§5.2).
+
+All three override `canContinueToUse` as round one did: the target is dropped when it stops being
+prey, dies, or is farther than **reach** (7.25). The guard-area scan runs every 10 ticks in the
+Overworld (vanilla's `NearestAttackableTargetGoal` cadence) and every tick where §6 says so.
+
+**Wolves join vex fights.** When a Bound Vex takes a new target (`setTarget` override on
+`BoundVex`), every tamed `Wolf` owned by the summoner within 16 blocks that has no target and is
+not sitting gets `setTarget(sameTarget)`. Wolves are the only tamed mob that fights; golems already
+fight hostiles on their own (§13).
+
+**Mercy** applies to a Bound Vex's hits on a golem through `GolemMercy` (§2.3): `source.getEntity()
+instanceof BoundVex`.
+
+### 3.5 Fleeing a hissing creeper
+
+`FleeCreeperGoal` (priority 0): when any `Creeper` within 8 blocks has `getSwellDir() > 0`
+(`Creeper.java:195`), the vex flies directly away from it to at least 8 blocks and stays there until
+the creeper stops swelling or explodes. It abandons its target meanwhile (`setTarget(null)` is not
+called; the flee goal simply outranks the charge goal, so the target is kept and resumed).
+
+### 3.6 Iron golems and Bound Vexes
+
+- Golems never target Bound Vexes (`GolemMercy` cancels `LivingChangeTargetEvent`, §2.3).
+- `DodgeGolemGoal` (priority 0): when an `IronGolem` within 3 blocks is mid-swing
+  (`getAttackAnimationTick() > 0`, `IronGolem.java:237`, public) and faces the vex (dot of look
+  vector and offset > 0.5), the vex darts 3 blocks sideways (perpendicular to the golem's look) in one move. Every time, no roll:
+  the case only arises while a mad golem is being fought (§13).
+
+### 3.7 Repairing a golem
+
+`RepairGolemGoal` (job goal): an ally `IronGolem` (so: not mad) within the guard area with `health <
+maxHealth` and no other Bound Vex already repairing it (a transient claim set keyed by golem id).
+The vex flies to within 1.5 blocks of the golem's chest, conjures an **iron ingot** in its main hand
+(the given item is stashed, §4.5), and every 30 ticks: swings the arm (`swing(MAIN_HAND)`), plays
+`SoundEvents.IRON_GOLEM_REPAIR`, `golem.heal(25)` (the vanilla ingot amount, `IronGolem.java:55`).
+Repeats until full, then the ingot vanishes and the given item returns. This covers the forgiven
+golem of §2.3 and any hurt ally golem.
+
+## 4. Part 3: gear
+
+### 4.1 Armor
+
+`mobInteract` by the summoner holding an item whose `DataComponents.EQUIPPABLE` slot is `HEAD`,
+`CHEST` or `LEGS`: the vex equips it (`setItemSlot`), and the piece it wore there, if any, goes to
+the summoner (`player.getInventory().add`, else dropped at the player). `FEET` and `BODY` items are
+refused (`PASS`). Armor applies its attributes (vanilla `setItemSlot`) and enchantments.
+
+### 4.2 Weapons, shields, potions, arrows
+
+Right-click by the summoner with:
+
+- a **melee weapon** (`Items` with an `ATTACK_DAMAGE` modifier: swords, axes, maces, tridents) or
+  a **bow/crossbow**: it goes in the main hand; the old main-hand item (the iron sword, or an
+  earlier gift) goes to the summoner. Vanilla's charge attack uses the main hand's attribute
+  modifiers and enchantments (`Mob.doHurtTarget`), so a diamond sword hits harder. A bow or
+  crossbow makes the vex a shooter: it shoots a plain arrow every 40 ticks from up to 10 blocks,
+  keeping 6 blocks away, never charging. Tridents are melee (no throwing; §13).
+- a **shield**: it goes in the **offhand**; the old offhand item returns. A shielded vex blocks: in
+  `hurtServer`, melee or projectile damage whose source is in front of the vex (dot of look vector
+  and source direction > 0) is cancelled with `SoundEvents.SHIELD_BLOCK`; no durability is used
+  (nothing is ever used up).
+- a **splash or lingering potion** or **tipped arrow**: main hand. If every effect is
+  `MobEffectCategory.BENEFICIAL` it is **support gear**: every 40 ticks, when the summoner, an ally
+  or a Bound Vex of the same summoner within 10 blocks is below **half health**, the vex throws a
+  copy of the potion at it (`ThrownSplashPotion`/`ThrownLingeringPotion`) or shoots a copy of the
+  arrow (an `Arrow` carrying the potion contents). Otherwise (any `HARMFUL` effect, or a plain
+  arrow) it is a **ranged weapon**: thrown or shot at the target every 40 ticks from up to 10
+  blocks, keeping 6 blocks away. The stack in hand never shrinks.
+- anything else: `PASS` (vanilla does nothing to a vex either).
+
+### 4.3 Nothing is used up
+
+No gear a Bound Vex holds loses durability or count: shield blocks spend no durability (§4.2),
+thrown and shot items are copies, and melee hits restore the main-hand stack after each hit
+(`BoundVex.doHurtTarget` snapshots the stack before `super.doHurtTarget` and puts it back), so the
+item the player gets back is exactly the one they gave.
+
+### 4.4 Taking a weapon back
+
+Sneak + right-click with an empty hand by the summoner: the main-hand item goes to the summoner,
+and the vex fights bare-handed (vanilla vex attack damage). Armor and the offhand shield cannot be
+taken back (Will's rule; §13). During a team move (Part 6) the answer is the overlay
+`message.spellcraft.vex_busy` ("That vex is busy") and nothing moves.
+
+### 4.5 Stash, drops, saving
+
+- **Stash:** when a job or team move conjures gear into a slot, the given item in that slot moves
+  to a per-slot stash (`stash` NBT, an `ItemStack` per slot) and comes back when the conjured item
+  is dropped. `CONJURED` is a bit set of slots; a slot in it never drops and cannot be taken.
+- **Death:** every non-conjured slot drops at 100% (`setDropChance(slot, 1.0F)` for every slot),
+  plus the stash. The own iron sword drops too (Will: real sword).
+- **Saving:** vanilla saves a mob's equipment; the stash, the conjured bits, `STAYING` and `CASTER`
+  are added in `addAdditionalSaveData`/`readAdditionalSaveData`.
+
+### 4.6 Seeing the armor
+
+`BoundVexArmorLayer` (`client.evoking`), added to `BoundVexRenderer`: renders the three armor
+pieces through `EquipmentLayerRenderer` on a `HumanoidModel` armor set (the player's inner/outer
+armor layers), posed from the vex's parts each frame: the helmet follows the vex head part, the
+chestplate and leggings follow the body part, all scaled to the vex's size (body scale about 0.6;
+the exact numbers are the plan's and Will's eye). `BoundVexRenderState extends VexRenderState`
+carries the three stacks and the offhand; `extractRenderState` fills them. The main-hand item is
+already drawn by vanilla's `ItemInHandLayer` on `VexModel` (an `ArmedModel`); the offhand shield
+is drawn the same way in the left hand.
+
+## 5. Part 4: cure and bribes
+
+### 5.1 Curing zombie villagers
+
+Zombie villagers are never prey (`isPrey` excludes `ZombieVillager`). `CureZombieVillagerGoal`
+(job goal) claims a `ZombieVillager` in the guard area that is not converting and not claimed by
+another Bound Vex, then runs a timeline. The zombie villager is frozen for the whole cure
+(`setNoAi(true)`; `ZombieVillager.tick` still runs the conversion, as `tick` is not gated by AI).
+
+| Step | Ticks | What you see |
+|---|---|---|
+| 1 | until within 1.5 blocks | The vex flies up level with the zombie villager's head. |
+| 2 | 30 | A conjured **golden apple** in the vex's hand, `GENERIC_EAT` sounds and `ITEM` crumb particles at the zombie's mouth, arm swings. |
+| 3 | 20 | The vex turns its head 60° to one side (`setYHeadRot`), then a real `ThrownSplashPotion` of **weakness** is thrown from the vex at the zombie from 1 block (glass break, splash, the brief weakness effect). |
+| 4 | 400 | The vex backs off to 2 blocks. `startConverting(summonerUuid, 400)` (private in vanilla, `ZombieVillager.java:196`: one access-transformer line makes it public). Every tick, `sendParticles` of `HAPPY_VILLAGER` (green) and `CLOUD` (white) around the zombie, 4 each. Vanilla's conversion sound and shaking run as usual. |
+| 5 | | Vanilla `finishConversion` makes the villager; the smoke stops. Because the conversion starter is the summoner, the villager gives the summoner the cured-villager discounts (vanilla). |
+
+Costs you nothing (conjured apple, a potion created from nothing). If the zombie villager dies or
+is unloaded mid-cure, the goal ends and the vex's gear returns. If the vex dies, the frozen zombie
+is unfrozen (`setNoAi(false)`) by the goal's `stop` and its conversion continues or not as vanilla
+left it.
+
+### 5.2 Bribing an evoker's vex
+
+When a vanilla `Vex` (not a Bound Vex) in the guard area has the summoner or an ally as its target
+and carries no `BRIBE_TRIED` attachment, `BribeGoal` (job goal, ahead of the charge goal) claims
+it: fly to within 1.5 blocks, conjure an **emerald**, hold it out for 20 ticks with
+`SoundEvents.VILLAGER_AMBIENT` (the villager "hmm"), then roll:
+
+- **2 in 3:** the vex is bribed. It gets attachment `BRIBED`, its goals are replaced by one
+  `FleeFromViewGoal`: fly away from the summoner, through blocks, until it is at least 12 blocks
+  from every player within 64 blocks and no such player has line of sight to it
+  (`hasLineOfSight`); then `discard()`: no sound, no particles, no drop. If it cannot reach that
+  state within 200 ticks it discards anyway.
+- **1 in 3:** the bribe fails; `BRIBE_TRIED` is set so no Bound Vex tries again, and the vex is
+  prey as any hostile.
+
+A bribed vex that is saved and reloaded keeps `BRIBED` and gets `FleeFromViewGoal` on
+`EntityJoinLevelEvent`.
+
+## 6. Part 5: world helpers
+
+Each helper is a job goal that runs only in its dimension (`level.dimension()`).
+
+### 6.1 Overworld
+
+- **Night guard:** when `level.isDarkOutside()`, the follow orbit is 1–2 blocks and the hostile
+  scan runs every 5 ticks (day: 2–4 blocks, every 10).
+- **Lava rescue:** when the summoner `isInLava()`, the nearest Bound Vex flies to the summoner and,
+  each tick for up to 60 ticks, pushes them (`setDeltaMovement` toward the nearest non-lava,
+  standable block within 6 blocks, plus 0.3 up; `hurtMarked = true` so the client gets it) until
+  they are out. The vex holds the summoner's arm (hovers at their shoulder). The summoner keeps
+  burning (Will chose only the pull here).
+- **Drowning rescue:** when the summoner `isUnderWater()` with `getAirSupply() < 60`, the nearest
+  vex pushes them straight up (0.4 per tick) until their eyes are in air.
+
+### 6.2 Nether
+
+- **Guard more:** orbit 1–2 blocks always, scan every 5 ticks.
+- **Fireball return:** any `LargeFireball` within 4 blocks of the summoner moving toward them: the
+  nearest vex within reach darts to it, swings, `setOwner(vex)`, and sets its velocity to the
+  reverse of its heading (toward the ghast that shot it, if it is alive and in sight: aimed at it).
+  `SoundEvents.PLAYER_ATTACK_KNOCKBACK`.
+- **Lava rescue + water bucket:** as 6.1, then the vex conjures a **water bucket**, plays
+  `BUCKET_EMPTY` and `FIRE_EXTINGUISH`, shows `SPLASH` particles on the summoner and
+  `clearFire()`. No water block is placed (the Nether evaporates water; the splash is visual).
+
+### 6.3 End
+
+- **Guard most:** orbit 0.5–1.5 blocks, scan every tick.
+- **Crystals:** while the dragon fight is active (`level.getDragonFight() != null` and the dragon
+  is alive), `EndCrystal` entities within 32 blocks are targets of `AttackCrystalGoal`: fly to
+  within 2 blocks and `crystal.hurt(level, mobAttack(vex), 1)`, which vanilla turns into the
+  crystal's explosion. Bound Vexes take no damage from an End crystal's explosion
+  (`LivingIncomingDamageEvent` cancelled when the source is an explosion whose direct entity is an
+  `EndCrystal`; §13).
+- **Critical hits:** every melee hit by a Bound Vex in the End does **3×** damage, with `CRIT`
+  particles on the target and `PLAYER_ATTACK_CRIT`.
+- **Void catch + Notch apple:** when the summoner's `y < level.getMinY() − 4` (past the island's
+  edge) or they are falling with no block within 64 below (a downward `clip` of 64 blocks hits
+  nothing) and `y < minY + 16`: the nearest vex teleports the
+  summoner to the nearest standable block top within 32 blocks horizontally, searched outward
+  from the summoner's column, else to the summoner's **last ground position** (§3.3); velocity
+  zeroed, `fallDistance` zeroed; the vex is snapped beside them. Then the vex conjures an
+  **enchanted golden apple** and feeds it: `stack.get(CONSUMABLE).onConsume(level, player,
+  copy)` applies the vanilla effects and eating sound, with no item spent. No cooldown (Will).
+
+## 7. Casting-related plumbing for Part 6
+
+### 7.1 The request packet grows
+
+`EvokingRequest` becomes `EvokingRequest(Kind kind, byte arg)`: `CAST(spell)` as before, and
+`TEAM_MOVE(move)` for the manual team-move key (§7.3). Still one packet, client → server, a
+request the server validates in full. `CLAUDE.md`'s rule text gains "(two request kinds)".
+
+### 7.2 Team-move state
+
+`BoundVex.TEAM_MOVE` (synced byte): `NONE`, `SHIELD`, `MULTISHOT`, `EVADER`, `RAID`. Per summoner,
+`EvokingCaster` keeps a transient `TeamMoves` record: the active move, its roster (vex UUIDs),
+its enemy, its start tick. One move at a time per summoner.
+
+### 7.3 Setting and keys
+
+`ServerConfig.TEAM_MOVES`: enum `AUTOMATIC` (default) | `MANUAL`.
+
+- `AUTOMATIC`: the triggers in §8 start moves; the keys below only show
+  `message.spellcraft.team_moves_automatic` ("Team moves are automatic").
+- `MANUAL`: no automatic triggers. Two new key mappings in the Spellcraft category: **G**
+  (`key.spellcraft.team_move_cycle`, "Evoking: Next Team Move") cycles the selected move on the
+  client (Shield → Multishot → Evader → Raid → Shield) and shows it in the action bar from a
+  client-side lang string ("Team move: Shield"); **H** (`key.spellcraft.team_move_go`, "Evoking:
+  Team Move!") sends `TEAM_MOVE(selected)`. The server starts the move if its roster can be filled
+  and a suitable enemy (the move's own enemy rule, §8) is within 16 blocks of the summoner; else
+  `message.spellcraft.team_move_unavailable` ("Not enough vexes, or no enemy for that move"). G and
+  H have no vanilla bindings in `Options.java`.
+
+## 8. Part 6: team moves
+
+Common rules. A move needs a roster of Bound Vexes of the summoner that are alive, not staying,
+not Casters (§9.1; Casters join a Raid, below), and not in another move. The trigger vex "alerts"
+the others: they get `TEAM_MOVE` set, conjure the move's kit (stashing given gear), and the
+summoner sees the overlay `message.spellcraft.team_move_<name>` ("Your vexes form a Shield!").
+Move gear is **conjured** (vanishes when the move ends, cannot be taken, never drops; §13). A
+move ends when its enemy is dead or farther than 48 blocks from the summoner, when the hurt one is
+healed (Evader), or after its time limit; then the kit vanishes, stashes return, `TEAM_MOVE` is
+`NONE`, and a 30-second cooldown per move starts.
+
+| Move | Trigger (automatic mode) | Roster | Kit (conjured) | Behavior | Limit |
+|---|---|---|---|---|---|
+| **Shield** | A hostile with `maxHealth ≥ 31` enters any vex's guard area | 3, or 9 when ≥ 9 are free | 2 shields (both hands) | Fly at half speed toward the enemy; **lunge bash**: from up to 7 blocks, dash in, hit for 4 + knockback 1.5 (`SHIELD_BLOCK` sound), dash back out to 6 blocks; repeat every 40 ticks. Shields block as §4.2. | 120 s |
+| **Multishot** | A hostile with `ATTACK_DAMAGE ≥ 6` takes a Bound Vex as target | That vex + 2 | Crossbow with Multishot | Keep 6–8 blocks from the enemy, shoot every 40 ticks (three arrows, vanilla Multishot). | 120 s |
+| **Evader** | The summoner or an ally within 16 blocks drops below half health | 1–3 (as many as free) | 2 shields | Orbit the hurt one at 2 blocks; any hostile within 3 blocks of them is bashed away (knockback 2); any projectile within 2 blocks heading at them has its velocity reversed. | until the protected one is above half health, or 60 s |
+| **Raid** | A hostile with `maxHealth ≥ 99` enters any vex's guard area | 12 (all; Casters included) | Random per vex from the raid kit: netherite or diamond sword, axe or mace; trident; crossbow with firework rockets; shield (offhand); netherite or diamond helmet, chestplate, leggings. Casters conjure a **Mirror scroll** (§9) and cast it on the summoner. | Gather in a 3 × 4 grid 8 blocks from the enemy facing it (2 s), then charge together; crossbow vexes fire rockets (explode on hit) from 8 blocks. | 120 s |
+
+Thresholds pick vanilla mobs: ≥ 31 health is an Enderman (40), Piglin Brute (50), Ravager (100);
+≥ 99 is a Ravager, Warden, Wither, Ender Dragon. A ≥ 99 enemy starts a Raid, not a Shield (Raid
+checks first). In `MANUAL` mode the H key starts the selected move against the nearest enemy that
+fits its rule.
+
+## 9. Part 7: Casters, Mirror, Ghostrail, villager ghosts
+
+### 9.1 The Caster
+
+At summon, each Bound Vex rolls **1 in 3** for `CASTER`. A Caster:
+
+- wears a **torn purple-and-magenta robe**: `BoundVexRobeLayer` draws
+  `textures/entity/bound_vex_robe.png` over the body and arms (ragged lower edge painted in the
+  texture, alpha-cut). Will judges the look.
+- never melees or shoots: its target selector is the same but its charge goal is replaced by
+  `CasterGoal`, which keeps 4–6 blocks from any target and casts.
+- casts, with the evoker's casting look (arms up, `ENTITY_EFFECT` hand particles in purple, the
+  casting sounds), holding a conjured scroll:
+  - **Mirror** on the summoner when ≥ 2 hostiles are in its guard area and no Mirror images of the
+    summoner are alive; once per **6 minutes** per Caster.
+  - **Ghostrail** on the summoner (or on a Bound Vex of the same summoner) when that one is below
+    a quarter of its health or is inside a solid block; once per **4 minutes** per Caster.
+- is still a Bound Vex for everything else (follow, stay, gear it is given, portals, rescues). It
+  takes part only in Raids among the team moves.
+
+### 9.2 The two spells (framework spells)
+
+Both are real spells: declarations, effects, scrolls, glyphs, lang, scribing pool, cast rules,
+exactly the Infinity recipe. Players cast them by scroll.
+
+| | Mirror | Ghostrail |
+|---|---|---|
+| `SpellRules` | `mirror`, `AMAZING`, `REFUSE`, dispellable, not redundant in creative | `ghostrail`, `EXTREME` (the top tier: 4 minutes unhurt is the strongest thing in the mod), `REFUSE`, dispellable, redundant in creative (creative already flies and is unhurt; spectator too) |
+| Duration | 6 minutes | 4 minutes |
+| Glyph ink | magenta `#E066FF` | pale `#DDE6FF` |
+| On apply | Spawn 13 **Mirror images** (§9.3) of the caster around it (ring cells, Chebyshev 2–3, like the vexes). | `noPhysics` + flight + no damage + trail (§9.4). |
+| On end (expiry, dispel, milk) | The images poof (`POOF` particles, no sound). | Push out of solid blocks, stop flight, clear `fallDistance`. |
+
+**Who else casts them.** Besides players and Casters:
+
+- **Evokers** spawn with a scroll in the **offhand** 1 time in 4 (Mirror or Ghostrail, even odds);
+  **vindicators and pillagers** 1 time in 10. The scroll shows in the hand. Such a mob casts when
+  it first gets a target: Mirror makes 13 images of itself (the evoker side of §9.3; cooldown 6
+  minutes); Ghostrail lasts **2 seconds** on a hostile mob (`GhostrailEffect` reads the carrier: a
+  hostile gets 40 ticks), enough to step through a wall at you; cooldown 30 seconds. On death the
+  scroll drops 1 time in 2 (the loot path for players; §13).
+- **Villager ghosts** have Ghostrail permanently (§9.5) and cast Mirror on you.
+
+### 9.3 Mirror images
+
+`MirrorImage` (`spellcraft:mirror_image`, `LivingEntity` subclass, not a `Mob`): synced
+`copiedType` (`EntityType`) and, for players, a `ResolvableProfile` of the caster. Health 10, no
+armor, no attack, 6-minute life (`setLimitedLife` of its own), wanders within 6 blocks of the
+caster at walking speed, faces where the caster faces when idle.
+
+- **Looks:** `MirrorImageRenderer` keeps a client-side **stand-in** entity of `copiedType`
+  (`type.create(clientLevel, MOB_SUMMONED)`, or a client avatar with the caster's skin for players),
+  copies the image's position, rotation and hurt time into it each frame and renders that through
+  `EntityRenderDispatcher`. A hit image flashes red and is knocked back like any `LivingEntity`
+  (vanilla); at 0 health it does the vanilla death fall and poofs. No drops, no XP.
+- **Confusion:** `LivingChangeTargetEvent`: when a hostile mob picks the caster as target and
+  live images of that caster exist within 16 blocks, the target is swapped with probability 13/14
+  for a random one of them. The player is never redirected (a player picks their own target), so
+  an evoker's images only confuse by sight.
+- Images are allies of the caster (`Allies`: `MirrorImage.caster == owner`), so the caster's own
+  spells spare them.
+
+### 9.4 Ghostrail's mechanics
+
+`GhostrailEffect` (a `MobEffect` with a tick):
+
+- **No physics:** `Player.tick` sets `noPhysics = isSpectator()` every tick (`Player.java:243`), so
+  a `@ModifyExpressionValue`/`WrapOperation` **Mixin on that call** returns true while the player
+  has Ghostrail (common Mixin package; no event runs between that assignment and movement). On
+  the client the same Mixin applies to `LocalPlayer` (it reads the synced effect), so movement
+  does not rubber-band. Non-player carriers get `noPhysics = true` and `setNoGravity(true)` on
+  apply and the reverse on removal.
+- **Flight:** on apply, `abilities.mayfly = true` (+ `onUpdateAbilities`); on removal, the game
+  mode's abilities are restored (`gameMode.updatePlayerAbilities`). Flying through walls is
+  spectator-like but the player stays in survival (hunger, inventory, no mob transparency).
+- **No damage:** `LivingIncomingDamageEvent` cancelled for a carrier, except `GENERIC_KILL`
+  (`/kill`).
+- **Trail:** each tick, 2 `WHITE_SMOKE` particles at the carrier's previous position (server
+  `sendParticles`).
+- **Ending inside a block:** search outward (up to 8 blocks) for a free 1×2 space and teleport
+  there; clear `fallDistance`.
+- **Duration by carrier:** 4 minutes for players and Bound Vexes; 40 ticks for hostile mobs
+  (§9.2); infinite for villager ghosts.
+
+### 9.5 Villager ghosts
+
+- **Record:** `LivingDeathEvent` for a `Villager` killed by anything that is not a player or a
+  player's side (same test as mercy's "player's side", §2.3) writes a **ghost record** into
+  `VillagerGhosts` (`SavedData` per level): death position, the villager's profession and type for
+  the look, a ghost UUID. At most 32 records per level; the oldest is dropped.
+- **Appear:** every 20 ticks, for each player with Evoking: if a record's death position is within
+  48 blocks and the player is **in need** (below half health, or ≥ 3 hostiles within 8 blocks)
+  and that record has no live ghost, spawn `VillagerGhost` (`spellcraft:villager_ghost`) at the
+  death position. It flies (no-clip move control like the vex's) to the player at 2 blocks.
+- **Help:** casts **Mirror** on the player if no images of the player live (6-minute cooldown per
+  record), and **Ghostrail** on the player if below a quarter health or stuck (4-minute cooldown).
+  Casting look as the Caster's.
+- **Disappear:** when no hostile is within 16 blocks of the player for 10 seconds, or the player
+  leaves 64 blocks, the ghost fades (`POOF`, `VEX_DEATH` at low volume) and `discard`s. The record
+  stays, so it can come back.
+- **Ghostrail forever:** the ghost carries an infinite Ghostrail (invulnerable, no-clip, trail).
+- **Looks:** `VillagerGhostRenderer` draws the villager model with the recorded profession skin at
+  alpha 0.6 and a pale tint (`RenderType.entityTranslucent`). Not a `Mob`, no AI beyond the flight
+  goal; nothing targets it (not `attackable`).
+
+## 10. Error handling
+
+- **No summoner online / other level:** a Bound Vex idles; interactions `PASS`; it fights nothing
+  (`isPrey` false). Vanilla would despawn a far monster; `removeWhenFarAway` is false.
+- **Summoner dead:** as offline until respawn (§3.3).
+- **Cap counting across dimensions:** only loaded levels and entities count; a player who parks 12
+  vexes in an unloaded chunk can summon more. Accepted (§13).
+- **Peaceful:** `EntityType.create` returns null for a `Monster`; `request` refuses first (round
+  one). A loaded world switched to Peaceful **removes** Bound Vexes as vanilla removes monsters
+  (`Monster` difficulty despawn); their given gear drops (§4.5 drop rule runs in `remove` for
+  `RemovalReason.DISCARDED` too). Noted for the playtest.
+- **Gear given to a vex that dies in lava:** items burn as vanilla drops do. Accepted.
+- **Cure interrupted** (zombie villager dies, is unloaded, or the vex dies): the frozen zombie is
+  unfrozen in the goal's `stop`; a converting one keeps converting (vanilla).
+- **Bribe target saved mid-flee:** `BRIBED` is persistent; the flee goal is reinstalled on join.
+- **Portal with staying vexes:** they stay; the summoner's count still includes them (loaded).
+- **Rescue pushes vs. anti-cheat:** server-set velocity on a player uses `hurtMarked` so the
+  client receives it; the void teleport is a server `teleportTo`.
+- **Ghostrail ending inside bedrock or deep stone:** search up to 8 blocks for a free space; if
+  none, teleport to the carrier's last ground position (tracked as §3.3 for players with Evoking,
+  and by the effect itself for any carrier, each tick they are on ground).
+- **Ghostrail on a creative player:** redundant; the cast is refused like Infinity's rule.
+- **Mirror images in a non-ticking chunk:** they are entities with their own life counter; a
+  reloaded image keeps its remaining life and poofs when due.
+- **A mob with a scroll loses its target before casting:** it casts the next time it gets one;
+  cooldowns are per mob (attachment).
+- **Team move with a roster member dying:** the move continues with the rest down to 1; a Raid
+  below 12 continues (it was legitimately started).
+- **Manual team move in automatic mode or vice versa:** the overlay messages of §7.3.
+- **`/summon spellcraft:bound_vex`:** no summoner, idles; `/summon` of an image or ghost without
+  data: discards itself on first tick (no caster/record).
+
+## 11. Testing
+
+Methodology as round one: pure core TDD with jqwik properties, GameTests for server rules,
+`runData` for client wiring, Will for everything visual. The pure core gains:
+
+- `FangFootprints` (`spell.rules`): columns of a box intersected with a square; dedupe; the caster
+  column skipped. Properties: every column is inside the square; a box within one block gives one
+  column; a 3×3 box gives ≤ 9.
+- `GuardArea` (`spell.rules`): the 8×8×7 box math and the 7.25 reach test; properties: symmetric,
+  a point at the box edge is inside, a point at reach + ε is out.
+- `GolemMercy.clamp(health, damage)` (pure): `min(damage, max(0, health − 25))`; property: health
+  after is never below 25 when it was above, and a hit at ≤ 25 does 0.
+- `VexCap.toSummon(count)`: 3 / `12 − count` / 0; property: count + result ≤ 12.
+- `TeamMoveRules` (pure): roster sizes from free count (Shield 3 or 9, Evader 1–3, Raid 12 or
+  none), trigger thresholds (31, 99, attack 6), the "Raid before Shield" rule.
+- `GhostrailDuration.of(carrierKind)`: 4800 / 40 / infinite.
+
+GameTests per part (the plan names them; the shape):
+
+- **Part 1:** fang per target column (one zombie → one fang; a ravager → its footprint; empty
+  cells → none); 14-down scan finds a target 13 below; chase fang appears once under a moved
+  target and never twice; villager, trader, golem are allies; a golem whose target is the player
+  is not; mercy clamps a fang bite at 25 and the golem forgives (`isAngryAt` false, target null);
+  trail never lights a golem; a golem never takes a summoned vex as target (event cancelled).
+- **Part 2:** V spawns `bound_vex` ×3 with the summoner, no `life_ticks`; cap: 12 → `CAPPED` and
+  the message; 10 → 2 spawned; follow teleport at 13 blocks; stay toggle; portal follow into a
+  prepared Nether pocket; hurt-by/owner-hit/ally-hurt/ally-fight targeting cases; hostile in area
+  attacked, pig ignored, creeper ignored unless provoked; wolf takes the vex's target; flee from a
+  swelling creeper; dodge; repair heals a hurt ally golem by 25 per tap with the sound event.
+- **Part 3:** each slot's give/return; sneak take-back; shield block from the front cancels damage
+  and from behind does not; support potion thrown at a hurt ally, harmful at a target; stack never
+  shrinks; drops on death include everything given and nothing conjured.
+- **Part 4:** cure timeline (apple, potion entity, `isConverting` with starter = summoner, NoAi on
+  then off at finish); bribe success → flee goal, discard out of sight; failure → `BRIBE_TRIED`.
+- **Part 5:** per dimension (Nether/End pockets as round one's E16): lava push, drowning push,
+  fireball owner swap and reversal, crystal hurt → explosion, no explosion damage to the vex,
+  3× damage in the End, void teleport + apple effects.
+- **Part 6:** each trigger starts the right move with the right roster and kit; manual mode: H
+  with no enemy → message; move end restores stashes; cooldown.
+- **Part 7:** Caster roll is 1/3 over 300 summons (statistical bound); Mirror spawns 13 images
+  that die at 0 and poof at 6 minutes; redirect probability; Ghostrail noPhysics/mayfly/damage
+  cancel/push-out; mob carriers 40 ticks; evoker spawns with a scroll 1/4 (bound); ghost record on
+  villager death by zombie and none by the player; ghost appears when in need and fades.
+
+`runData` proves the new renderers, layers and key mappings load. ArchUnit rules unchanged;
+`pitest` after each pure-core change with `docs/mutation-testing.md` rows.
+
+**Playtest items** (added per part to `docs/playtest-checklist.md`, a new "Evoking II" section):
+Y casts, F swaps; fangs only under mobs and the chase; vexes follow, teleport, stay; portal follow;
+armor shows and fits; the cure looks right; the bribe's emerald and silent exit; fireball return;
+void catch; each team move's look and message; the robe; images look like you; the ghost's fade.
+
+## 12. Docs and delivery
+
+Per part: README (spells and keys), mod description, playtest checklist, `docs/api-notes.md`
+(every new hook verified: `LivingChangeTargetEvent`, `LivingDamageEvent.Pre`,
+`PlayerChangedDimensionEvent`, `Entity.teleport(TeleportTransition)`, `Consumable.onConsume`, the
+`Player.tick` noPhysics line, `startConverting` AT), `CLAUDE.md` (packet rule wording, the Mixin
+list gains the Ghostrail one), `docs/mutation-testing.md`. `mod_version` is bumped once, at the
+end of Part 7, to `1.3.0` with a tag; the parts land as PRs on `main` without bumps.
+
+## 13. Decisions Will did not state
+
+| Decision | Choice | Why, and the alternative |
+|---|---|---|
+| Y key migration | Rename the mapping so saved options fall back to Y | A rename is the only way vanilla forgets a saved binding; alternative: keep the name and let old saves stay on F. |
+| Fang ripple | None; all target fangs snap at warmup + 0 | Scattered fangs have no center to ripple from. |
+| Chase fang | One per target, within 16 blocks of the caster | Will: "summon another fang where the fast mob is"; one keeps a cast finite. |
+| Mercy on Will's own sword | Clamped too | "Your side" includes you; the point is that a golem survives you. Alternative: only spells and summons. |
+| Trail vs. golem | Never lit | Fire damage has no attacker; mercy cannot clamp it. |
+| Every golem is an ally | Yes, village-made too | Will chose X. |
+| Cap counting | Loaded entities only | Unloaded chunks cannot be scanned without loading them. |
+| Partial summon at 10–11 | Summon the remainder | Will: "that's my pick" accepted. |
+| Mob category | `MONSTER` | Keeps vanilla bookkeeping; golems and villagers handled by event and type identity. |
+| Wolves join | Only the summoner's tamed wolves, 16 blocks, no target yet | Wolves are the only fighting tamed mob; golems already fight hostiles. |
+| Dodge roll | Always | Only arises against a mad golem; a roll adds nothing. |
+| Repair scope | Any hurt ally golem in the guard area | The ingots are free; "mercy" reads as medic. |
+| Tridents | Melee only | Throwing would need a return rule; nothing is used up anyway. |
+| Shield from the player | Offhand, blocks from the front | Will chose A+C; shields are handable. |
+| Armor and shield take-back | Not possible | Will: sneak-click takes the weapon; nothing else. |
+| Cure duration | 400 ticks (vanilla takes 3–5 min) | Will: 20 seconds of smoke. |
+| Cure visuals | Golden apple, real splash potion, green + white particles | Will's choreography. |
+| Bribe sound | `VILLAGER_AMBIENT` | The villager "hmm". |
+| Bribe odds | 2 in 3 | Will: "1/1.5". |
+| Bribed vex exit | Out of every player's sight, then `discard`, silent | Will's D. |
+| Rescue pushes | Velocity, not teleport | Feels like being pulled; the void catch teleports because there is nothing to push against. |
+| Crystal explosion vs. vexes | No damage to Bound Vexes | Otherwise every crystal hit kills the vex. |
+| End crits | 3× | "+++" read as "much stronger". |
+| Shield / Raid thresholds | 31 / 99 max health | Will's numbers; vanilla mobs listed in §8. |
+| Multishot trigger | Attacker `ATTACK_DAMAGE ≥ 6` | "Strong melee monster". |
+| Move gear | Conjured | Will's A. |
+| Move time limits | 120 s (Evader 60 s), 30 s cooldown | Keeps a move from running forever. |
+| Manual keys | G cycles, H goes | Unbound in vanilla. |
+| Caster odds and look | 1 in 3; torn purple-and-magenta robe | Will. |
+| Ghostrail tier | `EXTREME` | Four minutes unhurt is the strongest effect in the mod. |
+| Ghostrail on hostiles | 2 seconds | Will. |
+| Scroll carriers | Evokers 1/4, vindicators and pillagers 1/10, drop 1/2 | Gives players a way to find the scrolls. |
+| Mirror copies | 13 for 6 minutes, health 10 | Will; health is a guess, images die like mobs. |
+| Image confusion | 13/14 redirect of a hostile's target | Thirteen copies and one real you. |
+| Villager ghosts | Records in `SavedData`, appear when in need, fade, return; 32 per level | Will: appear, disappear, appear again. |
+| Ghost trigger | Below half health or ≥ 3 hostiles within 8 blocks | "When you need help". |
+| Which villagers leave ghosts | Not those killed by a player's side | A murdered villager should not help its murderer. |
+| Version | One bump to 1.3.0 after Part 7 | Seven PRs, one release. |
