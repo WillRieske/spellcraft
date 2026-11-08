@@ -4,6 +4,7 @@ import io.github.willrieske.spellcraft.spell.Allies;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.rules.GuardArea;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -29,6 +30,7 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
+import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -54,6 +56,12 @@ public class BoundVex extends Vex {
 
     private static final String STAYING_TAG = "staying";
 
+    /** Ticks between the target goals' scans (spec §3.4 "every 10 ticks"); read through {@link #scanDue}. */
+    static final int SCAN_INTERVAL = 10;
+
+    /** How far the summoner's wolves hear the call to a fight (spec §3.4), feet to feet. */
+    static final double WOLF_CALL_RANGE = 16.0;
+
     public BoundVex(EntityType<? extends BoundVex> type, Level level) {
         super(type, level);
     }
@@ -76,7 +84,9 @@ public class BoundVex extends Vex {
     /**
      * The goals (spec §3.3). Not {@code super.registerGoals()}: vanilla's are private classes (docs/api-notes.md §21),
      * so the charge and wander goals are this class's copies, and a Bound Vex has no raider grudge, no owner to copy a
-     * target from and no player hunt. Tasks 4–6 add the follow, target, flee, dodge and repair goals here.
+     * target from and no player hunt. Its three target goals are {@link HurtBySummonerSideGoal} (grudges),
+     * {@link AllyFightGoal} (an ally's fight) and {@link NearestHostileGoal} (the patrol). Task 6 adds the flee, dodge
+     * and repair goals here.
      */
     @Override
     protected void registerGoals() {
@@ -86,6 +96,9 @@ public class BoundVex extends Vex {
         goalSelector.addGoal(5, new StayWanderGoal());
         goalSelector.addGoal(9, new LookAtPlayerGoal(this, Player.class, 3.0F, 1.0F));
         goalSelector.addGoal(10, new LookAtPlayerGoal(this, Mob.class, 8.0F));
+        targetSelector.addGoal(1, new HurtBySummonerSideGoal(this));
+        targetSelector.addGoal(2, new AllyFightGoal(this));
+        targetSelector.addGoal(3, new NearestHostileGoal(this));
     }
 
     @Override
@@ -264,6 +277,21 @@ public class BoundVex extends Vex {
     }
 
     /**
+     * The summoner's allies ({@code Allies.isAllyOf}) whose feet are inside this vex's guard area, this vex excepted:
+     * a vex is its own summoner's ally, and counting itself would hand its own target to the ally goal (spec §3.4).
+     *
+     * @param owner the summoner
+     * @return the allies in the area
+     */
+    List<Mob> alliesInGuardArea(ServerPlayer owner) {
+        UUID self = getUUID();
+        return level().getEntitiesOfClass(
+                        Mob.class,
+                        guardArea(),
+                        mob -> !mob.getUUID().equals(self) && inGuardArea(mob) && Allies.isAllyOf(owner, mob));
+    }
+
+    /**
      * The goal clock (spec §3.4 "every 10 ticks"): true once every {@code interval} ticks. {@code Mob.serverAiStep}
      * asks a goal's {@code canUse} only when {@code tickCount + getId()} is even (docs/api-notes.md §21, "The goal
      * clock"), so a plain {@code tickCount % 10} gate never opens for an odd id; keyed the same way, an even interval
@@ -315,6 +343,41 @@ public class BoundVex extends Vex {
         setStaying(!isStaying());
         playSound(SoundEvents.VEX_AMBIENT, 1.0F, 1.0F);
         return InteractionResult.SUCCESS_SERVER;
+    }
+
+    /**
+     * Takes the target and, when it is a new one, calls the summoner's tamed, idle, un-sitting wolves within
+     * {@link #WOLF_CALL_RANGE} that want to attack it ({@code Wolf.wantsToAttack}: never a creeper, a ghast or a
+     * player the summoner may not harm) onto it (spec §3.4). "New" means it differs from the target held just before:
+     * {@code TargetGoal.canContinueToUse} re-sets the same target on every full tick (docs/api-notes.md §21), and those
+     * re-sets call nobody. A change {@code GolemMercy} cancels, a target {@code getTarget} refuses, and clearing a
+     * target call nobody either.
+     */
+    @Override
+    public void setTarget(@Nullable LivingEntity target) {
+        LivingEntity before = getTarget();
+        super.setTarget(target);
+        LivingEntity set = getTarget();
+        if (target == null
+                || set == null
+                || !set.getUUID().equals(target.getUUID())
+                || (before != null && before.getUUID().equals(target.getUUID()))
+                || !(level() instanceof ServerLevel level)) {
+            return;
+        }
+        summoner().ifPresent(owner -> {
+            for (Wolf wolf : level.getEntitiesOfClass(
+                    Wolf.class,
+                    getBoundingBox().inflate(WOLF_CALL_RANGE),
+                    wolf -> wolf.isTame()
+                            && wolf.isOwnedBy(owner)
+                            && wolf.getTarget() == null
+                            && !wolf.isOrderedToSit()
+                            && wolf.distanceToSqr(this) <= WOLF_CALL_RANGE * WOLF_CALL_RANGE
+                            && wolf.wantsToAttack(target, owner))) {
+                wolf.setTarget(target);
+            }
+        });
     }
 
     /**

@@ -16,6 +16,8 @@ import io.github.willrieske.spellcraft.spell.rules.EvokerSpell;
 import io.github.willrieske.spellcraft.spell.rules.VexCap;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -28,6 +30,13 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.goal.WrappedGoal;
+import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
+import net.minecraft.world.entity.animal.pig.Pig;
+import net.minecraft.world.entity.animal.wolf.Wolf;
+import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -60,6 +69,18 @@ public final class BoundVexGameTests {
 
     /** A vex this far north of the caster is outside the teleport distance (12) and inside the padding (13). */
     static final int FAR_NORTH = 13;
+
+    /** Ticks for a test that waits for a 10-tick target scan or watches a 40-tick window. */
+    private static final int LONG = 100;
+
+    /** The window over which "never a target" is watched: four target scans. */
+    private static final int TARGET_WINDOW = 40;
+
+    /** The box's bottom north-east corner, a second spot inside the box for an ally or a second mob. */
+    private static final BlockPos SIDE_SPOT = new BlockPos(2, 1, 0);
+
+    /** The box's bottom south-west corner, a third spot inside the box. */
+    private static final BlockPos CORNER_SPOT = new BlockPos(0, 1, 2);
 
     private BoundVexGameTests() {}
 
@@ -96,6 +117,61 @@ public final class BoundVexGameTests {
                 SHARED,
                 "bound_vex_same_dimension_teleport_brings_nothing",
                 BoundVexGameTests::sameDimensionTeleportBringsNothing);
+        SpellcraftGameTests.add(SHARED, "bound_vex_three_target_goals", BoundVexGameTests::threeTargetGoals);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_attacks_a_hostile_in_the_area", LONG, 0, BoundVexGameTests::attacksAHostile);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_ignores_a_pig_but_not_a_husk", LONG, 0, BoundVexGameTests::ignoresAPigButNotAHusk);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_ignores_a_creeper_until_provoked",
+                LONG,
+                0,
+                BoundVexGameTests::ignoresACreeperUntilProvoked);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_targets_what_hurt_the_summoner",
+                LONG,
+                0,
+                BoundVexGameTests::targetsWhatHurtTheSummoner);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_targets_what_the_summoner_hit",
+                LONG,
+                0,
+                BoundVexGameTests::targetsWhatTheSummonerHit);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_targets_what_hurt_an_ally", LONG, 0, BoundVexGameTests::targetsWhatHurtAnAlly);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_joins_an_allys_fight", LONG, 0, BoundVexGameTests::joinsAnAllysFight);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_calls_the_summoners_wolves", LONG, 0, BoundVexGameTests::callsTheSummonersWolves);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_wolf_call_skips_the_wrong_wolves", BoundVexGameTests::wolfCallSkipsTheWrongWolves);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_wolf_call_only_on_a_new_target", BoundVexGameTests::wolfCallOnlyOnANewTarget);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_wolf_call_skips_a_creeper", BoundVexGameTests::wolfCallSkipsACreeper);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_drops_a_target_out_of_reach", BoundVexGameTests::dropsATargetOutOfReach);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_drops_a_target_that_becomes_an_ally", LONG, 0, BoundVexGameTests::dropsANewAlly);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_no_summoner_no_target", LONG, 0, BoundVexGameTests::noSummonerNoTarget);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_held_by_the_patrol_goal", LONG, 0, BoundVexGameTests::heldByThePatrolGoal);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_ignores_a_stale_memory", LONG, 0, BoundVexGameTests::ignoresAStaleMemory);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_own_attacker_comes_first", LONG, 0, BoundVexGameTests::ownAttackerComesFirst);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_a_creative_attacker_does_not_block",
+                LONG,
+                0,
+                BoundVexGameTests::creativeAttackerDoesNotBlock);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_ignores_an_ally_outside_the_area", BoundVexGameTests::ignoresAnAllyOutsideTheArea);
     }
 
     /**
@@ -651,5 +727,519 @@ public final class BoundVexGameTests {
                 vex.position().distanceTo(start) < 0.01,
                 "not moved to the summoner, moved " + vex.position().distanceTo(start));
         helper.succeed();
+    }
+
+    /** A tamed wolf of {@code owner} with no AI at {@code relative}, discarded when the test ends. */
+    private static Wolf pet(GameTestHelper helper, BlockPos relative, ServerPlayer owner) {
+        Wolf wolf = helper.spawn(EntityTypes.WOLF, relative);
+        wolf.setNoAi(true);
+        wolf.tame(owner);
+        whenDone(helper, wolf::discard);
+        return wolf;
+    }
+
+    /** A pig with no AI at {@code relative}, discarded when the test ends. */
+    private static Pig pigHere(GameTestHelper helper, BlockPos relative) {
+        Pig pig = FangGameTests.pig(helper, relative);
+        whenDone(helper, pig::discard);
+        return pig;
+    }
+
+    /** Whether {@code mob}'s target is {@code expected} (by UUID). */
+    private static boolean targets(Mob mob, LivingEntity expected) {
+        LivingEntity target = mob.getTarget();
+        return target != null && target.getUUID().equals(expected.getUUID());
+    }
+
+    /** The simple class name of the vex's running target goal, or {@code "none"}. */
+    private static String runningTargetGoal(BoundVex vex) {
+        return vex.targetSelector.getAvailableGoals().stream()
+                .filter(WrappedGoal::isRunning)
+                .map(wrapped -> wrapped.getGoal().getClass().getSimpleName())
+                .findFirst()
+                .orElse("none");
+    }
+
+    /**
+     * When a Bound Vex is made, should carry exactly the three target goals of spec §3.4, in its order: the grudge goal
+     * at priority 1, the ally goal at 2, the patrol goal at 3.
+     *
+     * <p>Method under test: {@code BoundVex.registerGoals} (protected)
+     */
+    static void threeTargetGoals(GameTestHelper helper) {
+        // Arrange
+        BoundVex vex = boundVex(helper, VEX_SPOT, summoner(helper));
+
+        // Act
+        Map<Integer, String> byPriority = new TreeMap<>();
+        vex.targetSelector
+                .getAvailableGoals()
+                .forEach(wrapped -> byPriority.put(
+                        wrapped.getPriority(), wrapped.getGoal().getClass().getSimpleName()));
+
+        // Assert
+        helper.assertValueEqual(
+                byPriority,
+                Map.of(1, "HurtBySummonerSideGoal", 2, "AllyFightGoal", 3, "NearestHostileGoal"),
+                "the three target goals, in order");
+        helper.succeed();
+    }
+
+    /**
+     * When a husk stands inside a parked Bound Vex's guard area with the summoner nearer than the husk, should take the
+     * husk as its target and never the summoner.
+     *
+     * <p>Method under test: {@code NearestHostileGoal} (package-private), through the target selector
+     */
+    static void attacksAHostile(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+
+        // Act
+        Husk husk = husk(helper, PREY_SPOT);
+
+        // Assert
+        helper.succeedWhen(
+                () -> helper.assertTrue(targets(vex, husk), "the husk, not the nearer summoner, is the target"));
+    }
+
+    /**
+     * When only a pig stands in the guard area, should take no target over forty ticks; a husk added afterwards should
+     * become the target (the control: the vex and its line of sight work here).
+     *
+     * <p>Method under test: {@code NearestHostileGoal} (package-private): its {@code Enemy} filter
+     */
+    static void ignoresAPigButNotAHusk(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        pigHere(helper, PREY_SPOT);
+        Husk[] husk = new Husk[1];
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        TARGET_WINDOW, () -> helper.assertTrue(vex.getTarget() == null, "a pig is never a target"))
+                .thenExecute(() -> husk[0] = husk(helper, SIDE_SPOT))
+                .thenWaitUntil(() -> helper.assertTrue(targets(vex, husk[0]), "the husk is the target"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a calm creeper stands in the guard area, should take no target over forty ticks; once the vex remembers the
+     * creeper hurting it, should take it as its target. (The memory is set directly: a real hit would knock the parked
+     * vex out of the box and past reach.)
+     *
+     * <p>Method under test: {@code NearestHostileGoal}'s creeper exclusion and {@code HurtBySummonerSideGoal}'s own-hurt
+     * memory (both package-private)
+     */
+    static void ignoresACreeperUntilProvoked(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        Creeper creeper = helper.spawn(EntityTypes.CREEPER, PREY_SPOT);
+        creeper.setNoAi(true);
+        whenDone(helper, creeper::discard);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        TARGET_WINDOW,
+                        () -> helper.assertTrue(vex.getTarget() == null, "a calm creeper is never a target"))
+                .thenExecute(() -> vex.setLastHurtByMob(creeper))
+                .thenWaitUntil(() -> helper.assertTrue(targets(vex, creeper), "the creeper that hurt it is the target"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a husk hurts the summoner, should take the husk as its target.
+     *
+     * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the summoner's attacker
+     */
+    static void targetsWhatHurtTheSummoner(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        Husk husk = husk(helper, PREY_SPOT);
+        // The husk is a hostile in the area too, so block the patrol goal's view of it: the memory must do the work.
+        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+
+        // Act
+        player.hurtServer(helper.getLevel(), helper.getLevel().damageSources().mobAttack(husk), 1.0F);
+
+        // Assert
+        helper.assertTrue(
+                player.getLastHurtByMob() != null
+                        && player.getLastHurtByMob().getUUID().equals(husk.getUUID()),
+                "setup: the summoner remembers the husk");
+        helper.succeedWhen(() -> helper.assertTrue(targets(vex, husk), "the summoner's attacker is the target"));
+    }
+
+    /**
+     * When the summoner hits a pig (what {@code Player.attack} records as the last hurt mob), should take the pig as
+     * its target even though a pig is not hostile.
+     *
+     * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the summoner's victim
+     */
+    static void targetsWhatTheSummonerHit(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        Pig pig = pigHere(helper, PREY_SPOT);
+
+        // Act
+        player.setLastHurtMob(pig);
+
+        // Assert
+        helper.succeedWhen(() -> helper.assertTrue(targets(vex, pig), "the pig the summoner hit is the target"));
+    }
+
+    /**
+     * When a husk hurts the summoner's tamed wolf inside the guard area, should take the husk as its target.
+     *
+     * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): an ally's attacker
+     */
+    static void targetsWhatHurtAnAlly(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        Wolf wolf = pet(helper, SIDE_SPOT, player);
+        Husk husk = husk(helper, PREY_SPOT);
+        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+
+        // Act
+        wolf.hurtServer(helper.getLevel(), helper.getLevel().damageSources().mobAttack(husk), 1.0F);
+
+        // Assert
+        helper.succeedWhen(() -> helper.assertTrue(targets(vex, husk), "the ally's attacker is the target"));
+    }
+
+    /**
+     * When the summoner's tamed wolf inside the guard area has a husk as its target, should take that husk too.
+     *
+     * <p>Method under test: {@code AllyFightGoal} (package-private)
+     */
+    static void joinsAnAllysFight(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        Wolf wolf = pet(helper, SIDE_SPOT, player);
+        Husk husk = husk(helper, PREY_SPOT);
+        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+
+        // Act
+        wolf.setTarget(husk);
+
+        // Assert
+        helper.succeedWhen(() -> helper.assertTrue(targets(vex, husk), "the ally's target is the target"));
+    }
+
+    /**
+     * When a Bound Vex takes a target through its goals, should give it to the summoner's tamed, idle wolf within
+     * sixteen blocks, and not to a sitting one.
+     *
+     * <p>Method under test: {@link BoundVex#setTarget}, through the target selector
+     */
+    static void callsTheSummonersWolves(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        Wolf idle = pet(helper, SIDE_SPOT, player);
+        Wolf sitting = pet(helper, CORNER_SPOT, player);
+        sitting.setOrderedToSit(true);
+
+        // Act
+        Husk husk = husk(helper, PREY_SPOT);
+
+        // Assert
+        helper.succeedWhen(() -> {
+            helper.assertTrue(targets(vex, husk), "setup: the vex took the husk");
+            helper.assertTrue(targets(idle, husk), "the idle wolf joins");
+            helper.assertTrue(sitting.getTarget() == null, "the sitting wolf stays put");
+        });
+    }
+
+    /**
+     * When a Bound Vex takes a husk, should call only the summoner's tamed, idle, un-sitting wolf within sixteen blocks:
+     * not an untamed wolf, another player's tamed wolf, a wolf already fighting, a sitting wolf, or the summoner's wolf
+     * about seventeen blocks away (inside the cube a box query covers, outside the sixteen-block sphere).
+     *
+     * <p>Method under test: {@link BoundVex#setTarget}
+     */
+    static void wolfCallSkipsTheWrongWolves(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        ServerPlayer stranger = summoner(helper);
+        BoundVex vex = parked(helper, FEET, player);
+        vex.targetSelector.removeAllGoals(goal -> true);
+        Husk husk = husk(helper, PREY_SPOT);
+        Pig pig = pigHere(helper, SIDE_SPOT);
+        Wolf idle = pet(helper, FEET.east(2), player);
+        Wolf untamed = helper.spawn(EntityTypes.WOLF, FEET.east(3));
+        untamed.setNoAi(true);
+        whenDone(helper, untamed::discard);
+        Wolf strangers = pet(helper, FEET.west(2), stranger);
+        Wolf busy = pet(helper, FEET.west(3), player);
+        busy.setTarget(pig);
+        Wolf sitting = pet(helper, FEET.south(2), player);
+        sitting.setOrderedToSit(true);
+        Wolf far = pet(helper, FEET.offset(-12, 0, -12), player);
+        helper.assertTrue(far.distanceTo(vex) > 16.0, "setup: the far wolf is past sixteen blocks");
+
+        // Act
+        vex.setTarget(husk);
+
+        // Assert
+        helper.assertTrue(targets(idle, husk), "the summoner's idle wolf joins (the control)");
+        helper.assertTrue(untamed.getTarget() == null, "an untamed wolf is not called");
+        helper.assertTrue(strangers.getTarget() == null, "another player's wolf is not called");
+        helper.assertTrue(targets(busy, pig), "a wolf already fighting keeps its own target");
+        helper.assertTrue(sitting.getTarget() == null, "a sitting wolf is not called");
+        helper.assertTrue(far.getTarget() == null, "a wolf past sixteen blocks is not called");
+        helper.succeed();
+    }
+
+    /**
+     * When a Bound Vex re-sets the target it already holds (as {@code TargetGoal.canContinueToUse} does on every full
+     * tick), should not call a wolf that has gone idle; clearing the target should call nobody either.
+     *
+     * <p>Method under test: {@link BoundVex#setTarget}
+     */
+    static void wolfCallOnlyOnANewTarget(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.targetSelector.removeAllGoals(goal -> true);
+        Husk husk = husk(helper, PREY_SPOT);
+        Wolf wolf = pet(helper, SIDE_SPOT, player);
+        vex.setTarget(husk);
+        helper.assertTrue(targets(wolf, husk), "setup: the new target called the wolf");
+        wolf.setTarget(null);
+
+        // Act
+        vex.setTarget(husk);
+
+        // Assert
+        helper.assertTrue(wolf.getTarget() == null, "the same target again calls nobody");
+        vex.setTarget(null);
+        helper.assertTrue(wolf.getTarget() == null, "clearing the target calls nobody");
+        helper.succeed();
+    }
+
+    /**
+     * When a Bound Vex takes a creeper (one that provoked it), should not call the summoner's wolf into the blast
+     * ({@code Wolf.wantsToAttack}); a husk taken next should call it (the control).
+     *
+     * <p>Method under test: {@link BoundVex#setTarget}
+     */
+    static void wolfCallSkipsACreeper(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.targetSelector.removeAllGoals(goal -> true);
+        Creeper creeper = helper.spawn(EntityTypes.CREEPER, PREY_SPOT);
+        creeper.setNoAi(true);
+        whenDone(helper, creeper::discard);
+        Wolf wolf = pet(helper, SIDE_SPOT, player);
+
+        // Act
+        vex.setTarget(creeper);
+
+        // Assert
+        helper.assertTrue(targets(vex, creeper), "setup: the vex holds the creeper");
+        helper.assertTrue(wolf.getTarget() == null, "no wolf is sent at a creeper");
+        Husk husk = husk(helper, CORNER_SPOT);
+        vex.setTarget(husk);
+        helper.assertTrue(targets(wolf, husk), "a husk calls the wolf");
+        helper.succeed();
+    }
+
+    /**
+     * When a parked Bound Vex's husk target is moved past the 7.25 reach and out of the guard box, should drop it
+     * within a few ticks and not take it again.
+     *
+     * <p>Method under test: {@link BoundVex#keepsTarget}, through every target goal's {@code canContinueToUse}
+     */
+    static void dropsATargetOutOfReach(GameTestHelper helper) {
+        // Arrange: both outside the shared box, so the barrier shell is not in the way
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = parked(helper, FEET.north(5), player);
+        Husk husk = husk(helper, FEET.north(7));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(targets(vex, husk), "setup: the husk is the target"))
+                .thenExecute(() -> FangGameTests.moveTo(helper, husk, FEET, 0, -FAR_NORTH))
+                .thenWaitUntil(() -> helper.assertTrue(vex.getTarget() == null, "dropped once out of reach"))
+                .thenExecuteFor(20, () -> helper.assertTrue(vex.getTarget() == null, "and not taken again"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a parked Bound Vex has an untamed wolf as its target (the summoner hit it) and the summoner then tames it,
+     * should drop the target within a few ticks.
+     *
+     * <p>Method under test: {@link BoundVex#keepsTarget}, through {@code HurtBySummonerSideGoal.canContinueToUse}
+     */
+    static void dropsANewAlly(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        Wolf wolf = helper.spawn(EntityTypes.WOLF, PREY_SPOT);
+        wolf.setNoAi(true);
+        whenDone(helper, wolf::discard);
+        player.setLastHurtMob(wolf);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(targets(vex, wolf), "setup: the untamed wolf is the target"))
+                .thenExecute(() -> wolf.tame(player))
+                .thenWaitUntil(() -> helper.assertTrue(vex.getTarget() == null, "the tamed wolf is dropped"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a Bound Vex's summoner mark is taken away, should take no target over forty ticks with a husk beside it;
+     * once the mark is back, should take the husk (the control: the vex ticks and sees the husk).
+     *
+     * <p>Method under test: {@link BoundVex#isPrey(net.minecraft.world.entity.LivingEntity)}, through every target goal
+     */
+    static void noSummonerNoTarget(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.removeData(AllyAttachments.SUMMONER);
+        Husk husk = husk(helper, PREY_SPOT);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        TARGET_WINDOW, () -> helper.assertTrue(vex.getTarget() == null, "nothing without a summoner"))
+                .thenExecute(() -> vex.setData(AllyAttachments.SUMMONER, player.getUUID()))
+                .thenWaitUntil(
+                        () -> helper.assertTrue(targets(vex, husk), "with the mark back, the husk is the target"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a parked Bound Vex takes a husk through the patrol goal with no ally near, should still hold it through the
+     * patrol goal two scans later: the ally goal does not count the vex itself as an ally and take over.
+     *
+     * <p>Method under test: {@code AllyFightGoal} and {@code BoundVex.alliesInGuardArea} (package-private)
+     */
+    static void heldByThePatrolGoal(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        Husk husk = husk(helper, PREY_SPOT);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(targets(vex, husk), "setup: the husk is the target"))
+                .thenIdle(20) // two scans of the ally goal
+                .thenExecute(() -> {
+                    helper.assertTrue(targets(vex, husk), "still the husk");
+                    helper.assertValueEqual(runningTargetGoal(vex), "NearestHostileGoal", "held by the patrol goal");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the summoner hit a pig more than a hundred of its own ticks ago, should take no target over forty ticks; the
+     * same hit made fresh should make the pig the target (the control).
+     *
+     * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the freshness window
+     */
+    static void ignoresAStaleMemory(GameTestHelper helper) {
+        // Arrange: the mock summoner is never ticked, so its clock is what the test sets
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        Pig pig = pigHere(helper, PREY_SPOT);
+        player.setLastHurtMob(pig);
+        player.tickCount += 500;
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        TARGET_WINDOW, () -> helper.assertTrue(vex.getTarget() == null, "a stale hit is forgotten"))
+                .thenExecute(() -> player.setLastHurtMob(pig))
+                .thenWaitUntil(() -> helper.assertTrue(targets(vex, pig), "a fresh hit makes the pig the target"))
+                .thenSucceed();
+    }
+
+    /**
+     * When the vex remembers one husk hurting it and the summoner remembers another, both fresh, should take the vex's
+     * own attacker: the first memory in the spec's order wins.
+     *
+     * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the memory order
+     */
+    static void ownAttackerComesFirst(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+        Husk own = husk(helper, PREY_SPOT);
+        Husk summoners = husk(helper, SIDE_SPOT);
+
+        // Act
+        vex.setLastHurtByMob(own);
+        player.setLastHurtByMob(summoners);
+
+        // Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.getTarget() != null, "setup: a target is taken"))
+                .thenExecute(() -> helper.assertTrue(targets(vex, own), "the vex's own attacker, not the summoner's"))
+                .thenSucceed();
+    }
+
+    /**
+     * When the summoner's remembered attacker is a creative-mode player (whom a mob cannot target), should keep a husk
+     * taken through the patrol goal through every scan: the memory is passed over ({@code keepsTarget}'s
+     * {@code canAttack}), not taken and dropped each scan.
+     *
+     * <p>Method under test: {@link BoundVex#keepsTarget}, through {@code HurtBySummonerSideGoal.canUse}
+     */
+    static void creativeAttackerDoesNotBlock(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        ServerPlayer creative = MockPlayers.inLevel(helper, GameType.CREATIVE);
+        MockPlayers.moveIntoTest(helper, creative);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        player.setLastHurtByMob(creative);
+        Husk husk = husk(helper, PREY_SPOT);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(targets(vex, husk), "setup: the husk is the target"))
+                .thenExecuteFor(30, () -> helper.assertTrue(targets(vex, husk), "the husk is kept through three scans"))
+                .thenSucceed();
+    }
+
+    /**
+     * When the summoner's tamed wolf stands outside the guard area, targeting a husk within reach and remembering it as
+     * its attacker, should take no target over forty ticks; once the wolf is inside the area, should take the husk.
+     *
+     * <p>Method under test: {@code BoundVex.alliesInGuardArea}, through {@code HurtBySummonerSideGoal} and
+     * {@code AllyFightGoal}
+     */
+    static void ignoresAnAllyOutsideTheArea(GameTestHelper helper) {
+        // Arrange: the husk is seven blocks north of the vex (within reach, outside the box), the wolf six
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = parked(helper, FEET, player);
+        Husk husk = husk(helper, FEET.north(7));
+        Wolf wolf = pet(helper, FEET.north(6), player);
+        wolf.setTarget(husk);
+        wolf.setLastHurtByMob(husk);
+        helper.assertFalse(vex.inGuardArea(wolf), "setup: the wolf is outside the area");
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        TARGET_WINDOW,
+                        () -> helper.assertTrue(vex.getTarget() == null, "an ally outside the area is ignored"))
+                .thenExecute(() -> wolf.setPos(helper.absoluteVec(Vec3.atBottomCenterOf(SIDE_SPOT))))
+                .thenWaitUntil(() -> helper.assertTrue(targets(vex, husk), "inside the area, its fight is joined"))
+                .thenSucceed();
     }
 }
