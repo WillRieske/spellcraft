@@ -13,6 +13,7 @@ import io.github.willrieske.spellcraft.evoking.ModEntities;
 import io.github.willrieske.spellcraft.evoking.VexSummons;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.rules.EvokerSpell;
+import io.github.willrieske.spellcraft.spell.rules.GuardArea;
 import io.github.willrieske.spellcraft.spell.rules.VexCap;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +43,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -172,6 +175,42 @@ public final class BoundVexGameTests {
                 BoundVexGameTests::creativeAttackerDoesNotBlock);
         FangGameTests.addPadded(
                 SHARED, "bound_vex_ignores_an_ally_outside_the_area", BoundVexGameTests::ignoresAnAllyOutsideTheArea);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_ignores_an_ally_whose_box_only_touches_the_area",
+                BoundVexGameTests::ignoresAnAllyWhoseBoxOnlyTouchesTheArea);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_ignores_a_hostile_whose_box_only_touches_the_area",
+                BoundVexGameTests::ignoresAHostileWhoseBoxOnlyTouchesTheArea);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_patrol_needs_line_of_sight", BoundVexGameTests::patrolNeedsLineOfSight);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_patrol_drops_a_husk_it_cannot_see", BoundVexGameTests::patrolDropsAHuskItCannotSee);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_patrol_drops_a_husk_that_becomes_an_ally",
+                LONG,
+                0,
+                BoundVexGameTests::patrolDropsAHuskThatBecomesAnAlly);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_ally_goal_drops_a_husk_that_becomes_an_ally",
+                LONG,
+                0,
+                BoundVexGameTests::allyGoalDropsAHuskThatBecomesAnAlly);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_summoners_victim_comes_before_an_allys_attacker",
+                LONG,
+                0,
+                BoundVexGameTests::summonersVictimComesBeforeAnAllysAttacker);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_ignores_a_stale_attacker_of_the_summoner",
+                LONG,
+                0,
+                BoundVexGameTests::ignoresAStaleAttackerOfTheSummoner);
     }
 
     /**
@@ -1240,6 +1279,238 @@ public final class BoundVexGameTests {
                         () -> helper.assertTrue(vex.getTarget() == null, "an ally outside the area is ignored"))
                 .thenExecute(() -> wolf.setPos(helper.absoluteVec(Vec3.atBottomCenterOf(SIDE_SPOT))))
                 .thenWaitUntil(() -> helper.assertTrue(targets(vex, husk), "inside the area, its fight is joined"))
+                .thenSucceed();
+    }
+
+    /**
+     * Whether the broad-phase box of a guard-area query around {@code vex} (the box inflated by the half sizes)
+     * intersects {@code other}'s bounding box: what a query catches before the feet test runs.
+     */
+    private static boolean broadPhaseCatches(BoundVex vex, Entity other) {
+        return new AABB(vex.position(), vex.position())
+                .inflate(GuardArea.HALF_WIDTH, GuardArea.HALF_HEIGHT, GuardArea.HALF_WIDTH)
+                .intersects(other.getBoundingBox());
+    }
+
+    /** Moves {@code entity} to {@code dx} east and {@code dz} south of {@code vex} (same height), held in place. */
+    private static void placeBeside(BoundVex vex, Entity entity, double dx, double dz) {
+        entity.setNoGravity(true);
+        entity.setPos(vex.position().add(dx, 0, dz));
+    }
+
+    /**
+     * When the summoner's tamed wolf stands 4.2 blocks east of the vex (its bounding box reaches into the guard box,
+     * its feet are outside), targeting a husk it remembers as its attacker, should take no target over forty ticks;
+     * with the wolf 3.9 blocks east, should take the husk.
+     *
+     * <p>Method under test: {@code BoundVex.alliesInGuardArea} (package-private): the feet test after the broad phase
+     */
+    static void ignoresAnAllyWhoseBoxOnlyTouchesTheArea(GameTestHelper helper) {
+        // Arrange: the husk is five blocks north (within reach, outside the box)
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = parked(helper, FEET, player);
+        Husk husk = husk(helper, FEET.north(5));
+        husk.setNoGravity(true);
+        Wolf wolf = pet(helper, FEET, player);
+        placeBeside(vex, wolf, 4.2, 0);
+        wolf.setTarget(husk);
+        wolf.setLastHurtByMob(husk);
+        helper.assertFalse(vex.inGuardArea(wolf), "setup: the wolf's feet are outside the area");
+        helper.assertTrue(broadPhaseCatches(vex, wolf), "setup: the wolf's box touches the query box");
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        TARGET_WINDOW,
+                        () -> helper.assertTrue(vex.getTarget() == null, "an ally by the edge is ignored"))
+                .thenExecute(() -> placeBeside(vex, wolf, 3.9, 0))
+                .thenWaitUntil(() -> helper.assertTrue(targets(vex, husk), "inside the area, its fight is joined"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a husk stands 4.2 blocks north of the vex (its bounding box reaches into the guard box, its feet are
+     * outside), should take no target over forty ticks; with the husk 3.9 blocks north, should take it.
+     *
+     * <p>Method under test: {@code NearestHostileGoal} (package-private): the feet test in its selector
+     */
+    static void ignoresAHostileWhoseBoxOnlyTouchesTheArea(GameTestHelper helper) {
+        // Arrange: the vex is outside the structure's barrier shell, which would block its sight
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = parked(helper, FEET.north(6), player);
+        Husk husk = husk(helper, FEET);
+        placeBeside(vex, husk, 0, -4.2);
+        helper.assertFalse(vex.inGuardArea(husk), "setup: the husk's feet are outside the area");
+        helper.assertTrue(broadPhaseCatches(vex, husk), "setup: the husk's box touches the query box");
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        TARGET_WINDOW,
+                        () -> helper.assertTrue(vex.getTarget() == null, "a hostile by the edge is ignored"))
+                .thenExecute(() -> placeBeside(vex, husk, 0, -3.9))
+                .thenWaitUntil(() -> helper.assertTrue(targets(vex, husk), "inside the area, it is taken"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a husk stands inside the guard area behind a wall of stone, should take no target over forty ticks; with
+     * the wall gone, should take the husk.
+     *
+     * <p>Method under test: {@code NearestHostileGoal} (package-private): its line-of-sight requirement
+     */
+    static void patrolNeedsLineOfSight(GameTestHelper helper) {
+        // Arrange: outside the barrier shell, a three-high wall between the vex and a husk three blocks north of it
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = parked(helper, FEET.north(6), player);
+        Husk husk = husk(helper, FEET.north(9));
+        husk.setNoGravity(true);
+        BlockPos wall = FEET.north(8);
+        for (int up = 0; up < 3; up++) {
+            helper.setBlock(wall.above(up), Blocks.STONE);
+        }
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        TARGET_WINDOW,
+                        () -> helper.assertTrue(vex.getTarget() == null, "a husk behind stone is unseen"))
+                .thenExecute(() -> {
+                    for (int up = 0; up < 3; up++) {
+                        helper.setBlock(wall.above(up), Blocks.AIR);
+                    }
+                })
+                .thenWaitUntil(() -> helper.assertTrue(targets(vex, husk), "with the wall gone, the husk is taken"))
+                .thenSucceed();
+    }
+
+    /**
+     * When the husk the patrol goal holds is walled off with stone, should drop it once it has been unseen for the
+     * goal's unseen-memory ticks ({@code mustSee}), and not take it again.
+     *
+     * <p>Method under test: {@code NearestHostileGoal} (package-private): the sight rule of {@code canContinueToUse}
+     */
+    static void patrolDropsAHuskItCannotSee(GameTestHelper helper) {
+        // Arrange: outside the barrier shell, a husk three blocks north of the vex, in sight
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = parked(helper, FEET.north(6), player);
+        Husk husk = husk(helper, FEET.north(9));
+        husk.setNoGravity(true);
+        BlockPos wall = FEET.north(8);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(targets(vex, husk), "setup: the husk is the target"))
+                .thenExecute(() -> {
+                    for (int up = 0; up < 3; up++) {
+                        helper.setBlock(wall.above(up), Blocks.STONE);
+                    }
+                })
+                .thenWaitUntil(() -> helper.assertTrue(vex.getTarget() == null, "dropped once unseen for long enough"))
+                .thenExecuteFor(20, () -> helper.assertTrue(vex.getTarget() == null, "and not taken again"))
+                .thenSucceed();
+    }
+
+    /**
+     * When the husk the patrol goal holds becomes an ally of the summoner (the summoner mark; {@code TargetGoal}'s
+     * own checks do not catch it), should drop it.
+     *
+     * <p>Method under test: {@code NearestHostileGoal} (package-private): {@code canContinueToUse}
+     */
+    static void patrolDropsAHuskThatBecomesAnAlly(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        Husk husk = husk(helper, PREY_SPOT);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    helper.assertTrue(targets(vex, husk), "setup: the husk is the target");
+                    helper.assertValueEqual(runningTargetGoal(vex), "NearestHostileGoal", "held by the patrol goal");
+                })
+                .thenExecute(() -> husk.setData(AllyAttachments.SUMMONER, player.getUUID()))
+                .thenWaitUntil(() -> helper.assertTrue(vex.getTarget() == null, "the new ally is dropped"))
+                .thenExecuteFor(20, () -> helper.assertTrue(vex.getTarget() == null, "and not taken again"))
+                .thenSucceed();
+    }
+
+    /**
+     * When the husk the ally goal holds (a wolf's target) becomes an ally of the summoner, should drop it.
+     *
+     * <p>Method under test: {@code AllyFightGoal} (package-private): {@code canContinueToUse}
+     */
+    static void allyGoalDropsAHuskThatBecomesAnAlly(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+        Wolf wolf = pet(helper, SIDE_SPOT, player);
+        Husk husk = husk(helper, PREY_SPOT);
+        wolf.setTarget(husk);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    helper.assertTrue(targets(vex, husk), "setup: the husk is the target");
+                    helper.assertValueEqual(runningTargetGoal(vex), "AllyFightGoal", "held by the ally goal");
+                })
+                .thenExecute(() -> husk.setData(AllyAttachments.SUMMONER, player.getUUID()))
+                .thenWaitUntil(() -> helper.assertTrue(vex.getTarget() == null, "the new ally is dropped"))
+                .thenExecuteFor(20, () -> helper.assertTrue(vex.getTarget() == null, "and not taken again"))
+                .thenSucceed();
+    }
+
+    /**
+     * When the summoner remembers hitting a pig and an ally wolf remembers a husk hurting it, both fresh, should take
+     * the pig: the summoner's victim (third) comes before an ally's attacker (fourth).
+     *
+     * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the memory order
+     */
+    static void summonersVictimComesBeforeAnAllysAttacker(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+        Pig pig = pigHere(helper, PREY_SPOT);
+        Husk husk = husk(helper, SIDE_SPOT);
+        Wolf wolf = pet(helper, CORNER_SPOT, player);
+
+        // Act
+        wolf.setLastHurtByMob(husk);
+        player.setLastHurtMob(pig);
+
+        // Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.getTarget() != null, "setup: a target is taken"))
+                .thenExecute(
+                        () -> helper.assertTrue(targets(vex, pig), "the summoner's victim, not the ally's attacker"))
+                .thenSucceed();
+    }
+
+    /**
+     * When the summoner's attacker was remembered more than a hundred of the summoner's ticks ago, should take no
+     * target over forty ticks; the same memory made fresh should make the husk the target (the control). The
+     * summoner's memory is the one a test can age: a vex's own and an ally's are cleared by vanilla at that age.
+     *
+     * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the freshness window
+     */
+    static void ignoresAStaleAttackerOfTheSummoner(GameTestHelper helper) {
+        // Arrange: the mock summoner is never ticked, so its clock is what the test sets
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+        Husk husk = husk(helper, PREY_SPOT);
+        player.setLastHurtByMob(husk);
+        player.tickCount += 500;
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        TARGET_WINDOW,
+                        () -> helper.assertTrue(vex.getTarget() == null, "a stale attacker is forgotten"))
+                .thenExecute(() -> player.setLastHurtByMob(husk))
+                .thenWaitUntil(() -> helper.assertTrue(targets(vex, husk), "a fresh memory makes the husk the target"))
                 .thenSucceed();
     }
 }
