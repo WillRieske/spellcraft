@@ -143,7 +143,7 @@ public final class Fangs {
             int feetY = target.blockPosition().getY();
             List<Spot> spots = new ArrayList<>();
             for (Column column : columns) {
-                OptionalDouble y = findFloor(level, column.x(), column.z(), feetY + FLOOR_UP, feetY - FLOOR_DOWN);
+                OptionalDouble y = floorUnder(level, column, feetY);
                 if (y.isPresent()) {
                     Spot spot = new Spot(column, y.getAsDouble());
                     if (claimed.add(spot)) {
@@ -218,9 +218,19 @@ public final class Fangs {
         }
         float angle = (float) Mth.atan2(z - feet.getZ(), x - feet.getX());
         EvokerFangs fang = new EvokerFangs(level, x + 0.5, spot.y(), z + 0.5, angle, 0, caster);
-        level.addFreshEntity(fang);
+        if (!level.addFreshEntity(fang)) {
+            return Optional.empty(); // another mod cancelled the join: no fang, no record, no game event
+        }
         level.gameEvent(GameEvent.ENTITY_PLACE, new Vec3(x + 0.5, spot.y(), z + 0.5), GameEvent.Context.of(caster));
         return Optional.of(fang);
+    }
+
+    /**
+     * The floor for a target whose feet are at block height {@code feetY}: {@link #findFloor} over the window from
+     * {@link #FLOOR_UP} above to {@link #FLOOR_DOWN} below. The press and the chase share it so they search alike.
+     */
+    private static OptionalDouble floorUnder(ServerLevel level, Column column, int feetY) {
+        return findFloor(level, column.x(), column.z(), feetY + FLOOR_UP, feetY - FLOOR_DOWN);
     }
 
     /**
@@ -252,6 +262,9 @@ public final class Fangs {
      * each column of the target's current footprint that has a floor, with no record. One chase per target per cast:
      * the first of a footprint's fangs to reach the bite tick settles it, whether or not a fang is placed.
      *
+     * <p>The caster's absence ({@code getPlayerByUUID} returning null) ends the chase quietly; that exit is covered
+     * by reasoning only, not by a GameTest.
+     *
      * @param event the post-tick event for any entity
      */
     @SubscribeEvent
@@ -280,7 +293,7 @@ public final class Fangs {
         }
         int feetY = target.blockPosition().getY();
         for (Column column : now) {
-            findFloor(level, column.x(), column.z(), feetY + FLOOR_UP, feetY - FLOOR_DOWN)
+            floorUnder(level, column, feetY)
                     .ifPresent(y -> place(level, caster, chase.feet, new Spot(column, y))); // no record: never chases
         }
     }
@@ -290,10 +303,16 @@ public final class Fangs {
      * bite, or its chunk stops being accessible (docs/api-notes.md §20; a fang unloaded before its bite tick never
      * chases, accepted).
      *
+     * <p>Server levels only: the event is also posted for client levels, which share entity ids with the server in
+     * single player, so a client-side removal would race with the server thread and could drop a live record.
+     *
      * @param event the leave event for any entity
      */
     @SubscribeEvent
     public static void onEntityLeave(EntityLeaveLevelEvent event) {
+        if (!(event.getLevel() instanceof ServerLevel)) {
+            return;
+        }
         if (event.getEntity() instanceof EvokerFangs fang) {
             CHASES.remove(fang.getId());
         }
