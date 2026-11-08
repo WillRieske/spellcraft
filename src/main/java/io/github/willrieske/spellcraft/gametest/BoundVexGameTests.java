@@ -101,6 +101,7 @@ public final class BoundVexGameTests {
                 SHARED, "bound_vex_cap_tops_up_from_eleven", helper -> capTopsUpToTwelve(helper, VexCap.CAP - 1));
         FangGameTests.addPadded(SHARED, "bound_vex_cap_is_per_summoner", BoundVexGameTests::capIsPerSummoner);
         FangGameTests.addPadded(SHARED, "bound_vex_cap_counts_every_level", BoundVexGameTests::capCountsEveryLevel);
+        SpellcraftGameTests.add(SHARED, "bound_vex_gives_no_experience", BoundVexGameTests::givesNoExperience);
         SpellcraftGameTests.add(SHARED, "bound_vex_stay_toggle", BoundVexGameTests::stayToggle);
         SpellcraftGameTests.add(SHARED, "bound_vex_idles_without_a_summoner", BoundVexGameTests::idlesWithoutASummoner);
         SpellcraftGameTests.add(
@@ -153,6 +154,14 @@ public final class BoundVexGameTests {
                 SHARED, "bound_vex_targets_what_hurt_an_ally", LONG, 0, BoundVexGameTests::targetsWhatHurtAnAlly);
         SpellcraftGameTests.add(
                 SHARED, "bound_vex_joins_an_allys_fight", LONG, 0, BoundVexGameTests::joinsAnAllysFight);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_ally_goal_skips_a_creeper", LONG, 0, BoundVexGameTests::allyGoalSkipsACreeper);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_patrol_ignores_another_players_vex",
+                LONG,
+                0,
+                BoundVexGameTests::patrolIgnoresAnotherPlayersVex);
         SpellcraftGameTests.add(
                 SHARED, "bound_vex_calls_the_summoners_wolves", LONG, 0, BoundVexGameTests::callsTheSummonersWolves);
         FangGameTests.addPadded(
@@ -517,6 +526,25 @@ public final class BoundVexGameTests {
         helper.assertTrue(copy.isStaying(), "staying survives the save");
         helper.assertTrue(copy.isSummonedBy(player.getUUID()), "the mark survives the save");
         helper.assertValueEqual(FangGameTests.savedInt(vex, "life_ticks"), Integer.MIN_VALUE, "no life limit saved");
+        helper.succeed();
+    }
+
+    /**
+     * When a Bound Vex is asked what killing it is worth, should answer no experience (vanilla's vex gives 3, which
+     * three vexes a press would farm), whoever killed it.
+     *
+     * <p>Method under test: {@code BoundVex}'s constructor ({@code xpReward}), through
+     * {@code LivingEntity.getExperienceReward}
+     */
+    static void givesNoExperience(GameTestHelper helper) {
+        // Arrange
+        BoundVex vex = boundVex(helper, VEX_SPOT, summoner(helper));
+
+        // Act
+        int reward = vex.getExperienceReward(helper.getLevel(), null);
+
+        // Assert
+        helper.assertValueEqual(reward, 0, "a Bound Vex gives no experience");
         helper.succeed();
     }
 
@@ -1042,6 +1070,69 @@ public final class BoundVexGameTests {
 
         // Assert
         helper.succeedWhen(() -> helper.assertTrue(targets(vex, husk), "the ally's target is the target"));
+    }
+
+    /**
+     * When the summoner's tamed wolf inside the guard area has a creeper as its target, should not join it over forty
+     * ticks (the ally goal, like the patrol goal, never pulls a vex onto a creeper); a husk the wolf targets next
+     * should be joined (the control: the goal works here).
+     *
+     * <p>Method under test: {@code BoundVex.huntable}, through {@code AllyFightGoal} (package-private)
+     */
+    static void allyGoalSkipsACreeper(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.targetSelector.removeAllGoals(goal -> goal instanceof NearestAttackableTargetGoal);
+        Wolf wolf = pet(helper, SIDE_SPOT, player);
+        Creeper creeper = helper.spawn(EntityTypes.CREEPER, PREY_SPOT);
+        creeper.setNoAi(true);
+        whenDone(helper, creeper::discard);
+        Husk[] husk = new Husk[1];
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(TARGET_WINDOW, () -> {
+                    wolf.setTarget(creeper);
+                    helper.assertTrue(vex.getTarget() == null, "an ally's fight with a creeper is not joined");
+                })
+                .thenExecute(() -> {
+                    husk[0] = husk(helper, CORNER_SPOT);
+                    wolf.setTarget(husk[0]);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(targets(vex, husk[0]), "the husk the wolf fights is joined"))
+                .thenSucceed();
+    }
+
+    /**
+     * When another player's parked Bound Vex stands in a patrolling vex's guard area with {@code pvp} on, should not
+     * take it as a target over forty ticks (a player is no {@code Enemy}, and another player's summons are treated like
+     * that player); once that vex has hurt the patrolling one, should take it (the grudge goal answers a hit).
+     *
+     * <p>Method under test: {@code BoundVex.huntable}, through {@code NearestHostileGoal} (package-private); the
+     * {@code pvp} rule is the server's default, which the setup asserts
+     */
+    static void patrolIgnoresAnotherPlayersVex(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        ServerPlayer stranger = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        BoundVex strangersVex = parked(helper, PREY_SPOT, stranger);
+        strangersVex.targetSelector.removeAllGoals(goal -> true);
+        helper.assertTrue(helper.getLevel().isPvpAllowed(), "setup: pvp is on");
+        helper.assertTrue(
+                BoundVex.isPrey(helper.getLevel(), player.getUUID(), strangersVex),
+                "setup: with pvp on, a stranger's vex is prey");
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        TARGET_WINDOW,
+                        () -> helper.assertTrue(vex.getTarget() == null, "another player's vex is not patrolled"))
+                .thenExecute(() -> vex.setLastHurtByMob(strangersVex))
+                .thenWaitUntil(
+                        () -> helper.assertTrue(targets(vex, strangersVex), "the vex that hurt it is the target"))
+                .thenSucceed();
     }
 
     /**

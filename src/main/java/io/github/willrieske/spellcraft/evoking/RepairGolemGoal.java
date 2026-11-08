@@ -19,15 +19,16 @@ import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A Bound Vex repairs a hurt ally golem (Evoking II spec §3.7): on each scan ({@code BoundVex.scanDue}), when the vex is
- * idle (no target) and its summoner is here, the nearest iron golem whose feet are in the guard area, that is an ally
- * (so: not mad), under full health and not claimed by another living Bound Vex is taken. The vex flies to within
- * {@link #REACH} of the golem's chest, conjures an iron ingot there, and every {@link #TAP_INTERVAL} ticks swings, plays
- * the repair sound and heals {@link #HEAL} (vanilla's ingot amount). When the golem is full, or the repair stops for
- * any reason (a target, the summoner gone, the golem out of the area or mad, flee or dodge taking over), the ingot goes
- * and the item the vex held comes back. The held item lives in this goal until Part 3's stash: a vex unloaded, saved
- * and reloaded, or carried through a portal while repairing keeps the ingot (Divergence 8, noted for the playtest).
- * Repair outranks follow, so a summoner who walks off waits until the golem is full (at most about three seconds).
+ * A Bound Vex repairs a hurt ally golem (Evoking II spec §3.7): on each scan ({@code BoundVex.scanDue}), when the vex
+ * is idle (no target) and its summoner is here, the nearest iron golem whose feet are in the guard area, that is an
+ * ally (so: not mad), under full health and not claimed by another living Bound Vex is taken. The vex flies to within
+ * {@link #REACH} of the golem's chest, conjures an iron ingot there, and every {@link #TAP_INTERVAL} ticks swings,
+ * plays the repair sound and heals {@link #HEAL} (vanilla's ingot amount). When the golem is full, or the repair
+ * stops for any reason (a target, the summoner gone, the golem out of the area or mad, flee or dodge taking over),
+ * the ingot goes and the item the vex held comes back. The held item lives in this goal until Part 3's stash: a vex
+ * unloaded, saved and reloaded, or carried through a portal while repairing keeps the ingot (a known gap, on the
+ * playtest checklist). Repair outranks follow, so a summoner who walks off waits until the golem is full (at most
+ * about three seconds).
  */
 final class RepairGolemGoal extends Goal {
     /** Health per tap: vanilla's iron-ingot repair. */
@@ -70,12 +71,13 @@ final class RepairGolemGoal extends Goal {
 
     @Override
     public boolean canUse() {
+        // A vex that died, was discarded or unloaded never ran stop(); drop its claim so the map does not keep it
+        // (and its level) reachable. Done before any early return, so it does not wait for an idle scan. Such a claim
+        // already counts as free in claimedByAnother.
+        CLAIMED.values().removeIf(holder -> holder.isRemoved() || !holder.isAlive());
         if (!vex.scanDue(BoundVex.SCAN_INTERVAL) || vex.getTarget() != null) {
             return false;
         }
-        // A vex that died, was discarded or unloaded never ran stop(); drop its claim so the map does not keep it
-        // (and its level) reachable. Such a claim already counts as free in claimedByAnother.
-        CLAIMED.values().removeIf(holder -> holder.isRemoved() || !holder.isAlive());
         ServerPlayer owner = vex.summoner().orElse(null);
         if (owner == null) {
             return false;

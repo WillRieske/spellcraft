@@ -3,21 +3,22 @@ package io.github.willrieske.spellcraft.evoking;
 import java.util.EnumSet;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.animal.golem.IronGolem;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A Bound Vex darts out of an iron golem's swing (Evoking II spec §3.6): when a golem within {@link #NOTICE_RANGE} is
- * mid-swing ({@code getAttackAnimationTick() > 0}) and its head faces the vex (the dot of its head look,
- * {@code getHeadLookAngle()}, and the direction from its eyes to the vex's middle is over {@link #FACING}), the vex
- * moves {@link #DART} blocks sideways, perpendicular to that look, in one move, every time. The head, not the body:
- * a golem winding up a swing turns its head to its target first (docs/api-notes.md §21). One dart per swing: the goal
- * waits out the swing's ten ticks before it can start again.
+ * A Bound Vex sidesteps after an iron golem's swing lands near it (Evoking II spec §3.6): when a golem within
+ * {@link #NOTICE_RANGE} is mid-swing ({@code getAttackAnimationTick() > 0}) and its head faces the vex (the dot of its
+ * head look, {@code getHeadLookAngle()}, and the direction from its eyes to the vex's middle is over {@link #FACING}),
+ * the vex moves {@link #DART} blocks sideways, perpendicular to that look, in one move, every time. It is a reaction,
+ * not an evasion: the swing's tick counter starts in the same call that deals the hit, so the vex cannot beat the
+ * swing it reacts to, and golems never target Bound Vexes, so the swing is aimed at someone else. The head, not the
+ * body: a golem winding up a swing turns its head to its target first (docs/api-notes.md §21). One dart per swing:
+ * the goal waits out the swing's ten ticks before it can start again.
  */
-final class DodgeGolemGoal extends Goal {
-    /** How near a swinging golem must be, feet to feet; the box searched around the vex has this half-size. */
-    static final double NOTICE_RANGE = 3.0;
+public final class DodgeGolemGoal extends Goal {
+    /** How near a swinging golem must be, feet to feet (a sphere around the vex). */
+    public static final double NOTICE_RANGE = 3.0;
 
     /** How squarely the golem must face the vex: the dot of two unit vectors. */
     static final double FACING = 0.5;
@@ -46,20 +47,20 @@ final class DodgeGolemGoal extends Goal {
         if (vex.tickCount < readyAt) {
             return false;
         }
-        AABB around = new AABB(vex.position(), vex.position()).inflate(NOTICE_RANGE);
-        golem = vex
-                .level()
-                .getEntitiesOfClass(
-                        IronGolem.class, around, candidate -> candidate.isAlive() && isSwingingAtVex(candidate))
-                .stream()
-                .findFirst()
-                .orElse(null);
+        golem =
+                vex
+                        .nearby(
+                                IronGolem.class,
+                                NOTICE_RANGE,
+                                candidate -> candidate.isAlive() && isSwingingAtVex(candidate))
+                        .stream()
+                        .findFirst()
+                        .orElse(null);
         return golem != null;
     }
 
     private boolean isSwingingAtVex(IronGolem candidate) {
-        // The box query is a cube; this makes the range the sphere the spec names (as FleeCreeperGoal does).
-        if (candidate.getAttackAnimationTick() <= 0 || vex.distanceToSqr(candidate) > NOTICE_RANGE * NOTICE_RANGE) {
+        if (candidate.getAttackAnimationTick() <= 0) {
             return false;
         }
         Vec3 toVex = vex.getBoundingBox().getCenter().subtract(candidate.getEyePosition());

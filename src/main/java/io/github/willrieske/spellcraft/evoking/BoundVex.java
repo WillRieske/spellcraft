@@ -7,6 +7,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -31,6 +32,8 @@ import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.animal.wolf.Wolf;
+import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -42,10 +45,11 @@ import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The Bound Vex (Evoking II spec §3): a vex a player summons on V that lives until it dies. Vanilla's {@code Vex} gives it
- * the no-clip flight, the move control, the charging texture and the iron sword; this class owns the goals (vanilla's
- * are private classes, docs/api-notes.md §21), the stay flag, the summoner lookup, the prey rule, and the three small
- * rules every goal shares: {@link #scanDue} (the clock), {@link #inGuardArea} (the box) and {@link #keepsTarget}.
+ * The Bound Vex (Evoking II spec §3): a vex a player summons on V that lives until it dies. Vanilla's {@code Vex} gives
+ * it the no-clip flight, the move control, the charging texture and the iron sword; this class owns the goals
+ * (vanilla's are private classes, docs/api-notes.md §21), the stay flag, the summoner lookup, the prey rule, and the
+ * small rules every goal shares: {@link #scanDue} (the clock), {@link #inGuardArea} (the box), {@link #keepsTarget}
+ * and {@link #huntable}.
  * Without a summoner online, alive and in its level it idles. The summoner is the {@link AllyAttachments#SUMMONER}
  * mark, so {@code Allies}, {@code GolemMercy} and the Trailing flame already treat it as the summoner's.
  */
@@ -62,8 +66,15 @@ public class BoundVex extends Vex {
     /** How far the summoner's wolves hear the call to a fight (spec §3.4), feet to feet. */
     static final double WOLF_CALL_RANGE = 16.0;
 
+    /** The allies found on {@link #alliesTick}; see {@link #alliesInGuardArea}. */
+    private List<Mob> alliesCache = List.of();
+
+    private int alliesTick = -1;
+
     public BoundVex(EntityType<? extends BoundVex> type, Level level) {
         super(type, level);
+        // No experience: summon-and-kill would farm 3 XP per vex, 3 vexes per press (vanilla's vex gives 3).
+        xpReward = 0;
     }
 
     /**
@@ -85,8 +96,9 @@ public class BoundVex extends Vex {
      * The goals (spec §3.3). Not {@code super.registerGoals()}: vanilla's are private classes (docs/api-notes.md §21),
      * so the charge and wander goals are this class's copies, and a Bound Vex has no raider grudge, no owner to copy a
      * target from and no player hunt. Its three target goals are {@link HurtBySummonerSideGoal} (grudges),
-     * {@link AllyFightGoal} (an ally's fight) and {@link NearestHostileGoal} (the patrol). Task 6 adds the flee, dodge
-     * and repair goals here.
+     * {@link AllyFightGoal} (an ally's fight) and {@link NearestHostileGoal} (the patrol). The job goals sit beside
+     * them: {@link FleeCreeperGoal} and {@link DodgeGolemGoal} outrank everything on the move flag,
+     * {@link RepairGolemGoal} outranks the charge and the follow.
      */
     @Override
     protected void registerGoals() {
@@ -128,9 +140,9 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * Vanilla's spawn (the iron sword), then the random follow-range bonus {@code Mob.finalizeSpawn} adds (the inherited
-     * {@code RANDOM_SPAWN_BONUS_ID}, docs/api-notes.md §21) goes, so the reach is exactly {@link GuardArea#REACH}
-     * (docs/api-notes.md §19: the targeting goal reads the attribute).
+     * Vanilla's spawn (the iron sword), then the random follow-range bonus {@code Mob.finalizeSpawn} adds (the
+     * inherited {@code RANDOM_SPAWN_BONUS_ID}, docs/api-notes.md §21) goes, so the reach is exactly
+     * {@link GuardArea#REACH} (docs/api-notes.md §19: the targeting goal reads the attribute).
      */
     @Override
     public @Nullable SpawnGroupData finalizeSpawn(
@@ -197,8 +209,8 @@ public class BoundVex extends Vex {
      * Whether a Bound Vex of {@code summoner} may fight {@code target} (spec §3.4; round one's rule): anything
      * attackable that is no ally of the summoner, no player the summoner cannot harm ({@code canHarmPlayer}: the
      * {@code pvp} game rule; teammates are already allies), no mob another player summoned unless the summoner may
-     * harm that player (Divergence 15: with {@code pvp} off, two players' vexes leave each other alone; an offline
-     * summoner's mobs follow the {@code pvp} rule alone), and nothing while the summoner is not in {@code level}
+     * harm that player (with {@code pvp} off, two players' vexes leave each other alone; an offline summoner's mobs
+     * follow the {@code pvp} rule alone), and nothing while the summoner is not in {@code level}
      * (offline or in another dimension). Public for its GameTests.
      *
      * @param level the level the vex is in
@@ -280,18 +292,60 @@ public class BoundVex extends Vex {
     }
 
     /**
+     * Whether a patrol or an ally's fight may pull this vex onto {@code target} (spec §3.4 items 2 and 3): hostile
+     * ({@code Enemy}), no creeper (a creeper is fought only when it provoked, through the grudge goal, and the flee
+     * goal handles a hissing one), and carrying no other player's summoner mark (another player's summons are treated
+     * like that player, who is no {@code Enemy}: they are prey for the grudge goal under the PvP rule, so a vex answers
+     * a hit, but never a patrol or ally-fight target). {@link #keepsTarget} is a separate test.
+     *
+     * @param target the candidate
+     * @return whether the patrol and ally goals may pick it
+     */
+    boolean huntable(LivingEntity target) {
+        return target instanceof Enemy
+                && !(target instanceof Creeper)
+                && target.getExistingData(AllyAttachments.SUMMONER)
+                        .filter(mark -> !isSummonedBy(mark))
+                        .isEmpty();
+    }
+
+    /**
+     * The entities of {@code type} whose feet are within {@code range} blocks of this vex (a sphere, not the cube
+     * {@code getEntitiesOfClass} returns for the box around it) and that pass {@code filter}.
+     *
+     * @param type the class to look for
+     * @param range the sphere's radius, feet to feet
+     * @param filter a further test
+     * @param <T> the entity class
+     * @return the matches, in query order
+     */
+    <T extends Entity> List<T> nearby(Class<T> type, double range, Predicate<? super T> filter) {
+        double limit = range * range;
+        return level().getEntitiesOfClass(
+                        type,
+                        new AABB(position(), position()).inflate(range),
+                        entity -> distanceToSqr(entity) <= limit && filter.test(entity));
+    }
+
+    /**
      * The summoner's allies ({@code Allies.isAllyOf}) whose feet are inside this vex's guard area, this vex excepted:
      * a vex is its own summoner's ally, and counting itself would hand its own target to the ally goal (spec §3.4).
+     * The answer is kept for the tick, so the grudge goal and the ally goal, which scan on the same tick, share one
+     * entity query.
      *
      * @param owner the summoner
      * @return the allies in the area
      */
     List<Mob> alliesInGuardArea(ServerPlayer owner) {
-        UUID self = getUUID();
-        return level().getEntitiesOfClass(
-                        Mob.class,
-                        guardArea(),
-                        mob -> !mob.getUUID().equals(self) && inGuardArea(mob) && Allies.isAllyOf(owner, mob));
+        if (alliesTick != tickCount) {
+            UUID self = getUUID();
+            alliesCache = level().getEntitiesOfClass(
+                            Mob.class,
+                            guardArea(),
+                            mob -> !mob.getUUID().equals(self) && inGuardArea(mob) && Allies.isAllyOf(owner, mob));
+            alliesTick = tickCount;
+        }
+        return alliesCache;
     }
 
     /**
@@ -329,8 +383,8 @@ public class BoundVex extends Vex {
      * everything else passes (the sneaking click is Part 3's take-back). Only the server decides, since the client does
      * not know the summoner (the mark is not synced). The client still answers {@code SUCCESS_SERVER} for every
      * empty-handed, un-sneaked main-hand click: a client {@code PASS} would send {@code Minecraft.startUseItem} on to
-     * the off hand and throw a pearl or raise a shield on each toggle (docs/api-notes.md §21, Divergence 9). The swing
-     * comes from the server; a stranger's click is answered {@code PASS} there and changes nothing.
+     * the off hand and throw a pearl or raise a shield on each toggle (docs/api-notes.md §21). The swing comes from
+     * the server; a stranger's click is answered {@code PASS} there and changes nothing.
      */
     @Override
     protected InteractionResult mobInteract(Player player, InteractionHand hand) {

@@ -15,10 +15,11 @@ public final class ModEntities {
     public static final DeferredRegister.Entities ENTITIES = DeferredRegister.createEntities(Spellcraft.MODID);
 
     /**
-     * The Bound Vex (Evoking II spec §3.1): vanilla's vex build (docs/api-notes.md §21), so it is fire immune, 0.4×0.8,
-     * tracked eight chunks out and not allowed on Peaceful, where {@code create} refuses and {@code Mob.checkDespawn}
-     * discards it. No spawn egg, no natural spawn, no loot table; {@code /summon spellcraft:bound_vex} makes one with no
-     * summoner, which idles.
+     * The Bound Vex (Evoking II spec §3.1): vanilla's vex build (docs/api-notes.md §21), so it is fire immune,
+     * 0.4×0.8, tracked eight chunks out and not allowed on Peaceful, where {@code create} refuses and
+     * {@code Mob.checkDespawn} discards it. No spawn egg, no natural spawn, no loot table (stated by
+     * {@code noLootTable()}, so a datapack cannot add one by accident) and no experience; {@code /summon
+     * spellcraft:bound_vex} makes one with no summoner, which idles.
      */
     public static final DeferredHolder<EntityType<?>, EntityType<BoundVex>> BOUND_VEX = ENTITIES.registerEntityType(
             "bound_vex",
@@ -30,6 +31,7 @@ public final class ModEntities {
                     .passengerAttachments(0.7375F)
                     .ridingOffset(0.04F)
                     .clientTrackingRange(8)
+                    .noLootTable()
                     .notInPeaceful());
 
     private ModEntities() {}
