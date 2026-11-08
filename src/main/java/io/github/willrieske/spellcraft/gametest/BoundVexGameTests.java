@@ -5,8 +5,10 @@ import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARE
 
 import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.evoking.BoundVex;
+import io.github.willrieske.spellcraft.evoking.BoundVexEvents;
 import io.github.willrieske.spellcraft.evoking.EvokingCaster;
 import io.github.willrieske.spellcraft.evoking.EvokingCaster.Request;
+import io.github.willrieske.spellcraft.evoking.FollowSummonerGoal;
 import io.github.willrieske.spellcraft.evoking.ModEntities;
 import io.github.willrieske.spellcraft.evoking.VexSummons;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
@@ -14,9 +16,11 @@ import io.github.willrieske.spellcraft.spell.rules.EvokerSpell;
 import io.github.willrieske.spellcraft.spell.rules.VexCap;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -27,7 +31,10 @@ import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 
 /**
  * Bound Vex GameTests (Evoking II spec §3, §11 "Part 2"). Tests whose vex flies or teleports, that need headroom, or
@@ -46,6 +53,12 @@ public final class BoundVexGameTests {
 
     /** The box's opposite bottom corner: farther from {@link #VEX_SPOT} than the summoner standing at the box's middle. */
     static final BlockPos PREY_SPOT = new BlockPos(2, 1, 2);
+
+    /** The middle of the structure's box, where {@code FangGameTests.caster} stands the player. */
+    private static final BlockPos FEET = FangGameTests.FEET;
+
+    /** A vex this far north of the caster is outside the teleport distance (12) and inside the padding (13). */
+    static final int FAR_NORTH = 13;
 
     private BoundVexGameTests() {}
 
@@ -67,6 +80,21 @@ public final class BoundVexGameTests {
                 BoundVexGameTests::idlesWithTheSummonerElsewhere);
         SpellcraftGameTests.add(SHARED, "bound_vex_save_keeps_stay_and_mark", BoundVexGameTests::saveKeepsStayAndMark);
         FangGameTests.addPadded(SHARED, "bound_vex_guard_area_edges", BoundVexGameTests::guardAreaEdges);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_follow_flies_into_the_orbit", BoundVexGameTests::followFliesIntoTheOrbit);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_follow_teleports_from_thirteen_blocks",
+                BoundVexGameTests::followTeleportsFromThirteen);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_follow_idles_without_a_summoner", BoundVexGameTests::followIdlesWithoutASummoner);
+        FangGameTests.addPadded(SHARED, "bound_vex_staying_holds_its_post", BoundVexGameTests::stayingHoldsItsPost);
+        FangGameTests.addPadded(SHARED, "bound_vex_follows_again_after_stay", BoundVexGameTests::followsAgainAfterStay);
+        FangGameTests.addPadded(SHARED, "bound_vex_portal_follow", BoundVexGameTests::portalFollow);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_same_dimension_teleport_brings_nothing",
+                BoundVexGameTests::sameDimensionTeleportBringsNothing);
     }
 
     /**
@@ -420,6 +448,206 @@ public final class BoundVexGameTests {
         helper.assertFalse(vex.inGuardArea(husk), "half a block above it: outside");
         husk.setPos(at.add(4.0, -3.5, 4.0));
         helper.assertTrue(vex.inGuardArea(husk), "a bottom corner: inside");
+        helper.succeed();
+    }
+
+    /**
+     * When a following Bound Vex hovers seven blocks from its summoner, should fly into the orbit band: three ticks in
+     * it is still more than six blocks out (a teleport would have put it within {@code TELEPORT_LANDING_MAX}), and it
+     * then comes within five blocks (the band's edge plus one; a flight toward a spot inside the band always crosses
+     * that line).
+     *
+     * <p>Method under test: {@link FollowSummonerGoal}, through the vex's goal selector
+     */
+    static void followFliesIntoTheOrbit(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = boundVex(helper, FEET.north(7), player);
+        helper.assertTrue(vex.distanceTo(player) > FollowSummonerGoal.ORBIT_MAX + 2.0, "setup: seven blocks out");
+
+        // Act & Assert
+        helper.runAfterDelay(
+                3,
+                () -> helper.assertTrue(
+                        vex.distanceTo(player) > FollowSummonerGoal.ORBIT_MAX + 2.0,
+                        "still flying after three ticks, not teleported, got " + vex.distanceTo(player)));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(helper.getTick() > 3, "not before the flight check");
+            helper.assertTrue(
+                    vex.distanceTo(player) <= FollowSummonerGoal.ORBIT_MAX + 1.0,
+                    "in the orbit band, got " + vex.distanceTo(player));
+        });
+    }
+
+    /**
+     * When a following Bound Vex is thirteen blocks from its summoner, should be beside the summoner within five ticks:
+     * a flight could not cover that distance so fast, so it teleported.
+     *
+     * <p>Method under test: {@link FollowSummonerGoal}, through the vex's goal selector
+     */
+    static void followTeleportsFromThirteen(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = boundVex(helper, FEET.north(FAR_NORTH), player);
+
+        // Act & Assert
+        helper.runAfterDelay(5, () -> {
+            helper.assertTrue(
+                    vex.distanceTo(player) <= FollowSummonerGoal.TELEPORT_LANDING_MAX,
+                    "beside the summoner after a teleport, got " + vex.distanceTo(player));
+            helper.succeed();
+        });
+    }
+
+    /**
+     * When a Bound Vex with no summoner mark hovers thirteen blocks from a player, should neither fly nor teleport for
+     * forty ticks: the follow goal is idle without a summoner (spec §10).
+     *
+     * <p>Method under test: {@link FollowSummonerGoal}, through the vex's goal selector
+     */
+    static void followIdlesWithoutASummoner(GameTestHelper helper) {
+        // Arrange
+        FangGameTests.caster(helper, NORTH);
+        BoundVex vex = helper.spawn(ModEntities.BOUND_VEX.get(), FEET.north(FAR_NORTH));
+        vex.setNoGravity(true);
+        vex.setDeltaMovement(Vec3.ZERO);
+        whenDone(helper, vex::discard);
+        Vec3 start = vex.position();
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        40,
+                        () -> helper.assertTrue(
+                                vex.position().distanceTo(start) < 0.01,
+                                "an unmarked vex stays put, moved "
+                                        + vex.position().distanceTo(start)))
+                .thenSucceed();
+    }
+
+    /**
+     * When a staying Bound Vex's post is thirteen blocks from its summoner, should neither fly nor teleport to the
+     * summoner over sixty ticks. The post is the structure's middle and the player stands thirteen blocks south, so
+     * the wander (±7 blocks around the post) stays inside the padding.
+     *
+     * <p>Method under test: {@link FollowSummonerGoal} and {@code BoundVex.StayWanderGoal}, through the goal selector
+     */
+    static void stayingHoldsItsPost(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = boundVex(helper, FEET, player);
+        vex.setStaying(true);
+        MockPlayers.moveTo(helper, player, Vec3.atBottomCenterOf(FEET.south(FAR_NORTH)));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        60,
+                        () -> helper.assertTrue(
+                                vex.distanceTo(player) > FollowSummonerGoal.ORBIT_MAX + 1.0,
+                                "a staying vex stays more than five blocks from the summoner, got "
+                                        + vex.distanceTo(player)))
+                .thenSucceed();
+    }
+
+    /**
+     * When a staying Bound Vex thirteen blocks out is switched back to following after twenty ticks, should come back
+     * within five blocks of its summoner (once any wander leg under way is done).
+     *
+     * <p>Method under test: {@link BoundVex#setStaying} and {@link FollowSummonerGoal}, through the goal selector
+     */
+    static void followsAgainAfterStay(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = boundVex(helper, FEET.north(FAR_NORTH), player);
+        vex.setStaying(true);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteAfter(20, () -> {
+                    helper.assertTrue(
+                            vex.distanceTo(player) > FollowSummonerGoal.ORBIT_MAX + 1.0,
+                            "setup: still away while staying");
+                    vex.setStaying(false);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(
+                        vex.distanceTo(player) <= FollowSummonerGoal.ORBIT_MAX + 1.0,
+                        "back beside the summoner, got " + vex.distanceTo(player)))
+                .thenSucceed();
+    }
+
+    /**
+     * When the summoner moves to the Nether, should bring the one following Bound Vex two blocks away to a ring cell
+     * beside the arrival point, still marked, and leave behind the staying one, a following one seventeen blocks away
+     * (past {@code PORTAL_RANGE}, which then idles where it is) and another player's vex two blocks away.
+     *
+     * <p>Method under test: {@link BoundVexEvents#onTravel} and {@link BoundVexEvents#onChangedDimension}
+     */
+    static void portalFollow(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        ServerPlayer stranger = summoner(helper);
+        UUID id = player.getUUID();
+        BoundVex following = boundVex(helper, FEET.south(2), player);
+        BoundVex staying = boundVex(helper, FEET.north(2), player);
+        staying.setStaying(true);
+        BoundVex far = boundVex(helper, FEET.offset(-12, 0, -12), player); // about 16.97 blocks from the player
+        BoundVex strangers = boundVex(helper, FEET.east(2), stranger);
+        Vec3 farStart = far.position();
+        ServerLevel overworld = helper.getLevel();
+        helper.assertTrue(far.distanceTo(player) > BoundVexEvents.PORTAL_RANGE, "setup: the far vex is out of range");
+
+        // Act
+        BlockPos netherFeet = FangGameTests.toNether(helper, player);
+        ServerLevel nether = player.level();
+
+        // Assert
+        helper.succeedWhen(() -> {
+            List<? extends BoundVex> arrived =
+                    nether.getEntities(ModEntities.BOUND_VEX.get(), vex -> vex.isSummonedBy(id) && vex.isAlive());
+            helper.assertValueEqual(arrived.size(), 1, "one Bound Vex in the Nether");
+            helper.assertTrue(
+                    arrived.get(0).blockPosition().closerThan(netherFeet, 4.5),
+                    "beside the arrival point (a ring cell)");
+            helper.assertFalse(arrived.get(0).isStaying(), "the one that came is the following one");
+            helper.assertFalse(
+                    following.isAlive(), "the old instance is gone (a cross-dimension teleport makes a new one)");
+            List<? extends BoundVex> left =
+                    overworld.getEntities(ModEntities.BOUND_VEX.get(), vex -> vex.isSummonedBy(id) && vex.isAlive());
+            helper.assertValueEqual(left.size(), 2, "the staying and the far vex are left in the Overworld");
+            helper.assertTrue(staying.isAlive() && staying.isStaying(), "the staying one stayed");
+            helper.assertTrue(far.isAlive(), "the far one stayed");
+            helper.assertTrue(
+                    far.position().distanceTo(farStart) < 0.01,
+                    "the far one idles without its summoner in the level, moved "
+                            + far.position().distanceTo(farStart));
+            helper.assertTrue(strangers.isAlive(), "another player's vex stayed");
+        });
+    }
+
+    /**
+     * When the summoner teleports within the Overworld (as a pearl or {@code /tp} does) with a following Bound Vex
+     * near, and a changed-dimension event is then posted by hand, should move nothing: the travel event took no note
+     * for a same-dimension teleport.
+     *
+     * <p>Method under test: {@link BoundVexEvents#onTravel} and {@link BoundVexEvents#onChangedDimension}
+     */
+    static void sameDimensionTeleportBringsNothing(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = parked(helper, FEET.north(2), player);
+        Vec3 start = vex.position();
+
+        // Act
+        MockPlayers.moveTo(helper, player, Vec3.atBottomCenterOf(FEET.south(10)));
+        NeoForge.EVENT_BUS.post(new PlayerEvent.PlayerChangedDimensionEvent(
+                player, Level.NETHER, helper.getLevel().dimension()));
+
+        // Assert
+        helper.assertTrue(vex.isAlive(), "the same vex is still here");
+        helper.assertTrue(
+                vex.position().distanceTo(start) < 0.01,
+                "not moved to the summoner, moved " + vex.position().distanceTo(start));
         helper.succeed();
     }
 }

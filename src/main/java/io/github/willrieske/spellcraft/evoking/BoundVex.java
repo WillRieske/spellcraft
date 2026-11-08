@@ -82,6 +82,7 @@ public class BoundVex extends Vex {
     protected void registerGoals() {
         goalSelector.addGoal(0, new FloatGoal(this));
         goalSelector.addGoal(3, new ChargeGoal());
+        goalSelector.addGoal(4, new FollowSummonerGoal(this));
         goalSelector.addGoal(5, new StayWanderGoal());
         goalSelector.addGoal(9, new LookAtPlayerGoal(this, Player.class, 3.0F, 1.0F));
         goalSelector.addGoal(10, new LookAtPlayerGoal(this, Mob.class, 8.0F));
