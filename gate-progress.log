@@ -65,3 +65,4 @@ b1aefe8 Task 8 done (docs, pitest 98% 247/251, minors closed); plan complete; ba
 16f08d6 Task 1 (d999052): docs only; markdownlint 0 errors; build green (commit gate)
 78efc58 Task 2: 37 unit/property tests pass; pitest VexCap+GuardArea 19/19 killed (run 98%, 269/275); build green (commit gate)
 66c82f6 Task 3: build green; runData green; All 170 required tests passed (runGameTestServer)
+88373a8 Task 4: build green; All 177 required tests passed (twice at 3ef58c8; again after fix round 1); red-with-guard-removed shown

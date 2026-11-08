@@ -1948,7 +1948,7 @@ Then `git log -1 --oneline` shows the commit.
 - Consumes: `BoundVex.isStaying/setStaying/summoner/isSummonedBy/getMoveControl` (Task 3); `BoundVexGameTests.boundVex/parked/NORTH` (Task 3); `VexRing.offset/COUNT`; api-notes §21 (teleports, the two dimension events).
 - Produces: `FollowSummonerGoal` (public class so the GameTests read its numbers; package-private constructor; public constants `ORBIT_MIN` 2.0, `ORBIT_MAX` 4.0, `TELEPORT_DISTANCE` 12.0, `TELEPORT_SPREAD` 2, `TELEPORT_LANDING_MAX` 4.5); `BoundVexEvents` (public, `@EventBusSubscriber`; public `PORTAL_RANGE` 16.0; Task 6 adds a line to its `onServerStopped`); `BoundVexGameTests.FEET`, `FAR_NORTH` (13), read by Tasks 5 and 6.
 
-- [ ] **Step 1: The follow goal**
+- [x] **Step 1: The follow goal**
 
 `src/main/java/io/github/willrieske/spellcraft/evoking/FollowSummonerGoal.java`:
 
@@ -2076,7 +2076,7 @@ In `BoundVex.registerGoals`, add after the `ChargeGoal` line (source order stays
         goalSelector.addGoal(4, new FollowSummonerGoal(this));
 ```
 
-- [ ] **Step 2: Portals**
+- [x] **Step 2: Portals**
 
 `src/main/java/io/github/willrieske/spellcraft/evoking/BoundVexEvents.java`:
 
@@ -2209,7 +2209,7 @@ public final class BoundVexEvents {
 
 `Entity.teleport`'s return is ignored: no Error Prone check fires on it, and the portal code never touches the old instance after the call (the teleport removes it).
 
-- [ ] **Step 3: The GameTests**
+- [x] **Step 3: The GameTests**
 
 In `BoundVexGameTests.registerAll`, add:
 
@@ -2428,12 +2428,12 @@ Imports to add: `io.github.willrieske.spellcraft.evoking.BoundVexEvents`, `io.gi
 
 `BlockPos.closerThan(Vec3i, double)` is `Vec3i.closerThan` (strict `<`). `FangGameTests.toNether`'s cleanup discards every `Vex` near the pocket, Bound Vexes included, and moves the player back. The hand-posted changed-dimension event in `sameDimensionTeleportBringsNothing` reaches every subscriber; the mod's other handlers (`EvokingCaster`, `TrailLayer`) listen to logout, not to it (`grep -rn PlayerChangedDimensionEvent src/main/java` finds only `BoundVexEvents`).
 
-- [ ] **Step 4: Format, build, GameTests**
+- [x] **Step 4: Format, build, GameTests**
 
 Run: `./gradlew spotlessApply --console=plain`, then `./gradlew build --console=plain > build/build.log 2>&1; echo "exit=$?"; tail -40 build/build.log`. Expected: `exit=0`.
 Run in the background: `./gradlew runGameTestServer --console=plain > build/runGameTestServer.log 2>&1; echo "exit=$?"; grep -n "FAILED\|required tests" build/runGameTestServer.log | tail -5`. Expected: `exit=0`, `All 177 required tests passed` (Task 3's 170 + the seven registered above).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/io/github/willrieske/spellcraft/evoking/FollowSummonerGoal.java src/main/java/io/github/willrieske/spellcraft/evoking/BoundVexEvents.java src/main/java/io/github/willrieske/spellcraft/evoking/BoundVex.java src/main/java/io/github/willrieske/spellcraft/gametest/BoundVexGameTests.java
@@ -2444,6 +2444,8 @@ git commit -m "feat(evoking): Bound Vexes follow their summoner, teleport when f
 ```
 
 Then `git log -1 --oneline` shows the commit.
+
+> **As built (`88373a8`):** diverged — `sameDimensionTeleportBringsNothing` posts `PlayerChangedDimensionEvent` with `from` = `to` = the test level (not `Level.NETHER`) and asserts the vex is a follower first, so it fails when the `onTravel` same-dimension guard is removed (shown red, then restored); the `TELEPORT_LANDING_MAX` Javadoc gives the worst case for a summoner anywhere in its block (≈ 4.33) and the extra hop; production code as planned; reason: task review (Important finding, controller ruling that the test's intent governs).
 
 ---
 
@@ -4291,6 +4293,7 @@ Then `git log -1 --oneline` shows the commit. If the sweep changed a Java Javado
 |---|---|---|
 | 2 | `78efc58` | `reachIsASphere` adds `@Scale(3)` to its yaw and pitch parameters; reason: jqwik's default scale of 2 rejects the three-decimal `@DoubleRange` bounds (6.283, 1.57), so the test as written could not run; intent unchanged (implementer, accepted by the task review). |
 | 3 | `66c82f6` | `BoundVex` also imports `net.minecraft.world.level.Level` (the plan's constructor used it unimported); `capCountsEveryLevel` polls with `helper.succeedWhen` (count first, then `CAPPED`) instead of asserting at once, because a vex summoned in the tick that forces its Nether chunk is not in `ServerLevel.getEntities` until the ticket takes effect; production code as planned; reason: implementer, accepted by the task review. |
+| 4 | `88373a8` | `sameDimensionTeleportBringsNothing` posts `PlayerChangedDimensionEvent` with `from` = `to` = the test level (not `Level.NETHER`) and asserts the vex is a follower first, so it fails when the `onTravel` same-dimension guard is removed (shown red, then restored); the `TELEPORT_LANDING_MAX` Javadoc gives the worst case for a summoner anywhere in its block (≈ 4.33) and the extra hop; production code as planned; reason: task review (Important finding, controller ruling that the test's intent governs). |
 
 ## Resume State
 
