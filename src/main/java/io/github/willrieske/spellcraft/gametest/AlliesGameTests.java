@@ -210,7 +210,7 @@ public final class AlliesGameTests {
         ServerPlayer summoner = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         ServerPlayer stranger = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         Pig pig = helper.spawn(EntityTypes.PIG, SPOT);
-        BoundVex strangersVex = BoundVexGameTests.parked(helper, SPOT, stranger);
+        BoundVex strangersVex = BoundVexTestSupport.parked(helper, SPOT, stranger);
         Pig offlinesPig = helper.spawn(EntityTypes.PIG, SPOT);
         offlinesPig.setData(AllyAttachments.SUMMONER, UUID.randomUUID());
         GameRules rules = level.getGameRules();

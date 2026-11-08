@@ -45,7 +45,8 @@ import net.minecraft.world.scores.Scoreboard;
 
 /**
  * Vex GameTests for Strength of Evoking (spec §9, table E8, E9, E12, E16 and the prey rule) as Evoking II Part 2 left
- * them: the vexes are Bound Vexes ({@code BoundVexGameTests} covers their goals). The summoning tests register through
+ * them: the vexes are Bound Vexes ({@code BoundVexCapGameTests}, {@code BoundVexFollowGameTests}, {@code BoundVexTargetGameTests} and
+ * {@code BoundVexJobGameTests} cover their goals). The summoning tests register through
  * {@code FangGameTests.addPadded} (padding 13), so a vex wandering ±7 blocks around its origin reaches no other test.
  * The two tests that add a scoreboard team run in the {@code team_mutation} batch, as the Trail tests do.
  */
@@ -239,7 +240,7 @@ public final class VexGameTests {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
         discardLeftoverVexes(helper);
-        BoundVex parkedVex = BoundVexGameTests.parked(helper, BoundVexGameTests.VEX_SPOT, player);
+        BoundVex parkedVex = BoundVexTestSupport.parked(helper, BoundVexTestSupport.VEX_SPOT, player);
         MinecraftServer server = helper.getLevel().getServer();
         Difficulty saved = helper.getLevel().getDifficulty();
         whenDone(helper, () -> server.setDifficulty(saved, true));
