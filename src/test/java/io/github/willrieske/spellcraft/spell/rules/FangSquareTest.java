@@ -30,6 +30,21 @@ class FangSquareTest {
         }
 
         /**
+         * When the caster faces south (yaw 0), of should put the square's center 6 blocks south, so its south edge
+         * lies 12 blocks away (F1).
+         *
+         * <p>Method under test: {@link FangSquare#of(double)}
+         */
+        @Test
+        void facingSouthPutsTheSouthEdgeTwelveBlocksAway() {
+            // Act
+            FangSquare square = FangSquare.of(0);
+            // Assert
+            assertThat(square.minDz()).isZero();
+            assertThat(square.maxDz()).isEqualTo(12);
+        }
+
+        /**
          * When the caster faces north, south, east or west, of should put the center 6 blocks that way (F2).
          *
          * <p>Method under test: {@link FangSquare#of(double)}
