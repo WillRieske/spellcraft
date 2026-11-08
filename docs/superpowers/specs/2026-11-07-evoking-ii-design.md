@@ -1,7 +1,8 @@
 # Spellcraft: Evoking II, Bound Vexes (design)
 
 **Date:** 2026-11-07
-**Status:** approved design; built in seven parts (§1), each with its own plan, branch and PR
+**Status:** approved; phase 1 plan not yet written
+**Shape:** built in seven parts (§1), each with its own plan, branch and PR
 **Written by:** brainstorm with Will on 2026-11-07; §13 lists the decisions Will did not state
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
 **Builds on:** [`2026-11-06-evoking-design.md`](2026-11-06-evoking-design.md) (Evoking: keys, casting,
@@ -79,8 +80,9 @@ Cross-cutting rules: §10 (error handling), §11 (testing), §12 (docs and deliv
 
 ### 2.1 Fangs on Y
 
-`key.spellcraft.fangs` gets default `InputConstants.KEY_Y` (28; no vanilla binding uses Y, checked
-in `Options.java`). The mapping is renamed `key.spellcraft.fangs_y` so a saved `options.txt` from
+`key.spellcraft.fangs` gets default `InputConstants.KEY_Y` (28). Vanilla binds keys by raw
+scancode in `Options.java` (`"key.swapOffhand", 9`), and no binding there, plain or F3-chord,
+uses 28 (checked 2026-11-07 against every `new KeyMapping(` line). The mapping is renamed `key.spellcraft.fangs_y` so a saved `options.txt` from
 round one does not pin F: vanilla stores bindings by mapping name, and a new name falls back to the
 new default. The lang entry stays "Evoking: Fangs". The swap-offhand swallow in `EvokingKeys` is
 kept as is: it only fires when a casting key is `.same` as swap-offhand, so with Y it is inert and
@@ -119,15 +121,17 @@ chase** (the chase fang carries no target record). One chase per target per cast
 ### 2.3 New allies: villagers, wandering traders, iron golems
 
 `Allies.isAllyOf(owner, other)` adds: `other instanceof AbstractVillager` (villagers and wandering
-traders) → ally; `other instanceof IronGolem golem && !golem.isAngryAtPlayer(owner)` → ally. Every
-golem counts, village-made or player-made (Will: every golem, decision §13).
+traders; both subclass it) → ally; `other instanceof IronGolem golem && !Allies.isMadAt(golem,
+owner)` → ally. Every golem counts, village-made or player-made (Will: every golem, decision
+§13).
 
 `Allies.mayHaveAllies(other)` adds `AbstractVillager` and `IronGolem` so Trailing's fast path keeps
 working.
 
-**A mad golem.** `IronGolem` is a `NeutralMob`; `isAngryAtPlayer(owner)` is
-`golem.getTarget() == owner || golem.isAngryAt(owner, level)` (a new helper in `Allies`, since
-`isAngryAt` needs the level). While it is mad at you it is not your ally: your fangs, vexes and
+**A mad golem.** `IronGolem` is a `NeutralMob`; the new helper `Allies.isMadAt(golem, owner)` is
+`golem.getTarget() == owner || golem.isAngryAt(owner, (ServerLevel) golem.level())`
+(`NeutralMob.isAngryAt(LivingEntity, ServerLevel)`, `NeutralMob.java:95`; `Allies` runs on the
+server only, as `isAllyOf` already does). While it is mad at you it is not your ally: your fangs, vexes and
 wolves may fight it. The Trailing flame is the exception: fire damage carries no attacker, so mercy
 (below) could not tell your flame's burn from lava. **`TrailFires.isSpared` spares every
 `IronGolem`, mad or not** (an extra clause before the ally check). The Trailing spec's spared rule
@@ -137,9 +141,8 @@ is amended by this line.
 `LivingDamageEvent.Pre`. When the victim is an `IronGolem` and the damage comes from a player's
 side, the new damage is clamped to `max(0, health − 25)`. "A player's side" means the damage
 source's causing entity is a player (fangs: `indirectMagic(fangs, caster)`; a sword hit is also the
-player: Will's own hits are clamped too, see §13), or a tamed wolf whose owner is a player, or a
-Bound Vex (Part 2; `source.getEntity() instanceof BoundVex`). Lava, falls, other mobs and
-`/kill` are untouched.
+player: Will's own hits are clamped too, see §13), or a tamed wolf whose owner is a player, or (from Part 2 on, when the class exists) a Bound Vex
+(`source.getEntity() instanceof BoundVex`). Lava, falls, other mobs and `/kill` are untouched.
 
 **Forgiveness.** In the same handler, when the clamp leaves the golem at 25 or the hit lands it at
 ≤ 25: `golem.stopBeingAngry()`, `golem.setTarget(null)`, `golem.setLastHurtByMob(null)`. The golem
@@ -307,7 +310,9 @@ Right-click by the summoner with:
   `hurtServer`, melee or projectile damage whose source is in front of the vex (dot of look vector
   and source direction > 0) is cancelled with `SoundEvents.SHIELD_BLOCK`; no durability is used
   (nothing is ever used up).
-- a **splash or lingering potion** or **tipped arrow**: main hand. If every effect is
+- a **splash or lingering potion** or **tipped arrow**: main hand (the thrown entities are
+  `projectile.throwableitemprojectile.ThrownSplashPotion` / `ThrownLingeringPotion`; the arrow
+  is `projectile.arrow.Arrow`). If every effect is
   `MobEffectCategory.BENEFICIAL` it is **support gear**: every 40 ticks, when the summoner, an ally
   or a Bound Vex of the same summoner within 10 blocks is below **half health**, the vex throws a
   copy of the potion at it (`ThrownSplashPotion`/`ThrownLingeringPotion`) or shoots a copy of the
@@ -458,14 +463,17 @@ its enemy, its start tick. One move at a time per summoner.
 
 - `AUTOMATIC`: the triggers in §8 start moves; the keys below only show
   `message.spellcraft.team_moves_automatic` ("Team moves are automatic").
-- `MANUAL`: no automatic triggers. Two new key mappings in the Spellcraft category: **G**
-  (`key.spellcraft.team_move_cycle`, "Evoking: Next Team Move") cycles the selected move on the
-  client (Shield → Multishot → Evader → Raid → Shield) and shows it in the action bar from a
-  client-side lang string ("Team move: Shield"); **H** (`key.spellcraft.team_move_go`, "Evoking:
-  Team Move!") sends `TEAM_MOVE(selected)`. The server starts the move if its roster can be filled
-  and a suitable enemy (the move's own enemy rule, §8) is within 16 blocks of the summoner; else
-  `message.spellcraft.team_move_unavailable` ("Not enough vexes, or no enemy for that move"). G and
-  H have no vanilla bindings in `Options.java`.
+- `MANUAL`: no automatic triggers. Two new key mappings in the Spellcraft category: **J**
+  (`key.spellcraft.team_move_cycle`, "Evoking: Next Team Move", `InputConstants.KEY_J` = 13)
+  cycles the selected move on the client (Shield → Multishot → Evader → Raid → Shield) and shows
+  it in the action bar from a client-side lang string ("Team move: Shield"); **K**
+  (`key.spellcraft.team_move_go`, "Evoking: Team Move!", `KEY_K` = 14) sends
+  `TEAM_MOVE(selected)`. The server starts the move if its roster can be filled and a suitable
+  enemy (the move's own enemy rule, §8) is within 16 blocks of the summoner; else
+  `message.spellcraft.team_move_unavailable` ("Not enough vexes, or no enemy for that move").
+  Scancodes 13 and 14 appear in no `Options.java` binding, plain or F3-chord. (G was the first
+  idea; it is vanilla's `key.quickActions`, scancode 10, and H is the F3-chord
+  `key.debug.showAdvancedTooltips`, 11.)
 
 ## 8. Part 6: team moves
 
@@ -488,7 +496,7 @@ healed (Evader), or after its time limit; then the kit vanishes, stashes return,
 Thresholds pick vanilla mobs: ≥ 31 health is an Enderman (40), Piglin Brute (50), Ravager (100);
 ≥ 99 is a Ravager, Warden, Wither, Ender Dragon. A ≥ 99 enemy starts a Raid, not a Shield (Raid
 checks first). In `MANUAL` mode the H key starts the selected move against the nearest enemy that
-fits its rule.
+fits its rule (the K key).
 
 ## 9. Part 7: Casters, Mirror, Ghostrail, villager ghosts
 
@@ -513,7 +521,12 @@ At summon, each Bound Vex rolls **1 in 3** for `CASTER`. A Caster:
 ### 9.2 The two spells (framework spells)
 
 Both are real spells: declarations, effects, scrolls, glyphs, lang, scribing pool, cast rules,
-exactly the Infinity recipe. Players cast them by scroll.
+exactly the Infinity recipe. Players cast them by scroll. The closed lists grow:
+`SpellDeclarations.ALL` and `Spells.ALL` become `[UPSIDE_DOWN, INFINITY, TRAILING, EVOKING,
+MIRROR, GHOSTRAIL]`; `ModItems` registers both scrolls; `SpellDeclarationsTest`,
+`CastRulesTest.decidesEveryCase` and `SpellAssetsTest` gain rows for both; the scribing tests'
+**top-tier pool now holds two spells** (Infinity and Ghostrail), so any test that expects the
+top roll to be an Infinity scroll accepts either, and the lower pool gains Mirror.
 
 | | Mirror | Ghostrail |
 |---|---|---|
@@ -664,7 +677,7 @@ GameTests per part (the plan names them; the shape):
 - **Part 5:** per dimension (Nether/End pockets as round one's E16): lava push, drowning push,
   fireball owner swap and reversal, crystal hurt → explosion, no explosion damage to the vex,
   3× damage in the End, void teleport + apple effects.
-- **Part 6:** each trigger starts the right move with the right roster and kit; manual mode: H
+- **Part 6:** each trigger starts the right move with the right roster and kit; manual mode: K
   with no enemy → message; move end restores stashes; cooldown.
 - **Part 7:** Caster roll is 1/3 over 300 summons (statistical bound); Mirror spawns 13 images
   that die at 0 and poof at 6 minutes; redirect probability; Ghostrail noPhysics/mayfly/damage
@@ -699,7 +712,7 @@ end of Part 7, to `1.3.0` with a tag; the parts land as PRs on `main` without bu
 | Trail vs. golem | Never lit | Fire damage has no attacker; mercy cannot clamp it. |
 | Every golem is an ally | Yes, village-made too | Will chose X. |
 | Cap counting | Loaded entities only | Unloaded chunks cannot be scanned without loading them. |
-| Partial summon at 10–11 | Summon the remainder | Will: "that's my pick" accepted. |
+| Partial summon at 10–11 | Summon the remainder up to 12 | Offered to Will with the cap and not objected to; alternative: refuse unless all three fit. |
 | Mob category | `MONSTER` | Keeps vanilla bookkeeping; golems and villagers handled by event and type identity. |
 | Wolves join | Only the summoner's tamed wolves, 16 blocks, no target yet | Wolves are the only fighting tamed mob; golems already fight hostiles. |
 | Dodge roll | Always | Only arises against a mad golem; a roll adds nothing. |
@@ -719,7 +732,7 @@ end of Part 7, to `1.3.0` with a tag; the parts land as PRs on `main` without bu
 | Multishot trigger | Attacker `ATTACK_DAMAGE ≥ 6` | "Strong melee monster". |
 | Move gear | Conjured | Will's A. |
 | Move time limits | 120 s (Evader 60 s), 30 s cooldown | Keeps a move from running forever. |
-| Manual keys | G cycles, H goes | Unbound in vanilla. |
+| Manual keys | J cycles, K goes | Unbound in vanilla (scancodes 13, 14); G and H are taken (§7.3). |
 | Caster odds and look | 1 in 3; torn purple-and-magenta robe | Will. |
 | Ghostrail tier | `EXTREME` | Four minutes unhurt is the strongest effect in the mod. |
 | Ghostrail on hostiles | 2 seconds | Will. |
