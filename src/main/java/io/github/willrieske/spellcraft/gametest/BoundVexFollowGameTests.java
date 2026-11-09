@@ -80,7 +80,8 @@ public final class BoundVexFollowGameTests {
      * When a following Bound Vex hovers seven blocks from its summoner, should fly into the orbit band: three ticks in
      * it is still more than six blocks out (a teleport would have put it within {@code TELEPORT_LANDING_MAX}), and it
      * then comes within five blocks (the band's edge plus one; a flight toward a spot inside the band always crosses
-     * that line). The vex has no target goals ({@link BoundVexTestSupport#followOnly}), so no hostile can pull it off its flight.
+     * that line). The vex has no target goals ({@link BoundVexTestSupport#followOnly}), so no hostile can pull it off
+     * its flight.
      *
      * <p>Method under test: {@link FollowSummonerGoal}, through the vex's goal selector
      */
@@ -179,9 +180,9 @@ public final class BoundVexFollowGameTests {
      * twenty ticks, should come back within five blocks of its summoner (once any wander leg under way is done). The
      * post is the structure's middle and the player stands thirteen blocks south, so every wander leg (±7 blocks around
      * the post) stays inside the padding: a vex that crossed into a chunk the padding did not force would stop ticking
-     * and never fly back (as in {@link #stayingHoldsItsPost}). The vex has no target goals ({@link BoundVexTestSupport#followOnly}): the
-     * subject is movement, and its legs still reach four blocks into the padding, where a neighboring test's hostile
-     * may stand and hold it (charge outranks follow).
+     * and never fly back (as in {@link #stayingHoldsItsPost}). The vex has no target goals
+     * ({@link BoundVexTestSupport#followOnly}): the subject is movement, and its legs still reach four blocks into the
+     * padding, where a neighboring test's hostile may stand and hold it (charge outranks follow).
      *
      * <p>If this fails again, the message names the vex's target, goals and positions ({@code vexState}).
      *

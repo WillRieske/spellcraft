@@ -378,8 +378,8 @@ public final class BoundVexTargetGameTests {
      * creeper hurting it, should take it as its target. (The memory is set directly: a real hit would knock the parked
      * vex out of the box and past reach.)
      *
-     * <p>Method under test: {@code NearestHostileGoal}'s creeper exclusion and {@code HurtBySummonerSideGoal}'s own-hurt
-     * memory (both package-private)
+     * <p>Method under test: {@code NearestHostileGoal}'s creeper exclusion and {@code HurtBySummonerSideGoal}'s
+     * own-hurt memory (both package-private)
      */
     static void ignoresACreeperUntilProvoked(GameTestHelper helper) {
         // Arrange
@@ -493,8 +493,8 @@ public final class BoundVexTargetGameTests {
 
     /**
      * When the summoner's tamed wolf inside the guard area has a pig as its target, should not join it over forty
-     * ticks (the ally goal joins hostile targets only: "if prey and hostile", spec §3.4 item 2); a husk the wolf targets
-     * next should be joined (the control: the goal works here).
+     * ticks (the ally goal joins hostile targets only: "if prey and hostile", spec §3.4 item 2); a husk the wolf
+     * targets next should be joined (the control: the goal works here).
      *
      * <p>Method under test: {@code BoundVex.huntable}'s {@code Enemy} test, through {@code AllyFightGoal}
      * (package-private)
@@ -581,9 +581,9 @@ public final class BoundVexTargetGameTests {
     }
 
     /**
-     * Another player's Bound Vex, parked at {@link BoundVexTestSupport#PREY_SPOT} (inside the guard box of a vex parked at
-     * {@link BoundVexTestSupport#VEX_SPOT}) with no target goals of its own, after asserting that {@code pvp} is on and so the vex of
-     * {@code player} may take it as prey.
+     * Another player's Bound Vex, parked at {@link BoundVexTestSupport#PREY_SPOT} (inside the guard box of a vex parked
+     * at {@link BoundVexTestSupport#VEX_SPOT}) with no target goals of its own, after asserting that {@code pvp} is on
+     * and so the vex of {@code player} may take it as prey.
      */
     private static BoundVex strangersVexInTheBox(GameTestHelper helper, ServerPlayer player) {
         ServerPlayer stranger = MockPlayers.inLevel(helper, GameType.SURVIVAL);
@@ -621,9 +621,10 @@ public final class BoundVexTargetGameTests {
     }
 
     /**
-     * When a Bound Vex takes a husk, should call only the summoner's tamed, idle, un-sitting wolf within sixteen blocks:
-     * not an untamed wolf, another player's tamed wolf, a wolf already fighting, a sitting wolf, or the summoner's wolf
-     * about seventeen blocks away (inside the cube a box query covers, outside the sixteen-block sphere).
+     * When a Bound Vex takes a husk, should call only the summoner's tamed, idle, un-sitting wolf within sixteen
+     * blocks: not an untamed wolf, another player's tamed wolf, a wolf already fighting, a sitting wolf, or the
+     * summoner's wolf about seventeen blocks away (inside the cube a box query covers, outside the sixteen-block
+     * sphere).
      *
      * <p>Method under test: {@link BoundVex#setTarget}
      */
@@ -736,8 +737,8 @@ public final class BoundVexTargetGameTests {
 
     /**
      * When a parked Bound Vex holds a husk through the grudge goal (the vex remembers it hurting it, six blocks away,
-     * the patrol goal off) and the husk is then moved eight blocks away, past the 7.25 reach, should drop it within a few
-     * ticks and not take it again, though the memory is still fresh. The grudge goal never calls {@code super}, so
+     * the patrol goal off) and the husk is then moved eight blocks away, past the 7.25 reach, should drop it within a
+     * few ticks and not take it again, though the memory is still fresh. The grudge goal never calls {@code super}, so
      * {@code keepsTarget}'s reach clause is the only distance bound it has.
      *
      * <p>Method under test: {@link BoundVex#keepsTarget}, through {@code HurtBySummonerSideGoal.canContinueToUse}

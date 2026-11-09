@@ -448,14 +448,17 @@ Verified 2026-11-06 against the same unpacked sources, plus FML `loader-12.0.0-s
   The GameTest server world is flat (`GameTestServer.java:127`, §18) and has a Nether; a player reaches it with
   `ServerPlayer.teleportTo(ServerLevel, x, y, z, Set<Relative>, yRot, xRot, boolean)`, which returns `boolean`
   (`:1824`), and `server.getLevel(Level.NETHER)` (`MinecraftServer.java:1205`).
-- Mock players are not ticked: `ServerPlayer.tick()` (`ServerPlayer.java:598-637`) never calls `super.tick()` (the only
-  `super.tick()` in the file is in `doTick()`, `:668` with the call at `:671`), and the only caller of `doTick()` is
-  `ServerGamePacketListenerImpl.tickPlayer()` (`:322`, call at `:327`), itself called only from
-  `ServerGamePacketListenerImpl.tick()` (`:301`, call at `:307`), which `Connection.tick()` (`Connection.java:361-364`) reaches
-  through `TickablePacketListener.tick()`, and `ServerConnectionListener` calls per connection
-  (`ServerConnectionListener.java:181`), so it runs only for connections the server tracks. A `MockPlayers.inLevel` player is
-  never ticked: `PlayerTickEvent` does not fire for it, its mob effects do not count down and its `tickCount` does
-  not advance. GameTests step the caster by hand (`FangGameTests.step`).
+- Mock players are not given a player tick: `ServerPlayer.tick()` (`ServerPlayer.java:598-637`) never calls
+  `super.tick()` (the only `super.tick()` in the file is in `doTick()`, `:668` with the call at `:671`), and the only
+  caller of `doTick()` is `ServerGamePacketListenerImpl.tickPlayer()` (`:322`, call at `:327`), itself called only from
+  `ServerGamePacketListenerImpl.tick()` (`:301`, call at `:307`), which `Connection.tick()`
+  (`Connection.java:361-364`) reaches through `TickablePacketListener.tick()`, and `ServerConnectionListener` calls per
+  connection (`ServerConnectionListener.java:181`), so it runs only for connections the server tracks. A
+  `MockPlayers.inLevel` player is therefore not ticked like a real one: `PlayerTickEvent` does not fire for it and its
+  mob effects do not count down. Its `tickCount` DOES advance, one per tick: `placeNewPlayer` puts it in the level's
+  entity tick list, and `ServerLevel.tickNonPassenger` (`:857`) calls `entity.commonTick()` (`:863`), which does
+  `tickCount++` (`Entity.java:535`), then `entity.tick()` (`:864`), which is `ServerPlayer.tick()` without
+  `super.tick()`. GameTests step the caster by hand (`FangGameTests.step`).
 - `ClientTickEvent.Post` fires while the game is paused (`Minecraft.java:1941-1942`, not guarded by `pause`), but the
   level tick (`tickEntities` `:1876`, `tickBlockEntities` `:1878`, inside `if (!this.pause)` `:1872`) and the particle
   engine (`particleEngine.tick()` `:1925`, inside `if (!this.pause && ...)` `:1924`) do not run then, so a `Post`
@@ -567,122 +570,135 @@ Verified 2026-11-08 against the same unpacked sources (`build/mc-src`, `build/nf
 
 - `Vex` (`monster/Vex.java`): `public class Vex extends Monster implements TraceableEntity, OwnableEntity` (`:47`), one
   constructor `Vex(EntityType<? extends Vex>, Level)` (`:57`) whose body (`:58-61`) calls `super` and then assigns
-  `this.moveControl = new VexMoveControl<>(this)` (`:59`), so a subclass inherits the move control.
-  `createAttributes()` (`:98`) is `Monster.createMonsterAttributes()` plus `MAX_HEALTH` 14 and `ATTACK_DAMAGE` 4.
-  `registerGoals` (`:86-96`): goalSelector `0 FloatGoal`, `4 VexChargeAttackGoal`, `8 VexRandomMoveGoal`,
-  `9 LookAtPlayerGoal(this, Player.class, 3.0F, 1.0F)`, `10 LookAtPlayerGoal(this, Mob.class, 8.0F)` (no
-  `RandomLookAroundGoal`); targetSelector `1 HurtByTargetGoal(this, Raider.class).setAlertOthers()`,
-  `2 VexCopyOwnerTargetGoal`, `3 NearestAttackableTargetGoal<>(this, Player.class, true)`.
-  **All four inner classes are `private class`** (`VexChargeAttackGoal :222`, `VexCopyOwnerTargetGoal :280`,
-  `VexMoveControl :299`, `VexRandomMoveGoal :329`): a subclass in another package can neither construct nor extend them;
-  `BoundVex` keeps its own copies of the charge and wander goals and skips `super.registerGoals()`. `tick()` (`:74-83`):
-  `noPhysics = true; super.tick(); noPhysics = false; setNoGravity(true)`, then the life countdown only while the private
-  `hasLimitedLife` is set, so a vex that never gets `setLimitedLife` lives on. `boundOrigin` (`:53`) through
-  `setBoundOrigin`/`getBoundOrigin` (`:145-152`); `isCharging`/`setIsCharging` (`:169-175`); `finalizeSpawn` (`:207`) gives the
-  iron sword (`populateDefaultEquipmentSlots`, `:217-220`); `getAmbientSound` is `VEX_AMBIENT` (`:187`). `Vex` overrides none of
+  `this.moveControl = new VexMoveControl<>(this)` (`:59`), so a subclass inherits the move control. `createAttributes()`
+  (`:98`) is `Monster.createMonsterAttributes()` plus `MAX_HEALTH` 14 and `ATTACK_DAMAGE` 4. `registerGoals` (`:86-96`):
+  goalSelector `0 FloatGoal`, `4 VexChargeAttackGoal`, `8 VexRandomMoveGoal`, `9 LookAtPlayerGoal(this, Player.class,
+  3.0F, 1.0F)`, `10 LookAtPlayerGoal(this, Mob.class, 8.0F)` (no `RandomLookAroundGoal`); targetSelector `1
+  HurtByTargetGoal(this, Raider.class).setAlertOthers()`, `2 VexCopyOwnerTargetGoal`, `3
+  NearestAttackableTargetGoal<>(this, Player.class, true)`. **All four inner classes are `private class`**
+  (`VexChargeAttackGoal :222`, `VexCopyOwnerTargetGoal :280`, `VexMoveControl :299`, `VexRandomMoveGoal :329`): a
+  subclass in another package can neither construct nor extend them; `BoundVex` keeps its own copies of the charge and
+  wander goals and skips `super.registerGoals()`. `tick()` (`:74-83`): `noPhysics = true; super.tick(); noPhysics =
+  false; setNoGravity(true)`, then the life countdown only while the private `hasLimitedLife` is set, so a vex that
+  never gets `setLimitedLife` lives on. `boundOrigin` (`:53`) through `setBoundOrigin`/`getBoundOrigin` (`:145-152`);
+  `isCharging`/`setIsCharging` (`:169-175`); `finalizeSpawn` (`:207`) gives the iron sword
+  (`populateDefaultEquipmentSlots`, `:217-220`); `getAmbientSound` is `VEX_AMBIENT` (`:187`). `Vex` overrides none of
   `removeWhenFarAway`, `checkDespawn`, `requiresCustomPersistence`; `Mob.removeWhenFarAway(double)` is public and true
   (`Mob.java:702`), `Mob.requiresCustomPersistence()` is public (`:706`, declared in `Mob`, not `Entity`).
   `Mob.RANDOM_SPAWN_BONUS_ID` is `protected static` (`Mob.java:122`); `finalizeSpawn` adds that random `FOLLOW_RANGE`
   modifier (`:1120-1125`), so a subclass removes it by that name without redeclaring it.
-- Peaceful: `Mob.checkDespawn` (`Mob.java:711-741`) discards a mob whose type is not `isAllowedInPeaceful()` (`:715-716`,
-  `EntityType.java:501`), set by `EntityType.Builder.notInPeaceful()` (`:653`); `EntityType.canSpawn(Level)` (`:339`) and
-  `create` (`:348`) refuse on Peaceful for the same flag. Vanilla's `VEX` is built (`EntityTypes.java:1056-1066`)
-  `EntityType.Builder.of(Vex::new, MobCategory.MONSTER).fireImmune().sized(0.4F, 0.8F).eyeHeight(0.51875F)
-  .passengerAttachments(0.7375F).ridingOffset(0.04F).clientTrackingRange(8).notInPeaceful()` (no `updateInterval`: the default 3).
+- Peaceful: `Mob.checkDespawn` (`Mob.java:711-741`) discards a mob whose type is not `isAllowedInPeaceful()`
+  (`:715-716`, `EntityType.java:501`), set by `EntityType.Builder.notInPeaceful()` (`:653`);
+  `EntityType.canSpawn(Level)` (`:339`) and `create` (`:348`) refuse on Peaceful for the same flag. Vanilla's `VEX` is
+  built (`EntityTypes.java:1056-1066`) `EntityType.Builder.of(Vex::new, MobCategory.MONSTER).fireImmune().sized(0.4F,
+  0.8F).eyeHeight(0.51875F) .passengerAttachments(0.7375F).ridingOffset(0.04F).clientTrackingRange(8).notInPeaceful()`
+  (no `updateInterval`: the default 3).
 - Registration: `DeferredRegister.createEntities(modid)` (`nf-src/.../registries/DeferredRegister.java:184`) →
-  `DeferredRegister.Entities.registerEntityType(String, EntityType.EntityFactory<E>, MobCategory, UnaryOperator<EntityType.Builder<E>>)`
-  (`:824`), which builds with a `ResourceKey` itself; `EntityFactory<T>.create(EntityType<T>, Level)` (`EntityType.java:713-716`).
-  `EntityAttributeCreationEvent` is a mod-bus event (`nf-src/.../event/entity/EntityAttributeCreationEvent.java:23`) with
-  `put(EntityType<? extends LivingEntity>, AttributeSupplier)` (`:30`); `AttributeSupplier.Builder.build()`.
-- Renderer: `EntityRenderersEvent.RegisterRenderers.registerEntityRenderer(EntityType<? extends T>, EntityRendererProvider<T>)`
-  (`nf-src/.../client/event/EntityRenderersEvent.java:103`, mod bus); `VexRenderer extends MobRenderer<Vex, VexRenderState, VexModel>`
-  (`client/renderer/entity/VexRenderer.java:15`, not final, constructor `(EntityRendererProvider.Context)` `:19`), so
-  `registerEntityRenderer(ModEntities.BOUND_VEX.get(), VexRenderer::new)` compiles with `T = Vex`. `extractRenderState` copies
-  `isCharging()` into the render state (`:36-39`), and `getTextureLocation` picks the charging texture from it. `VexModel` has no
-  arm swing.
+  `DeferredRegister.Entities.registerEntityType(String, EntityType.EntityFactory<E>, MobCategory,
+  UnaryOperator<EntityType.Builder<E>>)` (`:824`), which builds with a `ResourceKey` itself;
+  `EntityFactory<T>.create(EntityType<T>, Level)` (`EntityType.java:713-716`). `EntityAttributeCreationEvent` is a
+  mod-bus event (`nf-src/.../event/entity/EntityAttributeCreationEvent.java:23`) with `put(EntityType<? extends
+  LivingEntity>, AttributeSupplier)` (`:30`); `AttributeSupplier.Builder.build()`.
+- Renderer: `EntityRenderersEvent.RegisterRenderers.registerEntityRenderer(EntityType<? extends T>,
+  EntityRendererProvider<T>)` (`nf-src/.../client/event/EntityRenderersEvent.java:103`, mod bus); `VexRenderer extends
+  MobRenderer<Vex, VexRenderState, VexModel>` (`client/renderer/entity/VexRenderer.java:15`, not final, constructor
+  `(EntityRendererProvider.Context)` `:19`), so `registerEntityRenderer(ModEntities.BOUND_VEX.get(), VexRenderer::new)`
+  compiles with `T = Vex`. `extractRenderState` copies `isCharging()` into the render state (`:36-39`), and
+  `getTextureLocation` picks the charging texture from it. `VexModel` has no arm swing.
 - Synced data: `SynchedEntityData.defineId(Class<? extends SyncedDataHolder>, EntityDataSerializer<T>)` (`:30`),
-  `EntityDataSerializers.BOOLEAN` (`:89`); `Entity.defineSynchedData(SynchedEntityData.Builder)` (`:428`, `Vex` overrides at `:103-106`
-  and must be called through `super`); `Builder.define(accessor, value)`. Save: `addAdditionalSaveData(ValueOutput)` /
-  `readAdditionalSaveData(ValueInput)` (`Entity.java:2288-2290`); `ValueOutput.putBoolean` (`:17`), `ValueInput.getBooleanOr` (`:29`).
-- Interaction: `Mob.interact(Player, InteractionHand, Vec3)` (`Mob.java:1160`) is the public entry (name tag and spawn egg first,
-  then `Entity.interact`, then `mobInteract`); `Mob.mobInteract(Player, InteractionHand)` is **protected** (`:1214`) and runs on
-  both sides. `InteractionResult` is a sealed interface (`InteractionResult.java:11-16`): `SUCCESS` (client-predicted swing),
-  `SUCCESS_SERVER` (the server sends the swing), `CONSUME`, `FAIL`, `PASS`, `TRY_WITH_EMPTY_HAND`; `interact` treats a result as
-  handled when `consumesAction()` (`Mob.java:1165,1174`). On the client, `Minecraft.startUseItem` (`Minecraft.java:1760-1825`)
-  stops at the first `InteractionResult.Success` and otherwise goes on to the next hand, so a client-side `PASS` for the main hand
-  lets the off-hand item be used (a pearl thrown, a shield raised). `IronGolem.mobInteract` (`:262-278`) heals `25.0F`, plays
-  `IRON_GOLEM_REPAIR` at pitch `1 + (r − r) · 0.2` and returns `SUCCESS`.
-- Teleport: `Entity.teleport(TeleportTransition)` (`Entity.java:3177`) returns the entity to use afterwards, or null when
-  NeoForge's `EntityTravelToDimensionEvent` is cancelled (`CommonHooks.onTravelToDimension`, `nf-src/.../common/CommonHooks.java:841-845`,
-  posted from `Entity.teleport` `:3178` **and** `ServerPlayer.teleport` `ServerPlayer.java:1177`, before the move, for **every**
-  teleport, same dimension included: `ServerPlayer.teleport` returns early for a same-dimension move at `:1190`, after the post).
-  Same dimension returns `this` (`:3192`); **cross-dimension creates a new entity** with `getType().create(newLevel, DIMENSION_TRAVEL)`,
-  calls `newEntity.restoreFrom(this)` (save and load: NBT fields and serialized attachments survive, synced data and plain fields do
-  not, goals are rebuilt by the constructor) and removes the old one (`:3209-3243`). `TeleportTransition(ServerLevel, Vec3 pos, Vec3 speed,
-  float yRot, float xRot, PostTeleportTransition)` (`TeleportTransition.java:28`), `TeleportTransition.DO_NOTHING` (`:24`).
-  `PlayerEvent.PlayerChangedDimensionEvent` (`nf-src/.../event/entity/player/PlayerEvent.java:517`; game bus) has `getFrom()`,
-  `getTo()` (`:527,531`) and `getEntity()`, posted at the end of `ServerPlayer.teleport` (`ServerPlayer.java:1236`) only when the
-  dimension changed. `EntityTravelToDimensionEvent` (`nf-src/.../event/entity/EntityTravelToDimensionEvent.java:24`) has `getEntity()`
-  and `getDimension()` (`:32`). Entities by UUID: `ServerLevel.getEntities()` (`:1875`, a `LevelEntityGetter<Entity>`) `.get(UUID)`.
-- Creeper, golem, wolf: `Creeper.getSwellDir()` (`:195`) is the synced swell direction: `-1` by default (`defineSynchedData`,
-  `Creeper.java:100`), `1` while `SwellGoal` runs (`SwellGoal.java:43-50`) or once ignited (`tick`, `:129-131`); a NoAI creeper
-  stays at `-1` until a test calls `setSwellDir(1)` (`:199`; `ignite()` `:265`). The fuse length is the `Fuse` short tag (`:109,118`,
-  default 30). `IronGolem.getAttackAnimationTick()` (`:237`, public) counts down from 10 after a hit; `handleEntityEvent((byte) 4)`
-  sets it to 10 on either side (`:224-227`). `TamableAnimal.isTame()` (`:115`), `isOrderedToSit()` (`:238`), `isOwnedBy(LivingEntity)`
-  (`:183`), `tame(Player)` (`:170`), `setOrderedToSit(boolean)` (`:242`). `Wolf.wantsToAttack(LivingEntity target, LivingEntity owner)`
-  (`animal/wolf/Wolf.java:641-651`) is false for creepers, ghasts, armor stands, the owner's own tamed wolves, players the owner may
-  not harm (`canHarmPlayer`), tamed horses and tamed animals. `Mob.swing(InteractionHand, SwingAnimation)` (`Mob.java:1529`;
-  there is no `swing(InteractionHand)` in 26.3), `SwingAnimation.DEFAULT` (`world/item/component/SwingAnimation.java:11-12`).
-  `LivingEntity.heal(float)` (`:1197`), `getMaxHealth()` (`:2083`). `SoundEvents.IRON_GOLEM_REPAIR` (`:894`), `VEX_AMBIENT` (`:1673`),
-  `VEX_CHARGE` (`:1674`).
-- Looking: `Entity.getLookAngle()` (`Entity.java:2676-2678`) is `calculateViewVector(getXRot(), getYRot())`, the **body** yaw;
-  `LivingEntity` does not override it. The **head** vectors are `Entity.getHeadLookAngle()` (`:2684`, `getYHeadRot()`) and
-  `getViewVector(float)` (`:1986`, through `getViewYRot`, which `LivingEntity` overrides to the head yaw, `:3462`). A golem winding up a
-  swing turns its head toward its target before its body follows, so "the golem faces the vex" reads `getHeadLookAngle()`, and a
-  test turns the golem with `setYHeadRot`.
-- The goal clock: `Mob.serverAiStep` (`Mob.java:750-764`) runs the full `targetSelector.tick()` and `goalSelector.tick()` (the only
-  place a goal's `canUse` is asked) only when `tickCount + getId()` is even (or `tickCount <= 1`); on odd values it only ticks the
-  running goals (`tickRunningGoals(false)`). So `canUse` is asked every second tick, on a parity set by the entity id, and a
-  `tickCount % 10 == 0` gate never opens for a mob with an odd id. A gate on `(tickCount + getId()) % 10 == 0` always lands on a
-  full tick, once every 10 ticks, for any id (`BoundVex.scanDue`).
+  `EntityDataSerializers.BOOLEAN` (`:89`); `Entity.defineSynchedData(SynchedEntityData.Builder)` (`:428`, `Vex`
+  overrides at `:103-106` and must be called through `super`); `Builder.define(accessor, value)`. Save:
+  `addAdditionalSaveData(ValueOutput)` / `readAdditionalSaveData(ValueInput)` (`Entity.java:2288-2290`);
+  `ValueOutput.putBoolean` (`:17`), `ValueInput.getBooleanOr` (`:29`).
+- Interaction: `Mob.interact(Player, InteractionHand, Vec3)` (`Mob.java:1160`) is the public entry (name tag and spawn
+  egg first, then `Entity.interact`, then `mobInteract`); `Mob.mobInteract(Player, InteractionHand)` is **protected**
+  (`:1214`) and runs on both sides. `InteractionResult` is a sealed interface (`InteractionResult.java:11-16`):
+  `SUCCESS` (client-predicted swing), `SUCCESS_SERVER` (the server sends the swing), `CONSUME`, `FAIL`, `PASS`,
+  `TRY_WITH_EMPTY_HAND`; `interact` treats a result as handled when `consumesAction()` (`Mob.java:1165,1174`). On the
+  client, `Minecraft.startUseItem` (`Minecraft.java:1760-1825`) stops at the first `InteractionResult.Success` and
+  otherwise goes on to the next hand, so a client-side `PASS` for the main hand lets the off-hand item be used (a pearl
+  thrown, a shield raised). `IronGolem.mobInteract` (`:262-278`) heals `25.0F`, plays `IRON_GOLEM_REPAIR` at pitch `1 +
+  (r − r) · 0.2` and returns `SUCCESS`.
+- Teleport: `Entity.teleport(TeleportTransition)` (`Entity.java:3177`) returns the entity to use afterwards, or null
+  when NeoForge's `EntityTravelToDimensionEvent` is cancelled (`CommonHooks.onTravelToDimension`,
+  `nf-src/.../common/CommonHooks.java:841-845`, posted from `Entity.teleport` `:3178` **and** `ServerPlayer.teleport`
+  `ServerPlayer.java:1177`, before the move, for **every** teleport, same dimension included: `ServerPlayer.teleport`
+  returns early for a same-dimension move at `:1190`, after the post). Same dimension returns `this` (`:3192`);
+  **cross-dimension creates a new entity** with `getType().create(newLevel, DIMENSION_TRAVEL)`, calls
+  `newEntity.restoreFrom(this)` (save and load: NBT fields and serialized attachments survive, synced data and plain
+  fields do not, goals are rebuilt by the constructor) and removes the old one (`:3209-3243`).
+  `TeleportTransition(ServerLevel, Vec3 pos, Vec3 speed, float yRot, float xRot, PostTeleportTransition)`
+  (`TeleportTransition.java:28`), `TeleportTransition.DO_NOTHING` (`:24`). `PlayerEvent.PlayerChangedDimensionEvent`
+  (`nf-src/.../event/entity/player/PlayerEvent.java:517`; game bus) has `getFrom()`, `getTo()` (`:527,531`) and
+  `getEntity()`, posted at the end of `ServerPlayer.teleport` (`ServerPlayer.java:1236`) only when the dimension
+  changed. `EntityTravelToDimensionEvent` (`nf-src/.../event/entity/EntityTravelToDimensionEvent.java:24`) has
+  `getEntity()` and `getDimension()` (`:32`). Entities by UUID: `ServerLevel.getEntities()` (`:1875`, a
+  `LevelEntityGetter<Entity>`) `.get(UUID)`.
+- Creeper, golem, wolf: `Creeper.getSwellDir()` (`:195`) is the synced swell direction: `-1` by default
+  (`defineSynchedData`, `Creeper.java:100`), `1` while `SwellGoal` runs (`SwellGoal.java:43-50`) or once ignited
+  (`tick`, `:129-131`); a NoAI creeper stays at `-1` until a test calls `setSwellDir(1)` (`:199`; `ignite()` `:265`).
+  The fuse length is the `Fuse` short tag (`:109,118`, default 30). `IronGolem.getAttackAnimationTick()` (`:237`,
+  public) counts down from 10 after a hit; `handleEntityEvent((byte) 4)` sets it to 10 on either side (`:224-227`).
+  `TamableAnimal.isTame()` (`:115`), `isOrderedToSit()` (`:238`), `isOwnedBy(LivingEntity)` (`:183`), `tame(Player)`
+  (`:170`), `setOrderedToSit(boolean)` (`:242`). `Wolf.wantsToAttack(LivingEntity target, LivingEntity owner)`
+  (`animal/wolf/Wolf.java:641-651`) is false for creepers, ghasts, armor stands, the owner's own tamed wolves, players
+  the owner may not harm (`canHarmPlayer`), tamed horses and tamed animals. `Mob.swing(InteractionHand, SwingAnimation)`
+  (`Mob.java:1529`; there is no `swing(InteractionHand)` in 26.3), `SwingAnimation.DEFAULT`
+  (`world/item/component/SwingAnimation.java:11-12`). `LivingEntity.heal(float)` (`:1197`), `getMaxHealth()` (`:2083`).
+  `SoundEvents.IRON_GOLEM_REPAIR` (`:894`), `VEX_AMBIENT` (`:1673`), `VEX_CHARGE` (`:1674`).
+- Looking: `Entity.getLookAngle()` (`Entity.java:2676-2678`) is `calculateViewVector(getXRot(), getYRot())`, the
+  **body** yaw; `LivingEntity` does not override it. The **head** vectors are `Entity.getHeadLookAngle()` (`:2684`,
+  `getYHeadRot()`) and `getViewVector(float)` (`:1986`, through `getViewYRot`, which `LivingEntity` overrides to the
+  head yaw, `:3462`). A golem winding up a swing turns its head toward its target before its body follows, so "the golem
+  faces the vex" reads `getHeadLookAngle()`, and a test turns the golem with `setYHeadRot`.
+- The goal clock: `Mob.serverAiStep` (`Mob.java:750-764`) runs the full `targetSelector.tick()` and
+  `goalSelector.tick()` (the only place a goal's `canUse` is asked) only when `tickCount + getId()` is even (or
+  `tickCount <= 1`); on odd values it only ticks the running goals (`tickRunningGoals(false)`). So `canUse` is asked
+  every second tick, on a parity set by the entity id, and a `tickCount % 10 == 0` gate never opens for a mob with an
+  odd id. A gate on `(tickCount + getId()) % 10 == 0` always lands on a full tick, once every 10 ticks, for any id
+  (`BoundVex.scanDue`).
 - Goals: `Goal` (`ai/goal/Goal.java`): `canUse()` abstract (`:12`), `canContinueToUse()` defaults to `canUse()` (`:14`),
-  `requiresUpdateEveryTick()` false (`:28`), `setFlags(EnumSet<Flag>)` (`:35`), `reducedTickDelay(int)` (`:53`, `ceil(ticks / 2)`),
-  `Flag {MOVE, LOOK, JUMP, TARGET}`. `TargetGoal(Mob, boolean mustSee)` (`:26`). **`TargetGoal.start()` (`:76-81`) does not set the
-  target**: it only zeroes the reach cache and the unseen counter. Vanilla's subclasses set it in their own `start()`
-  (`NearestAttackableTargetGoal.java:74-77`, `HurtByTargetGoal.java:60-69`: `mob.setTarget(...)` then `super.start()`), so a custom
-  `TargetGoal` must call `mob.setTarget(...)` itself in `start()`. `TargetGoal.stop()` (`:83-87`) sets the target to null.
-  `TargetGoal.canContinueToUse()` (`:37-72`) takes `mob.getTarget()` (falling back to the private `targetMob`), drops it on
-  `!mob.canAttack(target)`, on a shared team, beyond `FOLLOW_RANGE` (`getFollowDistance()`) and, with `mustSee`, after
-  `unseenMemoryTicks` (60) without line of sight, and **ends with `mob.setTarget(target)`**, so it re-sets the target on every full
-  tick. A goal that overrides `canContinueToUse` chooses whether to keep those checks: the Bound Vex grudge and ally goals
-  (no sight rule) use `BoundVex.keepsTarget` alone and do not call `super`; the patrol goal calls `keepsTarget` and then `super`
-  for the sight rule. A `setTarget` override must therefore tell a re-set of the same target from a new one.
-  `NearestAttackableTargetGoal(Mob, Class<T>, boolean mustSee, TargetingConditions.Selector)` (`:25`) uses a random interval
-  of 10 → `reducedTickDelay` 5 → `canUse` (`:44-51`) goes on only when `random.nextInt(5) == 0`; the six-argument constructor
-  `(Mob, Class<T>, int randomInterval, boolean mustSee, boolean mustReach, Selector)` (`:33-40`) with `randomInterval` 1 makes the roll
-  always pass (`nextInt(1) == 0`). Protected `getTargetSearchArea(double)` (`:53`), `findTarget()` (`:57`), protected fields
-  `targetConditions`, `target` (`:16-19`). `TargetingConditions.Selector.test(LivingEntity target, ServerLevel level)` (`:99-100`,
-  **target first**). `Mob.goalSelector` and `targetSelector` are `public final` (`Mob.java:135-136`); `GoalSelector.addGoal(int, Goal)`
-  (`:28`), `removeAllGoals(Predicate<Goal>)` (`:32-40`, tests the inner `Goal`, not the `WrappedGoal`), `getAvailableGoals()` (`:109`,
-  the `WrappedGoal`s: `getGoal()`, `getPriority()`, `isRunning()`). `Mob.getTarget()` returns null for a target `canAttack` refuses
-  (a creative or spectator player, an invulnerable mob). `MoveControl<T extends Mob>` is generic (`ai/control/MoveControl.java:15`);
-  `Mob.getMoveControl()` returns the raw type (`Mob.java:214`), `hasWanted()` (`:32`), `setWantedPosition(double, double, double,
-  double)` (`:40`), `setWait()` (`:165`). `Mob.doHurtTarget(ServerLevel, Entity)` (`:1415`), `Mob.getLookControl()` (`:210`),
+  `requiresUpdateEveryTick()` false (`:28`), `setFlags(EnumSet<Flag>)` (`:35`), `reducedTickDelay(int)` (`:53`,
+  `ceil(ticks / 2)`), `Flag {MOVE, LOOK, JUMP, TARGET}`. `TargetGoal(Mob, boolean mustSee)` (`:26`).
+  **`TargetGoal.start()` (`:76-81`) does not set the target**: it only zeroes the reach cache and the unseen counter.
+  Vanilla's subclasses set it in their own `start()` (`NearestAttackableTargetGoal.java:74-77`,
+  `HurtByTargetGoal.java:60-69`: `mob.setTarget(...)` then `super.start()`), so a custom `TargetGoal` must call
+  `mob.setTarget(...)` itself in `start()`. `TargetGoal.stop()` (`:83-87`) sets the target to null.
+  `TargetGoal.canContinueToUse()` (`:37-72`) takes `mob.getTarget()` (falling back to the private `targetMob`), drops it
+  on `!mob.canAttack(target)`, on a shared team, beyond `FOLLOW_RANGE` (`getFollowDistance()`) and, with `mustSee`,
+  after `unseenMemoryTicks` (60) without line of sight, and **ends with `mob.setTarget(target)`**, so it re-sets the
+  target on every full tick. A goal that overrides `canContinueToUse` chooses whether to keep those checks: the Bound
+  Vex grudge and ally goals (no sight rule) use `BoundVex.keepsTarget` alone and do not call `super`; the patrol goal
+  calls `keepsTarget` and then `super` for the sight rule. A `setTarget` override must therefore tell a re-set of the
+  same target from a new one. `NearestAttackableTargetGoal(Mob, Class<T>, boolean mustSee,
+  TargetingConditions.Selector)` (`:25`) uses a random interval of 10 → `reducedTickDelay` 5 → `canUse` (`:44-51`) goes
+  on only when `random.nextInt(5) == 0`; the six-argument constructor `(Mob, Class<T>, int randomInterval, boolean
+  mustSee, boolean mustReach, Selector)` (`:33-40`) with `randomInterval` 1 makes the roll always pass (`nextInt(1) ==
+  0`). Protected `getTargetSearchArea(double)` (`:53`), `findTarget()` (`:57`), protected fields `targetConditions`,
+  `target` (`:16-19`). `TargetingConditions.Selector.test(LivingEntity target, ServerLevel level)` (`:99-100`, **target
+  first**). `Mob.goalSelector` and `targetSelector` are `public final` (`Mob.java:135-136`); `GoalSelector.addGoal(int,
+  Goal)` (`:28`), `removeAllGoals(Predicate<Goal>)` (`:32-40`, tests the inner `Goal`, not the `WrappedGoal`),
+  `getAvailableGoals()` (`:109`, the `WrappedGoal`s: `getGoal()`, `getPriority()`, `isRunning()`). `Mob.getTarget()`
+  returns null for a target `canAttack` refuses (a creative or spectator player, an invulnerable mob). `MoveControl<T
+  extends Mob>` is generic (`ai/control/MoveControl.java:15`); `Mob.getMoveControl()` returns the raw type
+  (`Mob.java:214`), `hasWanted()` (`:32`), `setWantedPosition(double, double, double, double)` (`:40`), `setWait()`
+  (`:165`). `Mob.doHurtTarget(ServerLevel, Entity)` (`:1415`), `Mob.getLookControl()` (`:210`),
   `LookControl.setLookAt(double, double, double, float, float)` (`:38`).
-- Memories: `LivingEntity.getLastHurtByMob()` (`:638`), `getLastHurtByMobTimestamp()` (`:651`, the victim's `tickCount` at the hit),
-  `setLastHurtByMob` (`:668`), `getLastHurtMob()` (`:673`), `getLastHurtMobTimestamp()` (`:677`), `setLastHurtMob(Entity)` (`:681`).
-  `LivingEntity.tick` forgets `lastHurtByMob` when it dies or after 100 ticks (`:513-519`), but forgets `lastHurtMob` only when it
-  dies (`:509-511`): a "fresh memory" rule needs its own age check.
-- Queries: `ServerLevel.getEntities(EntityTypeTest<Entity, T>, Predicate<? super T>)` → `List<? extends T>` (`:941`, the whole level);
-  `EntityType<T>` is an `EntityTypeTest<Entity, T>` (`EntityType.java:54`); `MinecraftServer.getAllLevels()` → `Iterable<ServerLevel>`
-  (`:1213`); `EntityGetter.getEntitiesOfClass(Class<T>, AABB, Predicate<? super T>)` (`:23`) returns entities whose **bounding box
-  intersects** the `AABB`, not whose position is inside it. `AABB.contains(double, double, double)` (`AABB.java:264-266`) is
-  half-open (`min <= x < max`). So a "position inside the closed guard box" check filters the query's result through
-  `GuardArea.contains` (`BoundVex.inGuardArea`). `Enemy` is a marker interface every `Monster` implements (`Monster.java:30`), neutral
-  ones (endermen, zombified piglins) and Bound Vexes included. `AABB(Vec3, Vec3)` (`:36`), `inflate(double, double, double)` (`:190`);
-  `LevelReader.isEmptyBlock(BlockPos)` (`:90`, air only); `Entity.teleportTo(double, double, double)` (`:3477`, same level, keeps the
-  velocity) and `getRandom()` (`:4261`).
+- Memories: `LivingEntity.getLastHurtByMob()` (`:638`), `getLastHurtByMobTimestamp()` (`:651`, the victim's `tickCount`
+  at the hit), `setLastHurtByMob` (`:668`), `getLastHurtMob()` (`:673`), `getLastHurtMobTimestamp()` (`:677`),
+  `setLastHurtMob(Entity)` (`:681`). `LivingEntity.tick` forgets `lastHurtByMob` when it dies or after 100 ticks
+  (`:513-519`), but forgets `lastHurtMob` only when it dies (`:509-511`): a "fresh memory" rule needs its own age check.
+- Queries: `ServerLevel.getEntities(EntityTypeTest<Entity, T>, Predicate<? super T>)` → `List<? extends T>` (`:941`, the
+  whole level); `EntityType<T>` is an `EntityTypeTest<Entity, T>` (`EntityType.java:54`);
+  `MinecraftServer.getAllLevels()` → `Iterable<ServerLevel>` (`:1213`); `EntityGetter.getEntitiesOfClass(Class<T>, AABB,
+  Predicate<? super T>)` (`:23`) returns entities whose **bounding box intersects** the `AABB`, not whose position is
+  inside it. `AABB.contains(double, double, double)` (`AABB.java:264-266`) is half-open (`min <= x < max`). So a
+  "position inside the closed guard box" check filters the query's result through `GuardArea.contains`
+  (`BoundVex.inGuardArea`). `Enemy` is a marker interface every `Monster` implements (`Monster.java:30`), neutral ones
+  (endermen, zombified piglins) and Bound Vexes included. `AABB(Vec3, Vec3)` (`:36`), `inflate(double, double, double)`
+  (`:190`); `LevelReader.isEmptyBlock(BlockPos)` (`:90`, air only); `Entity.teleportTo(double, double, double)`
+  (`:3477`, same level, keeps the velocity) and `getRandom()` (`:4261`).
 - GameTests: `GameTestHelper.spawn(EntityType<E>, BlockPos)` (`:161`) creates with `EntitySpawnReason.STRUCTURE`, calls
-  `setPersistenceRequired()` and **not** `finalizeSpawn` (no iron sword) (`GameTestEntityBuilder.java:44-67`); `spawn(type, pos,
-  EntitySpawnReason)` (`:181`) does call it. `helper.getEntities(EntityType<T>)` (`:660`). A `Creeper` with `setSwellDir(1)` and a
-  large `Fuse` hisses without exploding until the swell counts up to `maxSwell`.
+  `setPersistenceRequired()` and **not** `finalizeSpawn` (no iron sword) (`GameTestEntityBuilder.java:44-67`);
+  `spawn(type, pos, EntitySpawnReason)` (`:181`) does call it. `helper.getEntities(EntityType<T>)` (`:660`). A `Creeper`
+  with `setSwellDir(1)` and a large `Fuse` hisses without exploding until the swell counts up to `maxSwell`.

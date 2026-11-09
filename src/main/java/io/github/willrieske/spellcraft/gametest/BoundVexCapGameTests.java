@@ -135,8 +135,8 @@ public final class BoundVexCapGameTests {
     }
 
     /**
-     * When another player has twelve Bound Vexes alive and an unmarked Bound Vex ({@code /summon}) is near, should count
-     * none of them for this summoner, whose press starts.
+     * When another player has twelve Bound Vexes alive and an unmarked Bound Vex ({@code /summon}) is near, should
+     * count none of them for this summoner, whose press starts.
      *
      * <p>Method under test: {@link BoundVex#countOwnedBy}, through {@link EvokingCaster#request}
      */

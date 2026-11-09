@@ -27,7 +27,7 @@ public final class BoundVexTestSupport {
     /** The box's top north-west corner: where a test parks the vex. */
     static final BlockPos VEX_SPOT = new BlockPos(0, 2, 0);
 
-    /** The box's opposite bottom corner: farther from {@link #VEX_SPOT} than the summoner standing at the box's middle. */
+    /** The box's opposite bottom corner: farther from {@link #VEX_SPOT} than the summoner at the box's middle. */
     static final BlockPos PREY_SPOT = new BlockPos(2, 1, 2);
 
     /** The middle of the structure's box, where {@code FangGameTests.caster} stands the player. */

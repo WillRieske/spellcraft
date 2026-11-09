@@ -91,8 +91,9 @@ public final class BoundVexJobGameTests {
     }
 
     /**
-     * A {@link BoundVexTestSupport#calmCreeper} whose fuse is so long that it hisses without exploding once {@code setSwellDir(1)} is
-     * called: the fuse is the {@code Fuse} short tag, written over the creeper's own save and loaded back.
+     * A {@link BoundVexTestSupport#calmCreeper} whose fuse is so long that it hisses without exploding once
+     * {@code setSwellDir(1)} is called: the fuse is the {@code Fuse} short tag, written over the creeper's own save and
+     * loaded back.
      */
     private static Creeper patientCreeper(GameTestHelper helper, BlockPos relative) {
         Creeper creeper = calmCreeper(helper, relative);
@@ -114,14 +115,17 @@ public final class BoundVexJobGameTests {
         return golem;
     }
 
-    /** {@link BoundVexTestSupport#boundVex} without its follow goal, so it stays where a repair test puts it until a job moves it. */
+    /**
+     * {@link BoundVexTestSupport#boundVex} without its follow goal, so it stays where a repair test puts it until a job
+     * moves it.
+     */
     private static BoundVex unleashed(GameTestHelper helper, BlockPos relative, ServerPlayer summoner) {
         BoundVex vex = boundVex(helper, relative, summoner);
         vex.goalSelector.removeAllGoals(goal -> goal instanceof FollowSummonerGoal);
         return vex;
     }
 
-    /** {@link #unleashed} without its target goals, so a repair test's vex has a target only when the test gives one. */
+    /** {@link #unleashed} without its target goals, so a repair test's vex has a target only when the test gives it. */
     private static BoundVex unleashedWithoutTargets(GameTestHelper helper, BlockPos relative, ServerPlayer summoner) {
         return noTargets(unleashed(helper, relative, summoner));
     }
@@ -467,8 +471,8 @@ public final class BoundVexJobGameTests {
     /**
      * When the server stops while a Bound Vex repairs a golem and a second vex comes to it, should free the claim: the
      * second vex stays off the golem while the claim stands (twelve ticks, over a scan) and takes it once the stop
-     * handler has run, while the first still taps. The handler runs on its own batch ({@link #SERVER_STOP_CLAIMS}): it clears
-     * every claim on the server.
+     * handler has run, while the first still taps. The handler runs on its own batch ({@link #SERVER_STOP_CLAIMS}): it
+     * clears every claim on the server.
      *
      * <p>Method under test: {@link BoundVexEvents#onServerStopped}, through {@code RepairGolemGoal}'s claim map
      * (package-private)
