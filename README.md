@@ -21,10 +21,11 @@ A NeoForge mod for Minecraft that adds spells cast from scrolls. It has four:
   enough to make twelve, and at twelve V only says "You have too many vexes". They fly around you,
   pop up beside you when you get more than 12 blocks away, and follow you through portals when they
   are within 16 blocks of you and not told to stay. They fight whatever attacks you, your pets or
-  them, whatever you hit, whatever your pets are fighting, and any hostile mob that comes within
-  four blocks of them (not creepers, unless one attacks first); your tamed wolves join their fights.
+  them, whatever you hit, whatever your pets, villagers and golems are fighting or attacked by, and
+  any hostile mob that comes within four blocks of them in each direction (a box 8 wide and 7 tall;
+  not creepers, unless one attacks first); your tamed wolves join their fights.
   Click a vex with an empty hand to make it stay where it is; click again to make it follow. A vex
-  flies away from a hissing creeper, darts out of an iron golem's swing, and patches up a hurt iron
+  flies away from a hissing creeper, sidesteps after an iron golem's swing, and patches up a hurt iron
   golem with an iron ingot. Fangs spare you and your allies (your team, your pets, your own vexes,
   villagers, wandering traders, and iron golems that are not mad at you) and hurt everything else;
   vexes spare them too and fight only what the list above says. You, your pets, your fangs and your
