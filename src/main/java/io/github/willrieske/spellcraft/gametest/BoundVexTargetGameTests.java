@@ -19,9 +19,12 @@ import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARE
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.rules.GuardArea;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
@@ -41,6 +44,8 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
 
 /**
  * Bound Vex GameTests (Evoking II spec section 3, section 11 "Part 2"), targeting and wolves area: the three
@@ -237,6 +242,24 @@ public final class BoundVexTargetGameTests {
                 TARGETING_TICKS,
                 0,
                 BoundVexTargetGameTests::ignoresAStaleAttackerOfTheSummoner);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_summoners_attacker_comes_before_its_victim",
+                TARGETING_TICKS,
+                0,
+                BoundVexTargetGameTests::summonersAttackerComesBeforeItsVictim);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_ignores_a_target_in_another_dimension",
+                TARGETING_TICKS,
+                0,
+                BoundVexTargetGameTests::ignoresATargetInAnotherDimension);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_wolf_call_skips_a_cancelled_target",
+                BoundVexTargetGameTests::wolfCallSkipsACancelledTarget);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_scans_only_on_the_shared_clock", BoundVexTargetGameTests::scansOnlyOnTheSharedClock);
     }
 
     /**
@@ -622,7 +645,8 @@ public final class BoundVexTargetGameTests {
 
     /**
      * When a Bound Vex takes a husk, should call only the summoner's tamed, idle, un-sitting wolf within sixteen
-     * blocks: not an untamed wolf, another player's tamed wolf, a wolf already fighting, a sitting wolf, or the
+     * blocks: not an untamed wolf, a wolf that has the summoner as owner but is not tame (only the tame flag tells it
+     * from the summoner's pet), another player's tamed wolf, a wolf already fighting, a sitting wolf, or the
      * summoner's wolf about seventeen blocks away (inside the cube a box query covers, outside the sixteen-block
      * sphere).
      *
@@ -638,6 +662,9 @@ public final class BoundVexTargetGameTests {
         Pig pig = pigHere(helper, SIDE_SPOT);
         Wolf idle = pet(helper, FEET.east(2), player);
         Wolf untamed = untamedWolf(helper, FEET.east(3));
+        Wolf ownedButNotTame = untamedWolf(helper, FEET.north(3));
+        ownedButNotTame.setOwner(player); // an owner reference without the tame flag, as /data or another mod can make
+        helper.assertTrue(ownedButNotTame.isOwnedBy(player) && !ownedButNotTame.isTame(), "setup: owned, not tame");
         Wolf strangers = pet(helper, FEET.west(2), stranger);
         Wolf busy = pet(helper, FEET.west(3), player);
         busy.setTarget(pig);
@@ -652,6 +679,7 @@ public final class BoundVexTargetGameTests {
         // Assert
         helper.assertTrue(targets(idle, husk), "the summoner's idle wolf joins (the control)");
         helper.assertTrue(untamed.getTarget() == null, "an untamed wolf is not called");
+        helper.assertTrue(ownedButNotTame.getTarget() == null, "a wolf that is owned but not tame is not called");
         helper.assertTrue(strangers.getTarget() == null, "another player's wolf is not called");
         helper.assertTrue(targets(busy, pig), "a wolf already fighting keeps its own target");
         helper.assertTrue(sitting.getTarget() == null, "a sitting wolf is not called");
@@ -1191,5 +1219,140 @@ public final class BoundVexTargetGameTests {
                     helper.assertTrue(targets(vex, husk), "an attacker of exactly 100 ticks is still fresh");
                 })
                 .thenSucceed();
+    }
+
+    /**
+     * When the summoner remembers husk A hurting it and husk B as the mob it hit, both fresh, should take A: the mob
+     * hurting the summoner now (second) comes before the mob it last swung at (third), spec §3.4 item 1.
+     *
+     * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the memory order
+     */
+    static void summonersAttackerComesBeforeItsVictim(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        withoutPatrol(vex);
+        Husk attacker = husk(helper, PREY_SPOT);
+        Husk victim = husk(helper, SIDE_SPOT);
+
+        // Act
+        player.setLastHurtByMob(attacker);
+        player.setLastHurtMob(victim);
+
+        // Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.getTarget() != null, "setup: a target is taken"))
+                .thenExecute(() ->
+                        helper.assertTrue(targets(vex, attacker), "the summoner's attacker, not the mob it last hit"))
+                .thenSucceed();
+    }
+
+    /**
+     * When the summoner's remembered victim is a husk in the Nether at the vex's own coordinates (the summoner left it
+     * behind: its memory outlives the trip by up to 100 ticks), should take no target over forty ticks: the target must
+     * be in the vex's level, whatever its raw coordinates say. The husk stays alive throughout, so the vex was not
+     * simply refused for lack of a target.
+     *
+     * <p>Method under test: {@link BoundVex#keepsTarget}, through {@code HurtBySummonerSideGoal.canUse}
+     */
+    static void ignoresATargetInAnotherDimension(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = withoutPatrol(parked(helper, VEX_SPOT, player));
+        Husk far = BoundVexTestSupport.huskInNether(helper, vex.position().add(1.0, 0.0, 1.0));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(TARGET_WINDOW, () -> {
+                    player.setLastHurtMob(far);
+                    LivingEntity target = vex.getTarget();
+                    helper.assertTrue(
+                            target == null,
+                            "the vex took a target in another level: "
+                                    + (target == null ? "" : target.level().dimension()));
+                })
+                .thenExecute(() -> helper.assertTrue(
+                        far.isAlive()
+                                && !far.level().dimension().equals(vex.level().dimension()),
+                        "the husk is alive in the Nether, so the vex had a candidate to refuse"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a listener cancels a Bound Vex's change of target ({@code LivingChangeTargetEvent}; nothing in this mod does
+     * for a Bound Vex, any other mod could), should leave the vex without a target and call no wolf; with the listener
+     * gone, the same target calls the wolf (the control).
+     *
+     * <p>Method under test: {@link BoundVex#setTarget}: the check that the target was really set
+     */
+    static void wolfCallSkipsACancelledTarget(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = noTargets(parked(helper, VEX_SPOT, player));
+        Husk husk = husk(helper, PREY_SPOT);
+        Wolf wolf = pet(helper, SIDE_SPOT, player);
+        Consumer<LivingChangeTargetEvent> cancelForThisVex = event -> {
+            if (event.getEntity().getUUID().equals(vex.getUUID())) {
+                event.setCanceled(true);
+            }
+        };
+
+        // Act
+        NeoForge.EVENT_BUS.addListener(LivingChangeTargetEvent.class, cancelForThisVex);
+        try {
+            vex.setTarget(husk);
+        } finally {
+            NeoForge.EVENT_BUS.unregister(cancelForThisVex);
+        }
+
+        // Assert
+        helper.assertTrue(vex.getTarget() == null, "setup: the cancelled change left the vex without a target");
+        helper.assertTrue(wolf.getTarget() == null, "no wolf is called for a change that did not happen");
+        vex.setTarget(husk);
+        helper.assertTrue(targets(wolf, husk), "without the listener the same target calls the wolf");
+        helper.succeed();
+    }
+
+    /**
+     * When the vex's age ({@code tickCount}) steps through forty consecutive values, should have each of the three
+     * target goals answer {@code canUse} true on exactly four of them, ten apart, for a vex with an even id and for one
+     * with an odd id (spec §3.4 "every 10 ticks"): the gate {@code BoundVex.scanDue} is keyed to the id. The summoner
+     * has just hit a husk, and an ally wolf targets it, so on a scan tick every goal has something to take. Synchronous:
+     * the test sets the clock itself and calls the goals directly.
+     *
+     * <p>Method under test: {@code BoundVex.scanDue} (package-private), through {@code canUse} of
+     * {@code HurtBySummonerSideGoal}, {@code AllyFightGoal} and {@code NearestHostileGoal}
+     */
+    static void scansOnlyOnTheSharedClock(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex first = parked(helper, VEX_SPOT, player);
+        BoundVex second = parked(helper, new BlockPos(1, 2, 0), player);
+        helper.assertTrue(((first.getId() ^ second.getId()) & 1) == 1, "setup: one even id and one odd id");
+        Husk husk = husk(helper, PREY_SPOT);
+        Wolf wolf = pet(helper, SIDE_SPOT, player);
+        wolf.setTarget(husk);
+        player.setLastHurtMob(husk);
+
+        // Act & Assert: a clock far past the vexes' own ticks, so no cached ally list is reused
+        for (BoundVex vex : new BoundVex[] {first, second}) {
+            int realClock = vex.tickCount;
+            for (WrappedGoal wrapped : vex.targetSelector.getAvailableGoals()) {
+                String name = wrapped.getGoal().getClass().getSimpleName() + " of id " + vex.getId();
+                List<Integer> scans = new ArrayList<>();
+                for (int tick = 1000; tick < 1000 + 40; tick++) {
+                    vex.tickCount = tick;
+                    if (wrapped.getGoal().canUse()) {
+                        scans.add(tick);
+                    }
+                }
+                helper.assertValueEqual(scans.size(), 4, name + " scans four times in forty ticks, got " + scans);
+                for (int i = 1; i < scans.size(); i++) {
+                    helper.assertValueEqual(scans.get(i) - scans.get(i - 1), 10, name + " scans ten ticks apart");
+                }
+            }
+            vex.tickCount = realClock;
+        }
+        helper.succeed();
     }
 }

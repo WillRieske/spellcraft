@@ -24,6 +24,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
@@ -31,6 +32,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 
@@ -67,6 +69,12 @@ public final class BoundVexCapGameTests {
         SpellcraftGameTests.add(
                 SHARED, "bound_vex_save_keeps_stay_and_mark", BoundVexCapGameTests::saveKeepsStayAndMark);
         FangGameTests.addPadded(SHARED, "bound_vex_guard_area_edges", BoundVexCapGameTests::guardAreaEdges);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_idles_with_a_spectating_summoner",
+                BoundVexCapGameTests::idlesWithASpectatingSummoner);
+        SpellcraftGameTests.add(SHARED, "bound_vex_count_skips_a_dying_vex", BoundVexCapGameTests::countSkipsADyingVex);
+        FangGameTests.addPadded(SHARED, "bound_vex_cap_refusal_is_silent", BoundVexCapGameTests::capRefusalIsSilent);
     }
 
     /**
@@ -210,7 +218,8 @@ public final class BoundVexCapGameTests {
     /**
      * When the summoner clicks a Bound Vex with an empty main hand, should toggle stay on (the post is the block it
      * stands at, whatever origin it had before) and off again, each handled by the server, the post kept when stay goes
-     * off; a stranger's click, a sneaking click and a click with an item in hand should pass and change nothing.
+     * off; a stranger's click, a sneaking click, a click with an item in hand and an off-hand click should pass and
+     * change nothing.
      *
      * <p>Method under test: {@code BoundVex.mobInteract} (protected), through {@code Mob.interact}
      */
@@ -237,6 +246,10 @@ public final class BoundVexCapGameTests {
                 vex.interact(summoner, InteractionHand.MAIN_HAND, Vec3.ZERO).consumesAction(),
                 "a click with an item passes");
         GameTestSupport.hold(summoner, ItemStack.EMPTY);
+        helper.assertFalse(
+                vex.interact(summoner, InteractionHand.OFF_HAND, Vec3.ZERO).consumesAction(),
+                "an off-hand click with an empty main hand passes");
+        helper.assertFalse(vex.isStaying(), "still following after an off-hand click");
         helper.assertFalse(vex.isStaying(), "setup: following before the real click");
         helper.assertValueEqual(
                 vex.interact(summoner, InteractionHand.MAIN_HAND, Vec3.ZERO),
@@ -363,6 +376,90 @@ public final class BoundVexCapGameTests {
         // Assert
         helper.assertTrue(vex.summoner().isEmpty(), "no summoner while it is in the Nether");
         helper.assertFalse(vex.isPrey(husk), "nothing is prey while the summoner is elsewhere");
+        helper.succeed();
+    }
+
+    /**
+     * When a marked Bound Vex's summoner switches to spectator mode, should idle as if the summoner were offline (spec
+     * §3.1; vanilla pets ignore a spectating owner): no summoner, and a husk that was prey a moment ago no longer is;
+     * back in survival, the summoner and the prey are back.
+     *
+     * <p>Method under test: {@link BoundVex#summoner}, {@link BoundVex#isPrey(LivingEntity)}
+     */
+    static void idlesWithASpectatingSummoner(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        Husk husk = husk(helper, PREY_SPOT);
+        helper.assertTrue(vex.summoner().isPresent() && vex.isPrey(husk), "setup: a summoner and a prey");
+
+        // Act
+        player.setGameMode(GameType.SPECTATOR);
+
+        // Assert
+        helper.assertTrue(vex.summoner().isEmpty(), "no summoner while spectating");
+        helper.assertFalse(vex.isPrey(husk), "nothing is prey while the summoner spectates");
+        player.setGameMode(GameType.SURVIVAL);
+        helper.assertTrue(vex.summoner().isPresent(), "the summoner is back in survival");
+        helper.assertTrue(vex.isPrey(husk), "and the husk is prey again");
+        helper.succeed();
+    }
+
+    /**
+     * When one of a summoner's three Bound Vexes is at zero health (dying: it stays in the level for its twenty death
+     * ticks), should count two: a dying vex must not count toward the cap (a press just after a kill could be refused).
+     *
+     * <p>Method under test: {@link BoundVex#countOwnedBy}
+     */
+    static void countSkipsADyingVex(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        parked(helper, VEX_SPOT, player);
+        parked(helper, VEX_SPOT, player);
+        BoundVex dying = parked(helper, VEX_SPOT, player);
+        MinecraftServer server = helper.getLevel().getServer();
+        helper.assertValueEqual(BoundVex.countOwnedBy(server, player.getUUID()), 3, "setup: three counted");
+
+        // Act
+        dying.setHealth(0.0F);
+
+        // Assert
+        helper.assertFalse(dying.isAlive(), "setup: the vex is dying");
+        helper.assertValueEqual(BoundVex.countOwnedBy(server, player.getUUID()), 2, "the dying vex is not counted");
+        helper.succeed();
+    }
+
+    /**
+     * When the summoner has twelve Bound Vexes and presses V, should play no sound (the refusal shows only the notice;
+     * a started cast plays the evoker's prepare-summon sound, the control once the vexes are gone). Padded: twelve
+     * vexes in the shared box would sit near the edge of a neighbor's vex search.
+     *
+     * <p>Method under test: {@link EvokingCaster#request}
+     */
+    static void capRefusalIsSilent(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        VexGameTests.discardLeftoverVexes(helper);
+        List<BoundVex> vexes = new ArrayList<>();
+        for (int i = 0; i < VexCap.CAP; i++) {
+            vexes.add(parked(helper, VEX_SPOT, player));
+        }
+        GameTestSupport.drainSounds(player);
+
+        // Act
+        Request refused = EvokingCaster.request(player, EvokerSpell.VEXES);
+
+        // Assert
+        helper.assertValueEqual(refused, Request.CAPPED, "setup: capped");
+        helper.assertFalse(
+                GameTestSupport.drainSounds(player).contains(SoundEvents.EVOKER_PREPARE_SUMMON),
+                "a refused press plays no prepare sound");
+        vexes.forEach(Entity::discard);
+        helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.VEXES), Request.STARTED, "control: starts");
+        helper.assertTrue(
+                GameTestSupport.drainSounds(player).contains(SoundEvents.EVOKER_PREPARE_SUMMON),
+                "control: a started press plays the prepare sound, so the mock player does hear sounds");
+        cancelCast(player);
         helper.succeed();
     }
 

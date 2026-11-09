@@ -26,6 +26,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
@@ -226,7 +227,7 @@ public final class VexGameTests {
     }
 
     /**
-     * When a player presses V on Peaceful, should send the notice at once, start no cast (no casting effect, no vex
+     * When a player presses V on Peaceful, should send the notice at once, play no sound, start no cast (no casting effect, no vex
      * after the warmup) and not use up the cooldown: on Normal the same player's next press starts. The Bound Vex type
      * is {@code notInPeaceful} (docs/api-notes.md §21), so it cannot be created there and {@code Mob.checkDespawn}
      * removes one already out (spec §10).
@@ -250,7 +251,11 @@ public final class VexGameTests {
                 "setup: a Bound Vex cannot be created on Peaceful");
         parkedVex.checkDespawn();
         helper.assertTrue(parkedVex.isRemoved(), "a Bound Vex already out is removed on Peaceful");
-        GameTestSupport.drainActionBar(player);
+        GameTestSupport.drainSounds(player);
+        helper.assertValueEqual(EvokingCaster.request(player, EvokerSpell.VEXES), Request.PEACEFUL, "silent press");
+        helper.assertFalse(
+                GameTestSupport.drainSounds(player).contains(SoundEvents.EVOKER_PREPARE_SUMMON),
+                "the refusal plays no prepare sound");
 
         // Act
         Request request = EvokingCaster.request(player, EvokerSpell.VEXES);

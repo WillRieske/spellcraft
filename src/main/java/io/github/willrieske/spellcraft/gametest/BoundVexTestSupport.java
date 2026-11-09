@@ -5,15 +5,23 @@ import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.ModEntities;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.zombie.Husk;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -130,6 +138,53 @@ public final class BoundVexTestSupport {
      */
     static BoundVex followOnly(GameTestHelper helper, BlockPos relative, ServerPlayer summoner) {
         return noTargets(boundVex(helper, relative, summoner));
+    }
+
+    /**
+     * A persistent husk with no AI and no gravity in the Nether at {@code at} (an absolute position), inside a small
+     * stone-shelled pocket of air, so it neither falls, despawns nor suffocates. The chunk is forced and loaded, and
+     * when the test ends the husk is discarded, the blocks restored and the chunk unforced (as
+     * {@code FangGameTests.toNether} does for a player).
+     *
+     * @param helper the test helper
+     * @param at where the husk stands, absolute
+     * @return the husk, a mob of another level than the test's
+     */
+    static Husk huskInNether(GameTestHelper helper, Vec3 at) {
+        ServerLevel nether = helper.getLevel().getServer().getLevel(Level.NETHER);
+        if (nether == null) {
+            throw helper.assertionException("no Nether on the GameTest server");
+        }
+        BlockPos base = BlockPos.containing(at);
+        ChunkPos chunk = new ChunkPos(base.getX() >> 4, base.getZ() >> 4);
+        nether.setChunkForced(chunk.x(), chunk.z(), true);
+        nether.getChunk(chunk.x(), chunk.z());
+        Map<BlockPos, BlockState> was = new LinkedHashMap<>();
+        for (BlockPos pos : BlockPos.betweenClosed(base.offset(-2, -1, -2), base.offset(2, 3, 2))) {
+            was.put(pos.immutable(), nether.getBlockState(pos));
+        }
+        was.keySet().forEach(pos -> {
+            boolean shell = Math.abs(pos.getX() - base.getX()) == 2
+                    || Math.abs(pos.getZ() - base.getZ()) == 2
+                    || pos.getY() == base.getY() - 1
+                    || pos.getY() == base.getY() + 3;
+            nether.setBlock(pos, (shell ? Blocks.STONE : Blocks.AIR).defaultBlockState(), Block.UPDATE_ALL);
+        });
+        Husk husk = EntityTypes.HUSK.create(nether, EntitySpawnReason.COMMAND);
+        if (husk == null) {
+            throw helper.assertionException("could not create a husk in the Nether");
+        }
+        husk.setNoAi(true);
+        husk.setNoGravity(true);
+        husk.setPersistenceRequired();
+        husk.setPos(at);
+        nether.addFreshEntity(husk);
+        whenDone(helper, () -> {
+            husk.discard();
+            was.forEach((pos, state) -> nether.setBlock(pos, state, Block.UPDATE_ALL));
+            nether.setChunkForced(chunk.x(), chunk.z(), false);
+        });
+        return husk;
     }
 
     /** Moves {@code entity} to {@code dx} east and {@code dz} south of {@code vex} (same height), held in place. */

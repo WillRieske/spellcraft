@@ -2,33 +2,42 @@ package io.github.willrieske.spellcraft.gametest;
 
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.FAR_NORTH;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.FEET;
+import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.VEX_SPOT;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.boundVex;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.followOnly;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.parked;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.summoner;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.unmarkedVex;
 import static io.github.willrieske.spellcraft.gametest.FangGameTests.NORTH;
+import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.BoundVexEvents;
 import io.github.willrieske.spellcraft.evoking.FollowSummonerGoal;
 import io.github.willrieske.spellcraft.evoking.ModEntities;
+import io.github.willrieske.spellcraft.evoking.VexSummons;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.control.MoveControl;
 import net.minecraft.world.entity.ai.goal.WrappedGoal;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerRespawnPositionEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 /**
@@ -74,6 +83,28 @@ public final class BoundVexFollowGameTests {
                 SERVER_STOP_NOTES,
                 "bound_vex_server_stop_drops_the_portal_note",
                 BoundVexFollowGameTests::serverStopDropsThePortalNote);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_end_exit_brings_followers", BoundVexFollowGameTests::endExitBringsFollowers);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_death_respawn_brings_nothing", BoundVexFollowGameTests::deathRespawnBringsNothing);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_follow_ignores_a_spectating_summoner",
+                BoundVexFollowGameTests::followIgnoresASpectatingSummoner);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_staying_vex_reposts_in_another_dimension",
+                BoundVexFollowGameTests::stayingVexRepostsInAnotherDimension);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_portal_note_skips_a_dying_vex", BoundVexFollowGameTests::portalNoteSkipsADyingVex);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_portal_arrival_skips_a_vex_killed_after_the_note",
+                BoundVexFollowGameTests::portalArrivalSkipsAVexKilledAfterTheNote);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_orbit_spots_stay_inside_the_band",
+                BoundVexFollowGameTests::orbitSpotsStayInsideTheBand);
     }
 
     /**
@@ -354,6 +385,274 @@ public final class BoundVexFollowGameTests {
         helper.assertTrue(
                 vex.position().distanceTo(start) < 0.01,
                 "no note left after the server stopped, moved " + vex.position().distanceTo(start));
+        helper.succeed();
+    }
+
+    /**
+     * Respawns {@code player} the way the End exit does ({@code endExit}: {@code keepAllPlayerData} true, as the
+     * credits path calls it) or the way a death does, at the middle of this test's structure: a temporary listener
+     * sends the respawn there (the default spawn point is far from the structure, in chunks the test does not load).
+     * The old player instance is gone afterwards; the new one is returned.
+     */
+    private static ServerPlayer respawnAtTheStructure(GameTestHelper helper, ServerPlayer player, boolean endExit) {
+        Vec3 home = helper.absoluteVec(Vec3.atBottomCenterOf(FEET));
+        Consumer<PlayerRespawnPositionEvent> toTheStructure = event -> {
+            if (event.getEntity().getUUID().equals(player.getUUID())) {
+                event.setTeleportTransition(new TeleportTransition(
+                        helper.getLevel(), home, Vec3.ZERO, 0.0F, 0.0F, TeleportTransition.DO_NOTHING));
+            }
+        };
+        NeoForge.EVENT_BUS.addListener(PlayerRespawnPositionEvent.class, toTheStructure);
+        try {
+            return helper.getLevel()
+                    .getServer()
+                    .getPlayerList()
+                    .respawn(
+                            player,
+                            endExit,
+                            endExit ? Entity.RemovalReason.CHANGED_DIMENSION : Entity.RemovalReason.KILLED);
+        } finally {
+            NeoForge.EVENT_BUS.unregister(toTheStructure);
+        }
+    }
+
+    /** The Bound Vexes of {@code summoner} alive in {@code level}. */
+    private static List<? extends BoundVex> vexesOf(ServerLevel level, UUID summoner) {
+        return level.getEntities(ModEntities.BOUND_VEX.get(), vex -> vex.isAlive() && vex.isSummonedBy(summoner));
+    }
+
+    /**
+     * When a summoner with two Bound Vexes in the Nether (one following, one staying) leaves through the End exit's
+     * respawn path ({@code PlayerList.respawn(player, true, CHANGED_DIMENSION)}, which posts neither the travel nor
+     * the changed-dimension event), should find the following vex beside the respawned player in the Overworld, still
+     * marked, and the staying one still in the Nether. The Nether stands in for the End, as the path is the same.
+     *
+     * <p>Method under test: {@link BoundVexEvents#onRespawnPosition} and {@link BoundVexEvents#onRespawn}
+     */
+    static void endExitBringsFollowers(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        UUID id = player.getUUID();
+        FangGameTests.toNether(helper, player);
+        ServerLevel nether = player.level();
+        List<BoundVex> vexes = VexSummons.summon(nether, player, 2);
+        helper.assertValueEqual(vexes.size(), 2, "setup: two Bound Vexes beside the summoner");
+        BoundVex following = vexes.get(0);
+        BoundVex staying = vexes.get(1);
+        staying.setStaying(true);
+        whenDone(helper, () -> vexesOf(helper.getLevel(), id).forEach(Entity::discard));
+        ServerPlayer[] respawned = new ServerPlayer[1];
+
+        // Act
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        nether.getEntities().get(following.getUUID()) != null
+                                && nether.getEntities().get(staying.getUUID()) != null,
+                        "setup: both vexes are in the Nether's entity lookup"))
+                .thenExecute(() -> {
+                    respawned[0] = respawnAtTheStructure(helper, player, true);
+                    helper.assertValueEqual(
+                            respawned[0].level().dimension(), Level.OVERWORLD, "setup: respawned in the Overworld");
+                })
+                // Assert
+                .thenWaitUntil(() -> {
+                    List<? extends BoundVex> arrived = vexesOf(helper.getLevel(), id);
+                    helper.assertValueEqual(arrived.size(), 1, "one Bound Vex came to the Overworld");
+                    helper.assertTrue(
+                            arrived.get(0).blockPosition().closerThan(helper.absolutePos(FEET), 4.5),
+                            "beside the respawned player (a ring cell)");
+                    helper.assertFalse(arrived.get(0).isStaying(), "the one that came is the following one");
+                    helper.assertFalse(following.isAlive(), "the old instance is gone");
+                    helper.assertTrue(
+                            staying.isAlive()
+                                    && staying.level().dimension().equals(Level.NETHER)
+                                    && staying.isStaying(),
+                            "the staying one stayed in the Nether");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a summoner with a following Bound Vex in the Nether respawns the way a death does
+     * ({@code keepAllPlayerData} false), should bring nothing: the vex stays in the Nether (spec §3.3, no cross-dimension
+     * teleport on respawn after a death).
+     *
+     * <p>Method under test: {@link BoundVexEvents#onRespawnPosition} and {@link BoundVexEvents#onRespawn}
+     */
+    static void deathRespawnBringsNothing(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        UUID id = player.getUUID();
+        FangGameTests.toNether(helper, player);
+        ServerLevel nether = player.level();
+        BoundVex following = VexSummons.summon(nether, player, 1).get(0);
+        whenDone(helper, () -> vexesOf(helper.getLevel(), id).forEach(Entity::discard));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        nether.getEntities().get(following.getUUID()) != null, "setup: the vex is in the lookup"))
+                .thenExecute(() -> respawnAtTheStructure(helper, player, false))
+                .thenExecuteFor(5, () -> {
+                    helper.assertTrue(vexesOf(helper.getLevel(), id).isEmpty(), "no vex in the Overworld");
+                    helper.assertTrue(
+                            following.isAlive() && following.level().dimension().equals(Level.NETHER),
+                            "the vex is still in the Nether");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a summoner with a following Bound Vex seven blocks away switches to spectator mode, should leave the vex
+     * where it is for forty ticks (a spectator counts as absent, spec §3.1: vanilla pets ignore a spectating owner);
+     * back in survival, should fly into the orbit again.
+     *
+     * <p>Method under test: {@link BoundVex#summoner}, through {@link FollowSummonerGoal}
+     */
+    static void followIgnoresASpectatingSummoner(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = followOnly(helper, FEET.north(7), player);
+        player.setGameMode(GameType.SPECTATOR);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        40,
+                        () -> helper.assertTrue(
+                                vex.distanceTo(player) > FollowSummonerGoal.ORBIT_MAX + 2.0,
+                                "a vex does not follow a spectator, got " + vex.distanceTo(player)))
+                .thenExecute(() -> player.setGameMode(GameType.SURVIVAL))
+                .thenWaitUntil(() -> helper.assertTrue(
+                        vex.distanceTo(player) <= FollowSummonerGoal.ORBIT_MAX + 1.0,
+                        "it follows again in survival, got " + vex.distanceTo(player)))
+                .thenSucceed();
+    }
+
+    /**
+     * When a staying Bound Vex is moved to another dimension (as {@code /execute in ... run tp} or a vehicle does; the
+     * move builds a new vex that copies the save), should still be staying there and have its post where it arrived,
+     * not the old dimension's coordinates.
+     *
+     * <p>Method under test: {@link BoundVex#restoreFrom} and {@link BoundVex#onAddedToLevel}, through
+     * {@code Entity.teleport}
+     */
+    static void stayingVexRepostsInAnotherDimension(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = followOnly(helper, FEET.north(5), player);
+        vex.setStaying(true);
+        BlockPos post = vex.getBoundOrigin();
+        BlockPos netherFeet = FangGameTests.toNether(helper, player);
+        ServerLevel nether = player.level();
+
+        // Act
+        Entity moved = vex.teleport(new TeleportTransition(
+                nether, Vec3.atCenterOf(netherFeet.above()), Vec3.ZERO, 0.0F, 0.0F, TeleportTransition.DO_NOTHING));
+
+        // Assert
+        if (!(moved instanceof BoundVex copy)) {
+            throw helper.assertionException("the vex was not moved to a new Bound Vex: " + moved);
+        }
+        helper.assertTrue(copy.isStaying(), "still staying in the new dimension");
+        helper.assertFalse(post.equals(copy.getBoundOrigin()), "the post is not the old dimension's " + post);
+        helper.assertValueEqual(copy.getBoundOrigin(), copy.blockPosition(), "the post is where it arrived");
+        helper.succeed();
+    }
+
+    /**
+     * When a following Bound Vex is at zero health (dying, still in the level) when the summoner's travel event is
+     * posted, and is revived before the arrival event, should not be brought: the note skipped it. A healthy vex is
+     * brought by the same two events (the control).
+     *
+     * <p>Method under test: {@link BoundVexEvents#onTravel}: the living filter
+     */
+    static void portalNoteSkipsADyingVex(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = parked(helper, FEET.north(8), player);
+        Vec3 start = vex.position();
+        vex.setHealth(0.0F);
+        helper.assertFalse(vex.isAlive(), "setup: the vex is dying");
+
+        // Act: revived before the arrival, so only the note's filter can have left it out
+        noteThenArrive(player, () -> vex.setHealth(vex.getMaxHealth()));
+
+        // Assert
+        helper.assertTrue(
+                vex.position().distanceTo(start) < 0.01,
+                "a vex that was dying at the note is not brought, moved "
+                        + vex.position().distanceTo(start));
+        noteThenArrive(player, () -> {});
+        helper.assertTrue(vex.position().distanceTo(start) > 2.0, "control: a healthy vex is brought");
+        helper.succeed();
+    }
+
+    /**
+     * When a following Bound Vex is noted at the travel event and killed (zero health, still in the level) before the
+     * arrival event, should not be brought: the arrival skips a dying vex. A healthy vex is brought by the same two
+     * events (the control).
+     *
+     * <p>Method under test: {@link BoundVexEvents#onChangedDimension}: the living filter
+     */
+    static void portalArrivalSkipsAVexKilledAfterTheNote(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = parked(helper, FEET.north(8), player);
+        Vec3 start = vex.position();
+
+        // Act
+        noteThenArrive(player, () -> vex.setHealth(0.0F));
+
+        // Assert
+        helper.assertFalse(vex.isAlive(), "setup: the vex is dying");
+        helper.assertTrue(
+                vex.position().distanceTo(start) < 0.01,
+                "a vex killed after the note is not brought, moved "
+                        + vex.position().distanceTo(start));
+        vex.setHealth(vex.getMaxHealth());
+        noteThenArrive(player, () -> {});
+        helper.assertTrue(vex.position().distanceTo(start) > 2.0, "control: a healthy vex is brought");
+        helper.succeed();
+    }
+
+    /**
+     * When the follow goal starts two hundred times for a vex near its summoner, should always aim the move control at
+     * a spot 2 to 4 blocks from the summoner's feet, at least 2 blocks sideways and 0.5 to 1.5 blocks up (spec §3.3:
+     * the band is 2-4; a spot inside the player's body would block the view). Synchronous: the test calls the goal's
+     * {@code start} and reads the wanted position.
+     *
+     * <p>Method under test: {@link FollowSummonerGoal#start}
+     */
+    static void orbitSpotsStayInsideTheBand(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = followOnly(helper, VEX_SPOT, player);
+        FollowSummonerGoal follow = vex.goalSelector.getAvailableGoals().stream()
+                .map(WrappedGoal::getGoal)
+                .filter(FollowSummonerGoal.class::isInstance)
+                .map(FollowSummonerGoal.class::cast)
+                .findFirst()
+                .orElseThrow(() -> helper.assertionException("the vex has no follow goal"));
+        Vec3 feet = player.position();
+
+        // Act & Assert
+        for (int trial = 0; trial < 200; trial++) {
+            follow.start();
+            MoveControl<?> control = vex.getMoveControl();
+            double dx = control.getWantedX() - feet.x;
+            double dy = control.getWantedY() - feet.y;
+            double dz = control.getWantedZ() - feet.z;
+            double sideways = Math.sqrt(dx * dx + dz * dz);
+            helper.assertTrue(
+                    sideways >= FollowSummonerGoal.ORBIT_MIN - 1.0E-9,
+                    "trial " + trial + ": at least " + FollowSummonerGoal.ORBIT_MIN + " blocks sideways, got "
+                            + sideways);
+            helper.assertTrue(dy >= 0.5 - 1.0E-9 && dy <= 1.5 + 1.0E-9, "trial " + trial + ": 0.5-1.5 up, got " + dy);
+            helper.assertTrue(
+                    Math.sqrt(dx * dx + dy * dy + dz * dz) <= FollowSummonerGoal.ORBIT_MAX,
+                    "trial " + trial + ": inside the band's outer edge");
+        }
         helper.succeed();
     }
 

@@ -50,7 +50,7 @@ import org.jspecify.annotations.Nullable;
  * (vanilla's are private classes, docs/api-notes.md §21), the stay flag, the summoner lookup, the prey rule, and the
  * small rules every goal shares: {@link #scanDue} (the clock), {@link #inGuardArea} (the box), {@link #keepsTarget}
  * and {@link #huntable}.
- * Without a summoner online, alive and in its level it idles. The summoner is the {@link AllyAttachments#SUMMONER}
+ * Without a summoner online, alive, in its level and not spectating it idles. The summoner is the {@link AllyAttachments#SUMMONER}
  * mark, so {@code Allies}, {@code GolemMercy} and the Trailing flame already treat it as the summoner's.
  */
 public class BoundVex extends Vex {
@@ -65,6 +65,12 @@ public class BoundVex extends Vex {
 
     /** How far the summoner's wolves hear the call to a fight (spec §3.4), feet to feet. */
     static final double WOLF_CALL_RANGE = 16.0;
+
+    /**
+     * Set by {@link #restoreFrom} on the new copy a cross-dimension teleport makes of a staying vex, and spent by
+     * {@link #onAddedToLevel}. A plain field: the copy is built fresh, so it is false on a chunk load.
+     */
+    private boolean repostOnArrival;
 
     /** The allies found on {@link #alliesTick}; see {@link #alliesInGuardArea}. */
     private List<Mob> alliesCache = List.of();
@@ -126,6 +132,28 @@ public class BoundVex extends Vex {
     protected void readAdditionalSaveData(ValueInput input) {
         super.readAdditionalSaveData(input);
         entityData.set(STAYING, input.getBooleanOr(STAYING_TAG, false));
+    }
+
+    /**
+     * A cross-dimension teleport ({@code Entity.teleport}: a portal, {@code /execute in ... run tp}) builds a new vex
+     * and calls this on it <em>before</em> it has its arrival position (docs/api-notes.md §21), so a staying vex only
+     * records here that its post must be re-posted once it arrives ({@link #onAddedToLevel}): the saved post is the
+     * old dimension's coordinates.
+     */
+    @Override
+    public void restoreFrom(Entity oldEntity) {
+        super.restoreFrom(oldEntity);
+        repostOnArrival = isStaying();
+    }
+
+    /** Re-posts a staying vex that just arrived from another level at the block it arrived in (spec §3.3). */
+    @Override
+    public void onAddedToLevel() {
+        super.onAddedToLevel();
+        if (repostOnArrival) {
+            repostOnArrival = false;
+            setBoundOrigin(blockPosition());
+        }
     }
 
     /** Never removed for being far from players (spec §3.1); Peaceful still removes it through the type. */
@@ -191,7 +219,10 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * The summoner while online, alive and in this vex's level (spec §3.1); empty otherwise, and the vex idles.
+     * The summoner while online, alive, in this vex's level and not a spectator (spec §3.1); empty otherwise, and the
+     * vex idles. A spectator counts as absent, as vanilla pets ignore a spectating owner
+     * ({@code TamableAnimal.unableToMoveToOwner}): twelve visible vexes trailing a spectator would give its position
+     * away.
      *
      * @return the summoner, or empty
      */
@@ -201,7 +232,7 @@ public class BoundVex extends Vex {
         }
         return summonerId()
                 .map(level::getPlayerByUUID)
-                .filter(player -> player instanceof ServerPlayer && player.isAlive())
+                .filter(player -> player instanceof ServerPlayer && player.isAlive() && !player.isSpectator())
                 .map(ServerPlayer.class::cast);
     }
 
@@ -253,14 +284,21 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * Whether a target is worth taking or keeping (spec §3.4): alive, attackable by this vex ({@code Mob.canAttack}:
-     * false for a creative or spectator player, an invulnerable mob or a ghast, the targets {@code setTarget} would
-     * not hold), still prey, and within {@link GuardArea#REACH}. Every target goal's {@code canContinueToUse}, which
-     * replaces {@code TargetGoal}'s and never calls {@code super} (docs/api-notes.md §21), and every target goal's
-     * candidate filter.
+     * Whether a target is worth taking or keeping (spec §3.4): in this vex's level (a summoner's memory can name a
+     * mob it left behind in another dimension, whose raw coordinates may line up), alive, attackable by this vex
+     * ({@code Mob.canAttack}: false for a creative or spectator player, an invulnerable mob or a ghast, the targets
+     * {@code setTarget} would not hold), still prey, and within {@link GuardArea#REACH}. The alive clause is a cheap
+     * guard: {@code canAttack} already implies it for a living target ({@code LivingEntity.canBeSeenByAnyone}). Every
+     * target goal's {@code canContinueToUse}, which replaces {@code TargetGoal}'s and never calls {@code super}
+     * (docs/api-notes.md §21), and every target goal's candidate filter.
      */
     boolean keepsTarget(@Nullable LivingEntity target) {
-        return target != null && target.isAlive() && canAttack(target) && isPrey(target) && withinReach(target);
+        return target != null
+                && target.level().dimension().equals(level().dimension())
+                && target.isAlive()
+                && canAttack(target)
+                && isPrey(target)
+                && withinReach(target);
     }
 
     /** Whether {@code other} is within {@link GuardArea#REACH} of this vex, feet to feet. */
@@ -408,8 +446,9 @@ public class BoundVex extends Vex {
      * {@link #WOLF_CALL_RANGE} that want to attack it ({@code Wolf.wantsToAttack}: never a creeper, a ghast or a
      * player the summoner may not harm) onto it (spec §3.4). "New" means it differs from the target held just before:
      * {@code TargetGoal.canContinueToUse} re-sets the same target on every full tick (docs/api-notes.md §21), and those
-     * re-sets call nobody. A change {@code GolemMercy} cancels, a target {@code getTarget} refuses, and clearing a
-     * target call nobody either.
+     * re-sets call nobody. A target {@code getTarget} refuses, a change any listener cancels
+     * ({@code LivingChangeTargetEvent}; nothing in this mod cancels a Bound Vex's) and clearing a target call nobody
+     * either: the check that the target was really set guards the cancelled change.
      */
     @Override
     public void setTarget(@Nullable LivingEntity target) {

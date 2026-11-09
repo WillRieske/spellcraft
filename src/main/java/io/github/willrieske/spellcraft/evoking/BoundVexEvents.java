@@ -7,38 +7,48 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerRespawnPositionEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 /**
  * Bound Vexes follow their summoner through a dimension change (Evoking II spec §3.3): the living, non-staying ones
  * within {@link #PORTAL_RANGE} blocks of the summoner when the move starts land on ring cells around the summoner when
  * it ends. Two events, because the arrival event no longer knows where the player left (docs/api-notes.md §21): the
- * followers are noted on {@code EntityTravelToDimensionEvent} and moved on {@code PlayerChangedDimensionEvent}. Staying
- * vexes stay; a moved vex is a new entity instance that keeps its mark (an attachment) and its stay flag (saved as
- * NBT). Each follower draws its ring cell on its own, so two may share one (harmless for vexes, which clip). The
- * same class resets the repair goal's claims when the server stops ({@link #onServerStopped}).
+ * followers are noted on {@code EntityTravelToDimensionEvent} and moved on {@code PlayerChangedDimensionEvent}. The
+ * first exit from the End (the credits path) is a respawn, not a teleport, and posts neither of those: the followers
+ * are noted on {@code PlayerRespawnPositionEvent} (the old player, still where it left) and moved on
+ * {@code PlayerRespawnEvent} when it says the End was conquered. A respawn after a death brings nothing. Staying vexes
+ * stay; a moved vex is a new entity instance that keeps its mark (an attachment) and its stay flag (saved as NBT).
+ * Each follower draws its ring cell on its own, so two may share one (harmless for vexes, which clip). The same class
+ * resets the repair goal's claims when the server stops ({@link #onServerStopped}).
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class BoundVexEvents {
     /** How far from the leaving summoner a following vex comes along. */
     public static final double PORTAL_RANGE = 16.0;
 
+    /** The followers of one move: the level they leave and their ids (the level is not known at arrival). */
+    private record Note(ResourceKey<Level> from, List<UUID> vexes) {}
+
     /**
      * Per player changing dimension: the vexes to bring. Transient, like {@code EvokingCaster}'s map: an entry lives
-     * from the travel event to the changed-dimension event of the same {@code ServerPlayer.teleport} call, and logout
-     * and server stop drop it.
+     * from the travel event (or the respawn-position event of the End exit) to the changed-dimension event (or the
+     * respawn event) of the same move, and logout and server stop drop it.
      */
-    private static final Map<UUID, List<UUID>> FOLLOWERS = new HashMap<>();
+    private static final Map<UUID, Note> FOLLOWERS = new HashMap<>();
 
     private BoundVexEvents() {}
 
@@ -54,26 +64,11 @@ public final class BoundVexEvents {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
-        UUID id = player.getUUID();
-        FOLLOWERS.remove(id);
-        ServerLevel level = player.level();
-        if (event.getDimension().equals(level.dimension())) {
+        FOLLOWERS.remove(player.getUUID());
+        if (event.getDimension().equals(player.level().dimension())) {
             return;
         }
-        List<UUID> followers = level
-                .getEntitiesOfClass(
-                        BoundVex.class,
-                        player.getBoundingBox().inflate(PORTAL_RANGE),
-                        vex -> vex.isAlive()
-                                && !vex.isStaying()
-                                && vex.isSummonedBy(id)
-                                && vex.distanceTo(player) <= PORTAL_RANGE)
-                .stream()
-                .map(Entity::getUUID)
-                .toList();
-        if (!followers.isEmpty()) {
-            FOLLOWERS.put(id, followers);
-        }
+        note(player);
     }
 
     /**
@@ -86,21 +81,50 @@ public final class BoundVexEvents {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
-        List<UUID> followers = FOLLOWERS.remove(player.getUUID());
-        ServerLevel to = player.level();
-        ServerLevel from = to.getServer().getLevel(event.getFrom());
-        if (followers == null || from == null) {
+        Note note = FOLLOWERS.remove(player.getUUID());
+        if (note != null) {
+            bring(player, note.vexes(), event.getFrom());
+        }
+    }
+
+    /**
+     * Notes the followers when the player leaves the End through the exit portal for the first time: the credits
+     * path respawns the player ({@code PlayerList.respawn(player, true, ...)}), which posts neither of the two events
+     * above (docs/api-notes.md §21). This event carries the <em>old</em> player, removed from its level but still
+     * holding its level and position, before the new player exists. Last priority, so any other listener's change of
+     * the destination is already in the transition. A respawn after a death (the flag is false) takes no note and
+     * drops a stale one.
+     *
+     * @param event the respawn-position event
+     */
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public static void onRespawnPosition(PlayerRespawnPositionEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
-        RandomSource random = to.getRandom();
-        BlockPos feet = player.blockPosition();
-        for (UUID id : followers) {
-            if (from.getEntities().get(id) instanceof BoundVex vex && vex.isAlive()) {
-                VexRing.Offset offset = VexRing.offset(random.nextInt(VexRing.COUNT));
-                Vec3 spot = Vec3.atCenterOf(feet.offset(offset.dx(), 1, offset.dz()));
-                vex.teleport(new TeleportTransition(
-                        to, spot, Vec3.ZERO, vex.getYRot(), vex.getXRot(), TeleportTransition.DO_NOTHING));
-            }
+        FOLLOWERS.remove(player.getUUID());
+        if (event.isFromEndFight()
+                && !event.getTeleportTransition()
+                        .newLevel()
+                        .dimension()
+                        .equals(player.level().dimension())) {
+            note(player);
+        }
+    }
+
+    /**
+     * Brings the followers noted for the End exit to ring cells around the respawned player.
+     *
+     * @param event the respawn event; only one that says the End was conquered brings anything
+     */
+    @SubscribeEvent
+    public static void onRespawn(PlayerEvent.PlayerRespawnEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) {
+            return;
+        }
+        Note note = FOLLOWERS.remove(player.getUUID());
+        if (note != null && event.isEndConquered()) {
+            bring(player, note.vexes(), note.from());
         }
     }
 
@@ -124,5 +148,50 @@ public final class BoundVexEvents {
     public static void onServerStopped(ServerStoppedEvent event) {
         FOLLOWERS.clear();
         RepairGolemGoal.clearClaims();
+    }
+
+    /**
+     * The one "note" step: the living, non-staying Bound Vexes of {@code player} within {@link #PORTAL_RANGE} of it in
+     * the level it stands in now, kept for {@link #bring}. Replaces the player's earlier note.
+     */
+    private static void note(ServerPlayer player) {
+        UUID id = player.getUUID();
+        ServerLevel level = player.level();
+        List<UUID> followers = level
+                .getEntitiesOfClass(
+                        BoundVex.class,
+                        player.getBoundingBox().inflate(PORTAL_RANGE),
+                        vex -> vex.isAlive()
+                                && !vex.isStaying()
+                                && vex.isSummonedBy(id)
+                                && vex.distanceTo(player) <= PORTAL_RANGE)
+                .stream()
+                .map(Entity::getUUID)
+                .toList();
+        if (!followers.isEmpty()) {
+            FOLLOWERS.put(id, new Note(level.dimension(), followers));
+        }
+    }
+
+    /**
+     * The one "bring" step: each still-living noted vex in {@code from} lands on a ring cell one block up around the
+     * arrived {@code player}.
+     */
+    private static void bring(ServerPlayer player, List<UUID> followers, ResourceKey<Level> fromDimension) {
+        ServerLevel to = player.level();
+        ServerLevel from = to.getServer().getLevel(fromDimension);
+        if (from == null) {
+            return;
+        }
+        RandomSource random = to.getRandom();
+        BlockPos feet = player.blockPosition();
+        for (UUID id : followers) {
+            if (from.getEntities().get(id) instanceof BoundVex vex && vex.isAlive()) {
+                VexRing.Offset offset = VexRing.offset(random.nextInt(VexRing.COUNT));
+                Vec3 spot = Vec3.atCenterOf(feet.offset(offset.dx(), 1, offset.dz()));
+                vex.teleport(new TeleportTransition(
+                        to, spot, Vec3.ZERO, vex.getYRot(), vex.getXRot(), TeleportTransition.DO_NOTHING));
+            }
+        }
     }
 }
