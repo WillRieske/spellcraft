@@ -50,8 +50,8 @@ import org.jspecify.annotations.Nullable;
  * (vanilla's are private classes, docs/api-notes.md §21), the stay flag, the summoner lookup, the prey rule, and the
  * small rules every goal shares: {@link #scanDue} (the clock), {@link #inGuardArea} (the box), {@link #keepsTarget}
  * and {@link #huntable}.
- * Without a summoner online, alive, in its level and not spectating it idles. The summoner is the {@link AllyAttachments#SUMMONER}
- * mark, so {@code Allies}, {@code GolemMercy} and the Trailing flame already treat it as the summoner's.
+ * Without a summoner online, alive, in its level and not spectating it idles. The summoner is the
+ * {@link AllyAttachments#SUMMONER} mark, so {@code Allies}, {@code GolemMercy} and the Trailing flame already treat it as the summoner's.
  */
 public class BoundVex extends Vex {
     /** Synced: whether the vex holds its post instead of following (spec §3.3). */

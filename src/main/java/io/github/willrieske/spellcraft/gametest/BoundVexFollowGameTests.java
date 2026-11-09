@@ -96,6 +96,10 @@ public final class BoundVexFollowGameTests {
                 "bound_vex_staying_vex_reposts_in_another_dimension",
                 BoundVexFollowGameTests::stayingVexRepostsInAnotherDimension);
         FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_portal_leaves_the_vexes_of_a_spectator",
+                BoundVexFollowGameTests::portalLeavesTheVexesOfASpectator);
+        FangGameTests.addPadded(
                 SHARED, "bound_vex_portal_note_skips_a_dying_vex", BoundVexFollowGameTests::portalNoteSkipsADyingVex);
         FangGameTests.addPadded(
                 SHARED,
@@ -557,6 +561,33 @@ public final class BoundVexFollowGameTests {
         helper.assertTrue(copy.isStaying(), "still staying in the new dimension");
         helper.assertFalse(post.equals(copy.getBoundOrigin()), "the post is not the old dimension's " + post);
         helper.assertValueEqual(copy.getBoundOrigin(), copy.blockPosition(), "the post is where it arrived");
+        helper.succeed();
+    }
+
+    /**
+     * When a spectating summoner changes dimension (the travel and changed-dimension events), should leave its following
+     * vex behind: a spectator counts as absent (spec §3.1). Back in survival, the same two events bring it (the
+     * control).
+     *
+     * <p>Method under test: {@link BoundVexEvents#onTravel}: the spectator rule of the shared note
+     */
+    static void portalLeavesTheVexesOfASpectator(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = parked(helper, FEET.north(8), player);
+        Vec3 start = vex.position();
+        player.setGameMode(GameType.SPECTATOR);
+
+        // Act
+        noteThenArrive(player, () -> {});
+
+        // Assert
+        helper.assertTrue(
+                vex.position().distanceTo(start) < 0.01,
+                "a spectator's vex is not brought, moved " + vex.position().distanceTo(start));
+        player.setGameMode(GameType.SURVIVAL);
+        noteThenArrive(player, () -> {});
+        helper.assertTrue(vex.position().distanceTo(start) > 2.0, "control: in survival the vex is brought");
         helper.succeed();
     }
 

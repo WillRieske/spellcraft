@@ -155,6 +155,9 @@ public final class BoundVexEvents {
      * the level it stands in now, kept for {@link #bring}. Replaces the player's earlier note.
      */
     private static void note(ServerPlayer player) {
+        if (player.isSpectator()) {
+            return; // a spectating summoner counts as absent (spec §3.1): nothing follows it
+        }
         UUID id = player.getUUID();
         ServerLevel level = player.level();
         List<UUID> followers = level
