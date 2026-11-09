@@ -63,7 +63,9 @@ public final class FleeCreeperGoal extends Goal {
      * Aims for the point {@link #SAFE_DISTANCE} + 1 blocks from the creeper, straight away from it, at the vex's
      * height, and stops steering once the vex is {@link #SAFE_DISTANCE} away. The extra block is deliberate: the move
      * control treats a spot within the vex's own size as reached, so aiming one block past the safe distance lets the
-     * vex coast to at least the safe distance rather than stopping short of it.
+     * vex coast to at least the safe distance rather than stopping short of it. The stop at the safe distance is
+     * defensive and untested: without it the vex keeps steering to the spot one block farther and ends there, which no
+     * test can tell apart from where the stop leaves it.
      */
     @Override
     public void tick() {
