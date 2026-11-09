@@ -3,8 +3,6 @@ package io.github.willrieske.spellcraft.spell.rules;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.github.willrieske.spellcraft.spell.rules.FangSquare.Cell;
-import java.util.List;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,6 +27,21 @@ class FangSquareTest {
             assertThat(square.maxDx()).isEqualTo(6);
             assertThat(square.minDz()).isEqualTo(-12);
             assertThat(square.maxDz()).isEqualTo(0);
+        }
+
+        /**
+         * When the caster faces south (yaw 0), of should put the square's center 6 blocks south, so its south edge
+         * lies 12 blocks away (F1).
+         *
+         * <p>Method under test: {@link FangSquare#of(double)}
+         */
+        @Test
+        void facingSouthPutsTheSouthEdgeTwelveBlocksAway() {
+            // Act
+            FangSquare square = FangSquare.of(0);
+            // Assert
+            assertThat(square.minDz()).isZero();
+            assertThat(square.maxDz()).isEqualTo(12);
         }
 
         /**
@@ -122,40 +135,19 @@ class FangSquareTest {
     }
 
     @Nested
-    class Cells {
+    class Size {
         /**
-         * When the cells are listed, there should be 168 distinct cells inside the square and none at the caster's
-         * block (F5).
+         * When the square faces north, its edges should span exactly SIZE blocks on both axes.
          *
-         * <p>Method under test: {@link FangSquare#cells()}
+         * <p>Method under test: {@link FangSquare#minDx()}, {@link FangSquare#maxDz()}
          */
         @Test
-        void listsEveryCellButTheCasters() {
-            // Arrange
-            FangSquare square = FangSquare.of(-135);
-            // Act
-            List<Cell> cells = square.cells();
-            // Assert
-            assertThat(cells).hasSize(FangSquare.CELL_COUNT).doesNotHaveDuplicates();
-            assertThat(cells).noneMatch(cell -> cell.dx() == 0 && cell.dz() == 0);
-            assertThat(cells).allMatch(cell -> square.contains(cell.dx(), cell.dz()));
-        }
-
-        /**
-         * When the cells are listed, each delay should be the Chebyshev distance from the caster minus one: 0 next to
-         * the caster, 11 at the far corner (F6).
-         *
-         * <p>Method under test: {@link FangSquare#cells()}
-         */
-        @Test
-        void delaysRippleOutward() {
+        void aNorthFacingSquareSpansSizeBlocksOnBothAxes() {
             // Arrange
             FangSquare square = FangSquare.of(180);
-            // Act
-            List<Cell> cells = square.cells();
-            // Assert
-            assertThat(cells)
-                    .contains(new Cell(0, -1, 0), new Cell(1, 0, 0), new Cell(-6, -12, 11), new Cell(6, -12, 11));
+            // Act & Assert
+            assertThat(square.maxDx() - square.minDx() + 1).isEqualTo(FangSquare.SIZE);
+            assertThat(square.maxDz() - square.minDz() + 1).isEqualTo(FangSquare.SIZE);
         }
     }
 

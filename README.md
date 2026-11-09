@@ -9,15 +9,19 @@ A NeoForge mod for Minecraft that adds spells cast from scrolls. It has four:
   limit; only death or `/effect clear` removes it. If you die with Infinity, you keep your hotbar,
   main inventory and offhand through respawn (armor and XP are lost).
 - <img src="src/main/resources/assets/spellcraft/textures/item/trailing_scroll.png" alt="" width="24" height="24"> **Strength of Trailing**: for eight minutes (configurable) you leave soul fire on most solid blocks
-  you step off. It never hurts you, spares your allies (your team, your pets, your own vexes) while you are in the
-  same dimension, and burns everything else; it spreads to nothing and lights no TNT. The trail is a fuse: the oldest flame goes out once a
+  you step off. It never hurts you, spares your allies (your team, your pets, your own vexes, villagers, wandering traders) while you are in the
+  same dimension, never burns an iron golem, and burns everything else; it spreads to nothing and lights no TNT. The trail is a fuse: the oldest flame goes out once a
   second (every two seconds over soul sand or soul soil), so it burns back toward you when you stop.
-- <img src="src/main/resources/assets/spellcraft/textures/item/evoking_scroll.png" alt="" width="24" height="24"> **Strength of Evoking**: an evoker's powers, with no time limit. Press **F** to raise your arms
-  and, a second later, carpet the 13×13 square ahead of you with evoker fangs (every block but your
-  own; the square turns with you). Press **V** to call three vexes to your side for 30–120 s. Fangs and
-  vexes spare you and your allies (your team, your pets, your own vexes) and hurt everything else; the
-  vexes attack whatever comes within five blocks of them. The keys rebind in Controls; while Evoking is
-  on, F casts instead of swapping hands. Sneak + scroll or milk turns it off.
+- <img src="src/main/resources/assets/spellcraft/textures/item/evoking_scroll.png" alt="" width="24" height="24"> **Strength of Evoking**: an evoker's powers, with no time limit. Press **Y** to raise your arms
+  and, a second later, make evoker fangs rise under every enemy in the 13×13 square ahead of you (a
+  big mob that covers several blocks gets one fang under each block; enemies up to 14 blocks below
+  you and 6 above count). An enemy that steps off its block before the bite gets one more fang
+  under its new spot. Press **V** to call three vexes to your side for 30–120 s. Fangs and vexes
+  spare you and your allies (your team, your pets, your own vexes, villagers, wandering traders, and
+  iron golems that are not mad at you) and hurt everything else; the vexes attack whatever comes
+  within five blocks of them. You, your pets, your fangs and your vexes cannot take an iron golem
+  below 25 health; when it gets that low, it calms down and stops being mad at you. The keys rebind
+  in Controls. Sneak + scroll or milk turns it off.
 
 Each scroll is single-use. Scribe one by putting paper and lapis in an enchanting table: you get
 a random scroll, and more lapis raises the odds of an extreme-tier spell. Creative players can

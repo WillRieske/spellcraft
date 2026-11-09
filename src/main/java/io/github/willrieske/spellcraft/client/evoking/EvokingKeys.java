@@ -17,24 +17,29 @@ import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import net.neoforged.neoforge.client.settings.KeyConflictContext;
 
 /**
- * The two casting keys (spec §2, §7). A press while the local player has Evoking sends an {@link EvokingRequest};
- * the server decides what it does. While Evoking is on, a casting key bound to the same key as vanilla's
- * swap-offhand (either of the two, if the user rebinds) swallows the swap: {@code ClientTickEvent.Pre} runs before
- * {@code Minecraft.handleKeybinds}, so clicks consumed here never reach it (docs/api-notes.md §19). The swallow rule:
- * the swap-offhand clicks are drained only on a tick where a casting key that is bound to the same key as swap
- * consumed at least one click, so with Fangs rebound to Shift+F a plain F press still swaps.
+ * The two casting keys (Evoking spec §2, §7; Evoking II §2.1). A press while the local player has Evoking sends an
+ * {@link EvokingRequest}; the server decides what it does. Fangs default to Y (an unbound key in vanilla) and vexes to
+ * V. While Evoking is on, a casting key bound to the same key as vanilla's swap-offhand (either of the two, if the
+ * user rebinds one to F) swallows the swap: {@code ClientTickEvent.Pre} runs before {@code Minecraft.handleKeybinds},
+ * so clicks consumed here never reach it (docs/api-notes.md §19). The swallow rule: the swap-offhand clicks are
+ * drained only on a tick where a casting key that is bound to the same key as swap consumed at least one click, so
+ * with Fangs rebound to Shift+F a plain F press still swaps. With the defaults it never fires.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID, value = Dist.CLIENT)
 public final class EvokingKeys {
     /** The "spellcraft:spells" controls category both casting keys are listed under. */
     public static final KeyMapping.Category CATEGORY = new KeyMapping.Category(Spellcraft.id("spells"));
 
-    /** Default F: vanilla's swap-offhand key, taken over only while Evoking is on. */
+    /**
+     * Default Y (scancode 28; no vanilla binding uses it, docs/api-notes.md §20). Named {@code fangs_y} rather than
+     * {@code fangs} so a saved {@code options.txt} from round one, which pinned the old name to F, falls back to the new
+     * default: vanilla stores bindings by mapping name.
+     */
     public static final KeyMapping FANGS = new KeyMapping(
-            "key.spellcraft.fangs",
+            "key.spellcraft.fangs_y",
             KeyConflictContext.IN_GAME,
             InputConstants.Type.KEYBOARD,
-            InputConstants.KEY_F,
+            InputConstants.KEY_Y,
             CATEGORY);
 
     /** Default V: vanilla's F3-chord debug key, which needs F3 held. */

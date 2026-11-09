@@ -31,7 +31,7 @@ fades trails and remembers who owns each flame.
 | **Owner** | The player who laid a flame. Known for every flame the world remembers. |
 | **Orphan** | A trail fire block with no owner (placed by `/setblock`, or left after lost data). |
 | **Stale flame** | A flame whose turn to fade came while its chunk was not ready. The ledger keeps its owner and puts it out the next tick its chunk is ready (`getChunkNow` returns it). |
-| **Spared** | What a flame does for its owner and the owner's allies: `entityInside` applies no fire and no damage to them (`TrailFires.isSpared`). |
+| **Spared** | What a flame does for its owner and the owner's allies: `entityInside` applies no fire and no damage to them (`TrailFires.isSpared`). Iron golems are always spared, angry or not (Evoking II §2.3, [`2026-11-07-evoking-ii-design.md`](2026-11-07-evoking-ii-design.md)). |
 | **Dead entry** | A flame a trail (or the stale list) still lists although the index gives its spot to another owner. Its turn is a no-op and the save drops it. |
 | **Ally** | Since 2026-11-06, what [`2026-11-06-evoking-design.md`](2026-11-06-evoking-design.md) §3 says (`Allies.isAllyOf`): vanilla's `Entity.isAlliedTo` (the same scoreboard team, a tamed animal whose owner is the player, an allay that likes the player), plus a mob the player summoned and any other `OwnableEntity` the player owns. |
 | **Fuse** | How a trail behaves: the oldest flame goes out first, the rest wait their turn. |

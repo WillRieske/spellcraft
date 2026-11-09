@@ -54,3 +54,11 @@ f03724d Evoking Task 3 (FangSquare, VexRing, EvokerPose): 28 unit tests + Archit
 b4192c4 Evoking review fixes (1 Important, 26 Minor): build green 253 unit tests; runGameTestServer all 139 required passed; icon tests 7; pitest 98% (229/233); re-review clean
 c1ac7f3 Evoking deep review fixes (3 Important, 16 Minor; 5 mutation probes): build green 253 unit tests; runGameTestServer all 146 required passed; runData exit 0 (EvokingArmPoseCheck subscribed); pure core untouched, pitest row unchanged
 98e13b5 Evoking deep-review re-review fix (5 Minor): build green 253 unit tests; runGameTestServer all 146 required passed; plan_map --check 0; markdownlint clean
+edebf41 Task 1 done (api-notes §20); markdownlint passed, no tests in scope
+f4e5a84 Task 2 done (FangFootprints): 11 focused tests pass; full build green (gate)
+18fbc02 Task 3 done (GolemMercyRule): 26 focused test runs pass; full build green (gate)
+6fd018f Task 4 done (fangs on Y): SpellAssetsTest 17/17; runData exit 0; full build green (gate)
+9cb7f71 Task 5 done (fangs under targets, chase): build green; runGameTestServer all 153 required passed; FangSquare properties restored in a fix round
+14b2545 Task 6 done (new allies, trail spares golems): build green; runGameTestServer all 156 required passed
+3401186 Task 7 done (golem mercy): build green; runGameTestServer 160 tests none failed
+b1aefe8 Task 8 done (docs, pitest 98% 247/251, minors closed); plan complete; backstop build green

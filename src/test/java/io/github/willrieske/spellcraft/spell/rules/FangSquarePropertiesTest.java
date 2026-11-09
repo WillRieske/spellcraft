@@ -2,8 +2,6 @@ package io.github.willrieske.spellcraft.spell.rules;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.willrieske.spellcraft.spell.rules.FangSquare.Cell;
-import java.util.List;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Group;
 import net.jqwik.api.Property;
@@ -53,34 +51,6 @@ class FangSquarePropertiesTest {
         @Property
         void aFullTurnChangesNothing(@ForAll @DoubleRange(min = -360, max = 360) double yaw) {
             assertThat(FangSquare.of(yaw + 360)).isEqualTo(FangSquare.of(yaw));
-        }
-    }
-
-    // jqwik refuses static @Group classes, so ClassCanBeStatic cannot apply.
-    @Group
-    @SuppressWarnings("ClassCanBeStatic")
-    class Cells {
-        /**
-         * For any yaw, cells should hold 168 distinct cells, all inside the square (which includes the caster's
-         * block), none at the caster's block, each delayed by its Chebyshev distance from the caster minus one (0 to
-         * 11).
-         *
-         * <p>Method under test: {@link FangSquare#cells()}
-         */
-        @Property
-        void cellsCoverTheSquareButTheCastersBlock(@ForAll @DoubleRange(min = -720, max = 720) double yaw) {
-            // Arrange
-            FangSquare square = FangSquare.of(yaw);
-            // Act
-            List<Cell> cells = square.cells();
-            // Assert
-            assertThat(square.contains(0, 0)).isTrue();
-            assertThat(cells).hasSize(FangSquare.CELL_COUNT).doesNotHaveDuplicates();
-            assertThat(cells).allMatch(cell -> square.contains(cell.dx(), cell.dz()));
-            assertThat(cells).noneMatch(cell -> cell.dx() == 0 && cell.dz() == 0);
-            assertThat(cells)
-                    .allMatch(cell -> cell.delayTicks() == Math.max(Math.abs(cell.dx()), Math.abs(cell.dz())) - 1
-                            && cell.delayTicks() <= 11);
         }
     }
 }
