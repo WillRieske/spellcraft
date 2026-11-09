@@ -4307,7 +4307,7 @@ Then `git log -1 --oneline` shows the commit. If the sweep changed a Java Javado
 ## Resume State
 
 - Last completed task: Task 7: Docs, playtest items, mutation testing
-- Commit SHA: 1a40c79
+- Commit SHA: ead0acc
 - Checkboxes: 34/56 ticked (`count_boxes`; the other 22 are sample checklist lines inside Task 7's fenced blocks, so `checkbox_counts` reads 34/34 complete)
 - Next task: none (plan complete)
-- Known-failing tests / caveats: branch `feat/evoking-ii-part-2` is stacked on `feat/evoking-ii-part-1` (draft PR WillRieske/spellcraft#3) and nothing is pushed yet; plan-end backstop at this SHA: build green, `All 215 required tests passed`; `bound_vex_follows_again_after_stay` flaked twice in about ten runs during Tasks 5-6 (cause unproven; the follow-only tests now run without target goals and its failure message dumps the vex state), 35+ clean runs since; deferred task-review minors are in the SDD ledger for `/review-will` to triage; visual and feel checks are Will's (`docs/playtest-checklist.md`, Evoking II (Part 2))
+- Known-failing tests / caveats: branch `feat/evoking-ii-part-2` is stacked on `feat/evoking-ii-part-1` (draft PR WillRieske/spellcraft#3); after the plan, `/review-will` (fast, four slices) found 0 Critical, 5 Important and 30 Minor findings; all were fixed in four waves (`e66ffd5`..`ead0acc`: no XP, `BoundVex.huntable` for the patrol and ally goals, the stay-and-follow flake's cause, reach/cleanup/memory tests, the GameTests split into four area classes, docs and spec) except M6's `mob != this` (kept the UUID compare by project rule), and two scoped re-reviews passed; GameTests now total 226; visual and feel checks are Will's (`docs/playtest-checklist.md`, Evoking II (Part 2))
