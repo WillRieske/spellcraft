@@ -2,6 +2,7 @@ package io.github.willrieske.spellcraft;
 
 import io.github.willrieske.spellcraft.config.ServerConfig;
 import io.github.willrieske.spellcraft.effect.ModEffects;
+import io.github.willrieske.spellcraft.evoking.ModEntities;
 import io.github.willrieske.spellcraft.gametest.SpellcraftGameTests;
 import io.github.willrieske.spellcraft.infinity.InfinityAttachments;
 import io.github.willrieske.spellcraft.particle.ModParticles;
@@ -30,6 +31,7 @@ public final class Spellcraft {
         ModEffects.MOB_EFFECTS.register(modEventBus);
         ModParticles.PARTICLE_TYPES.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
+        ModEntities.ENTITIES.register(modEventBus);
         InfinityAttachments.ATTACHMENT_TYPES.register(modEventBus);
         ModBlocks.BLOCKS.register(modEventBus);
         TrailingAttachments.ATTACHMENT_TYPES.register(modEventBus);

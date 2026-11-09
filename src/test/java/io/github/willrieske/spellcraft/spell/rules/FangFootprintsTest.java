@@ -105,7 +105,8 @@ class FangFootprintsTest {
         }
 
         /**
-         * When a coordinate is NaN, infinite or outside the int range, or max is below min, columns should throw.
+         * When a coordinate is NaN, infinite or outside the int range (the int maximum itself counts as outside), or
+         * max is below min, columns should throw.
          *
          * <p>Method under test: {@link FangFootprints#columns(double, double, double, double)}
          */
@@ -119,7 +120,9 @@ class FangFootprintsTest {
             "0, 2, 1, 1",
             "0, 0, 1E10, 1",
             "-1E10, 0, 1, 1",
-            "0, 0, 1, 2147483648"
+            "0, 0, 1, 2147483648",
+            "0, 0, 2147483647, 1",
+            "-2147483647, 0, 1, 1"
         })
         void rejectsNonFiniteOutOfRangeOrInvertedBoxes(double minX, double minZ, double maxX, double maxZ) {
             assertThatThrownBy(() -> FangFootprints.columns(minX, minZ, maxX, maxZ))

@@ -4,8 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Where summoned vexes appear and how long they live (spec §6): the 40 cells whose Chebyshev distance from the
- * caster's block is 2 or 3, and the evoker's life formula.
+ * Where summoned vexes appear (spec §6): the 40 cells whose Chebyshev distance from the caster's block is 2 or 3.
  */
 public final class VexRing {
     /** The nearest a vex spawns, per axis. */
@@ -19,12 +18,6 @@ public final class VexRing {
 
     /** How many vexes one cast summons. */
     public static final int SUMMON_COUNT = 3;
-
-    /** The exclusive bound of the life roll: {@code lifeTicks} takes 0 … 89. */
-    public static final int LIFE_ROLL_BOUND = 90;
-
-    private static final int TICKS_PER_SECOND = 20;
-    private static final int MIN_LIFE_SECONDS = 30;
 
     /**
      * A spawn cell, relative to the caster's block.
@@ -65,19 +58,5 @@ public final class VexRing {
             throw new IllegalArgumentException("index must be 0-" + (COUNT - 1) + ", got " + index);
         }
         return OFFSETS.get(index);
-    }
-
-    /**
-     * The evoker's life for a vex: {@code 20 · (30 + roll)} ticks, 30 s to 119 s, for a roll in {@code 0 … 89}.
-     *
-     * @param roll the life roll, 0 up to but not including {@link #LIFE_ROLL_BOUND}
-     * @return the vex's life in ticks
-     * @throws IllegalArgumentException if the roll is outside 0 … {@code LIFE_ROLL_BOUND − 1}
-     */
-    public static int lifeTicks(int roll) {
-        if (roll < 0 || roll >= LIFE_ROLL_BOUND) {
-            throw new IllegalArgumentException("roll must be 0-" + (LIFE_ROLL_BOUND - 1) + ", got " + roll);
-        }
-        return TICKS_PER_SECOND * (MIN_LIFE_SECONDS + roll);
     }
 }

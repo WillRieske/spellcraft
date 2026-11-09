@@ -62,31 +62,4 @@ class VexRingTest {
             assertThatThrownBy(() -> VexRing.offset(VexRing.COUNT)).isInstanceOf(IllegalArgumentException.class);
         }
     }
-
-    @Nested
-    class LifeTicks {
-        /**
-         * When the roll is 0 or 89, lifeTicks should give the evoker's 30 s and 119 s (20 · (30 + roll)).
-         *
-         * <p>Method under test: {@link VexRing#lifeTicks(int)}
-         */
-        @Test
-        void followsTheEvokersFormula() {
-            // Act & Assert
-            assertThat(VexRing.lifeTicks(0)).isEqualTo(600);
-            assertThat(VexRing.lifeTicks(89)).isEqualTo(2380);
-        }
-
-        /**
-         * When the roll is outside 0…89, lifeTicks should throw.
-         *
-         * <p>Method under test: {@link VexRing#lifeTicks(int)}
-         */
-        @Test
-        void rejectsRollsOutsideTheBound() {
-            // Act & Assert
-            assertThatThrownBy(() -> VexRing.lifeTicks(-1)).isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(() -> VexRing.lifeTicks(90)).isInstanceOf(IllegalArgumentException.class);
-        }
-    }
 }

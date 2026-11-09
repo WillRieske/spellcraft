@@ -64,18 +64,22 @@ import net.neoforged.neoforge.network.connection.ConnectionType;
  * Fang GameTests for Strength of Evoking (spec §9, table E1–E7, E13–E18, E19 for the real tick subscriber, E21 for
  * the request codec and E22 for the server stop) and Evoking II Part 1 (the {@code fangs_ii_*} tests: fangs only under
  * targets, the 14-down scan and the chase fang), driven through the public {@link EvokingCaster#request}. A mock
- * player is never ticked by the server (docs/api-notes.md §19), so the tests drive the caster with {@link #step}
- * inside each delayed callback, and E19 posts the player-tick event itself. Every test that places fangs registers
- * with padding 13 and {@link #PADDED_MAX_TICKS} (the body's 200 ticks plus the wait for the padded chunks; its padded
- * box is cleared to air, so {@link #floor} lays stone under the square). The caster stands at {@link #FEET}, the
- * structure's middle; targets are pigs or a ravager (zombies burn in daylight; a calm iron golem is an ally).
+ * player gets no player tick from the server (docs/api-notes.md §19: no player-tick event, no effect countdown),
+ * so the tests drive the caster with {@link #step} inside each delayed callback, and E19 posts the player-tick
+ * event itself. Every test that places fangs registers with padding 13 and {@link #PADDED_MAX_TICKS} (the body's 200
+ * ticks plus the wait for the padded chunks; its padded box is cleared to air, so {@link #floor} lays stone under the
+ * square). The caster stands at {@link #FEET}, the structure's middle; targets are pigs or a ravager (zombies burn in
+ * daylight; a calm iron golem is an ally).
  */
 public final class FangGameTests {
     /** The caster's block (relative): the middle of the 3×3×3 structure, one above its floor layer. */
     static final BlockPos FEET = new BlockPos(1, 1, 1);
 
     private static final Vec3 STAND = new Vec3(1.5, 1, 1.5);
-    private static final float NORTH = 180.0F;
+
+    /** The yaw a caster faces to look north; the vex GameTests share it. */
+    static final float NORTH = 180.0F;
+
     private static final float NORTH_EAST = -135.0F;
     private static final int WARMUP = EvokerSpell.WARMUP_TICKS;
     private static final int LONG = 200;
@@ -145,7 +149,7 @@ public final class FangGameTests {
     }
 
     /**
-     * Steps the caster as the server's player tick would: a mock player is never ticked (docs/api-notes.md §19).
+     * Steps the caster as the server's player tick would: a mock player gets no player tick (docs/api-notes.md §19).
      *
      * @param player the mock player to step
      */

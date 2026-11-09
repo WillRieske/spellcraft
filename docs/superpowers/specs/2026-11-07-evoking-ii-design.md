@@ -1,7 +1,8 @@
 # Spellcraft: Evoking II, Bound Vexes (design)
 
 **Date:** 2026-11-07
-**Status:** plan written (`2026-11-07-evoking-ii-part-1.md`); phase 2 plan not yet written
+**Status:** plan written (`2026-11-08-evoking-ii-part-2.md`); phase 3 plan not yet written
+<!-- child-plans: 2026-11-07-evoking-ii-part-1.md, 2026-11-08-evoking-ii-part-2.md -->
 **Shape:** built in seven parts (§1), each with its own plan, branch and PR
 **Written by:** brainstorm with Will on 2026-11-07; §13 lists the decisions Will did not state
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
@@ -42,8 +43,8 @@ The work is split into seven parts, built in order, each small enough for one pl
 | **Bound Vex** | `spellcraft:bound_vex`, this mod's own mob, a subclass of vanilla `Vex`. What **V** summons from now on. Carries the **summoner** attachment. |
 | **Summoner** | The player who summoned a Bound Vex (attachment `spellcraft:summoner`, from the Evoking spec). "You" in this document. |
 | **Ally** | What `Allies.isAllyOf(player, entity)` says: vanilla's allies (team, pets, allays), the player's summons and owned mobs, and now villagers, wandering traders and iron golems (§2.3). |
-| **Hostile** | A mob that implements `Enemy` (every `Monster`, slimes, ghasts, phantoms, shulkers, the dragon, the wither). Creepers are hostile but Bound Vexes skip them unless provoked (§3.4). |
-| **Guard area** | The box around a Bound Vex in which it looks for hostiles: 8 × 8 × 7 blocks (±4 east/west, ±4 north/south, ±3.5 up/down). |
+| **Hostile** | A mob that implements `Enemy` (every `Monster`, slimes, ghasts, phantoms, shulkers, the dragon, the wither). Creepers are hostile but Bound Vexes skip them unless provoked (§3.4), and so are another player's summons (§3.4). |
+| **Guard area** | The box around a Bound Vex in which it looks for hostiles: 8 × 8 × 7 blocks (±4 east/west, ±4 north/south, ±3.5 up/down), measured from the vex's feet. An entity is in it when its feet are, faces included. |
 | **Reach** | 7.25 blocks: how far a Bound Vex keeps a chosen target before it gives up on it, and its `FOLLOW_RANGE`. |
 | **Staying** | A Bound Vex told to hold its spot (empty-hand right-click toggles it). It still fights in its guard area but does not follow. |
 | **Conjured gear** | Items a Bound Vex pulls out by itself (team moves, the cure, the bribe, repairs). They vanish when their job is done, cannot be taken, and never drop. |
@@ -165,31 +166,40 @@ Bound Vex is its own type.
 ### 3.1 The mob
 
 `io.github.willrieske.spellcraft.evoking.BoundVex extends Vex`. `Vex` is a public, non-final class
-with a public constructor (`Vex.java:47,57`), so subclassing is clean: the move control, the charge
-and wander goals, the no-clip flight and the vex model are inherited. What changes:
+with a public constructor (`Vex.java:47,57`), so subclassing is clean: the move control, the no-clip
+flight and the vex model are inherited. Vanilla's vex goals are private inner classes
+(`Vex.java:222,280,299,329`), so `BoundVex` does not call `super.registerGoals()` and has its own
+copies of the charge and wander goals. What changes:
 
 - **Registration:** `ModEntities.BOUND_VEX` (`DeferredRegister<EntityType<?>>`,
   `EntityType.Builder.of(BoundVex::new, MobCategory.MONSTER).sized(0.4F, 0.8F)` with vex's
-  tracking settings), attributes = `Vex.createAttributes()` with `FOLLOW_RANGE` 7.25, registered in
+  tracking settings and `notInPeaceful()`), attributes = `Vex.createAttributes()` with `FOLLOW_RANGE` 7.25, registered in
   `EntityAttributeCreationEvent`. `MobCategory.MONSTER` keeps vanilla's hostile-mob bookkeeping (it
   is still a monster to golems and villagers, handled in §2.3).
-- **No spawn egg, no natural spawn, no loot table** (it drops only gear, §4.5). Will asked for no
+- **No spawn egg, no natural spawn, no loot table and no experience** (it drops only gear, §4.5;
+  `xpReward` is 0, since summon-and-kill would farm 3 XP per vex). Will asked for no
   egg; `/summon spellcraft:bound_vex` works for testing and sets no summoner, so such a vex idles.
 - **No timer:** `BoundVex` never calls `setLimitedLife`; `Vex.tick` only counts down when
   `hasLimitedLife` is true (`Vex.java:79`). `removeWhenFarAway` returns false and
   `requiresCustomPersistence` returns true, so it never despawns.
 - **Summoner:** the attachment from round one. `summoner()` returns `Optional<ServerPlayer>`
-  (online, same level). Without a summoner the vex idles: hovers, fights nothing (§3.4 needs the
-  summoner to compute allies), takes no interactions but still shows its gear.
-- **Synced data:** `STAYING` (boolean), `CASTER` (boolean, §9.1), `TEAM_MOVE` (byte, §8).
-- **Renderer:** `BoundVexRenderer extends VexRenderer`, same texture and model in Part 2 (the armor
-  layer comes in Part 3), registered in `EntityRenderersEvent.RegisterRenderers`
-  (`client.evoking`).
+  (online, alive, same level, not a spectator: as vanilla pets ignore a spectating owner, a
+  spectating summoner counts as absent, so its vexes neither follow nor fight nor come through a
+  portal until it plays again). Without a summoner the vex idles: hovers, fights nothing (§3.4 needs
+  the summoner to compute allies), takes no interactions but still shows its gear.
+- **Synced data:** each part adds the flag it first reads: `STAYING` (boolean, Part 2; also saved
+  as NBT, because a cross-dimension teleport makes a new entity that copies the save but not the
+  synced data), `TEAM_MOVE` (byte, §8, Part 6), `CASTER` (boolean, §9.1, Part 7).
+- **Renderer:** Part 2 registers vanilla's `VexRenderer::new` directly for the type, in
+  `client.evoking.BoundVexRenderers` (`EntityRenderersEvent.RegisterRenderers`): same texture and
+  model. Part 3 adds the `BoundVexRenderer extends VexRenderer` subclass with the armor layer (§4).
 - **`VexSummons.summon`** creates `ModEntities.BOUND_VEX` instead of `EntityTypes.VEX`, keeps the
   ring offsets, `finalizeSpawn` (iron sword), bound origin, team join, and drops the
   `setLimitedLife` line and the `onJoin` goal install (goals are the class's own now). `isPrey`
-  becomes `BoundVex.isPrey` (§3.4). `EvokingCaster.request(VEXES)` on Peaceful: unchanged; a
-  `Monster` subclass still refuses to spawn on Peaceful via `EntityType.create`.
+  becomes `BoundVex.isPrey` (§3.4). `EvokingCaster.request(VEXES)` on Peaceful: refused as before,
+  now by reading `ModEntities.BOUND_VEX.get().canSpawn(level)`. The type's `notInPeaceful()` flag
+  (`EntityType.java:653`) is what makes `create` refuse on Peaceful and `Mob.checkDespawn` remove
+  one already out (`Mob.java:715-716`); a `Monster` built without it would live on Peaceful.
 
 ### 3.2 The cap of twelve
 
@@ -206,28 +216,48 @@ v -> summoner matches)`; unloaded vexes are not counted, accepted §13).
 
 Goals (goal selector, in priority order; the target selector is §3.4):
 
-0. `FleeCreeperGoal` (§3.5) and `DodgeGolemGoal` (§3.6).
-1. `TeamMoveGoal` (Part 6, a no-op until then).
-2. The job goals of later parts (cure §5.1, bribe §5.2, repair §3.7, world helpers §6).
-3. `Vex.VexChargeAttackGoal` (vanilla, inherited; also drives melee with given weapons).
+0. `FleeCreeperGoal` (§3.5) and `DodgeGolemGoal` (§3.6), then vanilla's `FloatGoal`.
+1. `TeamMoveGoal` (added by Part 6, which reads it; no placeholder before then).
+2. The job goals of later parts (cure §5.1, bribe §5.2, repair §3.7, world helpers §6). Each job
+   claims its subject (golem, zombie villager, evoker's vex) in a claim map keyed by the subject
+   that **frees itself when the claiming vex is gone** (dead, removed or unloaded): a goal's `stop`
+   never runs then, so the map checks whether the claimant is still alive instead of trusting
+   `stop` to release it.
+3. A copy of vanilla's charge goal (`Vex.VexChargeAttackGoal` is private; also drives melee with
+   given weapons).
 4. `FollowSummonerGoal`: when not staying and no target, hover within an orbit band of the summoner
    (default 2–4 blocks, §6 tightens it per dimension); when farther than **12 blocks**, teleport to
    a free cell within 2 blocks of the summoner (vexes clip through blocks, so any air cell works).
-   It also remembers the summoner's **last ground position** (the last block the summoner stood on
-   with `onGround()`), used by the void rescue (§6.3).
-5. `Vex.VexRandomMoveGoal` (vanilla wander around the bound origin) **only while staying**: the
-   bound origin is set to the stay position when stay is toggled on, so a staying vex drifts around
-   its post.
-6. `LookAtPlayerGoal`, `RandomLookAroundGoal` (vanilla).
+   Part 5 adds the summoner's **last ground position** (the last block the summoner stood on with
+   `onGround()`), used by the void rescue (§6.3).
+5. A copy of vanilla's wander goal (`Vex.VexRandomMoveGoal`, around the bound origin) **only while
+   staying**: the bound origin is set to the stay position when stay is toggled on, so a staying vex
+   drifts around its post. A staying vex that changes dimension (only a command or a vehicle can do
+   that: a vex never enters a portal itself) re-posts at the block where it arrives, since the
+   saved post is the old dimension's coordinates.
+6. Vanilla's two `LookAtPlayerGoal`s, as `Vex.registerGoals` has them (no `RandomLookAroundGoal`).
 
 **Stay/follow toggle:** `mobInteract` with an empty main hand and no sneak toggles `STAYING`; a
-small sound (`VEX_AMBIENT`) and `InteractionResult.SUCCESS`. Sneak + empty hand is Part 3 (§4.4).
-Interactions are accepted only from the summoner.
+small sound (`VEX_AMBIENT`). Sneak + empty hand is Part 3 (§4.4). Interactions are accepted only
+from the summoner. The answer is `InteractionResult.SUCCESS_SERVER` on both sides: the client does
+not know the summoner (the mark is not synced) but must answer a success for every unsneaked
+empty-main-hand click, because `Minecraft.startUseItem` falls through to the off-hand item on
+`PASS` (a pearl would be thrown on every toggle). The server alone checks the summoner and answers
+`PASS` for anyone else.
 
-**Portals:** `PlayerEvent.PlayerChangedDimensionEvent`: every non-staying Bound Vex of that player
-within 16 blocks of where the player left is teleported to the player's arrival position via
-`Entity.teleport(TeleportTransition)` (`Entity.java:3177`), placed on the ring cells around the
-player. Staying vexes stay. A vex arriving with the player keeps gear, flags and summoner.
+**Portals:** two events. `EntityTravelToDimensionEvent` fires before the move, while the player
+still stands at the portal; it notes every living, non-staying Bound Vex of that player within 16
+blocks. It also fires for same-dimension teleports (pearls, `/tp`), which are skipped.
+`PlayerEvent.PlayerChangedDimensionEvent` then teleports the noted vexes to the player's arrival
+position via `Entity.teleport(TeleportTransition)` (`Entity.java:3177`), placed on the ring cells
+around the player. Staying vexes stay. A vex arriving with the player keeps gear, flags and
+summoner (the teleport makes a new entity from the old one's save).
+**The End exit:** the first time a player leaves the End through the exit portal (the credits),
+the game respawns the player instead of teleporting it, and posts neither event above. The
+followers are noted on NeoForge's `PlayerRespawnPositionEvent` (it carries the old player, still
+at its old position, and says the respawn follows the End fight) and brought on
+`PlayerRespawnEvent` when it says the End was conquered, with the same filter and the same ring
+cells. A respawn after a death brings nothing (below).
 
 **Logout:** nothing is removed. The vexes idle where they are and resume when the summoner is back
 in their level. Death of the summoner: same as logout until respawn; after respawn they are in the
@@ -237,30 +267,51 @@ old level and follow again when the summoner returns there (no cross-dimension t
 ### 3.4 Who a Bound Vex fights
 
 `BoundVex.isPrey(level, summonerUuid, target)` keeps round one's base rule (attackable, summoner
-online in the level, not an ally, PvP rule for players) and the target selector installs, in
+online and alive in the level, not an ally, PvP rule for players) and extends the PvP rule to mobs
+another player summoned: such a mob is prey only if the summoner may harm its owner (an offline
+owner falls back to the level's `pvp` rule), so two players' vexes leave each other alone with PvP
+off. With PvP on, a mob carrying another player's summoner mark is treated like that player: prey
+only for the grudge goal (item 1, after it hurt this vex, the summoner or an ally), and never a
+target of the patrol or ally goals (items 2 and 3), which hunt only what `BoundVex.huntable` accepts:
+an `Enemy`, not a `Creeper`, carrying no other player's summoner mark. A player is not an `Enemy`,
+so another player is never a patrol or ally target either. The target selector installs, in
 priority order:
 
-1. `HurtBySummonerSideGoal` (a `TargetGoal` the mod writes): the newest of these, if it passes
-   `isPrey`: the mob that last hurt **this vex** (`getLastHurtByMob`), the mob that last hurt **the
-   summoner** (`summoner.getLastHurtByMob`), the mob the summoner last **hit**
-   (`summoner.getLastHurtMob`), or the mob that last hurt **an ally** within the guard area (the
-   ally's `getLastHurtByMob`, allies scanned every 10 ticks). A creeper is allowed here (provoked).
-2. `AllyFightGoal`: the current target of any **ally `Mob`** within the guard area (an iron golem's
-   or a wolf's `getTarget()`), if `isPrey` and hostile. Vexes join fights allies start.
+1. `HurtBySummonerSideGoal` (a `TargetGoal` the mod writes): the first of these, in this order,
+   that is at most **100 ticks** old on its owner's clock and passes `isPrey`: the mob that last
+   hurt **this vex** (`getLastHurtByMob`), the mob that last hurt **the summoner**
+   (`summoner.getLastHurtByMob`), the mob the summoner last **hit** (`summoner.getLastHurtMob`), or
+   the mob that last hurt **an ally** within the guard area (the ally's `getLastHurtByMob`). The
+   window matters because vanilla forgets `lastHurtByMob` after 100 ticks but never forgets
+   `lastHurtMob`. A creeper is allowed here (provoked).
+2. `AllyFightGoal`: the current target of any **ally `Mob`** within the guard area (never the vex
+   itself; an iron golem's or a wolf's `getTarget()`), if `isPrey` and `huntable` (hostile, so not a
+   pig; never a creeper, since an ally's fight is not the vex being provoked; never another
+   player's summon). Vexes join fights allies start.
 3. `NearestHostileGoal`: `NearestAttackableTargetGoal<LivingEntity>` over the guard area (a custom
-   `getTargetSearchArea` returning the 8×8×7 box) with selector `isPrey(...) && target instanceof
-   Enemy && !(target instanceof Creeper)`. Line of sight is vanilla's (`mustSee`). A vanilla `Vex`
+   `getTargetSearchArea` returning the 8×8×7 box) with selector `isPrey(...) && huntable(...)`
+   (`Enemy`, not a `Creeper`, no other player's summoner mark). Line of sight is vanilla's (`mustSee`). A vanilla `Vex`
    (an evoker's) is an `Enemy`, so it is engaged; Part 4 makes that engagement a bribe attempt
    first (§5.2).
 
 All three override `canContinueToUse` as round one did: the target is dropped when it stops being
-prey, dies, or is farther than **reach** (7.25). The guard-area scan runs every 10 ticks in the
-Overworld (vanilla's `NearestAttackableTargetGoal` cadence) and every tick where §6 says so.
+prey, dies, is in another dimension (a summoner's memory can name a mob it left behind, whose raw
+coordinates may line up with the vex's), can no longer be attacked (`canAttack`: a creative or spectator player, for one), or is
+farther than **reach** (7.25). "In the guard area" means the entity's feet are in the box, faces
+included.
+
+The three goals scan every **10 ticks** on one shared clock keyed to the vex's entity id
+(`(tickCount + id) % 10 == 0`). A plain `tickCount % 10` would never fire for half the vexes:
+vanilla only calls a goal's `canUse` every second tick, on ticks that depend on the id
+(`Mob.serverAiStep`). Vanilla's own `NearestAttackableTargetGoal` cadence is a random roll, so the
+patrol goal is built with a random interval of 1 and uses the shared clock too. §6's every-tick
+scans will need their own tick hook, since `canUse` runs at most every second tick.
 
 **Wolves join vex fights.** When a Bound Vex takes a new target (`setTarget` override on
-`BoundVex`), every tamed `Wolf` owned by the summoner within 16 blocks that has no target and is
-not sitting gets `setTarget(sameTarget)`. Wolves are the only tamed mob that fights; golems already
-fight hostiles on their own (§13).
+`BoundVex`; a re-set of the same target does not count), every tamed `Wolf` owned by the summoner
+within 16 blocks that has no target, is not sitting and would attack it (`Wolf.wantsToAttack`, so
+never a creeper) gets `setTarget(sameTarget)`. Wolves are the only tamed mob that fights; golems
+already fight hostiles on their own (§13).
 
 **Mercy** applies to a Bound Vex's hits on a golem through `GolemMercy` (§2.3) by its summoner
 attachment; nothing new is needed here.
@@ -276,19 +327,25 @@ called; the flee goal simply outranks the charge goal, so the target is kept and
 
 - Golems never target Bound Vexes (`GolemMercy` cancels `LivingChangeTargetEvent`, §2.3).
 - `DodgeGolemGoal` (priority 0): when an `IronGolem` within 3 blocks is mid-swing
-  (`getAttackAnimationTick() > 0`, `IronGolem.java:237`, public) and faces the vex (dot of look
-  vector and offset > 0.5), the vex darts 3 blocks sideways (perpendicular to the golem's look) in one move. Every time, no roll:
-  the case only arises while a mad golem is being fought (§13).
+  (`getAttackAnimationTick() > 0`, `IronGolem.java:237`, public) and faces the vex (dot of the
+  golem's **head** look vector, `getHeadLookAngle`, and the offset to the middle of the vex's box
+  > 0.5; `getLookAngle` would read the body), the vex darts 3 blocks sideways (perpendicular to the golem's look) in one move. Every time, no roll:
+  the case only arises while a mad golem is being fought (§13). The vex sidesteps *after* the swing:
+  `IronGolem.doHurtTarget` sets the animation tick in the same call that applies the damage, so the
+  goal reacts to a swing that has landed near the vex (a reaction, not an evasion; §13).
 
 ### 3.7 Repairing a golem
 
-`RepairGolemGoal` (job goal): an ally `IronGolem` (so: not mad) within the guard area with `health <
-maxHealth` and no other Bound Vex already repairing it (a transient claim set keyed by golem id).
-The vex flies to within 1.5 blocks of the golem's chest, conjures an **iron ingot** in its main hand
-(the given item is stashed, §4.5), and every 30 ticks: swings the arm (`swing(MAIN_HAND)`), plays
-`SoundEvents.IRON_GOLEM_REPAIR`, `golem.heal(25)` (the vanilla ingot amount, `IronGolem.java:55`).
-Repeats until full, then the ingot vanishes and the given item returns. This covers the forgiven
-golem of §2.3 and any hurt ally golem.
+`RepairGolemGoal` (job goal): while the vex has **no target** (it stops when one appears, so a vex
+under attack fights instead of healing), an ally `IronGolem` (so: not mad) within the guard area
+with `health < maxHealth` and no other living Bound Vex already repairing it (a transient claim map
+golem → vex that frees itself when the vex is gone, §3.3). The vex flies to within 1.5 blocks of
+the golem's chest, conjures an **iron ingot** in its main hand on arrival (the given item is set
+aside: by the goal itself until Part 3's stash, §4.5, lands), and every 30 ticks: swings the arm
+(`swing(MAIN_HAND, SwingAnimation.DEFAULT)`; `VexModel` has no arm swing, so the sound is the
+visible cue), plays `SoundEvents.IRON_GOLEM_REPAIR`, `golem.heal(25)` (the vanilla ingot amount,
+`IronGolem.java:55`). Repeats until full, then the ingot vanishes and the given item returns. This
+covers the forgiven golem of §2.3 and any hurt ally golem.
 
 ## 4. Part 3: gear
 
@@ -310,8 +367,8 @@ Right-click by the summoner with:
   crossbow makes the vex a shooter: it shoots a plain arrow every 40 ticks from up to 10 blocks,
   keeping 6 blocks away, never charging. Tridents are melee (no throwing; §13).
 - a **shield**: it goes in the **offhand**; the old offhand item returns. A shielded vex blocks: in
-  `hurtServer`, melee or projectile damage whose source is in front of the vex (dot of look vector
-  and source direction > 0) is cancelled with `SoundEvents.SHIELD_BLOCK`; no durability is used
+  `hurtServer`, melee or projectile damage whose source is in front of the vex (dot of the head's
+  look vector, `getHeadLookAngle`, and source direction > 0) is cancelled with `SoundEvents.SHIELD_BLOCK`; no durability is used
   (nothing is ever used up).
 - a **splash or lingering potion** or **tipped arrow**: main hand (the thrown entities are
   `projectile.throwableitemprojectile.ThrownSplashPotion` / `ThrownLingeringPotion`; the arrow
@@ -377,9 +434,10 @@ another Bound Vex, then runs a timeline. The zombie villager is frozen for the w
 | 5 | | Vanilla `finishConversion` makes the villager; the smoke stops. Because the conversion starter is the summoner, the villager gives the summoner the cured-villager discounts (vanilla). |
 
 Costs you nothing (conjured apple, a potion created from nothing). If the zombie villager dies or
-is unloaded mid-cure, the goal ends and the vex's gear returns. If the vex dies, the frozen zombie
-is unfrozen (`setNoAi(false)`) by the goal's `stop` and its conversion continues or not as vanilla
-left it.
+is unloaded mid-cure, the goal ends and the vex's gear returns. If the vex dies, is removed or is
+unloaded, the frozen zombie is unfrozen (`setNoAi(false)`) and its conversion continues or not as
+vanilla left it. The goal's `stop` never runs in those cases (§3.3), so the freeze is tied to the
+curing vex and released whenever that vex is gone; Part 4's plan says how.
 
 ### 5.2 Bribing an evoker's vex
 
@@ -428,7 +486,7 @@ Each helper is a job goal that runs only in its dimension (`level.dimension()`).
 
 ### 6.3 End
 
-- **Guard most:** orbit 0.5–1.5 blocks, scan every tick.
+- **Guard most:** orbit 0.5–1.5 blocks, scan every tick (its own tick hook, §3.4).
 - **Crystals:** while the dragon fight is active (`level.getDragonFight() != null` and the dragon
   is alive), `EndCrystal` entities within 32 blocks are targets of `AttackCrystalGoal`: fly to
   within 2 blocks and `crystal.hurt(level, mobAttack(vex), 1)`, which vanilla turns into the
@@ -613,18 +671,21 @@ caster at walking speed, faces where the caster faces when idle.
 
 ## 10. Error handling
 
-- **No summoner online / other level:** a Bound Vex idles; interactions `PASS`; it fights nothing
-  (`isPrey` false). Vanilla would despawn a far monster; `removeWhenFarAway` is false.
+- **No summoner online, alive, in this level and not a spectator:** a Bound Vex idles; interactions `PASS`; it
+  fights nothing (`isPrey` false). Vanilla would despawn a far monster; `removeWhenFarAway` is false.
 - **Summoner dead:** as offline until respawn (§3.3).
 - **Cap counting across dimensions:** only loaded levels and entities count; a player who parks 12
   vexes in an unloaded chunk can summon more. Accepted (§13).
-- **Peaceful:** `EntityType.create` returns null for a `Monster`; `request` refuses first (round
-  one). A loaded world switched to Peaceful **removes** Bound Vexes as vanilla removes monsters
-  (`Monster` difficulty despawn); their given gear drops (§4.5 drop rule runs in `remove` for
+- **Peaceful:** the Bound Vex type is built with `notInPeaceful()`, so `EntityType.create` returns
+  null there; `request` refuses first (round one, now via `canSpawn`). A loaded world switched to
+  Peaceful **removes** Bound Vexes as vanilla removes monsters (`Mob.checkDespawn` discards a
+  `notInPeaceful` type, `Mob.java:715-716`); their given gear drops (§4.5 drop rule runs in `remove` for
   `RemovalReason.DISCARDED` too). Noted for the playtest.
 - **Gear given to a vex that dies in lava:** items burn as vanilla drops do. Accepted.
-- **Cure interrupted** (zombie villager dies, is unloaded, or the vex dies): the frozen zombie is
-  unfrozen in the goal's `stop`; a converting one keeps converting (vanilla).
+- **Cure interrupted** (zombie villager dies or is unloaded, or the vex dies, is removed or is
+  unloaded): the frozen zombie is unfrozen; a converting one keeps converting (vanilla). The
+  goal's `stop` covers only the first two; the freeze is released whenever the curing vex is gone
+  (§5.1).
 - **Bribe target saved mid-flee:** `BRIBED` is persistent; the flee goal is reinstalled on join.
 - **Portal with staying vexes:** they stay; the summoner's count still includes them (loaded).
 - **Rescue pushes vs. anti-cheat:** server-set velocity on a player uses `hurtMarked` so the
@@ -722,6 +783,15 @@ end of Part 7, to `1.3.0` with a tag; the parts land as PRs on `main` without bu
 | Wolves join | Only the summoner's tamed wolves, 16 blocks, no target yet | Wolves are the only fighting tamed mob; golems already fight hostiles. |
 | Dodge roll | Always | Only arises against a mad golem; a roll adds nothing. |
 | Repair scope | Any hurt ally golem in the guard area | The ingots are free; "mercy" reads as medic. |
+| Attacker memory | The first fresh one in §3.4's order, at most 100 ticks old | One pass, and the order already says what matters most; alternative: compare four ages for the newest. |
+| Other players' vexes | Treated like their player: prey for the grudge goal under the PvP rule, never patrol or ally-fight targets | With PvP off, two players' vexes would otherwise fight; an offline owner falls back to the level's `pvp` setting. A vex answers a hit, but never starts a fight on sight. |
+| Experience | None | Summon-and-kill would farm 3 XP per vex, 3 per press. |
+| Dodge timing | After the swing | Golems never target Bound Vexes, so the swing is never aimed at the vex; a pre-swing read would need the golem's target prediction. |
+| Neutral monsters | Patrol targets them (zombified piglins, endermen) | `Enemy` includes them, so a vex may start a fight with a piglin horde. Playtest item. |
+| Portal ring cells | May coincide | Vexes clip through each other and blocks; two on one spot spread as they move. |
+| Following after a job | A vex finishes its wander leg or repair (up to about 3 s) before following | Goals end on their own terms; cutting a repair short would waste the claim. |
+| Unloaded vexes | Follow and ride portals only while their chunk ticks | An unloaded vex runs no goals; it resumes when its chunk loads with the summoner there. |
+| Ingot kept mid-repair | Until Part 3, a vex unloaded, reloaded or portaled mid-repair keeps the ingot | The goal holds the given item in a field; Part 3's stash makes it survive saving. |
 | Tridents | Melee only | Throwing would need a return rule; nothing is used up anyway. |
 | Shield from the player | Offhand, blocks from the front | Will chose A+C; shields are handable. |
 | Armor and shield take-back | Not possible | Will: sneak-click takes the weapon; nothing else. |

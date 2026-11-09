@@ -132,7 +132,7 @@ Use a **Survival** world with open flat ground and a few animals (cows, pigs) ab
 - [ ] Y with nothing ahead: no arms, no sound; after a second "No targets in range" above the hotbar. Press Y twice quickly with nothing ahead: one message.
 - [ ] Y while the arms are still up, or within five seconds of a cast: nothing happens (no message; a known decision, say if you want a hint).
 - [ ] Stand on a hill above a cow, and in a pit below one: the fangs find the ground at both heights.
-- [ ] V: the "prepare summon" sound, arms up for five seconds, pale particles at the hands; after a second three vexes appear 2–3 blocks from you, one block up. They fly around you and ignore you. Tame a wolf: they ignore it. Lead a cow or pig within five blocks of a vex: it charges it. A cow eight blocks away is ignored. The vexes die on their own after 30–120 s.
+- [ ] V: the "prepare summon" sound, arms up for five seconds, pale particles at the hands; after a second three Bound Vexes appear 2–3 blocks from you, one block up. They look like vexes, fly around you and ignore you. Tame a wolf: they ignore it. They do not die on their own (watch one for three minutes).
 - [ ] With vexes out, press Y at a cow near them: the fangs do not hurt your vexes. Cast Strength of Trailing and walk your vexes through the trail: unharmed.
 - [ ] Creative players and spectators ahead are not targets (a LAN second client in creative is never bitten).
 - [ ] Press F with Evoking on: your hands swap as normal. Press Y: the cast starts and nothing swaps (Y is free in vanilla). Rebind Fangs to F in Controls: F casts instead of swapping while Evoking is on, and swaps again once the effect ends. Rebind Fangs to Shift+F: a plain F press swaps, Shift+F casts.
@@ -143,7 +143,7 @@ Use a **Survival** world with open flat ground and a few animals (cows, pigs) ab
 - [ ] `/tick freeze`, press V, wait a few seconds, `/tick unfreeze`: no burst of hand particles.
 - [ ] Fangs near the edge of simulation distance place no fangs in the far, non-ticking cells.
 - [ ] On Peaceful, press V: the action bar says `Vexes cannot be summoned on Peaceful`, arms stay down, no cooldown: switch to Normal and V casts at once.
-- [ ] With `/gamerule pvp false`, Y with only another player in the square gives `No targets in range`; V's vexes ignore other players; with pvp on both attack.
+- [ ] With `/gamerule pvp false`, Y with only another player in the square gives `No targets in range`, and V's vexes never attack another player or that player's vexes. With pvp on, they attack another player or that player's vexes only after it hurts you, one of your vexes or an ally of yours inside their guard box, or after you hit it: never on sight (a vex that merely hovers near another player's vex ignores it).
 - [ ] Press Esc (singleplayer) during a V cast and wait ten seconds: nothing piles up; on resume the hand particles continue normally.
 - [ ] Optional (Open to LAN + a second client): the other player sees your arms raised and the hand particles during a cast, and nothing else unusual.
 - [ ] Optional (dedicated server with the built jar, a client joining): the server starts without a client-class error, the client joins, and a cast works.
@@ -161,9 +161,36 @@ Survival world, open ground, a village nearby if you can. The items below add to
 - [ ] Hit a pig so it runs, then press Y at it while it flees: a fang rises where it was, and a second one where it ran to; no third.
 - [ ] Y with only a villager, a wandering trader, or a calm iron golem ahead: "No targets in range". Vexes ignore them too.
 - [ ] Hit a village iron golem with a sword again and again: when its health reads 25.0 (use the `/data get entity @e[type=iron_golem,limit=1,sort=nearest] Health` command, which shows `25.0f`) it stops losing health, and on that hit it stops chasing you. Your tamed wolf (have one with you) and your fangs stop there too.
-- [ ] Make a golem mad at you, then call your vexes next to it: the vexes fight it, it ends at 25 health and calms down.
+- [ ] Make a golem mad at you, then call your vexes next to it: once it hits you (or you hit it), the vexes fight it; it ends at 25 health and calms down.
 - [ ] With Strength of Trailing on too, make a mad golem chase you across your fire trail: the golem is not hurt and does not catch fire.
 - [ ] Summon vexes near a village golem: the golem never swings at them.
+
+## Evoking II (Part 2)
+
+Survival world, open ground, a village nearby if you can, with Strength of Evoking on. The vexes in the Strength of Evoking items above are Bound Vexes now; these items add to them. Where a golem or a creeper can hurt you, give yourself Resistance (`/effect give @s resistance 600 4`).
+
+- [ ] Press V four times (wait for each cooldown): 3, 6, 9, 12 vexes (`/execute if entity @e[type=spellcraft:bound_vex]` prints the count). A fifth press: "You have too many vexes" above the hotbar, arms stay down, no sound; `/kill @e[type=spellcraft:bound_vex,limit=1]` and V works again at once (no cooldown was spent on the refusal). `/kill @e[type=spellcraft:bound_vex,limit=2]` from twelve: V summons two. From eleven: one.
+- [ ] Walk and sprint around: the vexes keep up and hover 2–4 blocks from you, and settle there without darting through you. `/tp @s ~15 ~ ~`: they pop up beside you within a second.
+- [ ] Right-click a vex with an empty hand (not sneaking): the vex's sound and your arm swings; it stops following and drifts around that spot. Walk 20 blocks away: it stays. Right-click it again: it follows (it may finish a short drift first). Right-click while holding something, or while sneaking: nothing. A friend's click (LAN): nothing.
+- [ ] Hold an ender pearl (or a shield) in your off hand and an empty main hand, then right-click your vex: stay toggles, and no pearl is thrown (no shield is raised).
+- [ ] Walk through a nether portal with vexes near you: they arrive beside you in the Nether, still yours (a click still toggles stay). A staying vex stays behind in the Overworld, and so does a following vex more than 16 blocks from you when you step in.
+- [ ] The End exit: with vexes following you in the End (after the dragon, or `/tp` to the exit portal if you have not seen the credits), step into the exit portal for the first time: the credits play, and when you wake in the Overworld the following vexes are beside you, still yours. A staying vex stays in the End. Step into the exit portal a second time (no credits): the vexes come along as through any portal. Die in the End and respawn: no vex follows.
+- [ ] Spectator: switch to spectator mode (`/gamemode spectator`) with vexes following you: they stop following and stay put, and do not attack a nearby zombie. Back to survival: they fly to you again and fight as before.
+- [ ] Log out and back in: the vexes are where you left them, still yours. Quit to title and reopen the world: same.
+- [ ] Die (or, on LAN, have the friend whose vexes are out log out): the vexes hover where they are and fight nothing until you respawn near them (or the friend returns).
+- [ ] A zombie attacks you: the vexes go for it. Hit a cow yourself: they go for the cow. A creeper walks up to you: ignored until it hurts you or a vex, then they attack it. A zombie attacks your wolf or a village golem: the vexes go for it.
+- [ ] Your tamed wolf (standing, no target) joins when a vex picks a target; a sitting wolf stays put. A creeper that hurt a vex: the vexes attack it, your wolf does not.
+- [ ] In the Nether, near zombified piglins: the vexes attack them (the game counts them as hostile mobs), which angers the whole group. Note how that plays; it is the spec's rule, not a bug.
+- [ ] `/summon creeper ~5 ~ ~ {NoAI:1b,ignited:1b,Fuse:200s}` with your vexes near you: they fly straight away from it to about eight blocks and hold there; when it explodes ten seconds later they come back to you. Then let a normal creeper walk up and start hissing: the vexes back off; run more than seven blocks away so it stops hissing: they come back.
+- [ ] Make a village golem mad at you and stand so a vex hovers within three blocks of the golem, between you and it: after the golem swings at you, the vex sidesteps (it reacts to the swing; it cannot avoid that one). The vexes fighting it stop at 25 health and it calms down (Part 1).
+- [ ] Hurt a calm golem without angering it, standing a few blocks from it with your vexes (`/damage @e[type=iron_golem,limit=1,sort=nearest] 40`): one vex flies to its chest, an iron ingot appears in its hand there, and every 1.5 seconds you hear the repair sound (an anvil-like clank; the vex's arm may not move, the vex model has no swing) until the golem is full; then it holds its sword again. A second vex nearby does not join the repair. Walk off mid-repair: the vex finishes (at most about three seconds) before it follows.
+- [ ] While a vex repairs a golem, `/summon zombie` beside it: the vex drops the repair, fights the zombie, and holds its sword again (not the ingot).
+- [ ] `/summon spellcraft:bound_vex`: a vex that hovers and fights nothing, even with a zombie next to it; its name reads "Bound Vex" (`/data get entity @e[type=spellcraft:bound_vex,limit=1,sort=nearest] id` shows `spellcraft:bound_vex`; `/kill` it and the death message names it).
+- [ ] On Peaceful: existing Bound Vexes vanish (vanilla's monster rule); V says "Vexes cannot be summoned on Peaceful". Back on Normal, V works.
+- [ ] Optional (LAN, two players with vexes, `/gamerule pvp false`): your vexes and theirs leave each other alone; with pvp on, they still ignore each other on sight and fight only after one side hurts the other, its player or an ally.
+- [ ] Known until Part 3: a vex that is unloaded (you leave the area), saved and reloaded, or carried through a portal while repairing a golem keeps the ingot in its hand instead of its sword.
+- [ ] Known and accepted: two vexes can land on the same spot after a portal; a vex only follows or rides a portal while its chunk is loaded, so after an elytra flight, a pearl or a `/tp` far away, vexes left in unloaded chunks stay there until you come back.
+- [ ] If this world still has round-one vexes (summoned before this update): those vanilla vexes may attack you for their remaining seconds, then die on their own.
 
 ## Real profile
 

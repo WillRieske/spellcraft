@@ -10,9 +10,11 @@
   "effect.spellcraft.casting_fangs": "Casting Fangs",
   "effect.spellcraft.casting_vexes": "Casting Vexes",
   "block.spellcraft.trail_fire": "Trail Fire",
+  "entity.spellcraft.bound_vex": "Bound Vex",
   "message.spellcraft.scroll_not_needed": "Scroll not needed; already have effect!",
   "message.spellcraft.no_targets": "No targets in range",
   "message.spellcraft.peaceful_vexes": "Vexes cannot be summoned on Peaceful",
+  "message.spellcraft.too_many_vexes": "You have too many vexes",
 
   "spellcraft.configuration.title": "Spellcraft Configs",
   "spellcraft.configuration.section.spellcraft.server.toml": "Spellcraft Server Configs",

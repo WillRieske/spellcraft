@@ -5,6 +5,7 @@ import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.spell.rules.EvokerSpell;
 import io.github.willrieske.spellcraft.spell.rules.EvokingCast;
 import io.github.willrieske.spellcraft.spell.rules.EvokingCast.Readiness;
+import io.github.willrieske.spellcraft.spell.rules.VexCap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -18,7 +19,6 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.entity.EntityTypes;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -26,9 +26,10 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 /**
- * Turns key presses into casts (spec §4): validates each request, keeps every player's pure {@link EvokingCast}
- * timers, and performs the pending spell on the player tick once its warmup has passed. The map is transient, like
- * {@code TrailLayer}'s trackers: dropped on logout and when the server stops, so a relog forgets cooldowns.
+ * Turns key presses into casts (spec §4; vex requests also check the cap of twelve, Evoking II spec §3.2): validates
+ * each request, keeps every player's pure {@link EvokingCast} timers, and performs the pending spell on the player tick
+ * once its warmup has passed. The map is transient, like {@code TrailLayer}'s trackers: dropped on logout and when the
+ * server stops, so a relog forgets cooldowns.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class EvokingCaster {
@@ -42,8 +43,10 @@ public final class EvokingCaster {
         COOLING,
         /** Fangs with nothing to bite: only the notice, one warmup later. */
         NO_TARGETS,
-        /** Vexes on Peaceful, where vanilla refuses to create one: only the notice, at once; no cast, no cooldown. */
+        /** Vexes on Peaceful, where the Bound Vex type cannot be created: only the notice, at once; no cooldown. */
         PEACEFUL,
+        /** Vexes at the cap of twelve: only the notice, at once; no cast, no cooldown. */
+        CAPPED,
         /** The cast started. */
         STARTED
     }
@@ -54,10 +57,16 @@ public final class EvokingCaster {
     /** Lang key of the notice for a vex request on Peaceful. */
     public static final String PEACEFUL_KEY = "message.spellcraft.peaceful_vexes";
 
+    /** Lang key of the notice for a vex request at the cap. */
+    public static final String TOO_MANY_KEY = "message.spellcraft.too_many_vexes";
+
     /** One player's timers and, for a pending fang cast, the snapshot taken at the press. */
     private static final class Casting {
         final EvokingCast cast = new EvokingCast();
         Optional<Fangs.Snapshot> snapshot = Optional.empty();
+
+        /** For a pending vex cast: how many to summon, decided at the press (spec §3.2). */
+        int vexCount;
     }
 
     private static final Map<UUID, Casting> CASTINGS = new HashMap<>();
@@ -66,8 +75,9 @@ public final class EvokingCaster {
 
     /**
      * Handles one key press for {@code spell} (spec §4): ignored without Evoking, while dead or as a spectator;
-     * refused silently while busy or cooling; for vexes on Peaceful, where no vex can be created, sends the notice
-     * at once and starts nothing; for fangs, scans for targets and schedules only the notice when there are none;
+     * refused silently while busy or cooling; for vexes on Peaceful, where no Bound Vex can be created, sends the
+     * notice at once and starts nothing; for vexes at the cap of twelve Bound Vexes, sends the too-many notice at once
+     * and starts nothing; for fangs, scans for targets and schedules only the notice when there are none;
      * otherwise starts the cast (prepare sound, casting effect, timers).
      *
      * @param player the server-side player who pressed the key
@@ -88,9 +98,17 @@ public final class EvokingCaster {
         if (readiness == Readiness.COOLING) {
             return Request.COOLING;
         }
-        if (spell == EvokerSpell.VEXES && !EntityTypes.VEX.canSpawn(level)) {
-            player.sendOverlayMessage(Component.translatable(PEACEFUL_KEY));
-            return Request.PEACEFUL;
+        if (spell == EvokerSpell.VEXES) {
+            if (!ModEntities.BOUND_VEX.get().canSpawn(level)) {
+                player.sendOverlayMessage(Component.translatable(PEACEFUL_KEY));
+                return Request.PEACEFUL;
+            }
+            int toSummon = VexCap.toSummon(BoundVex.countOwnedBy(level.getServer(), player.getUUID()));
+            if (toSummon == 0) {
+                player.sendOverlayMessage(Component.translatable(TOO_MANY_KEY));
+                return Request.CAPPED;
+            }
+            casting.vexCount = toSummon;
         }
         if (spell == EvokerSpell.FANGS) {
             Optional<Fangs.Snapshot> snapshot = Fangs.snapshot(level, player);
@@ -179,7 +197,7 @@ public final class EvokingCaster {
                 yield snapshot.isPresent() && Fangs.perform(level, player, snapshot.get());
             }
             case VEXES -> {
-                yield !VexSummons.summon(level, player).isEmpty();
+                yield !VexSummons.summon(level, player, casting.vexCount).isEmpty();
             }
         };
         if (performed) {

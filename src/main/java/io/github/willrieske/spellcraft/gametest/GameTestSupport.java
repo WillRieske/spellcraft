@@ -16,9 +16,11 @@ import net.minecraft.gametest.framework.GameTestRunner;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -64,18 +66,42 @@ public final class GameTestSupport {
      */
     public static List<Component> drainActionBar(ServerPlayer player) {
         List<Component> messages = new ArrayList<>();
-        EmbeddedChannel channel =
-                (EmbeddedChannel) player.connection.getConnection().channel();
-        // Packets sent during a server tick are written but not flushed until the tick ends (MinecraftServer suspends
-        // flushing for every player), so a message sent earlier in this tick is not readable until flushed here.
-        player.connection.getConnection().flushChannel();
-        Object packet;
-        while ((packet = channel.readOutbound()) != null) {
+        for (Object packet : drainOutbound(player)) {
             if (packet instanceof ClientboundSystemChatPacket chat && chat.overlay()) {
                 messages.add(chat.content());
             }
         }
         return messages;
+    }
+
+    /** Flushes and empties the mock player's outbound packet buffer, returning every packet it held. */
+    private static List<Object> drainOutbound(ServerPlayer player) {
+        EmbeddedChannel channel =
+                (EmbeddedChannel) player.connection.getConnection().channel();
+        // Packets sent during a server tick are written but not flushed until the tick ends (MinecraftServer suspends
+        // flushing for every player), so a message sent earlier in this tick is not readable until flushed here.
+        player.connection.getConnection().flushChannel();
+        List<Object> packets = new ArrayList<>();
+        Object packet;
+        while ((packet = channel.readOutbound()) != null) {
+            packets.add(packet);
+        }
+        return packets;
+    }
+
+    /**
+     * Empties the mock player's outbound packet buffer, as {@link #drainActionBar} does, and returns the sounds it was
+     * sent ({@code ClientboundSoundPacket}s: what {@code Entity.playSound} on the server broadcasts to players within
+     * 16 blocks). Draining drops every other packet too.
+     */
+    public static List<SoundEvent> drainSounds(ServerPlayer player) {
+        List<SoundEvent> sounds = new ArrayList<>();
+        for (Object packet : drainOutbound(player)) {
+            if (packet instanceof ClientboundSoundPacket sound) {
+                sounds.add(sound.getSound().value());
+            }
+        }
+        return sounds;
     }
 
     /**
