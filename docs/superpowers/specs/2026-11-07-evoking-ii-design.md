@@ -183,7 +183,9 @@ copies of the charge and wander goals. What changes:
   `hasLimitedLife` is true (`Vex.java:79`). `removeWhenFarAway` returns false and
   `requiresCustomPersistence` returns true, so it never despawns.
 - **Summoner:** the attachment from round one. `summoner()` returns `Optional<ServerPlayer>`
-  (online, alive, same level). Without a summoner the vex idles: hovers, fights nothing (§3.4 needs
+  (online, alive, same level, not a spectator: as vanilla pets ignore a spectating owner, a
+  spectating summoner counts as absent, so its vexes neither follow nor fight nor come through a
+  portal until it plays again). Without a summoner the vex idles: hovers, fights nothing (§3.4 needs
   the summoner to compute allies), takes no interactions but still shows its gear.
 - **Synced data:** each part adds the flag it first reads: `STAYING` (boolean, Part 2; also saved
   as NBT, because a cross-dimension teleport makes a new entity that copies the save but not the
@@ -230,7 +232,9 @@ Goals (goal selector, in priority order; the target selector is §3.4):
    `onGround()`), used by the void rescue (§6.3).
 5. A copy of vanilla's wander goal (`Vex.VexRandomMoveGoal`, around the bound origin) **only while
    staying**: the bound origin is set to the stay position when stay is toggled on, so a staying vex
-   drifts around its post.
+   drifts around its post. A staying vex that changes dimension (only a command or a vehicle can do
+   that: a vex never enters a portal itself) re-posts at the block where it arrives, since the
+   saved post is the old dimension's coordinates.
 6. Vanilla's two `LookAtPlayerGoal`s, as `Vex.registerGoals` has them (no `RandomLookAroundGoal`).
 
 **Stay/follow toggle:** `mobInteract` with an empty main hand and no sneak toggles `STAYING`; a
@@ -248,6 +252,12 @@ blocks. It also fires for same-dimension teleports (pearls, `/tp`), which are sk
 position via `Entity.teleport(TeleportTransition)` (`Entity.java:3177`), placed on the ring cells
 around the player. Staying vexes stay. A vex arriving with the player keeps gear, flags and
 summoner (the teleport makes a new entity from the old one's save).
+**The End exit:** the first time a player leaves the End through the exit portal (the credits),
+the game respawns the player instead of teleporting it, and posts neither event above. The
+followers are noted on NeoForge's `PlayerRespawnPositionEvent` (it carries the old player, still
+at its old position, and says the respawn follows the End fight) and brought on
+`PlayerRespawnEvent` when it says the End was conquered, with the same filter and the same ring
+cells. A respawn after a death brings nothing (below).
 
 **Logout:** nothing is removed. The vexes idle where they are and resume when the summoner is back
 in their level. Death of the summoner: same as logout until respawn; after respawn they are in the
@@ -285,7 +295,8 @@ priority order:
    first (§5.2).
 
 All three override `canContinueToUse` as round one did: the target is dropped when it stops being
-prey, dies, can no longer be attacked (`canAttack`: a creative or spectator player, for one), or is
+prey, dies, is in another dimension (a summoner's memory can name a mob it left behind, whose raw
+coordinates may line up with the vex's), can no longer be attacked (`canAttack`: a creative or spectator player, for one), or is
 farther than **reach** (7.25). "In the guard area" means the entity's feet are in the box, faces
 included.
 
@@ -660,7 +671,7 @@ caster at walking speed, faces where the caster faces when idle.
 
 ## 10. Error handling
 
-- **No summoner online, alive and in this level:** a Bound Vex idles; interactions `PASS`; it
+- **No summoner online, alive, in this level and not a spectator:** a Bound Vex idles; interactions `PASS`; it
   fights nothing (`isPrey` false). Vanilla would despawn a far monster; `removeWhenFarAway` is false.
 - **Summoner dead:** as offline until respawn (§3.3).
 - **Cap counting across dimensions:** only loaded levels and entities count; a player who parks 12

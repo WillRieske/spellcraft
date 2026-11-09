@@ -702,3 +702,24 @@ Verified 2026-11-08 against the same unpacked sources (`build/mc-src`, `build/nf
   `setPersistenceRequired()` and **not** `finalizeSpawn` (no iron sword) (`GameTestEntityBuilder.java:44-67`);
   `spawn(type, pos, EntitySpawnReason)` (`:181`) does call it. `helper.getEntities(EntityType<T>)` (`:660`). A `Creeper`
   with `setSwellDir(1)` and a large `Fuse` hisses without exploding until the swell counts up to `maxSwell`.
+- The End exit (the credits) and the respawn path: `EndPortalBlock.entityInside` (`EndPortalBlock.java:56-57`) sends a
+  player in the End who has not seen the credits through `ServerPlayer.showEndCredits`, **not** through a portal
+  teleport. The client's `PERFORM_RESPAWN` then calls `PlayerList.respawn(player, true, CHANGED_DIMENSION)`
+  (`ServerGamePacketListenerImpl.java:1993-1996`), the same method a death respawn uses with `false`. That path posts
+  neither `EntityTravelToDimensionEvent` nor `PlayerChangedDimensionEvent`. `PlayerList.respawn` (`PlayerList.java:402-482`)
+  works out the destination (`:403`), removes the **old** player from its level (`:405`), posts
+  `PlayerRespawnPositionEvent` with the old player (`:408`, `EventHooks.firePlayerRespawnPositionEvent` `:929`), builds
+  the new player in the event's level (`:411-432`) and posts `PlayerEvent.PlayerRespawnEvent` for it (`:455`,
+  `EventHooks.firePlayerRespawnEvent` `:939`). `PlayerRespawnPositionEvent` (`nf-src/.../event/entity/player/`) is
+  not cancellable, has `getTeleportTransition()` (the destination, `newLevel()` included) and `isFromEndFight()`
+  (`:108`, true exactly when `keepAllPlayerData` is: the End exit); its `getEntity()` is the old player, which after
+  `removePlayerImmediately` still returns its old `level()` and position. `PlayerEvent.PlayerRespawnEvent.isEndConquered()`
+  (`PlayerEvent.java:506`) is the same flag on the new player, whose level is the destination and whose position is set.
+  A listener that must see another listener's change of destination uses `EventPriority.LOWEST`.
+- Cross-dimension order (`Entity.teleportCrossDimension`, `Entity.java:3209-3243`): `getType().create(newLevel, ...)`
+  (`:3223`), `newEntity.restoreFrom(this)` (`:3229`, a save-and-load: the new copy has **no arrival position yet**, only
+  the old one's saved coordinates), `removeAfterChangingDimensions()` (`:3230`), `teleportSetPosition` (`:3231`, the
+  arrival position), then `newLevel.addDuringTeleport(newEntity)` (`:3232`), which calls `onAddedToLevel()`
+  (`ServerLevel.java:1036`; also called on every chunk load, so a one-shot flag set in `restoreFrom` tells an arrival
+  from a load). So "where it arrives" is readable in `onAddedToLevel`, never in `restoreFrom`. A `LivingChangeTargetEvent`
+  listener is added with `NeoForge.EVENT_BUS.addListener(Class, Consumer)` and removed with `unregister(consumer)`.
