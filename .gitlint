@@ -2,6 +2,13 @@
 # Agent commits explain what/why at length — keep body rules loose.
 ignore = body-min-length,body-is-missing,body-max-line-length
 contrib = contrib-title-conventional-commits
+regex-style-search = True
+
+# GitHub writes its own titles when it merges a PR. 4872014 (PR #3) has that title but only
+# one parent, so gitlint's merge-commit skip misses it. Skip GitHub's merge titles by name.
+[ignore-by-title]
+regex = ^Merge pull request #[0-9]+ from
+ignore = all
 
 [title-max-length]
 line-length = 100

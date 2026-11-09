@@ -16,12 +16,21 @@ A NeoForge mod for Minecraft that adds spells cast from scrolls. It has four:
   and, a second later, make evoker fangs rise under every enemy in the 13×13 square ahead of you (a
   big mob that covers several blocks gets one fang under each block; enemies up to 14 blocks below
   you and 6 above count). An enemy that steps off its block before the bite gets one more fang
-  under its new spot. Press **V** to call three vexes to your side for 30–120 s. Fangs and vexes
-  spare you and your allies (your team, your pets, your own vexes, villagers, wandering traders, and
-  iron golems that are not mad at you) and hurt everything else; the vexes attack whatever comes
-  within five blocks of them. You, your pets, your fangs and your vexes cannot take an iron golem
-  below 25 health; when it gets that low, it calms down and stops being mad at you. The keys rebind
-  in Controls. Sneak + scroll or milk turns it off.
+  under its new spot. Press **V** to call three **Bound Vexes** to your side. They stay until they
+  die (Peaceful removes them), and you can have twelve at once: with ten or eleven, V calls just
+  enough to make twelve, and at twelve V only says "You have too many vexes". They fly around you,
+  pop up beside you when you get more than 12 blocks away, and follow you through portals when they
+  are within 16 blocks of you and not told to stay. They fight whatever attacks you, your pets or
+  them, whatever you hit, whatever your pets, villagers and golems are fighting or attacked by, and
+  any hostile mob that comes within four blocks of them in each direction (a box 8 wide and 7 tall;
+  not creepers, unless one attacks first); your tamed wolves join their fights.
+  Click a vex with an empty hand to make it stay where it is; click again to make it follow. A vex
+  flies away from a hissing creeper, sidesteps after an iron golem's swing, and patches up a hurt iron
+  golem with an iron ingot. Fangs spare you and your allies (your team, your pets, your own vexes,
+  villagers, wandering traders, and iron golems that are not mad at you) and hurt everything else;
+  vexes spare them too and fight only what the list above says. You, your pets, your fangs and your
+  vexes cannot take an iron golem below 25 health; when it gets that low, it calms down and stops
+  being mad at you. The keys rebind in Controls. Sneak + scroll or milk turns it off.
 
 Each scroll is single-use. Scribe one by putting paper and lapis in an enchanting table: you get
 a random scroll, and more lapis raises the odds of an extreme-tier spell. Creative players can
