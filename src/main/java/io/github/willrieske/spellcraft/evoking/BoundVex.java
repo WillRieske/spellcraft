@@ -331,7 +331,8 @@ public class BoundVex extends Vex {
      * The summoner's allies ({@code Allies.isAllyOf}) whose feet are inside this vex's guard area, this vex excepted:
      * a vex is its own summoner's ally, and counting itself would hand its own target to the ally goal (spec §3.4).
      * The answer is kept for the tick, so the grudge goal and the ally goal, which scan on the same tick, share one
-     * entity query.
+     * entity query. The list is cached for the current tick, so a second call in the same tick returns the first call's
+     * list, and the owner argument is assumed to be this vex's summoner on every call.
      *
      * @param owner the summoner
      * @return the allies in the area

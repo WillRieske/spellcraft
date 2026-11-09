@@ -591,7 +591,7 @@ Verified 2026-11-08 against the same unpacked sources (`build/mc-src`, `build/nf
   (`:715-716`, `EntityType.java:501`), set by `EntityType.Builder.notInPeaceful()` (`:653`);
   `EntityType.canSpawn(Level)` (`:339`) and `create` (`:348`) refuse on Peaceful for the same flag. Vanilla's `VEX` is
   built (`EntityTypes.java:1056-1066`) `EntityType.Builder.of(Vex::new, MobCategory.MONSTER).fireImmune().sized(0.4F,
-  0.8F).eyeHeight(0.51875F) .passengerAttachments(0.7375F).ridingOffset(0.04F).clientTrackingRange(8).notInPeaceful()`
+  0.8F).eyeHeight(0.51875F).passengerAttachments(0.7375F).ridingOffset(0.04F).clientTrackingRange(8).notInPeaceful()`
   (no `updateInterval`: the default 3).
 - Registration: `DeferredRegister.createEntities(modid)` (`nf-src/.../registries/DeferredRegister.java:184`) →
   `DeferredRegister.Entities.registerEntityType(String, EntityType.EntityFactory<E>, MobCategory,
@@ -617,8 +617,8 @@ Verified 2026-11-08 against the same unpacked sources (`build/mc-src`, `build/nf
   `TRY_WITH_EMPTY_HAND`; `interact` treats a result as handled when `consumesAction()` (`Mob.java:1165,1174`). On the
   client, `Minecraft.startUseItem` (`Minecraft.java:1760-1825`) stops at the first `InteractionResult.Success` and
   otherwise goes on to the next hand, so a client-side `PASS` for the main hand lets the off-hand item be used (a pearl
-  thrown, a shield raised). `IronGolem.mobInteract` (`:262-278`) heals `25.0F`, plays `IRON_GOLEM_REPAIR` at pitch `1 +
-  (r − r) · 0.2` and returns `SUCCESS`.
+  thrown, a shield raised). `IronGolem.mobInteract` (`:262-278`) heals `25.0F`, plays `IRON_GOLEM_REPAIR` at pitch
+  `1 + (r1 - r2) * 0.2` and returns `SUCCESS`.
 - Teleport: `Entity.teleport(TeleportTransition)` (`Entity.java:3177`) returns the entity to use afterwards, or null
   when NeoForge's `EntityTravelToDimensionEvent` is cancelled (`CommonHooks.onTravelToDimension`,
   `nf-src/.../common/CommonHooks.java:841-845`, posted from `Entity.teleport` `:3178` **and** `ServerPlayer.teleport`

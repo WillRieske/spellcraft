@@ -196,8 +196,9 @@ public final class AlliesGameTests {
 
     /**
      * When the {@code pvp} game rule is off, should not call a stranger survival player prey of a summoned vex, nor a
-     * Bound Vex that stranger summoned (spec §3.4, the PvP rule), nor a mob summoned by an offline player, and should still call
-     * a pig prey. With the rule on, the same stranger is prey (the positive control, also in the prey-rule test).
+     * Bound Vex that stranger summoned (spec §3.4, the PvP rule), nor a mob summoned by an offline player, and should
+     * still call a pig prey. With the rule on, the same stranger is prey (the positive control, also in the prey-rule
+     * test).
      *
      * <p>Method under test: {@link BoundVex#isPrey(ServerLevel, UUID, LivingEntity)}
      *

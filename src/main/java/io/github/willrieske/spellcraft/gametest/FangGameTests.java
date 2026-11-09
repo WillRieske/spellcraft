@@ -66,10 +66,10 @@ import net.neoforged.neoforge.network.connection.ConnectionType;
  * targets, the 14-down scan and the chase fang), driven through the public {@link EvokingCaster#request}. A mock
  * player gets no player tick from the server (docs/api-notes.md §19: no player-tick event, no effect countdown),
  * so the tests drive the caster with {@link #step} inside each delayed callback, and E19 posts the player-tick
- * event itself. Every test that places fangs registers
- * with padding 13 and {@link #PADDED_MAX_TICKS} (the body's 200 ticks plus the wait for the padded chunks; its padded
- * box is cleared to air, so {@link #floor} lays stone under the square). The caster stands at {@link #FEET}, the
- * structure's middle; targets are pigs or a ravager (zombies burn in daylight; a calm iron golem is an ally).
+ * event itself. Every test that places fangs registers with padding 13 and {@link #PADDED_MAX_TICKS} (the body's 200
+ * ticks plus the wait for the padded chunks; its padded box is cleared to air, so {@link #floor} lays stone under the
+ * square). The caster stands at {@link #FEET}, the structure's middle; targets are pigs or a ravager (zombies burn in
+ * daylight; a calm iron golem is an ally).
  */
 public final class FangGameTests {
     /** The caster's block (relative): the middle of the 3×3×3 structure, one above its floor layer. */

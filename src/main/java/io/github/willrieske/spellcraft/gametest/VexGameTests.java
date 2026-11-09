@@ -45,10 +45,10 @@ import net.minecraft.world.scores.Scoreboard;
 
 /**
  * Vex GameTests for Strength of Evoking (spec §9, table E8, E9, E12, E16 and the prey rule) as Evoking II Part 2 left
- * them: the vexes are Bound Vexes ({@code BoundVexCapGameTests}, {@code BoundVexFollowGameTests}, {@code BoundVexTargetGameTests} and
- * {@code BoundVexJobGameTests} cover their goals). The summoning tests register through
- * {@code FangGameTests.addPadded} (padding 13), so a vex wandering ±7 blocks around its origin reaches no other test.
- * The two tests that add a scoreboard team run in the {@code team_mutation} batch, as the Trail tests do.
+ * them: the vexes are Bound Vexes ({@code BoundVexCapGameTests}, {@code BoundVexFollowGameTests},
+ * {@code BoundVexTargetGameTests} and {@code BoundVexJobGameTests} cover their goals). The summoning tests register
+ * through {@code FangGameTests.addPadded} (padding 13), so a vex wandering ±7 blocks around its origin reaches no
+ * other test. The two tests that add a scoreboard team run in the {@code team_mutation} batch, as the Trail tests do.
  */
 public final class VexGameTests {
     private static final BlockPos FEET = FangGameTests.FEET;
@@ -228,8 +228,8 @@ public final class VexGameTests {
     /**
      * When a player presses V on Peaceful, should send the notice at once, start no cast (no casting effect, no vex
      * after the warmup) and not use up the cooldown: on Normal the same player's next press starts. The Bound Vex type
-     * is {@code notInPeaceful} (docs/api-notes.md §21), so it cannot be created there and {@code Mob.checkDespawn} removes one
-     * already out (spec §10).
+     * is {@code notInPeaceful} (docs/api-notes.md §21), so it cannot be created there and {@code Mob.checkDespawn}
+     * removes one already out (spec §10).
      *
      * <p>Method under test: {@link EvokingCaster#request}, and {@link net.minecraft.world.entity.Mob#checkDespawn}
      *
