@@ -43,7 +43,7 @@ The work is split into seven parts, built in order, each small enough for one pl
 | **Bound Vex** | `spellcraft:bound_vex`, this mod's own mob, a subclass of vanilla `Vex`. What **V** summons from now on. Carries the **summoner** attachment. |
 | **Summoner** | The player who summoned a Bound Vex (attachment `spellcraft:summoner`, from the Evoking spec). "You" in this document. |
 | **Ally** | What `Allies.isAllyOf(player, entity)` says: vanilla's allies (team, pets, allays), the player's summons and owned mobs, and now villagers, wandering traders and iron golems (§2.3). |
-| **Hostile** | A mob that implements `Enemy` (every `Monster`, slimes, ghasts, phantoms, shulkers, the dragon, the wither). Creepers are hostile but Bound Vexes skip them unless provoked (§3.4). |
+| **Hostile** | A mob that implements `Enemy` (every `Monster`, slimes, ghasts, phantoms, shulkers, the dragon, the wither). Creepers are hostile but Bound Vexes skip them unless provoked (§3.4), and so are another player's summons (§3.4). |
 | **Guard area** | The box around a Bound Vex in which it looks for hostiles: 8 × 8 × 7 blocks (±4 east/west, ±4 north/south, ±3.5 up/down), measured from the vex's feet. An entity is in it when its feet are, faces included. |
 | **Reach** | 7.25 blocks: how far a Bound Vex keeps a chosen target before it gives up on it, and its `FOLLOW_RANGE`. |
 | **Staying** | A Bound Vex told to hold its spot (empty-hand right-click toggles it). It still fights in its guard area but does not follow. |
@@ -176,7 +176,8 @@ copies of the charge and wander goals. What changes:
   tracking settings and `notInPeaceful()`), attributes = `Vex.createAttributes()` with `FOLLOW_RANGE` 7.25, registered in
   `EntityAttributeCreationEvent`. `MobCategory.MONSTER` keeps vanilla's hostile-mob bookkeeping (it
   is still a monster to golems and villagers, handled in §2.3).
-- **No spawn egg, no natural spawn, no loot table** (it drops only gear, §4.5). Will asked for no
+- **No spawn egg, no natural spawn, no loot table and no experience** (it drops only gear, §4.5;
+  `xpReward` is 0, since summon-and-kill would farm 3 XP per vex). Will asked for no
   egg; `/summon spellcraft:bound_vex` works for testing and sets no summoner, so such a vex idles.
 - **No timer:** `BoundVex` never calls `setLimitedLife`; `Vex.tick` only counts down when
   `hasLimitedLife` is true (`Vex.java:79`). `removeWhenFarAway` returns false and
@@ -187,9 +188,9 @@ copies of the charge and wander goals. What changes:
 - **Synced data:** each part adds the flag it first reads: `STAYING` (boolean, Part 2; also saved
   as NBT, because a cross-dimension teleport makes a new entity that copies the save but not the
   synced data), `TEAM_MOVE` (byte, §8, Part 6), `CASTER` (boolean, §9.1, Part 7).
-- **Renderer:** `BoundVexRenderer extends VexRenderer`, same texture and model in Part 2 (the armor
-  layer comes in Part 3), registered in `EntityRenderersEvent.RegisterRenderers`
-  (`client.evoking`).
+- **Renderer:** Part 2 registers vanilla's `VexRenderer::new` directly for the type, in
+  `client.evoking.BoundVexRenderers` (`EntityRenderersEvent.RegisterRenderers`): same texture and
+  model. Part 3 adds the `BoundVexRenderer extends VexRenderer` subclass with the armor layer (§4).
 - **`VexSummons.summon`** creates `ModEntities.BOUND_VEX` instead of `EntityTypes.VEX`, keeps the
   ring offsets, `finalizeSpawn` (iron sword), bound origin, team join, and drops the
   `setLimitedLife` line and the `onJoin` goal install (goals are the class's own now). `isPrey`
@@ -259,7 +260,12 @@ old level and follow again when the summoner returns there (no cross-dimension t
 online and alive in the level, not an ally, PvP rule for players) and extends the PvP rule to mobs
 another player summoned: such a mob is prey only if the summoner may harm its owner (an offline
 owner falls back to the level's `pvp` rule), so two players' vexes leave each other alone with PvP
-off. The target selector installs, in priority order:
+off. With PvP on, a mob carrying another player's summoner mark is treated like that player: prey
+only for the grudge goal (item 1, after it hurt this vex, the summoner or an ally), and never a
+target of the patrol or ally goals (items 2 and 3), which hunt only what `BoundVex.huntable` accepts:
+an `Enemy`, not a `Creeper`, carrying no other player's summoner mark. A player is not an `Enemy`,
+so another player is never a patrol or ally target either. The target selector installs, in
+priority order:
 
 1. `HurtBySummonerSideGoal` (a `TargetGoal` the mod writes): the first of these, in this order,
    that is at most **100 ticks** old on its owner's clock and passes `isPrey`: the mob that last
@@ -269,11 +275,12 @@ off. The target selector installs, in priority order:
    window matters because vanilla forgets `lastHurtByMob` after 100 ticks but never forgets
    `lastHurtMob`. A creeper is allowed here (provoked).
 2. `AllyFightGoal`: the current target of any **ally `Mob`** within the guard area (never the vex
-   itself; an iron golem's or a wolf's `getTarget()`), if `isPrey` and hostile. Vexes join fights
-   allies start.
+   itself; an iron golem's or a wolf's `getTarget()`), if `isPrey` and `huntable` (hostile, so not a
+   pig; never a creeper, since an ally's fight is not the vex being provoked; never another
+   player's summon). Vexes join fights allies start.
 3. `NearestHostileGoal`: `NearestAttackableTargetGoal<LivingEntity>` over the guard area (a custom
-   `getTargetSearchArea` returning the 8×8×7 box) with selector `isPrey(...) && target instanceof
-   Enemy && !(target instanceof Creeper)`. Line of sight is vanilla's (`mustSee`). A vanilla `Vex`
+   `getTargetSearchArea` returning the 8×8×7 box) with selector `isPrey(...) && huntable(...)`
+   (`Enemy`, not a `Creeper`, no other player's summoner mark). Line of sight is vanilla's (`mustSee`). A vanilla `Vex`
    (an evoker's) is an `Enemy`, so it is engaged; Part 4 makes that engagement a bribe attempt
    first (§5.2).
 
@@ -312,7 +319,9 @@ called; the flee goal simply outranks the charge goal, so the target is kept and
   (`getAttackAnimationTick() > 0`, `IronGolem.java:237`, public) and faces the vex (dot of the
   golem's **head** look vector, `getHeadLookAngle`, and the offset to the middle of the vex's box
   > 0.5; `getLookAngle` would read the body), the vex darts 3 blocks sideways (perpendicular to the golem's look) in one move. Every time, no roll:
-  the case only arises while a mad golem is being fought (§13).
+  the case only arises while a mad golem is being fought (§13). The vex sidesteps *after* the swing:
+  `IronGolem.doHurtTarget` sets the animation tick in the same call that applies the damage, so the
+  goal reacts to a swing that has landed near the vex (a reaction, not an evasion; §13).
 
 ### 3.7 Repairing a golem
 
@@ -764,7 +773,9 @@ end of Part 7, to `1.3.0` with a tag; the parts land as PRs on `main` without bu
 | Dodge roll | Always | Only arises against a mad golem; a roll adds nothing. |
 | Repair scope | Any hurt ally golem in the guard area | The ingots are free; "mercy" reads as medic. |
 | Attacker memory | The first fresh one in §3.4's order, at most 100 ticks old | One pass, and the order already says what matters most; alternative: compare four ages for the newest. |
-| Other players' vexes | Prey only under the PvP rule | With PvP off, two players' vexes would otherwise fight; an offline owner falls back to the level's `pvp` setting. |
+| Other players' vexes | Treated like their player: prey for the grudge goal under the PvP rule, never patrol or ally-fight targets | With PvP off, two players' vexes would otherwise fight; an offline owner falls back to the level's `pvp` setting. A vex answers a hit, but never starts a fight on sight. |
+| Experience | None | Summon-and-kill would farm 3 XP per vex, 3 per press. |
+| Dodge timing | After the swing | Golems never target Bound Vexes, so the swing is never aimed at the vex; a pre-swing read would need the golem's target prediction. |
 | Neutral monsters | Patrol targets them (zombified piglins, endermen) | `Enemy` includes them, so a vex may start a fight with a piglin horde. Playtest item. |
 | Portal ring cells | May coincide | Vexes clip through each other and blocks; two on one spot spread as they move. |
 | Following after a job | A vex finishes its wander leg or repair (up to about 3 s) before following | Goals end on their own terms; cutting a repair short would waste the claim. |
