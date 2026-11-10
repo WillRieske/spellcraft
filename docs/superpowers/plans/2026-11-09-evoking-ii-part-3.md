@@ -831,7 +831,7 @@ git commit -m "feat(evoking): give a Bound Vex armor, weapons and shields; take 
 - Consumes: `VexGear.kindOf`, `isRanged`, `isSupport` (Task 5); `BoundVex.summoner()`, `nearby(Class, double, Predicate)`, `isSummonedBy(UUID)`.
 - Produces: `static void VexShots.launch(BoundVex vex, LivingEntity at)` (shoots or throws a copy of the main-hand item at `at`; the held stack is untouched); `RangedGearGoal.MIN_DISTANCE` (6.0), `MAX_DISTANCE` (10.0), `SHOT_INTERVAL` (40); `SupportGearGoal.RANGE` (10.0), `INTERVAL` (40). Constants are `static final`, package-private or public as the tests need.
 
-- [ ] **Step 1: `VexShots.launch`.** Package-private final class. **Read `AbstractSkeleton.performRangedAttack` and `Witch.performRangedAttack` in `build/mc-src` first** and build the launch exactly as they do (the spawn helper, the aim arithmetic); the logic:
+- [x] **Step 1: `VexShots.launch`.** Package-private final class. **Read `AbstractSkeleton.performRangedAttack` and `Witch.performRangedAttack` in `build/mc-src` first** and build the launch exactly as they do (the spawn helper, the aim arithmetic); the logic:
 
 ```java
     static void launch(BoundVex vex, LivingEntity at) {
@@ -870,7 +870,7 @@ git commit -m "feat(evoking): give a Bound Vex armor, weapons and shields; take 
 
 `shootArrow`: as the skeleton: `dy = at.getY(1.0 / 3.0) - arrow.getY()`, `arrow.pickup = AbstractArrow.Pickup.DISALLOWED`, then the skeleton's spawn-and-shoot call with velocity 1.6 and inaccuracy 2 (a vex is a fair shot; the skeleton's is `14 - difficulty * 4`). `throwPotion`: as the witch: aim at the target's eye height minus 1.1, velocity 0.75, inaccuracy 8, the item's throw sound (`SPLASH_POTION_THROW` / `LINGERING_POTION_THROW`). `ProjectileUtil.getMobArrow`'s `firedFromWeapon` may be required non-null for enchantment hooks in the bow path and is nullable for the arrow path (`ProjectileUtil.java:273`).
 
-- [ ] **Step 2: `RangedGearGoal`.** Package-private final class, flag `MOVE`, `requiresUpdateEveryTick` true. Javadoc: Part 3 spec §4.3 "Ranged".
+- [x] **Step 2: `RangedGearGoal`.** Package-private final class, flag `MOVE`, `requiresUpdateEveryTick` true. Javadoc: Part 3 spec §4.3 "Ranged".
 
 ```java
     @Override
@@ -911,7 +911,7 @@ git commit -m "feat(evoking): give a Bound Vex armor, weapons and shields; take 
 
 `canContinueToUse` is `canUse()`. Register in `BoundVex.registerGoals` at priority 3, before the `ChargeGoal` line. In `ChargeGoal.canUse` add as the first conjunct `!VexGear.isRanged(BoundVex.this.getMainHandItem()) && !VexGear.isSupport(BoundVex.this.getMainHandItem())` and say why in its Javadoc (the main hand picks the fighting style, spec §4.3). A staying ranged vex may back out of its stay area while holding the band; it returns through `HoldPostGoal` when the target is gone (spec §2.2).
 
-- [ ] **Step 3: `SupportGearGoal`.** Package-private final class, **no flags** (`setFlags(EnumSet.noneOf(Goal.Flag.class))`), so follow and hold-post keep running beside it (spec §4.3). `requiresUpdateEveryTick` true.
+- [x] **Step 3: `SupportGearGoal`.** Package-private final class, **no flags** (`setFlags(EnumSet.noneOf(Goal.Flag.class))`), so follow and hold-post keep running beside it (spec §4.3). `requiresUpdateEveryTick` true.
 
 ```java
     @Override
@@ -949,7 +949,7 @@ git commit -m "feat(evoking): give a Bound Vex armor, weapons and shields; take 
 
 (`Allies.isAllyOf` already counts the summoner's own vexes: its Javadoc and `BoundVex.alliesInGuardArea`'s comment say a vex is its summoner's ally. Read `Allies.isAllyOf` to confirm; if it does not, add `|| (friend instanceof BoundVex other && other.isSummonedBy(owner.getUUID()))`.) Register at priority 3 after the charge goal. `nearby` is package-private on `BoundVex`: the goal is in the same package.
 
-- [ ] **Step 4: Shield and wear on `BoundVex`.**
+- [x] **Step 4: Shield and wear on `BoundVex`.**
 
 ```java
     /**
@@ -996,7 +996,7 @@ git commit -m "feat(evoking): give a Bound Vex armor, weapons and shields; take 
 
 **Confirm:** `SoundEvents.SHIELD_BLOCK`'s declared type (`Holder<SoundEvent>` or `SoundEvent`); `calculateViewVector` is accessible from a subclass (`Entity`, protected or public; vanilla's `applyItemBlocking` calls it unqualified); `ItemStack.matches(ItemStack, ItemStack)` exists. The `Vex` class may not expose `hurtServer` as public-overridable differently: match the super signature at `LivingEntity.java:1223`.
 
-- [ ] **Step 5: GameTests** (add to `BoundVexGearGameTests`; padded unless noted; husks on stone, `setNoAi(true)`; set gear directly with `setItemSlot`, the giving is Task 5's subject):
+- [x] **Step 5: GameTests** (add to `BoundVexGearGameTests`; padded unless noted; husks on stone, `setNoAi(true)`; set gear directly with `setItemSlot`, the giving is Task 5's subject):
 
 | Method | Arrange → Act → Assert |
 |---|---|
@@ -1011,7 +1011,7 @@ git commit -m "feat(evoking): give a Bound Vex armor, weapons and shields; take 
 
 Delta: 9 tests (count the two healing tests separately).
 
-- [ ] **Step 6: Verify** (`spotlessApply`, `build`, `runGameTestServer` twice; total = previous + 9) and **commit**:
+- [x] **Step 6: Verify** (`spotlessApply`, `build`, `runGameTestServer` twice; total = previous + 9) and **commit**:
 
 ```bash
 git add src/main/java/io/github/willrieske/spellcraft/evoking src/main/java/io/github/willrieske/spellcraft/gametest
@@ -1020,6 +1020,8 @@ git add src/main/java/io/github/willrieske/spellcraft/evoking src/main/java/io/g
 ```bash
 git commit -m "feat(evoking): Bound Vexes shoot, throw, heal and block with the gear they hold"
 ```
+
+> **As built (`11b533c`):** diverged — `RangedGearGoal` and its constants are public (tests read them); `VexShots` aims potions from the projectile's own height (a vex's eyes are low) with the witch's speeds; `doHurtTarget` restores the weapon silently (`setItemSlot(…, true)`); the shield test's no-position damage is `generic()` (the vex is fire immune) and tests reset `damageCooldownTime`; the bow, potion and healing tests use a staying vex so the stay area bounds its targets; reason: implementer, 26.3 names and test stability. Task 4 also got a review fix round first (`8389c81`: `stashGift` guards and copies, conjure/dismiss are silent, the Peaceful drop honors `mob_drops` and Curse of Vanishing, three tests added).
 
 ---
 
@@ -1161,6 +1163,7 @@ git commit -m "docs: describe Bound Vex gear and the new stay; playtest items; m
 | 3 | `222c588` | `POST_TOLERANCE` is public (the GameTests are in another package); the stay tests hang the vex at `FEET.above(4)` (the barrier shell at `FEET.above(2)` blocks line of sight) and place husks with no gravity by absolute `setPos` from the post point instead of on stone at structure coordinates (rotated tests put those a block off); the two "drops the target" tests wait with `thenWaitUntil` instead of a 30-tick window; reason: implementer, to make the tests correct under rotation and Error Prone. |
 | 4 | `53e2f9f` | `stashGift` is public (the GameTests are in another package); the Peaceful drop test runs in its own environment `peaceful_gear` (two tests in one `peaceful` batch run side by side and the difficulty change broke the other); reason: implementer, both needed to compile and pass. |
 | 5 | `fa7ad8a` | `give` plays no armor sound of its own (`LivingEntity.onEquipItem` plays the equip sound for armor and an offhand shield) and plays `VEX_AMBIENT` for the main hand and for a gift that waits in the stash; the overflow drop is `Player.drop(back, false, Prediction.SERVER_ONLY)`; reason: api-notes §22 (Task 1). Task 3 also got a review fix round first (`36bfed5`: the return flight needs the vex nearly still and approaches at 0.25 inside 3 blocks; a staying vex loaded without a post gets one; two tests added). |
+| 6 | `11b533c` | `RangedGearGoal` and its constants are public (tests read them); `VexShots` aims potions from the projectile's own height (a vex's eyes are low) with the witch's speeds; `doHurtTarget` restores the weapon silently (`setItemSlot(…, true)`); the shield test's no-position damage is `generic()` (the vex is fire immune) and tests reset `damageCooldownTime`; the bow, potion and healing tests use a staying vex so the stay area bounds its targets; reason: implementer, 26.3 names and test stability. Task 4 also got a review fix round first (`8389c81`: `stashGift` guards and copies, conjure/dismiss are silent, the Peaceful drop honors `mob_drops` and Curse of Vanishing, three tests added). |
 
 ## Resume State
 

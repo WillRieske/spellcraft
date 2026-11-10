@@ -75,3 +75,5 @@ e5ef3e0 Task 2: GuardArea tests red then green (./gradlew test --tests *GuardAre
 53e2f9f Task 4: build green; All 262 required tests passed
 36bfed5 Task 3 fix round 1: build green; All 264 required tests passed
 fa7ad8a Task 5: build green; All 275 required tests passed
+8389c81 Task 4 fix round 1: build green; All 278 required tests passed
+11b533c Task 6: build green; All 287 required tests passed twice
