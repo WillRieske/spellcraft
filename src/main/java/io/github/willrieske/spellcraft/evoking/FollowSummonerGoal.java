@@ -16,9 +16,11 @@ import net.minecraft.world.phys.Vec3;
  * instead. In the wide posture each use makes one move; the move control flies it there and {@code canUse} picks the
  * next. In a close posture the use lasts until the vex arrives, and then {@link #stop} halts it dead: at speed 0.35 a
  * vex that coasted past its spot sank to the summoner's eye height (measured 1.5 above the feet), into their clicks.
- * Without a summoner in the level the goal is idle.
- * Like vanilla's random move, the goal waits for the move control to be free ({@code !hasWanted()}), so a vex finishes
- * a return flight to its post or a charge before it follows.
+ * A close flight ends when the vex arrives, when it gets a target, when the summoner runs more than
+ * {@link #TELEPORT_DISTANCE} blocks off or is gone (the flight is dropped, so the next use can teleport), when the vex
+ * is told to stay, or when a higher-priority goal takes the move control. Without a summoner in the level the goal is
+ * idle. Like vanilla's random move, the goal waits for the move control to be free ({@code !hasWanted()}), so a vex
+ * finishes a return flight to its post or a charge before it follows.
  */
 public final class FollowSummonerGoal extends Goal {
     /** The wide posture's inner sideways edge (feet to feet); the GameTests read it. */
@@ -72,7 +74,8 @@ public final class FollowSummonerGoal extends Goal {
 
     /**
      * One move per use in the wide posture. A close-posture flight continues while the move control still has a wanted
-     * position and the vex is still following, idle and has its summoner; arriving clears the wanted position.
+     * position and the vex is still following, idle, and has its summoner within {@link #TELEPORT_DISTANCE}; arriving
+     * clears the wanted position.
      */
     @Override
     public boolean canContinueToUse() {
@@ -80,21 +83,31 @@ public final class FollowSummonerGoal extends Goal {
                 && vex.getMoveControl().hasWanted()
                 && !vex.isStaying()
                 && vex.getTarget() == null
-                && vex.summoner().isPresent();
+                && summonerNear();
+    }
+
+    /** Whether the summoner is here and no farther than {@link #TELEPORT_DISTANCE} (feet to feet). */
+    private boolean summonerNear() {
+        return vex.summoner()
+                .filter(owner -> vex.distanceTo(owner) <= TELEPORT_DISTANCE)
+                .isPresent();
     }
 
     /**
-     * Ends a close-posture flight. When the move control has arrived (no wanted position) the vex is stopped dead;
-     * stopped for any other reason its velocity is left alone; when a target appeared, the flight's wanted position is
-     * dropped so that the charge goal (which waits for a free move control) can start at once.
+     * Ends a close-posture flight. When the move control has arrived (no wanted position) the vex is stopped dead.
+     * When a target appeared, the flight's wanted position is dropped so that the charge goal (which waits for a free
+     * move control) can start at once; likewise when the summoner ran off or is gone, so that the next use can
+     * teleport and the vex does not coast on to a stale spot. Stopped for any other reason (a stay order, a rescue)
+     * the velocity and the wanted position are left alone.
      */
     @Override
     public void stop() {
-        if (closeFlight && !vex.getMoveControl().hasWanted()) {
-            vex.setDeltaMovement(Vec3.ZERO);
-        } else if (closeFlight && vex.getTarget() != null) {
-            // The charge goal starts only when the move control is free, and a close flight is long: let it go.
-            vex.getMoveControl().setWait();
+        if (closeFlight) {
+            if (!vex.getMoveControl().hasWanted()) {
+                vex.setDeltaMovement(Vec3.ZERO);
+            } else if (vex.getTarget() != null || !summonerNear()) {
+                vex.getMoveControl().setWait();
+            }
         }
         closeFlight = false;
     }
