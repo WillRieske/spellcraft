@@ -157,7 +157,7 @@ git commit -m "docs(api-notes): record the 26.3 facts for Evoking II Part 3"
 
 - Produces: `GuardArea.STAY_HALF_WIDTH` (`double`, 6.5), `GuardArea.FOLLOW_RANGE` (`double`, 20.0), `static boolean GuardArea.containsStaying(double dx, double dy, double dz)`.
 
-- [ ] **Step 1: Write the failing tests.** Read both test files first and match their structure. Add to `GuardAreaTest` a `@Nested class ContainsStaying` and a `@Nested class FollowRange`:
+- [x] **Step 1: Write the failing tests.** Read both test files first and match their structure. Add to `GuardAreaTest` a `@Nested class ContainsStaying` and a `@Nested class FollowRange`:
 
 ```java
     @Nested
@@ -252,9 +252,9 @@ Add to `GuardAreaPropertiesTest`, inside a new `@Group class ContainsStaying` li
     }
 ```
 
-- [ ] **Step 2: Run to see them fail.** `./gradlew test --tests "*GuardArea*" --console=plain > build/test.log 2>&1; echo "exit=$?"; tail -20 build/test.log`. Expected: non-zero exit, compile errors naming `containsStaying`, `STAY_HALF_WIDTH`, `FOLLOW_RANGE`.
+- [x] **Step 2: Run to see them fail.** `./gradlew test --tests "*GuardArea*" --console=plain > build/test.log 2>&1; echo "exit=$?"; tail -20 build/test.log`. Expected: non-zero exit, compile errors naming `containsStaying`, `STAY_HALF_WIDTH`, `FOLLOW_RANGE`.
 
-- [ ] **Step 3: Implement.** In `GuardArea.java`, update the class Javadoc's first sentence to mention both boxes, change the `REACH` Javadoc to `/** How far a following vex keeps fighting a target. */`, and add:
+- [x] **Step 3: Implement.** In `GuardArea.java`, update the class Javadoc's first sentence to mention both boxes, change the `REACH` Javadoc to `/** How far a following vex keeps fighting a target. */`, and add:
 
 ```java
     /** Half the width of the box a staying vex defends around its post: 13 blocks across (Part 3 spec §2.3). */
@@ -280,9 +280,9 @@ Add to `GuardAreaPropertiesTest`, inside a new `@Group class ContainsStaying` li
     }
 ```
 
-- [ ] **Step 4: Run to see them pass.** Same command. Expected `exit=0`.
+- [x] **Step 4: Run to see them pass.** Same command. Expected `exit=0`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/io/github/willrieske/spellcraft/spell/rules/GuardArea.java src/test/java/io/github/willrieske/spellcraft/spell/rules/GuardAreaTest.java src/test/java/io/github/willrieske/spellcraft/spell/rules/GuardAreaPropertiesTest.java
@@ -291,6 +291,8 @@ git add src/main/java/io/github/willrieske/spellcraft/spell/rules/GuardArea.java
 ```bash
 git commit -m "feat(evoking): add the stay box and the follow-range bound to GuardArea"
 ```
+
+> **As built (`e5ef3e0`):** matches plan.
 
 ---
 
