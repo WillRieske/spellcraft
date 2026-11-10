@@ -1,7 +1,7 @@
 # Spellcraft: Evoking II Parts 6 and 7, team moves, Casters, Mirror, Ghostrail, villager ghosts (design)
 
 **Date:** 2026-11-10
-**Status:** approved
+**Status:** plan written (`2026-11-10-evoking-ii-part-6.md`); phase 2 plan not yet written
 **Written by:** `/one-shot`, unattended, on 2026-11-10; §14 lists the decisions Will did not state.
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
 **Builds on:** [`2026-11-07-evoking-ii-design.md`](2026-11-07-evoking-ii-design.md) ("the parent
