@@ -890,3 +890,159 @@ Verified 2026-11-09 against the unpacked sources (`build/mc-src`). Paths are und
   (`addLayer(new BoundVexArmorLayer(this, context))`) passes `this` out of a constructor of a
   non-final class and fails the build (Part 3 Task 7's as-built note). `BoundVexRenderer` is `final`,
   which is the fix; no suppression is needed.
+
+## 23. Evoking II, Part 4: cure and bribes (Evoking II Part 4 task)
+
+Verified 2026-11-09 against the unpacked sources (`build/mc-src`, `build/nf-src`). Paths are under `net/minecraft/`
+(vanilla) or `net/neoforged/neoforge/` (NeoForge) unless noted. Where this section differs from the Part 4 plan or the
+Parts 4-5 spec, this section wins (the list is at the end).
+
+- `ZombieVillager` (`world/entity/monster/zombie/ZombieVillager.java`, package `...entity.monster.zombie`):
+  `extends Zombie implements VillagerDataHolder` (`:61`). `startConverting(@Nullable UUID player, int time)` was
+  `private void` (`:196`); the access transformer makes it `public void`, and the regenerated patched sources show
+  `public void startConverting(@Nullable UUID player, int time)` at `:196`. It stores the starter and
+  `villagerConversionTime`, sets `DATA_CONVERTING_ID` (synced), **removes weakness**
+  (`removeEffect(MobEffects.WEAKNESS)`, `:200`), adds Strength for `time` ticks with amplifier
+  `Math.min(difficultyId - 1, 0)` (so 0 on Easy, Normal and Hard, `:201`) and broadcasts entity event 16 (`:202`, the
+  cure sound on clients, `handleEntityEvent` `:211-229`). `isConverting()` (`:192`) is public and reads the synced
+  flag. `setVillagerConversionTime(int)` (`:277`) is public (`@VisibleForTesting`): it only sets the countdown, no
+  event, no sync.
+- Countdown: `ZombieVillager.tick` (`:150-161`) runs on the server when alive and converting: it subtracts
+  `getConversionProgress()` (1, plus 0.3-chance bonuses from `SPEEDS_UP_ZOMBIE_VILLAGER_CURING` blocks within 4
+  blocks, rolled 1% of ticks, `:281-304`), and at `<= 0` asks NeoForge's `EventHooks.canLivingConvert` (a cancellable
+  `LivingConversionEvent.Pre`, `EventHooks.java:858-860`) before `finishConversion`. **`tick()` is not gated by
+  `NoAI`**: the only NoAI gate is `isEffectiveAi()` (`Mob.java:1338`), tested by `LivingEntity.aiStep` for
+  `serverAiStep` (`LivingEntity.java:3181`: goals, targets, navigation, controls) and for `travel` (`:3235`). So a
+  NoAI zombie villager keeps counting down, does not move, has no goals and never attacks (the attack is a goal,
+  `Zombie.addBehaviourGoals` `:131-141`); it still burns in daylight (`Mob.aiStep` `:484` `burnUndead`, not gated),
+  and `removeWhenFarAway` is `!isConverting() && villagerXp == 0` (`:188`), so a frozen one that is not converting
+  yet can despawn.
+- `finishConversion(ServerLevel)` (`:231-274`) calls `convertTo(EntityTypes.VILLAGER,
+  ConversionParams.single(this, false, false), lambda)`. In the lambda: gossips and offers are copied, the starter is
+  looked up with `level.getPlayerByUUID(conversionStarter)` (`:259`, searches `level.players()`), and **only if that
+  is a `ServerPlayer` in this level** does the cure trigger the advancement and
+  `level.onReputationEvent(ReputationEventType.ZOMBIE_VILLAGER_CURED, player, villager)` (`:260-263`); then Nausea 200
+  on the villager (`:266`) and `EventHooks.onLivingConvert(this, villager)` last (`:271`). A starter who is offline,
+  dead or in another level gets nothing (the conversion still happens). `ServerLevel.onReputationEvent` (`:1707`)
+  calls `Villager.onReputationEventFrom` (`Villager.java:883`): `MAJOR_POSITIVE` +20 and `MINOR_POSITIVE` +25 for the
+  starter's UUID. A test reads it with `villager.getPlayerReputation(Player)` (`Villager.java:669`, public, the sum
+  over all gossip types) or `villager.getGossips().getReputation(UUID, Predicate<GossipType>)`
+  (`GossipContainer.java:109`; `getGossips()` public `:915`). Weights: `GossipType` `MAJOR_POSITIVE` 5,
+  `MINOR_POSITIVE` 1 (`GossipType.java:9-10`), so a fresh cure is worth 125 (before the per-type caps). A mock player
+  from `MockPlayers.inLevel` is a real `ServerPlayer` in `level.players()` (`placeNewPlayer`), so it qualifies.
+- `ZombieVillager.mobInteract` (`:164-180`) with a golden apple: if the zombie villager has weakness it consumes one
+  apple (`itemStack.consume(1, player)`), calls `startConverting(player.getUUID(), random.nextInt(2401) + 3600)` on
+  the server and returns `SUCCESS_SERVER`; without weakness it returns `CONSUME` and does nothing. (So the vex's
+  apple is a prop; `startConverting` is the real work.)
+- Conversion: `Mob.convertTo(type, params, spawnReason, AfterConversion)` (`Mob.java:1263-1287`) creates the new mob,
+  runs `params.type().convert(this, newMob, params)`, then the lambda (which posts the Post event), then
+  `serverLevel.addFreshEntity(newMob)`, then `discard()`s the old mob (`SINGLE` discards, `ConversionType.java:15`,
+  `:88`). So **inside `LivingConversionEvent.Post` the old mob is still alive and in the level, and the new mob is
+  fully set up but not yet added** (no `EntityJoinLevelEvent` yet). `ConversionType.convertCommon` copies `NoAI`
+  (`ConversionType.java:122`), persistence, silence, no-gravity, tags, name and custom data, and active effects
+  (`:97-99`; the villager therefore also gets the zombie villager's Strength), but **no data attachments**.
+- `LivingConversionEvent` (`event/entity/living/LivingConversionEvent.java:13`; game bus; extends `LivingEvent`):
+  `Pre` (`:29`, cancellable, `getOutcome()` = the target `EntityType`, `setConversionTimer(int)`); `Post` (`:68`, not
+  cancellable): `getEntity()` is the **old** mob (`LivingEvent.getEntity()` `:30`), `getOutcome()` (`:82`) the
+  **new** `LivingEntity`. The old mob's attachments are readable (`getExistingData`, `hasData`). NeoForge itself
+  listens (`AttachmentInternals.onLivingConvert`, `attachment/AttachmentInternals.java:61-64`) and runs
+  `outcome.copyAttachmentsFrom(old, true)`, where `true` means *death* semantics: only attachment types built with
+  `copyOnDeath()` are copied (`:52-53`). Our `cure`, `bribed` and `bribe_tried` types are not `copyOnDeath`, so the
+  **new villager has no cure mark**, and a handler that must clear `NoAI` reads the mark from the old mob and calls
+  `setNoAi(false)` on the outcome (a `LivingEntity`: cast to `Mob` first).
+- `EntityTickEvent` (`event/tick/EntityTickEvent.java:18`; game bus): `Pre` (cancellable) and `Post` (`:51`,
+  `getEntity()` from `EntityEvent`); both fire on server and client. **They are posted from
+  `ServerLevel.tickNonPassenger` (`ServerLevel.java:861-866`: `commonTick()` and `tick()` between them) and
+  `Entity.rideTick` (`Entity.java:2452-2458`), not from `LivingEntity.tick`** (the Javadoc of
+  `EventHooks.java:952-967` says "tail of `LivingEntity#tick()`"; the call sites are the two above). The `Post` for a
+  zombie villager therefore fires after the countdown in `ZombieVillager.tick`, in the same tick; on the tick the
+  conversion finishes, the old mob has already been discarded when `Post` fires (a handler must test `isRemoved()`).
+- `Mob.setNoAi(boolean)` (`Mob.java:1342`) flips bit 0 of the synced `DATA_MOB_FLAGS_ID`; `isNoAi()` (`:1357`); saved
+  as the `NoAI` byte only when set (`:404-405`, read `:427`).
+- Vanilla `Vex` (`monster/Vex.java`): `getOwner()` is `@Nullable LivingEntity` (`:136`, from `OwnableEntity`, resolved
+  through `owner`, an `EntityReference<LivingEntity>`, `:52,141`), `setOwner(Mob)` (`:177`). `Vex` does not override
+  `setTarget`; `Mob.setTarget(@Nullable LivingEntity)` (`Mob.java:257`) filters through `asValidTarget` (`:245`: null
+  for a creative or spectator player or a `canAttack` refusal), then posts NeoForge's `LivingChangeTargetEvent` and
+  stores the event's new target unless cancelled. `setTarget(null)` is therefore accepted unless a listener cancels
+  it. `getTarget()` (`:237`) applies the same `asValidTarget`; `getTargetUnchecked()` (`:241`) is the raw field. A
+  **zombie villager's** own goals (inherited from `Zombie.addBehaviourGoals`, `:131-141`): target goals
+  `HurtByTargetGoal` (1), `NearestAttackableTargetGoal` for `Player` (2, must see), `AbstractVillager` (3),
+  `IronGolem` (3), `Turtle` (5). Vanilla vex goals: §21. `GoalSelector.removeAllGoals(Predicate<Goal>)`
+  (`GoalSelector.java:32-40`) **stops running matches first** and then removes them; `removeGoal(Goal)` (`:42`) wraps
+  it. `Vex.tick` keeps working with no goals: its `VexMoveControl` (§22) still moves it toward a wanted position, and
+  the limited-life countdown (§21) is independent of goals.
+- Potion stack with no effects: `PotionContents` is `record(Optional<Holder<Potion>> potion, Optional<Integer>
+  customColor, List<MobEffectInstance> customEffects, Optional<String> customName)` (`PotionContents.java:42`), so the
+  contents are `new PotionContents(Optional.empty(), Optional.of(color), List.of(), Optional.empty())` (canonical
+  constructor, public). The one-argument constructor (`:70`) and `createItemStack(Item, Holder<Potion>)` (`:74`) only
+  take a potion. Build the stack as `new ItemStack(Items.SPLASH_POTION)` (`Items.java:2432`) and
+  `stack.set(DataComponents.POTION_CONTENTS, contents)`. `hasEffects()` (`:155`) is false for it. Weakness's color is
+  the `MobEffect`'s color: `MobEffects.WEAKNESS` is `new MobEffect(MobEffectCategory.HARMFUL, 4738376)`
+  (`MobEffects.java:75-79`), i.e. `0x484D48`, readable as `MobEffects.WEAKNESS.value().getColor()`
+  (`MobEffect.java:143`).
+- A thrown splash potion with such a stack: `ThrownSplashPotion` is in package
+  `net.minecraft.world.entity.projectile.throwableitemprojectile` (`ThrownSplashPotion.java:22`; constructors
+  `(Level, LivingEntity, ItemStack)` `:27` and `(Level, double, double, double, ItemStack)` `:31`); spawn it the way
+  §22 shows (`Projectile.spawnProjectileUsingShoot`, `Projectile.java:225,241`). `AbstractThrownPotion.onHit`
+  (`:68-92`) calls `onHitAsPotion` only `if (potion.hasEffects())` (`:74`), so nothing is applied to anyone; it then
+  posts level event 2002 (the splash particles) with `potion.getColor()` (`:84`), which is the custom color, plus the
+  glass-break sound (event 1053) unless the entity is silent, and discards itself. A splash potion with no effects and
+  a custom color therefore splashes in that color and weakens nobody.
+- Particles and sounds: `ItemParticleOption` (`core/particles/ItemParticleOption.java:9`) has two public
+  constructors, `(ParticleType<ItemParticleOption>, Item)` (`:21`) and `(ParticleType<ItemParticleOption>,
+  ItemStackTemplate)` (`:25`); **it takes no `ItemStack`** (26.3 uses `ItemStackTemplate`, constructors `(Item)`
+  `ItemStackTemplate.java:40` and `(Holder<Item>)` `:58`). The type is `ParticleTypes.ITEM` (`ParticleTypes.java:93`).
+  `ParticleTypes.HAPPY_VILLAGER` (`:87`) and `CLOUD` (`:33`) are `SimpleParticleType`.
+  `ServerLevel.sendParticles(T particle, double x, double y, double z, int count, double xDist, double yDist, double
+  zDist, double speed)` (`ServerLevel.java:1355`; `T extends ParticleOptions`; returns the number of players sent
+  to). Sounds: `SoundEvents.GENERIC_EAT` is a **`Holder.Reference<SoundEvent>`** (`SoundEvents.java:697`),
+  `SoundEvents.VILLAGER_AMBIENT` a plain `SoundEvent` (`:1677`); `Level.playSound(@Nullable Entity except, Entity
+  source, SoundEvent, SoundSource, float, float)` (`Level.java:442`) and the `Holder<SoundEvent>` overload (`:446`)
+  both exist, so pass `GENERIC_EAT` as is to the second and use `.value()` for the first. `Items.GOLDEN_APPLE`
+  (`Items.java:1798`), `Items.EMERALD` (`:1649`).
+- `EntityJoinLevelEvent` (`event/entity/EntityJoinLevelEvent.java:30`; game bus, cancellable, both sides):
+  `loadedFromDisk()` (`:55`) is **true only for entities read back from a chunk**
+  (`PersistentEntitySectionManager.processPendingLoads` `:249-253` and `addLegacyChunkEntities` `:117-119`); it is
+  **false** for `addFreshEntity` (`ServerLevel.addEntity` `:1030-1035`, then `addNewEntity`
+  `PersistentEntitySectionManager.java:70-72`), world-gen entities (`:124-126`) and a cross-dimension arrival
+  (`addDuringTeleport`, §21). At the event, a loaded entity's save data (including attachments, `Entity.java:2246`)
+  has already been read and its goals already exist (`registerGoals` runs in the `Mob` constructor), so
+  `hasData(BRIBED)` is readable and goals can be stripped then. Because a cross-dimension arrival is a save-and-load
+  copy that reports `loadedFromDisk() == false`, the bribed vex's handler keys on the mark, not on
+  `loadedFromDisk()`.
+- Line of sight: `hasLineOfSight` is a **`LivingEntity`** method, not `Entity`'s: `hasLineOfSight(Entity target)`
+  (`LivingEntity.java:3445`) clips a `COLLIDER` ray from this entity's eye to the target's x/z at the target's eye
+  height (`target.getEyeY()`), false across levels or beyond 128 blocks; it ignores where the viewer is looking. A
+  `Player` is a `LivingEntity`, so `player.hasLineOfSight(vex)` is the geometric "nothing solid between us" test;
+  "none of those players has line of sight" (spec §3.2) is that test, not a view-cone test. `Sensing.hasLineOfSight`
+  (`ai/sensing/Sensing.java:24`) is a per-mob cache of the same call.
+- Data attachments (NeoForge): `AttachmentType.builder(Supplier<T>)` (`attachment/AttachmentType.java:109`),
+  `Builder.serialize(MapCodec<T>)` (`:198`; the entity saves it under the attachments key, `Entity.java:2176`, and
+  `deserializeAttachments` restores it on load, `:2246`), `copyOnDeath()` (`:237`, requires a serializer). On an
+  `Entity` (an `IAttachmentHolder`): `hasData(AttachmentType)` (`IAttachmentHolder.java:24`), `getData` (`:39`,
+  **stores and returns the default when absent**), `getExistingData(AttachmentType)` returning `Optional<T>` (`:55`),
+  `getExistingDataOrNull` (`:72`), `setData(type, value)` (`:87`, returns the previous value or null),
+  `removeData(type)` (`:103`); each also has a `Supplier<AttachmentType<T>>` overload, so a `DeferredHolder` passes
+  directly. Saved with the entity; copied to a converted mob only for `copyOnDeath` types (see Conversion above);
+  `restoreFrom` (cross-dimension) keeps serializable ones (§21).
+- Access transformer, the line added to `accesstransformer.cfg`:
+  `public net.minecraft.world.entity.monster.zombie.ZombieVillager startConverting(Ljava/util/UUID;I)V`
+  (descriptor from `startConverting(@Nullable UUID, int)` returning `void`). Proven two ways after `./gradlew build`
+  re-ran `transformSources`: the regenerated `build/moddev/artifacts/minecraft-patched-26.3.0.23-beta-sources.jar`
+  shows `public void startConverting(@Nullable UUID player, int time)` at `ZombieVillager.java:196`, and a scratch
+  class in `src/main/java` calling `zombieVillager.startConverting(uuid, 400)` compiled (`./gradlew compileJava`,
+  exit 0) and was then deleted.
+- GameTest baseline on the Task 1 tree: `All 304 required tests passed` (also in the plan's Resume State).
+
+Where the sources differ from the plan or the spec (the sources win):
+
+- `EntityTickEvent.Post` is posted from `ServerLevel.tickNonPassenger` and `Entity.rideTick`, not at the tail of
+  `LivingEntity.tick` as `EventHooks`' Javadoc says; the same-tick behavior the spec needs holds.
+- `hasLineOfSight` is declared on `LivingEntity`, not `Entity`, and is a geometric clip, not a "looking at" test.
+- `ItemParticleOption` takes an `Item` or an `ItemStackTemplate`, never an `ItemStack`.
+- `SoundEvents.GENERIC_EAT` is a `Holder.Reference<SoundEvent>`; `VILLAGER_AMBIENT` is a `SoundEvent`.
+- `ThrownSplashPotion` lives in `projectile.throwableitemprojectile`.
+- NeoForge's own `LivingConversionEvent.Post` listener copies only `copyOnDeath` attachments, so the new villager has
+  no cure mark (as the spec assumes) and the old mob is readable inside `Post` (it is discarded after).
+- A frozen zombie villager still burns in sunlight and can despawn while not converting; the spec covers the sunlight
+  (playtest item), the despawn is new and harmless (the 300-tick release rule never runs on a removed mob).

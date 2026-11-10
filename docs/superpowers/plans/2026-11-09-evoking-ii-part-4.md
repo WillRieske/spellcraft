@@ -275,4 +275,4 @@ git commit -m "docs: describe the cure and the bribe; playtest items; mutation r
 
 ## Resume State
 
-Not started. Baseline GameTests: (Task 1 fills this in.)
+Task 1 done. Baseline GameTests: 304
