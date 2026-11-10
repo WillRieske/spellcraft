@@ -1647,7 +1647,7 @@ git commit -m "feat(evoking): Bound Vexes break end crystals; the blast spares a
 - Consumes: `onIncomingDamage` (Task 8's shape), `room`, `vexIn`.
 - Produces: `BoundVexEvents.END_CRIT = 3.0F`.
 
-- [ ] **Step 1: Write the failing GameTests**
+- [x] **Step 1: Write the failing GameTests**
 
 - `bound_vex_world_crit_in_the_end`: measure, do not assume the sword's damage: in the Overworld test level a parked vex hits a no-AI husk once (`vex.doHurtTarget(level, husk)`; the husk's armor is removed by the test so the numbers are plain: `husk.getAttribute(Attributes.ARMOR).setBaseValue(0)`), note the health lost `d`. In an End `room`, the same with a `vexIn` vex and a husk created in the End → the health lost is `3 · d` within `0.01` (give both husks 100 max health first so neither dies).
 - `bound_vex_world_crit_not_for_arrows`: in the End, damage the husk with `end.damageSources().arrow(arrow, vex)` (an `Arrow` entity owned by the vex, created and not added) by `husk.hurtServer(end, source, 4)` → loses 4, not 12.
@@ -1656,12 +1656,12 @@ git commit -m "feat(evoking): Bound Vexes break end crystals; the blast spares a
 - `bound_vex_world_crit_on_a_player_under_the_pvp_rule`: in the End, a second mock player who is prey for the vex (arrange the PvP rule as the existing target tests do for "a player the summoner may harm": read `BoundVexTargetGameTests`) is hit by the vex's melee → loses three times what the same hit costs that player in the Overworld (measure both; same armor, none).
 - `bound_vex_world_no_crit_in_the_nether`: in a Nether room the hit does `d`.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:bound_vex_world_crit_*"` and `"…bound_vex_world_no_crit_*"`
 Expected: the first test fails (`d`, not `3 · d`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 At the end of `onIncomingDamage` (after the backstop's branches; restructure the early `return` for a non-vex attacker so the flow stays readable):
 
@@ -1694,7 +1694,7 @@ private static void crit(LivingIncomingDamageEvent event, LivingEntity victim) {
 
 The direct entity being the vex itself is what excludes arrows and potions. Extend the method's Javadoc: the crit comes after the backstop and before the golem mercy clamp (`LivingDamageEvent.Pre`, later in the pipeline).
 
-- [ ] **Step 4: Run the crit tests, full gates, commit**
+- [x] **Step 4: Run the crit tests, full gates, commit**
 
 Run: the filtered runs, then `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice.
 
@@ -1702,6 +1702,8 @@ Run: the filtered runs, then `./gradlew spotlessApply build`, `./gradlew runGame
 git add src/main/java/io/github/willrieske/spellcraft/evoking src/main/java/io/github/willrieske/spellcraft/gametest
 git commit -m "feat(evoking): a Bound Vex's melee hits three times as hard in the End"
 ```
+
+> **As built (`2bdaf45`):** diverged — the backstop moved into a private helper so the crit runs after it for any uncanceled melee hit by a vex in the End, summoner present or not; the Overworld baseline is also checked against the attack-damage attribute (a crit leaking outside the End would otherwise raise the baseline too); the spared-victim test cannot go red (a canceled hit does nothing at any size); a mock player moved into the End needs `hasChangedDimension()` before it can be hurt; review fixes for Task 7 are in `f99d4b1` (a fireball its summoner owns passes through that summoner vexes; "within 4 blocks" is measured to the body). 469 tests; reason: Task 8 restructured the handler, and coordinator rulings recorded in spec §6.3 and §8.
 
 ---
 
@@ -1769,3 +1771,4 @@ git commit -m "docs(evoking): Part 5 in the README, playtest items, mutation tes
 | 6 | `5f3fab6` | test vexes are `NoAI` (a following vex teleports to the player before the test drops them); the 20-tick memo guards only the landing search, the last ground is still tried; the glide, ground-below and not-falling cases are separate tests; `teleportTo` already dismounts and zeroes the velocity, so those two lines cannot be seen red. 422 tests; reason: how the GameTest server and vanilla teleport behave. |
 | 7 | `f40f625` | the "left alone" cases are four tests; the unused lambda parameters are `_`; the returned fireball kills a real ghast in the test with no fallback; review fixes for Task 5 are in `0c30b8d` (the drowning passenger test rides a minecart: a pig dismounts under water). 435 tests; reason: test granularity and the sources. |
 | 8 | `e006924` | the removed-on-the-way test puts its crystals 16 and 17 blocks off and could not be seen red (the vex ends its goal at the dead crystal anyway); the player-blast test asserts only the throw (a player takes no damage from their own blast under the server PvP rule); `AttackCrystalGoal.isClaimed` added for tests; the End-dimension and missing-summoner checks are untested; review fixes for Task 6 are in `9b58e11` (last ground in an unloaded chunk is trusted, as `VoidRule.lastGroundUsable`; three lines vanilla teleport already covers removed; a refused teleport starts no rescue). 454 tests; reason: the GameTest server and vanilla teleport. |
+| 9 | `2bdaf45` | the backstop moved into a private helper so the crit runs after it for any uncanceled melee hit by a vex in the End, summoner present or not; the Overworld baseline is also checked against the attack-damage attribute (a crit leaking outside the End would otherwise raise the baseline too); the spared-victim test cannot go red (a canceled hit does nothing at any size); a mock player moved into the End needs `hasChangedDimension()` before it can be hurt; review fixes for Task 7 are in `f99d4b1` (a fireball its summoner owns passes through that summoner vexes; "within 4 blocks" is measured to the body). 469 tests; reason: Task 8 restructured the handler, and coordinator rulings recorded in spec §6.3 and §8. |

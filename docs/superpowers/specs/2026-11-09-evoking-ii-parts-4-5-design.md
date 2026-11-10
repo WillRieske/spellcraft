@@ -350,7 +350,8 @@ When a `LargeFireball` in the Nether is about to hit, and for some living, non-s
 
 - the fireball's owner is not that player (a fireball they or their vex already returned is
   left alone), and
-- the thing hit is that player, or a block or entity within **4 blocks** of that player, and
+- the thing hit is that player, or a block or entity within **4 blocks** of that player's body
+  (measured from the hit point to their bounding box, not their feet), and
 - a living Bound Vex of that player, following or staying, is within **7.25 blocks** of the
   fireball (the nearest one acts),
 
@@ -373,6 +374,13 @@ explosion to vanilla and to the Part 3 backstop: it can hurt the player's allies
 returned fireball. Accepted (it flies away from them).
 
 A staying vex that returned a fireball flies back to its post afterwards.
+
+**A fireball you own passes through your vexes.** The returned fireball heads for the ghast your
+vexes are attacking, and because you are its owner the Part 3 backstop does not see its hit. So
+the impact of a `LargeFireball` whose owner is a player on a Bound Vex of that player is
+cancelled, in any dimension, and nothing else is done: it flies on (a ray that starts inside a
+box does not hit it). This also covers a fireball you punched back yourself. Its blast, when it
+lands on something else, still hurts what stands near, vexes included.
 
 ### 6.4 The void catch (End)
 
@@ -455,6 +463,9 @@ in the damage pipeline (`LivingDamageEvent.Pre`) and still holds.
 - **The fireball's ghast is gone or out of sight:** the fireball goes straight back along its
   path. **A fireball that is not a ghast's** (a command's, for one) is returned the same way.
 - **Two fireballs in one tick:** each impact is its own event; the nearest vex acts for each.
+- **Two summoners:** a fireball one player's vex returned (so that player owns it) that lands
+  near another player with vexes is returned again, straight back (its owner is no ghast). It
+  can bounce between them. Rare; accepted.
 - **The void catch finds lava, a portal or a gateway:** a standable spot needs two blocks of
   air, so none of them qualifies; an obsidian pillar's top does.
 - **Elytra and creative flight:** no void catch while flying; it applies again the moment the
