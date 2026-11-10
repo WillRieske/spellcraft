@@ -124,8 +124,8 @@ Roster size and choice (the pure `TeamMoveRules`, §5):
 
 ### 2.3 Triggers (automatic mode)
 
-Each summoner is checked every **10 ticks** (from `TeamMoves.tick`, §2.5, on the summoner's
-`tickCount`), only when no move is running and the summoner is present (online, alive, not a
+Each summoner is checked every **10 ticks** (from `TeamMoves.tick`, §2.5, on a stored game-time deadline, `nextScan`, not the summoner's
+`tickCount`: a mock player is never ticked), only when no move is running and the summoner is present (online, alive, not a
 spectator). Candidates are hostiles that are `isPrey` and `huntable` for the summoner (an
 `Enemy`, not a creeper, no other player's mark) and whose feet are inside the guard area of at
 least one following vex of the summoner. In this order, the first that can be started wins:
@@ -165,14 +165,17 @@ conjured (`BoundVex.conjure`, which stashes given gear). The summoner gets the o
 
 `TeamMoves.tick(ServerPlayer)` (public, so GameTests can step it: a mock player is never ticked
 by the server and fires no `PlayerTickEvent`) runs every tick from the summoner's
-`PlayerTickEvent.Post`; it runs the §2.3 trigger scan on its 10-tick clock and checks the record. Roster
+`PlayerTickEvent.Post`; it runs the §2.3 trigger scan on its 10-tick clock and checks the record. The
+record is read with `get` and created only when a move begins or an automatic scan is due, so a refusal
+leaves no empty record. The Evader's shoves and deflections run from this method, not from the members' goals. Roster
 members that are dead, removed, in another level or no longer marked with this move are dropped
 from the roster (their kits were dismissed by whatever removed them, or are dismissed now). The
 move **ends** when any of these holds:
 
 - the roster is empty;
 - the summoner is absent (offline, dead, a spectator, in another level);
-- the move enemy is dead, removed, in another level or more than **48 blocks** from the summoner;
+- the move enemy is dead, removed, in another level or more than **48 blocks** from the summoner
+  (`TeamMoveRules.tooFar`);
 - Evader: the ward is dead, removed, in another level, more than 48 blocks away, or at
   `health ≥ maxHealth / 2`;
 - the time limit: 120 s (2400 ticks), Evader 60 s (1200 ticks).
@@ -186,9 +189,10 @@ goals at 2; `RescueGoal` at −1 still outranks it), flags `MOVE` and `LOOK`, `c
 `teamMove != NONE` and the vex's record lists it. It runs the move's behavior (§4) every tick. A
 fleeing or rescuing member pauses its part and resumes; the move does not end for it. Its `stop`
 dismisses the kit **only when the record no longer lists the vex** (a pause keeps the kit), and
-its `start` and `tick` re-conjure any kit slot that is not conjured or holds something else (a
-rescue's conjured bucket or apple dismisses back to the given gear, Part 5, so the kit is put back
-when the vex returns to the move).
+its `start` and `tick` re-conjure any kit slot that is not conjured or holds something else. As built,
+a rescue does not conjure its bucket or apple over a kit item (nothing is conjured while the main hand
+holds one), so a rescue never dismisses a kit slot; what can dismiss one is the `stop` of a preempted
+job goal (which dismisses its own hand), and the re-conjure is the defensive repair for that.
 
 ### 2.6 What a member refuses
 
@@ -207,7 +211,8 @@ not run.
 ### 3.2 The packet
 
 `EvokingRequest(Kind kind, byte arg)`: `Kind.CAST` with `arg` the `EvokerSpell` ordinal, and
-`Kind.TEAM_MOVE` with `arg` the `TeamMove` ordinal (Shield 0 … Raid 3). The codec writes the kind
+`Kind.TEAM_MOVE` with `arg` the `TeamMove` ordinal (Shield 0 … Raid 3; `NONE` is the last
+constant, so 4 is refused; `EvokingRequest.cast` and `EvokingRequest.teamMove` are the factories). The codec writes the kind
 as an enum and the byte as a byte; `EvokingNetwork.VERSION` becomes `"2"`. The server validates in
 full: an `arg` out of range for its kind is ignored (logged at debug); a `CAST` goes to
 `EvokingCaster.request` exactly as today. Still one packet, client → server. `CLAUDE.md`'s rule
@@ -269,10 +274,12 @@ Each member, on its own 40-tick **bash clock** (starting ready):
 - **Lunge:** within 7 blocks and the clock ready: dash at normal speed to the enemy; when its box
   is within 1.5 blocks of the enemy's box, **bash**: `enemy.hurtServer(level,
   damageSources().mobAttack(vex), 4)`, `enemy.knockback(1.5, vex.x − enemy.x, vex.z − enemy.z,
-  source, 4)` (away from the vex), `SHIELD_BLOCK` at the enemy, `swing(MAIN_HAND)`. The clock
+  source, 4)` (away from the vex), `SHIELD_BLOCK` at the enemy, `Mob.swingForAttack(MAIN_HAND)`. The clock
   restarts. A lunge that has not landed after 40 ticks gives up and backs off.
 - **Back off:** after a bash, fly away from the enemy until 6 blocks off, then hold there
-  (hovering at 6, looking at it) until the clock is ready.
+  (hovering, looking at it) until the clock is ready. As built, the back-off aims at 7 blocks
+  (`BACK_OFF_SPOT`, one past the 6) and holds from 6, because the vex's move control coasts to a stop
+  near the wanted point.
 
 The bash is a mob attack from the vex, so mercy, the backstop and End crits (melee from the vex)
 apply as for any vex hit.
@@ -281,7 +288,9 @@ apply as for any vex hit.
 
 Kit: a **crossbow** (`MAINHAND`) enchanted with Multishot (looked up from the level's enchantment
 registry by `Enchantments.MULTISHOT`) and `Unbreakable`. Each member keeps **6–8 blocks** from the
-enemy (closer than 6: back off; farther than 8: close in; between: hold, looking at it) and every
+enemy (closer than 6: back off; farther than 8: close in; between: hold, looking at it; a member that has to move flies to its own slot on an arc round the
+enemy, 25 degrees a slot (`MultishotMove.ARC_DEGREES`), so the shooters are not in each other's lines)
+and every
 **40 ticks**, with line of sight and no friend in the way (the Part 3 hold-fire rule,
 `VexShots.aimPoint` and the 1-block segment test; the private `RangedGearGoal.friendInTheWay`
 moves to `VexShots` so the move can share it), loads the crossbow by hand
@@ -296,10 +305,12 @@ disallowed, and `performShooting` plays `CROSSBOW_SHOOT` and empties the charge.
 Kit: a shield in each hand, as Shield.
 
 - **Orbit:** members spread evenly on a 2-block circle around the ward at its mid-height, the
-  circle turning 6° per tick; each flies to its slot at normal speed.
+  circle turning 6° per tick. As built, each steers to its slot with a position/velocity push plus
+  feed-forward (named constants), because the vex move control alone (it only adds 0.05 x speed a
+  tick) cannot hold 2 blocks: a plain fly-to settled at about 3.1.
 - **Shove:** any hostile (`huntable` and `isPrey`) whose box comes within 3 blocks of the ward's
   is shoved by the nearest member: `knockback(2.0, ward.x − hostile.x, ward.z − hostile.z, …)`
-  (away from the ward; no damage), `SHIELD_BLOCK`, `swing`. Each hostile at most once per 20
+  (away from the ward; no damage), `SHIELD_BLOCK`, `Mob.swingForAttack`. Each hostile at most once per 20
   ticks.
 - **Deflect:** any `Projectile` within 2 blocks of the ward's box, moving toward the ward
   (velocity · offset to the ward > 0), whose owner is not on the summoner's side (not the
@@ -324,14 +335,18 @@ Phases (the record's phase):
 
 1. **Gather** (40 ticks): the grid is 3 rows × 4 columns, 1.5 blocks apart, centered on the point
    8 blocks from the enemy toward the summoner, its rows facing the enemy, at the enemy's eye
-   height. Each member takes a cell (in roster order), flies there at normal speed and faces the
+   height. Each member takes a cell (in roster order; column 0 is the right-hand column as the grid
+   faces the enemy, `RaidMove.cell`), flies there at normal speed and faces the
    enemy. Casters (Part 7) cast Mirror on the summoner here (§6.2).
 2. **Charge** (to the end): melee members fly at the enemy at normal speed and attack it with
    `doHurtTarget` when their box intersects the enemy's (the charge goal's reach rule), each on its
    own **20-tick attack clock** (the charge goal has no cooldown; without one a member pressed
    against the enemy would hit every tick);
-   rocket members keep 8 blocks (hold between 7 and 9), and every 40 ticks with line of sight and
-   no friend in the way fire a **rocket**: the crossbow is loaded with one `FIREWORK_ROCKET`
+   melee members steer in close (a spring plus damping inside 3 blocks of the enemy keeps the 20-tick
+   hit cadence); rocket members keep 8 blocks (hold between 7 and 9), and every 40 ticks with line of sight and
+   no friend in the way (fellow members of the same Raid do not count as friends in the way:
+   `VexShots.friendInTheWay` takes the roster; the summoner, allies and Bound Vexes outside the roster
+   still hold fire) fire a **rocket**: the crossbow is loaded with one `FIREWORK_ROCKET`
    carrying `FIREWORKS` = flight 1, one `FireworkExplosion.DEFAULT` (a rocket with no explosion
    deals no damage) and fired with `performShooting(…, 1.6F, 1.0F, enemy)`. The blast hurts every
    living thing within 5 blocks in sight; its damage source's entity is the vex, so the Part 3
@@ -359,7 +374,9 @@ server stop drops all records; a member saved mid-move loads with its kit dismis
 
 **Dice.** The Raid's kit roll goes through a static, test-scriptable dice source (`script(int...)`
 / `unscript()`, empty in play), the same shape the bribe's per-vex dice use but global, since the
-vexes it rolls for are chosen at the start. Part 7 adds one each for the Caster roll, scroll mobs
+vexes it rolls for are chosen at the start. The Raid's dice tests run in their own GameTest environment
+(`team_move_dice`) because the script is global; the 32-block free range is tested by `rangeIsThirtyTwo`
+(the player, not the vex, is moved). Part 7 adds one each for the Caster roll, scroll mobs
 and the Mirror confusion.
 
 **GameTests** (new class `BoundVexTeamMoveGameTests`; the tests step `TeamMoves.tick(player)` by
@@ -779,13 +796,15 @@ walls).
 |---|---|---|
 | Team-move flag | Server-only field, not synced | Nothing on the client reads it. |
 | Who is free | Following, not a Caster (Raid aside), not in a job, not the rescuer, within 32 blocks | A move should not cut a cure short or pull a staying guard off its post. |
-| Trigger scan | Every 10 ticks per summoner, from the summoner's tick | The goals' clock; one place for all four triggers. |
+| Trigger scan | Every 10 ticks per summoner, from a stored game-time deadline (`nextScan`) | The goals' clock; one place for all four triggers. |
 | A ≥ 99 enemy without 12 free vexes | Falls through to a Shield | Otherwise a Ravager gets no move at all with 11 vexes out. |
 | Multishot detection | `getTarget()` in the scan, not the target event | Brain mobs skip the event. |
 | Evader ward | The summoner or an ally within 16 blocks; never a vex or image | A vex at half health is not who the move is for. |
 | Manual moves without Evoking | Allowed | The vexes outlive the effect. |
 | J in automatic mode | Still cycles; the server answers K | The client cannot see the server's setting. |
 | Extra refusal messages | "already in a team move", "not ready yet" | One "unavailable" for four reasons hides the cooldown. |
+| Multishot out-of-band movement | Each member flies to its own arc slot, 25 degrees apart | Three members flying to one point end up in a row and block each other. |
+| Raid rocketeers and fellow members | Roster members are ignored in the line-of-fire test | Twelve vexes in a block would otherwise stop every shot; outsiders still hold fire. |
 | Shield bash | 4 damage, knockback 1.5, each member on its own 40-tick clock | The parent's numbers, made per vex. |
 | Multishot loading | Three arrows by hand, the enchantment on the stack for the spread | The crossbow fires only what is loaded. |
 | Evader shove | Knockback 2, no damage, once per 20 ticks per hostile | A shove, not a fight. |

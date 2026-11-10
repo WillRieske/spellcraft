@@ -214,5 +214,17 @@ class TeamMoveRulesTest {
             assertThatThrownBy(() -> TeamMoveRules.orbitDegrees(slot, count, 0))
                     .isInstanceOf(IllegalArgumentException.class);
         }
+
+        /**
+         * When the slot is out of range, orbitDegrees should name the valid range and the count in its message.
+         *
+         * <p>Method under test: {@link TeamMoveRules#orbitDegrees(int, int, long)}
+         */
+        @Test
+        void namesTheValidRange() {
+            // Arrange & Act & Assert
+            assertThatThrownBy(() -> TeamMoveRules.orbitDegrees(3, 3, 0))
+                    .hasMessage("slot 3 is outside 0..2 (count 3)");
+        }
     }
 }

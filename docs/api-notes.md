@@ -1281,6 +1281,16 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
 - **Vex flight.** `Vex.VexMoveControl.tick` (`world/entity/monster/Vex.java:299-326`): each tick adds `delta × speed × 0.05 /
   length` to the velocity, goes to `WAIT` (and halves the velocity) when within the vex's box size of the wanted spot,
   and turns the vex toward its target when it has one. "Normal speed" is the charge goal's modifier, 1.0.
+- **Holding a distance with the vex move control.** Because it only adds `0.05 x speed` to the velocity a tick and coasts to
+  a stop near the wanted point, a plain `moveControl.setWantedPosition` toward a ring point settles well outside the ring
+  (a 2-block Evader orbit settled at about 3.1 blocks; a Shield back-off aimed at 6 stopped inside 6). As built, the
+  orbit steers with a position/velocity push plus feed-forward, melee Raid members use a spring plus damping inside 3
+  blocks of the enemy, and the Shield back-off aims at 7 and holds from 6.
+- **Mock players never tick.** A GameTest mock player is not ticked by the server and fires no `PlayerTickEvent`, so
+  tests step `TeamMoves.tick(player)` by hand; the scan clock is a stored game-time deadline (`nextScan`), not
+  `tickCount`.
+- **Rescues and kits.** A rescue does not conjure its bucket or apple while the main hand holds a kit item, so it never
+  dismisses a kit slot; a preempted job goal's `stop` is what can.
 - **Unhurtable mobs in tests.** `Entity.setPermanentlyInvulnerable(boolean)` (`world/entity/Entity.java:3158`) is the call;
   there is no `setInvulnerable`. `Entity.getEyePosition()` is final (`Entity.java:2032`); `getItemEnchantmentLevel(Holder<Enchantment>,
   ItemInstance)` (`EnchantmentHelper.java:53`) reads Multishot off a stack.
@@ -1288,3 +1298,4 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   for a dead player until it respawns, so `TeamMoves.tick` sees `isAlive() == false`.
 - **Baseline.** The first full `./gradlew runGameTestServer` of Part 6 (Task 1) reported `All 497 required tests passed`
   (measured on 981eae7); every Part 6 gate compares against 497 plus the tests the task added.
+  As built, the Part 6 total is 630 required tests (Task 13).
