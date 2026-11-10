@@ -85,3 +85,5 @@ abe83d6 branch review fix round: build green; All 304 required tests passed twic
 healer aim fix: one flaky run (healing potion missed the floating test golem) at b74c5e7; after the fix All 304 required tests passed x4
 010163f Part 4 Task 1: api-notes §23; AT proven by compile; baseline All 304 required tests passed
 d10cea4 Part 4 Task 2: BribeRule tests red then green (16 tests); build green (commit gate)
+7994ed3 Part 4 Task 3: build green; All 309 required tests passed twice
+09a8e97 Part 4 Task 4: build green; All 323 required tests passed twice
