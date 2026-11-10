@@ -5509,7 +5509,7 @@ git commit -m "feat(evoking): the Shield team move bashes, backs off and bashes 
   - `VexShots.friendInTheWay(BoundVex vex, LivingEntity target)` → `boolean` (package-private; the former private method of `RangedGearGoal`, unchanged for its caller there) and an overload `friendInTheWay(BoundVex vex, LivingEntity target, Collection<UUID> ignoring)`: the same test, except that a Bound Vex whose UUID is in `ignoring` is not a friend in the way (the summoner, allies and Bound Vexes outside `ignoring` still hold fire). The two-argument method calls it with an empty set. Multishot uses the two-argument form; Task 12's Raid uses the overload with the roster. `VexShots.volley(BoundVex, LivingEntity)` (three arrows through `CrossbowItem.performShooting`); `VexShots.rocket(BoundVex, LivingEntity)` (one rocket with one explosion; Task 12 uses it).
   - `MultishotMove.tick(BoundVex, TeamMoves.Move, TeamMoves.Member, ServerLevel)`; constants `NEAR = 6.0`, `FAR = 8.0`, `HOLD = 7.0`, `SHOT_INTERVAL = 40`, `ARC_DEGREES = 25.0`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `BoundVexTeamMoveMultishotGameTests` (class Javadoc `/** GameTests of the Multishot team move (Parts 6-7 spec §4.2). */`; static imports `TeamMoveTestSupport.*`, `FangGameTests.NORTH`, `SpellcraftGameTests.SHARED`; imports `AbstractArrow`, `AABB`, `Entity`, `Collectors`, `Map`, `UUID`, `MockPlayers`) registers `FangGameTests.addPadded(SHARED, name, 200, body)` for every test, in this `registerAll` (called in `SpellcraftGameTests` after the Shield class):
 
@@ -5776,12 +5776,12 @@ static void holdsInsideTheBand(GameTestHelper helper) {
 
 Also run the existing ranged-gear tests (`./gradlew runGameTestServer "-PgameTests=spellcraft:bound_vex_gear_*"`) in Step 4: they cover `RangedGearGoal` and the moved friendly-fire line.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_multishot_*"`
 Expected: the volley, close-in, back-off, arc-slot and cadence tests time out (no member shoots or moves); the hold-fire test fails at its last step (the control: nothing shoots yet, so no volley flies once the summoner steps aside).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `VexShots`: move `friendInTheWay` and `lineDistance` here from `RangedGearGoal` (delete them there; in `RangedGearGoal.tick` call `VexShots.friendInTheWay(vex, target)`; update its Javadoc), add the overload `friendInTheWay(BoundVex vex, LivingEntity target, Collection<UUID> ignoring)` (the body of the moved method, with one more clause in the friend filter: `friend instanceof BoundVex other && ignoring.contains(other.getUUID())` is not a friend; the two-argument method calls it with `Set.of()`), and add the two launches. Update the `VexShots` class Javadoc, which says the launch is "a copy of the item in its main hand, never the item itself, so nothing is used up (spec section 4.5)": `launch` still shoots a copy; `volley` and `rocket` load and fire the conjured crossbow itself (it is Unbreakable and its charge is emptied by `performShooting`).
 
@@ -5893,12 +5893,12 @@ final class MultishotMove {
 
 `TeamMoveGoal.tick`: add `case MULTISHOT -> MultishotMove.tick(vex, membership.record(), membership.member(), level);`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_multishot_*"` and `"-PgameTests=spellcraft:bound_vex_gear_*"`.
 Expected: all pass. Arrows that miss stay stuck in the ground for up to a minute, so a second volley joins the first in `volleyArrows`, and an arrow of the first volley that already hit the husk is missing from the count. If `volleyIsThreeArrows` sees six arrows from one owner, capture the arrows the first time they are seen (`List<AbstractArrow> first = List.copyOf(volleyArrows(helper))` in the `thenWaitUntil`) and make sure every arrow is discarded with `GameTestSupport.whenDone`, so they do not leak into other tests' counts. If `allThreeFireFromTheirSlots` sees only one or two owners, print the distance of each member to its `slotSpot` and the result of `friendInTheWay` for each: a member that is in the band when the move starts holds where it is and is not moved to its slot.
 
-- [ ] **Step 5: Full gates, then commit**
+- [x] **Step 5: Full gates, then commit**
 
 Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (expect `All M required tests passed`, M = the previous task's reported total plus the 7 tests this task registers; write M in the commit's as-built note).
 
@@ -5906,6 +5906,8 @@ Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (
 git add src/main/java/io/github/willrieske/spellcraft
 git commit -m "feat(evoking): the Multishot team move fires three arrows at once"
 ```
+
+> **As built (`636baf4`):** matches plan.
 
 ---
 
