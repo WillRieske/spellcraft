@@ -619,6 +619,8 @@ Verified 2026-11-08 against the same unpacked sources (`build/mc-src`, `build/nf
   otherwise goes on to the next hand, so a client-side `PASS` for the main hand lets the off-hand item be used (a pearl
   thrown, a shield raised). `IronGolem.mobInteract` (`:262-278`) heals `25.0F`, plays `IRON_GOLEM_REPAIR` at pitch
   `1 + (r1 - r2) * 0.2` and returns `SUCCESS`.
+  Part 3 changed the click rule (§22 and the Part 3 spec §3): sneak + empty hand toggles stay, the plain empty hand
+  takes the weapon back, a gear item is given.
 - Teleport: `Entity.teleport(TeleportTransition)` (`Entity.java:3177`) returns the entity to use afterwards, or null
   when NeoForge's `EntityTravelToDimensionEvent` is cancelled (`CommonHooks.onTravelToDimension`,
   `nf-src/.../common/CommonHooks.java:841-845`, posted from `Entity.teleport` `:3178` **and** `ServerPlayer.teleport`
@@ -723,3 +725,136 @@ Verified 2026-11-08 against the same unpacked sources (`build/mc-src`, `build/nf
   (`ServerLevel.java:1036`; also called on every chunk load, so a one-shot flag set in `restoreFrom` tells an arrival
   from a load). So "where it arrives" is readable in `onAddedToLevel`, never in `restoreFrom`. A `LivingChangeTargetEvent`
   listener is added with `NeoForge.EVENT_BUS.addListener(Class, Consumer)` and removed with `unregister(consumer)`.
+
+## 22. Evoking II, Part 3: gear, drops, blocking, the armor layer (Evoking II Part 3 task)
+
+Verified 2026-11-09 against the unpacked sources (`build/mc-src`). Paths are under `net/minecraft/` unless noted.
+
+- Interaction: `Mob.interact` (`Mob.java:1160-1183`) runs the name tag and spawn egg first, then
+  `Entity.interact`, then `mobInteract`. The client sends the interact packet with
+  `player.isShiftKeyDown()` (`MultiPlayerGameMode.java:488-491`); sneaking does not skip an entity
+  interaction. `Minecraft.startUseItem` (`Minecraft.java:1775-1789`) returns at the first
+  `InteractionResult.Success` from `gameMode.interact`; on anything else it goes on to the item's own
+  use and to the off hand.
+- Vex move control: `Vex.VexMoveControl.tick` (`Vex.java:304-327`) stops (operation `WAIT`, velocity
+  halved) when the wanted position is nearer than `getBoundingBox().getSize()` (the mean of the three
+  sides, about 0.53 for a 0.4 x 0.8 vex); otherwise it adds `speedModifier * 0.05` per tick toward it
+  (the direction is normalized).
+- Follow range: `NearestAttackableTargetGoal` builds its range from `FOLLOW_RANGE` at construction
+  (§19) and `TargetGoal.canContinueToUse` reads the attribute live (§21); attributes are loaded by
+  `LivingEntity.readAdditionalSaveData` (`LivingEntity.java:826-829`), so a subclass that resets a base
+  value does it after `super`.
+- Drops: `LivingEntity.dropAllDeathLoot` (`LivingEntity.java:1589-1603`) calls `dropCustomDeathLoot`
+  only when `shouldDropLoot` (`:606`, the `mob_drops` game rule, and not a baby). `Mob.dropCustomDeathLoot`
+  (`Mob.java:920-947`) drops each slot with a nonzero `dropChances` entry; a slot marked by
+  `setGuaranteedDrop` (`Mob.java:621`, chance `2.0F`; `DropChances.isPreserved` is "chance above 1") is
+  "preserved": it drops whoever the killer was, undamaged (no durability loss), unless the item has
+  `PREVENT_EQUIPMENT_DROP` (Curse of Vanishing). A non-preserved slot drops only when killed by a player,
+  with random wear. The drop is `spawnAtLocation(ServerLevel, ItemStack)` (`Entity.java:2296`) and the
+  slot is then emptied. `Vex.populateDefaultEquipmentSlots` (`Vex.java:217-220`) sets the main hand's
+  chance to 0 at spawn. `drop_chances` is saved (`Mob.java:388-389`).
+- Peaceful: `Mob.checkDespawn` (`Mob.java:711-716`) asks NeoForge's `checkMobDespawn` hook first, then
+  `discard()`s a mob whose type is not allowed in Peaceful: no death, no drops.
+- Armor wear: `LivingEntity.hurtArmor` and `hurtHelmet` are empty (`LivingEntity.java:1957-1961`);
+  only `Player`, `Wolf` and `Horse` override them, so a mob's worn armor is never damaged.
+- Weapon wear: `Mob.doHurtTarget` (`Mob.java:1415-1436`) reads `getWeaponItem()` (the main hand,
+  `LivingEntity.java:2316`), applies its enchantments, and calls `weaponItem.hurtEnemy`, which costs
+  durability.
+- Blocking: `LivingEntity.applyItemBlocking` (`LivingEntity.java:1378-1422`) needs
+  `getItemBlockingWith()` (`:3768`; null unless `isUsingItem()`), which a mob never has. Its geometry: no
+  block for a piercing arrow; otherwise the flat view vector `calculateViewVector(0, getYHeadRot())`
+  against the flattened, normalized vector from `position()` to `source.getSourcePosition()`
+  (`DamageSource.java:106`), `angle = acos(dot)`, passed to `BlocksAttacks.resolveBlockedDamage`.
+  `DamageTypeTags.BYPASSES_SHIELD` exists (`DamageTypeTags.java:10`). A shield is any stack with
+  `DataComponents.BLOCKS_ATTACKS` (`DataComponents.java:213`).
+- View vector: `Entity.calculateViewVector(float xRot, float yRot)` is `public static Vec3`
+  (`Entity.java:2010`); degrees in, x = `sin(-yRot) * cos(xRot)`, y = `-sin(xRot)`,
+  z = `cos(-yRot) * cos(xRot)`.
+- Projectiles: `ProjectileUtil.getMobArrow(LivingEntity, ItemStack projectile, float power,
+  @Nullable ItemStack firedFromWeapon)` (`ProjectileUtil.java:273`; an `ArrowItem` projectile is used, any
+  other item becomes `Items.ARROW`; it calls `setBaseDamageFromMob(power)`, `AbstractArrow.java:712`);
+  `AbstractArrow.pickup` is a public field, default `DISALLOWED` (`AbstractArrow.java:71`);
+  `ThrownSplashPotion(Level, LivingEntity owner, ItemStack)` (`ThrownSplashPotion.java:27`) and
+  `ThrownLingeringPotion(Level, LivingEntity, ItemStack)` (`ThrownLingeringPotion.java:20`).
+- Items: `ItemStack.consumeAndReturn(int amount, @Nullable LivingEntity owner)` (`ItemStack.java:1211`) is
+  `copyWithCount(amount)` followed by `consume(amount, owner)` (`:1205`), and `consume` shrinks only when
+  `owner == null || !owner.hasInfiniteMaterials()`. `LivingEntity.hasInfiniteMaterials` is false
+  (`LivingEntity.java:4210`); `Player` returns `abilities.instabuild` (`Player.java:1360`). So for a
+  creative player the stack is left alone and the call still returns a copy (a free duplicate); for a
+  survival player, or `null`, the stack shrinks. A caller that must not duplicate for a creative player
+  checks `hasInfiniteMaterials()` itself. `ItemStack.matches(ItemStack, ItemStack)` is
+  `public static boolean` (`ItemStack.java:654`): same instance, or same count and
+  `isSameItemSameComponents`; it is not an instance method.
+- Dropping: `Player.drop` has no two-argument form; it is `drop(ItemStack, boolean thrownFromHand,
+  net.minecraft.util.Prediction)` (`Player.java:2154`, public, fires NeoForge's toss event; `Prediction`
+  is `PREDICTED` or `SERVER_ONLY`). `LivingEntity.drop` has the same signature (`LivingEntity.java:803`),
+  swings the main hand, and returns null for an empty stack or on the client.
+  `LivingEntity.createItemStackToDrop(ItemStack, boolean randomly, boolean thrownFromHand)` (`:3560`) is
+  public.
+- Attack damage of a stack: `DataComponents.ATTRIBUTE_MODIFIERS` (`DataComponents.java:158`) holds an
+  `ItemAttributeModifiers` record (`modifiers()`: a `List<ItemAttributeModifiers.Entry>`), each
+  `Entry(Holder<Attribute> attribute, AttributeModifier modifier, EquipmentSlotGroup slot, Display display)`
+  (`ItemAttributeModifiers.java:298`). The slot test is `entry.slot().test(EquipmentSlot)`
+  (`EquipmentSlotGroup.java:64`; the `MAINHAND` group matches `EquipmentSlot.MAINHAND`, and `ANY` and
+  `HAND` match it too). `ItemAttributeModifiers.compute(Holder<Attribute>, double base, EquipmentSlot)`
+  (`:87-103`) folds the matching entries (`ADD_VALUE`, `ADD_MULTIPLIED_BASE`, `ADD_MULTIPLIED_TOTAL`) over
+  a base value. `AttributeModifier` is `record(Identifier id, double amount, Operation operation)`. A
+  vanilla sword's entry is an `ADD_VALUE` bonus on `Attributes.ATTACK_DAMAGE` for the main hand (the
+  player's base of 1 is not in it). `ItemStack.forEachModifier(EquipmentSlot, BiConsumer<Holder<Attribute>,
+  AttributeModifier>)` (`ItemStack.java:1126`) goes through NeoForge's modifier events and adds enchantment
+  modifiers; prefer it over reading the component directly.
+- Potion effects of a stack: `DataComponents.POTION_CONTENTS` (`DataComponents.java:253`) holds a
+  `PotionContents` record (`potion`: `Optional<Holder<Potion>>`, `customColor`, `customEffects`,
+  `customName`). `PotionContents.getAllEffects()` (`PotionContents.java:92`) returns an
+  `Iterable<MobEffectInstance>`: the potion's own effects followed by `customEffects`, or just the custom
+  ones when there is no potion. `MobEffectInstance.getEffect()` is a `Holder<MobEffect>`;
+  `MobEffect.getCategory()` (`MobEffect.java:139`) returns `MobEffectCategory` (`BENEFICIAL`, `HARMFUL`,
+  `NEUTRAL`). The factory for a potion stack is `PotionContents.createItemStack(Item, Holder<Potion>)`
+  (`PotionContents.java:74`, static; sets `POTION_CONTENTS` on a new stack of the item).
+- How mobs launch a projectile: `AbstractSkeleton.performRangedAttack(LivingEntity target, float power)`
+  (`AbstractSkeleton.java:160-177`, from `RangedAttackMob`) finds the bow, builds the arrow with
+  `getArrow` -> `ProjectileUtil.getMobArrow`, aims at `xd = target.x - x`,
+  `yd = target.getY(0.3333) - arrow.getY()`, `zd = target.z - z`, and spawns it with
+  `Projectile.spawnProjectileUsingShoot(arrow, serverLevel, projectileStack, xd, yd + horizontalDistance *
+  0.2F, zd, 1.6F, rangedAttackUncertainty(serverLevel))`. `Witch.performRangedAttack(LivingEntity, float)`
+  (`Witch.java:224`) aims at the target's position plus its motion (`yd = target.getEyeY() - 1.1F -
+  getY()`) and spawns `Projectile.spawnProjectileUsingShoot(ThrownSplashPotion::new, serverLevel,
+  potionStack, this, xd, yd + dist * 0.2, zd, dist <= 2.0 ? 0.45F : 0.75F,
+  rangedAttackUncertainty(serverLevel))`. The two helpers (`Projectile.java:225` and `:241`) are
+  `spawnProjectileUsingShoot(ProjectileFactory<T>, ServerLevel, ItemStack, LivingEntity source, double
+  targetX, double targetY, double targetZ, float pow, float uncertainty)` (the factory is
+  `T create(ServerLevel, LivingEntity, ItemStack)`, so `ThrownSplashPotion::new` fits) and
+  `spawnProjectileUsingShoot(T projectile, ServerLevel, ItemStack, double, double, double, float pow,
+  float uncertainty)` for an entity already built. Both call `projectile.shoot(x, y, z, pow, uncertainty)`,
+  then `serverLevel.addFreshEntity`, then `applyOnProjectileSpawned`. In `performRangedAttack`, `power`
+  only feeds the arrow's damage; the launch speed (`pow`) is the separate constant.
+  `RangedAttackMob.rangedAttackUncertainty(Level)` is a default method, `14 - difficultyId * 4`
+  (`RangedAttackMob.java:9`). The skeleton plays `SKELETON_SHOOT` and the witch `WITCH_THROW` afterwards.
+- Sounds: `SoundEvents.ARMOR_EQUIP_GENERIC` is a `Holder<SoundEvent>` (`SoundEvents.java:94`);
+  `SoundEvents.SHIELD_BLOCK` is a `Holder.Reference<SoundEvent>` (`SoundEvents.java:1437`). Both are
+  holders: call `.value()` where a `SoundEvent` is needed.
+- Equip sound: `Mob` does not override `setItemSlot`; `LivingEntity.setItemSlot(EquipmentSlot, ItemStack)`
+  (`LivingEntity.java:2375`) calls `onEquipItem` (`:711-735`), which on the server plays
+  `getEquipSound(...)` (default `Equippable.equipSound`, `ARMOR_EQUIP_GENERIC` unless the item sets one)
+  at the mob when the entity is not silent, not a spectator and past its first tick, the new stack is not
+  the same item with the same components, and the stack's `EQUIPPABLE` slot equals the slot being set. So
+  armor, and a shield in the off hand (`Items.SHIELD` is `equippableUnswappable(OFFHAND)`), make a sound; a
+  sword or bow in the main hand has no `EQUIPPABLE` and is silent. `setItemSlot(slot, stack, true)` skips
+  all of this.
+- Client: `VexRenderer` (`VexRenderer.java:15-41`) adds one `ItemInHandLayer` (`:21`); `VexRenderState
+  extends ArmedEntityRenderState`, which carries both hands' items (`ArmedEntityRenderState.java:18-22`),
+  and `VexModel.translateToHand` (`VexModel.java:119-127`) handles the left arm, so an offhand shield is
+  drawn with no new code. `HumanoidArmorLayer` (`HumanoidArmorLayer.java:19`) needs a
+  `HumanoidRenderState` and cannot sit on a `VexModel`; its `renderArmorPiece` (`:53-67`) shows the
+  call: `EquipmentLayerRenderer.renderLayers(LayerType, assetId, model, state, stack, poseStack,
+  collector, light, outlineColor)` (`EquipmentLayerRenderer.java:41`), layer type `HUMANOID_LEGGINGS`
+  for `LEGS` and `HUMANOID` otherwise (`HUMANOID_BABY` for a baby). Armor models:
+  `ArmorModelSet.bake(locations, modelSet, factory)` (`ArmorModelSet.java:37`),
+  `EntityRendererProvider.Context.getEquipmentRenderer()` (`EntityRendererProvider.java:95`).
+- Armor in the render state: `HumanoidMobRenderer.extractHumanoidRenderState`
+  (`HumanoidMobRenderer.java:57-86`) sets `state.headEquipment`, `chestEquipment`, `legsEquipment` and
+  `feetEquipment` (fields of `HumanoidRenderState`, `HumanoidRenderState.java:24`) to
+  `getEquipmentIfRenderable(entity, slot)` (`:88-91`): `entity.getItemBySlot(slot).copy()` when
+  `HumanoidArmorLayer.shouldRender(stack, slot)` (`:37`, public static; the stack has `EQUIPPABLE` with an
+  `assetId` and the same slot), else `ItemStack.EMPTY`. A custom renderer for a non-humanoid state (the
+  Bound Vex) does the same four reads on its own render state.
