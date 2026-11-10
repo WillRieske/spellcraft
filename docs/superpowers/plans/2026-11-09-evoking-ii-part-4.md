@@ -298,4 +298,8 @@ git commit -m "docs: describe the cure and the bribe; playtest items; mutation r
 
 ## Resume State
 
-Task 1 done. Baseline GameTests: 304
+- Last completed task: Task 6: Docs, playtest items, mutation testing
+- Commit SHA: 37e1415
+- Checkboxes: 29/29 ticked
+- Next task: none (plan complete)
+- Known-failing tests / caveats: All 6 tasks done. GameTests: All 340 required tests passed twice at 37e1415 (baseline 304). Two review fix rounds landed after the tasks (ed57523 cure, 37e1415 bribe). Visuals (crumbs, head turn, splash, smoke, the bribe) are playtest items. Not released.

@@ -90,3 +90,4 @@ d10cea4 Part 4 Task 2: BribeRule tests red then green (16 tests); build green (c
 a7ef1fe Part 4 Task 5: build green; All 333 required tests passed twice
 ed57523 Part 4 cure fix round: build green; All 337 required tests passed twice
 3eadfac Part 4 Task 6: pitest 313/318 killed (98%), line coverage 287/303; build green
+37e1415 Part 4 bribe fix round: build green; All 340 required tests passed twice; counting-dice test shown red without the guard
