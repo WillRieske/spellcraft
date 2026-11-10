@@ -19,6 +19,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.util.Prediction;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
@@ -608,16 +609,22 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * The summoner's main-hand clicks (Part 3 spec §3). With an empty hand: sneaking toggles stay, with the vex's own
-     * sound; not sneaking is the weapon take-back, which Task 5 of the Part 3 plan adds. Only the server decides, since
-     * the client does not know the summoner (the mark is not synced). The client answers {@code SUCCESS_SERVER} for
-     * every empty-handed main-hand click: a client {@code PASS} would send {@code Minecraft.startUseItem} on to the
-     * off hand and throw a pearl or raise a shield on each click (docs/api-notes.md §22). The swing comes from the
-     * server; a stranger's click is answered {@code PASS} there and changes nothing.
+     * The summoner's main-hand clicks (Part 3 spec §3, §4.2, §4.4). A gear item ({@link VexGear#slotFor}), sneaking or
+     * not, is given; an empty hand sneaking toggles stay, with the vex's own sound; an empty hand not sneaking takes the
+     * main-hand weapon back; anything else is {@code PASS}. Only the server decides, since the client does not know the
+     * summoner (the mark is not synced). The client answers {@code SUCCESS_SERVER} for an empty hand and for a gear
+     * item: a client {@code PASS} would send {@code Minecraft.startUseItem} on to the off hand and throw a pearl or
+     * raise a shield on each click (docs/api-notes.md §22). The swing comes from the server; a stranger's click is
+     * answered {@code PASS} there and changes nothing.
      */
     @Override
     protected InteractionResult mobInteract(Player player, InteractionHand hand) {
-        if (hand != InteractionHand.MAIN_HAND || !player.getMainHandItem().isEmpty()) {
+        if (hand != InteractionHand.MAIN_HAND) {
+            return InteractionResult.PASS;
+        }
+        ItemStack held = player.getMainHandItem();
+        Optional<EquipmentSlot> slot = VexGear.slotFor(held);
+        if (!held.isEmpty() && slot.isEmpty()) {
             return InteractionResult.PASS;
         }
         if (!(level() instanceof ServerLevel)) {
@@ -626,11 +633,52 @@ public class BoundVex extends Vex {
         if (!isSummonedBy(player.getUUID())) {
             return InteractionResult.PASS;
         }
-        if (player.isShiftKeyDown()) {
+        if (slot.isPresent()) {
+            give(player, held, slot.get());
+        } else if (player.isShiftKeyDown()) {
             setStaying(!isStaying());
             playSound(SoundEvents.VEX_AMBIENT, 1.0F, 1.0F);
+        } else {
+            takeBackWeapon(player);
         }
         return InteractionResult.SUCCESS_SERVER;
+    }
+
+    /**
+     * Takes one item from the summoner's hand into {@code slot} and hands back what was there (Part 3 spec §4.2). While
+     * the slot holds a conjured item the gift waits in the stash and the previously stashed item comes back instead.
+     * What does not fit the player's inventory is dropped at the player. {@code setItemSlot} plays the equip sound of
+     * armor and of a shield in the off hand itself ({@code LivingEntity.onEquipItem}, docs/api-notes.md §22), so only
+     * the silent cases get the vex's own sound: the main hand, and a gift that goes to the stash.
+     */
+    private void give(Player player, ItemStack held, EquipmentSlot slot) {
+        ItemStack gift = held.consumeAndReturn(1, player);
+        ItemStack back;
+        boolean silent = slot == EquipmentSlot.MAINHAND;
+        if (isConjured(slot)) {
+            back = stashGift(slot, gift);
+            silent = true;
+        } else {
+            back = getItemBySlot(slot).copy();
+            setItemSlot(slot, gift);
+        }
+        if (!back.isEmpty() && !player.getInventory().add(back)) {
+            player.drop(back, false, Prediction.SERVER_ONLY);
+        }
+        if (silent) {
+            playSound(SoundEvents.VEX_AMBIENT, 1.0F, 1.0F);
+        }
+    }
+
+    /** Hands the main-hand item to the summoner's empty hand; a conjured item is not handed over (spec §4.4). */
+    private void takeBackWeapon(Player player) {
+        ItemStack weapon = getMainHandItem();
+        if (weapon.isEmpty() || isConjured(EquipmentSlot.MAINHAND)) {
+            return;
+        }
+        player.setItemInHand(InteractionHand.MAIN_HAND, weapon.copy());
+        setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+        playSound(SoundEvents.VEX_AMBIENT, 1.0F, 1.0F);
     }
 
     /**

@@ -8,15 +8,25 @@ import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
+import io.github.willrieske.spellcraft.evoking.VexGear;
 import java.util.List;
+import java.util.Optional;
+import net.minecraft.core.Holder;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Difficulty;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.alchemy.Potion;
+import net.minecraft.world.item.alchemy.PotionContents;
+import net.minecraft.world.item.alchemy.Potions;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -50,6 +60,39 @@ public final class BoundVexGearGameTests {
                 "peaceful_gear",
                 "bound_vex_gear_peaceful_removal_drops_gear",
                 BoundVexGearGameTests::peacefulRemovalDropsGear);
+        registerGiving();
+    }
+
+    /** Registers Task 5's tests (kinds, giving, taking back); called from {@link #registerAll}. */
+    private static void registerGiving() {
+        SpellcraftGameTests.add(SHARED, "bound_vex_gear_kinds_and_slots", BoundVexGearGameTests::kindsAndSlots);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_gear_giving_armor_swaps_the_piece", BoundVexGearGameTests::givingArmorSwapsThePiece);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_gear_giving_a_weapon_returns_the_sword",
+                BoundVexGearGameTests::givingAWeaponReturnsTheSword);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_gear_giving_a_shield_uses_the_offhand",
+                BoundVexGearGameTests::givingAShieldUsesTheOffhand);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_gear_giving_takes_one_from_a_stack",
+                BoundVexGearGameTests::givingTakesOneFromAStack);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_gear_creative_keeps_its_stack", BoundVexGearGameTests::creativeKeepsItsStack);
+        SpellcraftGameTests.add(SHARED, "bound_vex_gear_non_gear_passes", BoundVexGearGameTests::nonGearPasses);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_gear_plain_empty_click_takes_the_weapon_only",
+                BoundVexGearGameTests::plainEmptyClickTakesTheWeaponOnly);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_gear_conjured_item_is_not_taken", BoundVexGearGameTests::conjuredItemIsNotTaken);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_gear_stranger_cannot_give_or_take", BoundVexGearGameTests::strangerCannotGiveOrTake);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_gear_sneak_with_gear_still_gives", BoundVexGearGameTests::sneakWithGearStillGives);
     }
 
     /** The item entities within three blocks of {@code center}. */
@@ -204,5 +247,323 @@ public final class BoundVexGearGameTests {
                     helper.assertTrue(countOf(items, Items.IRON_HELMET) >= 1, "the helmet dropped");
                 })
                 .thenSucceed();
+    }
+
+    /** A click of the main hand on {@code vex}, holding {@code stack}. */
+    private static InteractionResult click(BoundVex vex, ServerPlayer player, ItemStack stack) {
+        GameTestSupport.hold(player, stack);
+        return vex.interact(player, InteractionHand.MAIN_HAND, Vec3.ZERO);
+    }
+
+    /** How many of {@code item} the player's inventory holds. */
+    private static int inventoryCount(ServerPlayer player, Item item) {
+        int count = 0;
+        for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
+            ItemStack stack = player.getInventory().getItem(slot);
+            if (stack.is(item)) {
+                count += stack.getCount();
+            }
+        }
+        return count;
+    }
+
+    /** Asserts the kind and the slot {@code VexGear} gives {@code stack}. */
+    private static void assertGear(
+            GameTestHelper helper, ItemStack stack, VexGear.Kind kind, Optional<EquipmentSlot> slot) {
+        String name = stack.getItem().toString();
+        helper.assertValueEqual(VexGear.kindOf(stack), kind, "kind of " + name);
+        helper.assertValueEqual(VexGear.slotFor(stack), slot, "slot of " + name);
+    }
+
+    private static ItemStack potion(Item item, Holder<Potion> potion) {
+        return PotionContents.createItemStack(item, potion);
+    }
+
+    /**
+     * When {@code VexGear} classifies armor, a shield, launchers, throwables, arrows, melee weapons and junk, should give
+     * the kind and slot of the spec's table, and tell support from ranged by the potion's effects.
+     *
+     * <p>Method under test: {@link VexGear#kindOf}, {@link VexGear#slotFor}, {@link VexGear#isSupport} and
+     * {@link VexGear#isRanged}
+     */
+    static void kindsAndSlots(GameTestHelper helper) {
+        // Arrange
+        Optional<EquipmentSlot> main = Optional.of(EquipmentSlot.MAINHAND);
+
+        // Act & Assert: kinds and slots
+        assertGear(helper, new ItemStack(Items.IRON_HELMET), VexGear.Kind.ARMOR, Optional.of(EquipmentSlot.HEAD));
+        assertGear(
+                helper, new ItemStack(Items.DIAMOND_CHESTPLATE), VexGear.Kind.ARMOR, Optional.of(EquipmentSlot.CHEST));
+        assertGear(helper, new ItemStack(Items.DIAMOND_LEGGINGS), VexGear.Kind.ARMOR, Optional.of(EquipmentSlot.LEGS));
+        assertGear(helper, new ItemStack(Items.DIAMOND_BOOTS), VexGear.Kind.NONE, Optional.empty());
+        assertGear(helper, new ItemStack(Items.SHIELD), VexGear.Kind.SHIELD, Optional.of(EquipmentSlot.OFFHAND));
+        assertGear(helper, new ItemStack(Items.BOW), VexGear.Kind.LAUNCHER, main);
+        assertGear(helper, new ItemStack(Items.CROSSBOW), VexGear.Kind.LAUNCHER, main);
+        assertGear(helper, potion(Items.SPLASH_POTION, Potions.HEALING), VexGear.Kind.THROWABLE, main);
+        assertGear(helper, new ItemStack(Items.ARROW), VexGear.Kind.ARROW, main);
+        assertGear(helper, potion(Items.TIPPED_ARROW, Potions.REGENERATION), VexGear.Kind.ARROW, main);
+        assertGear(helper, new ItemStack(Items.DIAMOND_SWORD), VexGear.Kind.MELEE, main);
+        assertGear(helper, new ItemStack(Items.IRON_AXE), VexGear.Kind.MELEE, main);
+        assertGear(helper, new ItemStack(Items.TRIDENT), VexGear.Kind.MELEE, main);
+        assertGear(helper, new ItemStack(Items.MACE), VexGear.Kind.MELEE, main);
+        assertGear(helper, new ItemStack(Items.STICK), VexGear.Kind.NONE, Optional.empty());
+        assertGear(helper, ItemStack.EMPTY, VexGear.Kind.NONE, Optional.empty());
+
+        // Act & Assert: support and ranged
+        helper.assertTrue(VexGear.isSupport(potion(Items.SPLASH_POTION, Potions.HEALING)), "healing is support");
+        helper.assertFalse(VexGear.isSupport(potion(Items.SPLASH_POTION, Potions.HARMING)), "harming is not support");
+        helper.assertFalse(VexGear.isSupport(potion(Items.SPLASH_POTION, Potions.WATER)), "water is not support");
+        helper.assertTrue(
+                VexGear.isSupport(potion(Items.TIPPED_ARROW, Potions.REGENERATION)), "regeneration is support");
+        helper.assertFalse(VexGear.isSupport(new ItemStack(Items.ARROW)), "a plain arrow is not support");
+        helper.assertTrue(VexGear.isRanged(new ItemStack(Items.BOW)), "a bow is ranged");
+        helper.assertTrue(VexGear.isRanged(potion(Items.SPLASH_POTION, Potions.HARMING)), "harming is ranged");
+        helper.assertTrue(VexGear.isRanged(potion(Items.SPLASH_POTION, Potions.WATER)), "water is ranged");
+        helper.assertTrue(VexGear.isRanged(new ItemStack(Items.ARROW)), "a plain arrow is ranged");
+        helper.assertFalse(VexGear.isRanged(potion(Items.SPLASH_POTION, Potions.HEALING)), "healing is not ranged");
+        helper.assertFalse(VexGear.isRanged(new ItemStack(Items.IRON_SWORD)), "a sword is not ranged");
+        helper.succeed();
+    }
+
+    /**
+     * When the summoner gives an iron helmet, then a diamond helmet, should have the vex wear each in turn, consume the
+     * clicks, empty the hand for the first and hand the iron helmet back for the second.
+     *
+     * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     */
+    static void givingArmorSwapsThePiece(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+
+        // Act & Assert: the first piece
+        InteractionResult first = click(vex, player, new ItemStack(Items.IRON_HELMET));
+        helper.assertTrue(first.consumesAction(), "the first give consumes the action");
+        helper.assertTrue(vex.getItemBySlot(EquipmentSlot.HEAD).is(Items.IRON_HELMET), "the vex wears the iron helmet");
+        helper.assertTrue(player.getMainHandItem().isEmpty(), "the hand is empty");
+
+        // Act & Assert: the swap
+        InteractionResult second = click(vex, player, new ItemStack(Items.DIAMOND_HELMET));
+        helper.assertTrue(second.consumesAction(), "the swap consumes the action");
+        helper.assertTrue(
+                vex.getItemBySlot(EquipmentSlot.HEAD).is(Items.DIAMOND_HELMET), "the vex wears the diamond helmet");
+        helper.assertValueEqual(inventoryCount(player, Items.IRON_HELMET), 1, "iron helmets handed back");
+        helper.succeed();
+    }
+
+    /**
+     * When the summoner gives a diamond sword to a vex holding its iron sword, should leave the diamond sword in the
+     * vex's main hand and hand the iron sword to the player's inventory.
+     *
+     * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     */
+    static void givingAWeaponReturnsTheSword(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+
+        // Act
+        click(vex, player, new ItemStack(Items.DIAMOND_SWORD));
+
+        // Assert
+        helper.assertTrue(vex.getMainHandItem().is(Items.DIAMOND_SWORD), "the vex holds the diamond sword");
+        helper.assertValueEqual(inventoryCount(player, Items.IRON_SWORD), 1, "iron swords handed back");
+        helper.succeed();
+    }
+
+    /**
+     * When the summoner gives a shield, should put it in the vex's off hand and leave the main hand's iron sword.
+     *
+     * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     */
+    static void givingAShieldUsesTheOffhand(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+
+        // Act
+        click(vex, player, new ItemStack(Items.SHIELD));
+
+        // Assert
+        helper.assertTrue(vex.getOffhandItem().is(Items.SHIELD), "the shield is in the off hand");
+        helper.assertTrue(vex.getMainHandItem().is(Items.IRON_SWORD), "the main hand still holds the iron sword");
+        helper.succeed();
+    }
+
+    /**
+     * When the summoner gives from a stack of five splash potions of harming, should take exactly one: four stay in the
+     * hand, the vex holds one, and the iron sword it held is in the inventory.
+     *
+     * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     */
+    static void givingTakesOneFromAStack(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        ItemStack stack = potion(Items.SPLASH_POTION, Potions.HARMING);
+        stack.setCount(5);
+
+        // Act
+        click(vex, player, stack);
+
+        // Assert
+        helper.assertValueEqual(player.getMainHandItem().getCount(), 4, "potions left in the hand");
+        helper.assertTrue(vex.getMainHandItem().is(Items.SPLASH_POTION), "the vex holds a potion");
+        helper.assertValueEqual(vex.getMainHandItem().getCount(), 1, "potions the vex holds");
+        helper.assertValueEqual(inventoryCount(player, Items.IRON_SWORD), 1, "iron swords handed back");
+        helper.succeed();
+    }
+
+    /**
+     * When a creative summoner gives a diamond sword, should keep the sword in the hand and still give the vex one.
+     *
+     * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     */
+    static void creativeKeepsItsStack(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = MockPlayers.inLevel(helper, GameType.CREATIVE);
+        MockPlayers.moveIntoTest(helper, player);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+
+        // Act
+        click(vex, player, new ItemStack(Items.DIAMOND_SWORD));
+
+        // Assert
+        helper.assertTrue(player.getMainHandItem().is(Items.DIAMOND_SWORD), "the creative hand keeps its sword");
+        helper.assertTrue(vex.getMainHandItem().is(Items.DIAMOND_SWORD), "the vex holds a diamond sword too");
+        helper.succeed();
+    }
+
+    /**
+     * When the summoner clicks holding a stick, then boots, or the off hand clicks holding a helmet, should not consume
+     * the click and change nothing.
+     *
+     * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     */
+    static void nonGearPasses(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+
+        // Act & Assert: a stick, then boots
+        for (ItemStack stack : List.of(new ItemStack(Items.STICK), new ItemStack(Items.DIAMOND_BOOTS))) {
+            helper.assertFalse(click(vex, player, stack).consumesAction(), stack.getItem() + " passes");
+            helper.assertFalse(player.getMainHandItem().isEmpty(), stack.getItem() + " stays in the hand");
+            helper.assertTrue(vex.getMainHandItem().is(Items.IRON_SWORD), "the vex keeps its sword");
+            helper.assertTrue(vex.getItemBySlot(EquipmentSlot.FEET).isEmpty(), "the vex wears no boots");
+        }
+
+        // Act & Assert: the off hand
+        GameTestSupport.hold(player, ItemStack.EMPTY);
+        player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.IRON_HELMET));
+        helper.assertFalse(
+                vex.interact(player, InteractionHand.OFF_HAND, Vec3.ZERO).consumesAction(), "the off hand passes");
+        helper.assertTrue(vex.getItemBySlot(EquipmentSlot.HEAD).isEmpty(), "the vex wears nothing");
+        helper.succeed();
+    }
+
+    /**
+     * When the summoner clicks empty-handed without sneaking on a vex with a sword, a helmet and a shield, should take
+     * only the sword (the vex's main hand is then empty) and leave the helmet and the shield; a second empty click
+     * consumes the action but changes nothing, and does not toggle stay.
+     *
+     * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     */
+    static void plainEmptyClickTakesTheWeaponOnly(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
+        vex.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.SHIELD));
+
+        // Act
+        InteractionResult result = click(vex, player, ItemStack.EMPTY);
+
+        // Assert
+        helper.assertTrue(result.consumesAction(), "the take-back consumes the action");
+        helper.assertTrue(player.getMainHandItem().is(Items.IRON_SWORD), "the sword is in the hand");
+        helper.assertTrue(vex.getMainHandItem().isEmpty(), "the vex's hand is empty");
+        helper.assertTrue(vex.getItemBySlot(EquipmentSlot.HEAD).is(Items.IRON_HELMET), "the helmet is still worn");
+        helper.assertTrue(vex.getOffhandItem().is(Items.SHIELD), "the shield is still held");
+
+        // Act & Assert: the second click
+        InteractionResult again = click(vex, player, ItemStack.EMPTY);
+        helper.assertTrue(again.consumesAction(), "the second click consumes the action");
+        helper.assertTrue(vex.getMainHandItem().isEmpty(), "still nothing in the vex's hand");
+        helper.assertTrue(vex.getItemBySlot(EquipmentSlot.HEAD).is(Items.IRON_HELMET), "the helmet is still worn");
+        helper.assertTrue(vex.getOffhandItem().is(Items.SHIELD), "the shield is still held");
+        helper.assertFalse(vex.isStaying(), "a plain click does not toggle stay");
+        helper.succeed();
+    }
+
+    /**
+     * When the main hand holds a conjured ingot, should not hand it over on an empty click; and when the summoner then
+     * gives a diamond sword, should leave the ingot in hand, stash the sword, and hand the stashed iron sword to the
+     * inventory.
+     *
+     * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     */
+    static void conjuredItemIsNotTaken(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.conjure(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_INGOT));
+
+        // Act & Assert: the empty click
+        click(vex, player, ItemStack.EMPTY);
+        helper.assertTrue(player.getMainHandItem().isEmpty(), "the hand stays empty");
+        helper.assertTrue(vex.getMainHandItem().is(Items.IRON_INGOT), "the ingot is still held");
+
+        // Act & Assert: the gift
+        click(vex, player, new ItemStack(Items.DIAMOND_SWORD));
+        helper.assertTrue(vex.getMainHandItem().is(Items.IRON_INGOT), "the ingot is still held after the gift");
+        helper.assertTrue(vex.stashed(EquipmentSlot.MAINHAND).is(Items.DIAMOND_SWORD), "the gift is stashed");
+        helper.assertValueEqual(inventoryCount(player, Items.IRON_SWORD), 1, "the stashed sword is handed back");
+        helper.succeed();
+    }
+
+    /**
+     * When another player clicks, first holding a helmet and then empty-handed, should not consume either click, keep
+     * the helmet in that player's hand and leave the vex's sword on the vex.
+     *
+     * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     */
+    static void strangerCannotGiveOrTake(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer owner = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, owner);
+        ServerPlayer stranger = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        MockPlayers.moveIntoTest(helper, stranger);
+
+        // Act & Assert: a gift
+        helper.assertFalse(
+                click(vex, stranger, new ItemStack(Items.IRON_HELMET)).consumesAction(), "the gift passes");
+        helper.assertTrue(stranger.getMainHandItem().is(Items.IRON_HELMET), "the helmet stays in the hand");
+        helper.assertTrue(vex.getItemBySlot(EquipmentSlot.HEAD).isEmpty(), "the vex wears nothing");
+
+        // Act & Assert: a take-back
+        helper.assertFalse(click(vex, stranger, ItemStack.EMPTY).consumesAction(), "the take-back passes");
+        helper.assertTrue(vex.getMainHandItem().is(Items.IRON_SWORD), "the vex keeps its sword");
+        helper.succeed();
+    }
+
+    /**
+     * When a sneaking summoner clicks holding a helmet, should give the helmet and not toggle stay.
+     *
+     * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     */
+    static void sneakWithGearStillGives(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        player.setShiftKeyDown(true);
+
+        // Act
+        click(vex, player, new ItemStack(Items.IRON_HELMET));
+
+        // Assert
+        helper.assertTrue(vex.getItemBySlot(EquipmentSlot.HEAD).is(Items.IRON_HELMET), "the helmet is worn");
+        helper.assertFalse(vex.isStaying(), "the vex does not stay");
+        helper.succeed();
     }
 }
