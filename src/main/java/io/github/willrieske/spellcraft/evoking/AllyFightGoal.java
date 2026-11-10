@@ -8,7 +8,7 @@ import net.minecraft.world.entity.Mob;
  * Vexes join fights their allies start (Evoking II spec §3.4, second in the target selector): on each scan, the
  * nearest {@code BoundVex.huntable} mob (hostile, no creeper, no other player's summon) that an ally mob inside the
  * guard area (an iron golem, a wolf, another Bound Vex; never this vex itself, {@code BoundVex.alliesInGuardArea}) has
- * as its target, if the vex may take it ({@code BoundVex.keepsTarget}).
+ * as its target, if the vex may take it ({@code BoundVex.takesTarget}).
  */
 final class AllyFightGoal extends ScanTargetGoal {
     AllyFightGoal(BoundVex vex) {
@@ -28,7 +28,7 @@ final class AllyFightGoal extends ScanTargetGoal {
         double nearest = Double.MAX_VALUE;
         for (Mob ally : vex.alliesInGuardArea(owner)) {
             LivingEntity target = ally.getTarget();
-            if (target != null && vex.huntable(target) && vex.keepsTarget(target)) {
+            if (target != null && vex.huntable(target) && vex.takesTarget(target)) {
                 double distance = vex.distanceToSqr(target);
                 if (distance < nearest) {
                     nearest = distance;

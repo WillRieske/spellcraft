@@ -48,7 +48,7 @@ import net.minecraft.world.scores.Scoreboard;
  * Vex GameTests for Strength of Evoking (spec §9, table E8, E9, E12, E16 and the prey rule) as Evoking II Part 2 left
  * them: the vexes are Bound Vexes ({@code BoundVexCapGameTests}, {@code BoundVexFollowGameTests},
  * {@code BoundVexTargetGameTests} and {@code BoundVexJobGameTests} cover their goals). The summoning tests register
- * through {@code FangGameTests.addPadded} (padding 13), so a vex wandering ±7 blocks around its origin reaches no
+ * through {@code FangGameTests.addPadded} (padding 13), so a vex flying about its origin reaches no
  * other test. The two tests that add a scoreboard team run in the {@code team_mutation} batch, as the Trail tests do.
  */
 public final class VexGameTests {
@@ -125,7 +125,8 @@ public final class VexGameTests {
                         "spawned 2-3 blocks away, got " + distance);
                 helper.assertTrue(isSummonedBy(vex, player), "marked with the summoner");
                 helper.assertTrue(vex instanceof BoundVex, "a Bound Vex, not a vanilla vex");
-                helper.assertValueEqual(vex.getAttributeValue(Attributes.FOLLOW_RANGE), GuardArea.REACH, "range");
+                helper.assertValueEqual(
+                        vex.getAttributeValue(Attributes.FOLLOW_RANGE), GuardArea.FOLLOW_RANGE, "range");
                 helper.assertTrue(vex.getMainHandItem().is(Items.IRON_SWORD), "the evoker's iron sword");
                 helper.assertValueEqual(FangGameTests.savedInt(vex, "life_ticks"), Integer.MIN_VALUE, "no life limit");
             }

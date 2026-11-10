@@ -24,9 +24,16 @@ A NeoForge mod for Minecraft that adds spells cast from scrolls. It has four:
   them, whatever you hit, whatever your pets, villagers and golems are fighting or attacked by, and
   any hostile mob that comes within four blocks of them in each direction (a box 8 wide and 7 tall;
   not creepers, unless one attacks first); your tamed wolves join their fights.
-  Click a vex with an empty hand to make it stay where it is; click again to make it follow. A vex
-  flies away from a hissing creeper, sidesteps after an iron golem's swing, and patches up a hurt iron
-  golem with an iron ingot. Fangs spare you and your allies (your team, your pets, your own vexes,
+  Sneak and right-click a vex with an empty hand to make it stay: it hovers on that spot and guards a
+  13 × 13 block area around it; do it again and it follows you. Right-click a vex while holding a
+  helmet, chestplate, leggings, a weapon, a shield, a bow or crossbow, a splash or lingering potion or
+  an arrow and it takes one and hands back what it had there. You can see the armor on it. A vex with a
+  bow, a harmful potion or arrows shoots from a distance, and holds its fire when you or an ally is in
+  the way; a vex with a healing potion (splash or lingering) throws it at you and your allies when you
+  are badly hurt; a shield blocks hits from the front. Nothing a vex holds is ever used up.
+  Right-click with an empty hand (not sneaking) to take its weapon back; everything you gave drops
+  when it dies. A vex flies away from a hissing creeper, sidesteps after an iron golem's swing, and
+  patches up a hurt iron golem with an iron ingot. Fangs spare you and your allies (your team, your pets, your own vexes,
   villagers, wandering traders, and iron golems that are not mad at you) and hurt everything else;
   vexes spare them too and fight only what the list above says. You, your pets, your fangs and your
   vexes cannot take an iron golem below 25 health; when it gets that low, it calms down and stops

@@ -1,14 +1,17 @@
 # Spellcraft: Evoking II, Bound Vexes (design)
 
 **Date:** 2026-11-07
-**Status:** plan written (`2026-11-08-evoking-ii-part-2.md`); phase 3 plan not yet written
-<!-- child-plans: 2026-11-07-evoking-ii-part-1.md, 2026-11-08-evoking-ii-part-2.md -->
+**Status:** plan written (`2026-11-08-evoking-ii-part-2.md`); phase 4 plan not yet written
+<!-- child-plans: 2026-11-07-evoking-ii-part-1.md, 2026-11-08-evoking-ii-part-2.md, 2026-11-09-evoking-ii-part-3.md -->
 **Shape:** built in seven parts (§1), each with its own plan, branch and PR
 **Written by:** brainstorm with Will on 2026-11-07; §13 lists the decisions Will did not state
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
 **Builds on:** [`2026-11-06-evoking-design.md`](2026-11-06-evoking-design.md) (Evoking: keys, casting,
 fangs, vexes), [`2026-11-04-trailing-design.md`](2026-11-04-trailing-design.md) (allies) and
 [`2026-09-29-infinity-design.md`](2026-09-29-infinity-design.md) (the spell framework).
+**Amended by:** [`2026-11-09-evoking-ii-part-3-gear-and-stay-design.md`](2026-11-09-evoking-ii-part-3-gear-and-stay-design.md)
+(Part 3 as built: stay moves to the sneak click, a staying vex hovers and guards a 13 × 13 area,
+the plain empty-hand click takes the weapon back, version 1.2.2). Where the two differ, that one wins.
 **Amends:** the Evoking spec's §2 keys (F → Y), §5 fangs (a fang per target, not a carpet), §6
 vexes (vanilla vexes → Bound Vexes), §3 allies (three new ally kinds); the Trailing spec's spared
 rule (iron golems are never lit, §2.3); `CLAUDE.md`'s packet rule (the one packet gains a second
@@ -44,9 +47,9 @@ The work is split into seven parts, built in order, each small enough for one pl
 | **Summoner** | The player who summoned a Bound Vex (attachment `spellcraft:summoner`, from the Evoking spec). "You" in this document. |
 | **Ally** | What `Allies.isAllyOf(player, entity)` says: vanilla's allies (team, pets, allays), the player's summons and owned mobs, and now villagers, wandering traders and iron golems (§2.3). |
 | **Hostile** | A mob that implements `Enemy` (every `Monster`, slimes, ghasts, phantoms, shulkers, the dragon, the wither). Creepers are hostile but Bound Vexes skip them unless provoked (§3.4), and so are another player's summons (§3.4). |
-| **Guard area** | The box around a Bound Vex in which it looks for hostiles: 8 × 8 × 7 blocks (±4 east/west, ±4 north/south, ±3.5 up/down), measured from the vex's feet. An entity is in it when its feet are, faces included. |
-| **Reach** | 7.25 blocks: how far a Bound Vex keeps a chosen target before it gives up on it, and its `FOLLOW_RANGE`. |
-| **Staying** | A Bound Vex told to hold its spot (empty-hand right-click toggles it). It still fights in its guard area but does not follow. |
+| **Guard area** | The box around a Bound Vex in which it looks for hostiles: 8 × 8 × 7 blocks (±4 east/west, ±4 north/south, ±3.5 up/down), measured from the vex's feet. An entity is in it when its feet are, faces included. A staying vex's guard area is its **stay area** instead: 13 × 13 × 7 around its post (Part 3 spec §2.3). |
+| **Reach** | 7.25 blocks: how far a following Bound Vex keeps a chosen target before it gives up on it. A staying vex keeps a target while it is in the stay area. The `FOLLOW_RANGE` attribute is 20 (Part 3 spec §2.3). |
+| **Staying** | A Bound Vex told to hold its spot (sneak + empty-hand right-click toggles it; Part 3 spec §2). It hovers at its post, fights in its stay area and does not follow. |
 | **Conjured gear** | Items a Bound Vex pulls out by itself (team moves, the cure, the bribe, repairs). They vanish when their job is done, cannot be taken, and never drop. |
 | **Given gear** | Items you hand a Bound Vex, plus its own iron sword. Real: you can take them back and they drop on death. |
 | **Team move** | One of Shield, Multishot, Evader, Raid (§8): several Bound Vexes acting together with conjured gear. |
@@ -169,12 +172,13 @@ Bound Vex is its own type.
 with a public constructor (`Vex.java:47,57`), so subclassing is clean: the move control, the no-clip
 flight and the vex model are inherited. Vanilla's vex goals are private inner classes
 (`Vex.java:222,280,299,329`), so `BoundVex` does not call `super.registerGoals()` and has its own
-copies of the charge and wander goals. What changes:
+copies of the charge and wander goals. **Amended by the Part 3 spec §2.2:** the wander goal is
+replaced by `HoldPostGoal`. What changes:
 
 - **Registration:** `ModEntities.BOUND_VEX` (`DeferredRegister<EntityType<?>>`,
   `EntityType.Builder.of(BoundVex::new, MobCategory.MONSTER).sized(0.4F, 0.8F)` with vex's
-  tracking settings and `notInPeaceful()`), attributes = `Vex.createAttributes()` with `FOLLOW_RANGE` 7.25, registered in
-  `EntityAttributeCreationEvent`. `MobCategory.MONSTER` keeps vanilla's hostile-mob bookkeeping (it
+  tracking settings and `notInPeaceful()`), attributes = `Vex.createAttributes()` with `FOLLOW_RANGE` 7.25 (**amended by the Part 3 spec §2.3:** now 20),
+  registered in `EntityAttributeCreationEvent`. `MobCategory.MONSTER` keeps vanilla's hostile-mob bookkeeping (it
   is still a monster to golems and villagers, handled in §2.3).
 - **No spawn egg, no natural spawn, no loot table and no experience** (it drops only gear, §4.5;
   `xpReward` is 0, since summon-and-kill would farm 3 XP per vex). Will asked for no
@@ -234,10 +238,12 @@ Goals (goal selector, in priority order; the target selector is §3.4):
    staying**: the bound origin is set to the stay position when stay is toggled on, so a staying vex
    drifts around its post. A staying vex that changes dimension (only a command or a vehicle can do
    that: a vex never enters a portal itself) re-posts at the block where it arrives, since the
-   saved post is the old dimension's coordinates.
+   saved post is the old dimension's coordinates. **Amended by the Part 3 spec §2.2:** the wander
+   goal is replaced by `HoldPostGoal`; a staying vex hovers at its post and returns to it.
 6. Vanilla's two `LookAtPlayerGoal`s, as `Vex.registerGoals` has them (no `RandomLookAroundGoal`).
 
-**Stay/follow toggle:** `mobInteract` with an empty main hand and no sneak toggles `STAYING`; a
+**Stay/follow toggle:** (as Part 2 built it; **the Part 3 spec §2.1 and §3 move the toggle to the
+sneak click and give the plain click to the take-back**.) `mobInteract` with an empty main hand and no sneak toggles `STAYING`; a
 small sound (`VEX_AMBIENT`). Sneak + empty hand is Part 3 (§4.4). Interactions are accepted only
 from the summoner. The answer is `InteractionResult.SUCCESS_SERVER` on both sides: the client does
 not know the summoner (the mark is not synced) but must answer a success for every unsneaked
@@ -297,8 +303,11 @@ priority order:
 All three override `canContinueToUse` as round one did: the target is dropped when it stops being
 prey, dies, is in another dimension (a summoner's memory can name a mob it left behind, whose raw
 coordinates may line up with the vex's), can no longer be attacked (`canAttack`: a creative or spectator player, for one), or is
-farther than **reach** (7.25). "In the guard area" means the entity's feet are in the box, faces
-included.
+farther than **reach** (7.25). **Amended by the Part 3 spec §2.3 and §4.3:** that limit is for
+a *following* vex only, and *taking* and *keeping* differ. A staying vex takes and keeps a target
+only while its feet are in the stay area; a following vex takes a target within 7.25 whatever it
+holds, but a following vex with ranged gear keeps one out to 12. "In the guard area" means the
+entity's feet are in the box, faces included.
 
 The three goals scan every **10 ticks** on one shared clock keyed to the vex's entity id
 (`(tickCount + id) % 10 == 0`). A plain `tickCount % 10` would never fire for half the vexes:
@@ -369,7 +378,9 @@ Right-click by the summoner with:
 - a **shield**: it goes in the **offhand**; the old offhand item returns. A shielded vex blocks: in
   `hurtServer`, melee or projectile damage whose source is in front of the vex (dot of the head's
   look vector, `getHeadLookAngle`, and source direction > 0) is cancelled with `SoundEvents.SHIELD_BLOCK`; no durability is used
-  (nothing is ever used up).
+  (nothing is ever used up). **Amended by the Part 3 spec §4.3 (Shield):** the test is vanilla's
+  flat head-yaw geometry (the flat view vector from `getYHeadRot` against the flat direction to the
+  source), not `getHeadLookAngle`, and a piercing arrow is not blocked.
 - a **splash or lingering potion** or **tipped arrow**: main hand (the thrown entities are
   `projectile.throwableitemprojectile.ThrownSplashPotion` / `ThrownLingeringPotion`; the arrow
   is `projectile.arrow.Arrow`). If every effect is
@@ -379,6 +390,9 @@ Right-click by the summoner with:
   arrow (an `Arrow` carrying the potion contents). Otherwise (any `HARMFUL` effect, or a plain
   arrow) it is a **ranged weapon**: thrown or shot at the target every 40 ticks from up to 10
   blocks, keeping 6 blocks away. The stack in hand never shrinks.
+  **Amended by the Part 3 spec §4.1 and §4.3:** support gear is potions only. A tipped arrow
+  whose effects are all beneficial is not gear (an arrow wounds before its effect heals), and a
+  potion with no effects is not gear either.
 - anything else: `PASS` (vanilla does nothing to a vex either).
 
 ### 4.3 Nothing is used up
@@ -386,11 +400,14 @@ Right-click by the summoner with:
 No gear a Bound Vex holds loses durability or count: shield blocks spend no durability (§4.2),
 thrown and shot items are copies, and melee hits restore the main-hand stack after each hit
 (`BoundVex.doHurtTarget` snapshots the stack before `super.doHurtTarget` and puts it back), so the
-item the player gets back is exactly the one they gave.
+item the player gets back is exactly the one they gave. **Amended by the Part 3 spec §4.5:**
+nothing wears the weapon in 26.3 (`Mob.doHurtTarget` never reaches the durability call), so the
+restore is a guard against an enchantment or a later version that does.
 
 ### 4.4 Taking a weapon back
 
-Sneak + right-click with an empty hand by the summoner: the main-hand item goes to the summoner,
+**Amended by the Part 3 spec §3 and §4.4: the take-back is the plain (un-sneaked) empty-hand
+click; sneak + empty hand toggles stay.** Right-click with an empty hand by the summoner: the main-hand item goes to the summoner,
 and the vex fights bare-handed (vanilla vex attack damage). Armor and the offhand shield cannot be
 taken back (Will's rule; §13). During a team move (Part 6) the answer is the overlay
 `message.spellcraft.vex_busy` ("That vex is busy") and nothing moves.
@@ -400,8 +417,8 @@ taken back (Will's rule; §13). During a team move (Part 6) the answer is the ov
 - **Stash:** when a job or team move conjures gear into a slot, the given item in that slot moves
   to a per-slot stash (`stash` NBT, an `ItemStack` per slot) and comes back when the conjured item
   is dropped. `CONJURED` is a bit set of slots; a slot in it never drops and cannot be taken.
-- **Death:** every non-conjured slot drops at 100% (`setDropChance(slot, 1.0F)` for every slot),
-  plus the stash. The own iron sword drops too (Will: real sword).
+- **Death:** every non-conjured slot drops at 100%, plus the stash (how, and the Peaceful drop:
+  the Part 3 spec §5.2). The own iron sword drops too (Will: real sword).
 - **Saving:** vanilla saves a mob's equipment; the stash, the conjured bits, `STAYING` and `CASTER`
   are added in `addAdditionalSaveData`/`readAdditionalSaveData`.
 
@@ -714,7 +731,9 @@ Methodology as round one: pure core TDD with jqwik properties, GameTests for ser
   column; a box `w` wide gives at most `(⌈w⌉ + 1)²` columns (a 3-wide box across block edges touches
   4 per axis). The collapse of shared spots is not here: it needs the floor, so `Fangs.snapshot` does it.
 - `GuardArea` (`spell.rules`): the 8×8×7 box math and the 7.25 reach test; properties: symmetric,
-  a point at the box edge is inside, a point at reach + ε is out.
+  a point at the box edge is inside, a point at reach + ε is out. **Amended by the Part 3 spec §8:**
+  plus the stay box (`containsStaying`) and `FOLLOW_RANGE`, and the pure `SegmentDistance` (a
+  point to a segment, for the hold-fire line).
 - `GolemMercyRule.clamp(health, damage)` (`spell.rules`, pure; `GolemMercy` in `spell` is the event
   subscriber): `min(damage, max(0, health − 25))`, total (NaN → 0; infinities follow the arithmetic); property: health
   after is never below 25 when it was above, and a hit at ≤ 25 does 0.
@@ -735,7 +754,7 @@ GameTests per part (the plan names them; the shape):
   prepared Nether pocket; hurt-by/owner-hit/ally-hurt/ally-fight targeting cases; hostile in area
   attacked, pig ignored, creeper ignored unless provoked; wolf takes the vex's target; flee from a
   swelling creeper; dodge; repair heals a hurt ally golem by 25 per tap with the sound event.
-- **Part 3:** each slot's give/return; sneak take-back; shield block from the front cancels damage
+- **Part 3** (the full list is the Part 3 spec §8): each slot's give/return; the take-back; shield block from the front cancels damage
   and from behind does not; support potion thrown at a hurt ally, harmful at a target; stack never
   shrinks; drops on death include everything given and nothing conjured.
 - **Part 4:** cure timeline (apple, potion entity, `isConverting` with starter = summoner, NoAi on
@@ -764,8 +783,8 @@ Per part: README (spells and keys), mod description, playtest checklist, `docs/a
 (every new hook verified: `LivingChangeTargetEvent`, `LivingDamageEvent.Pre`,
 `PlayerChangedDimensionEvent`, `Entity.teleport(TeleportTransition)`, `Consumable.onConsume`, the
 `Player.tick` noPhysics line, `startConverting` AT), `CLAUDE.md` (packet rule wording, the Mixin
-list gains the Ghostrail one), `docs/mutation-testing.md`. `mod_version` is bumped once, at the
-end of Part 7, to `1.3.0` with a tag; the parts land as PRs on `main` without bumps.
+list gains the Ghostrail one), `docs/mutation-testing.md`. `mod_version` gets a patch release per part when Will asks for one (Part 2: `1.2.1`; Part 3:
+`1.2.2`), and `1.3.0` with a tag at the end of Part 7.
 
 ## 13. Decisions Will did not state
 
@@ -794,7 +813,7 @@ end of Part 7, to `1.3.0` with a tag; the parts land as PRs on `main` without bu
 | Ingot kept mid-repair | Until Part 3, a vex unloaded, reloaded or portaled mid-repair keeps the ingot | The goal holds the given item in a field; Part 3's stash makes it survive saving. |
 | Tridents | Melee only | Throwing would need a return rule; nothing is used up anyway. |
 | Shield from the player | Offhand, blocks from the front | Will chose A+C; shields are handable. |
-| Armor and shield take-back | Not possible | Will: sneak-click takes the weapon; nothing else. |
+| Armor and shield take-back | Not possible | Will: a click takes the weapon; nothing else. (The click is the plain one since the Part 3 spec.) |
 | Cure duration | 400 ticks (vanilla takes 3–5 min) | Will: 20 seconds of smoke. |
 | Cure visuals | Golden apple, real splash potion, green + white particles | Will's choreography. |
 | Bribe sound | `VILLAGER_AMBIENT` | The villager "hmm". |
@@ -817,4 +836,4 @@ end of Part 7, to `1.3.0` with a tag; the parts land as PRs on `main` without bu
 | Villager ghosts | Records in `SavedData`, appear when in need, fade, return; 32 per level | Will: appear, disappear, appear again. |
 | Ghost trigger | Below half health or ≥ 3 hostiles within 8 blocks | "When you need help". |
 | Which villagers leave ghosts | Not those killed by a player's side | A murdered villager should not help its murderer. |
-| Version | One bump to 1.3.0 after Part 7 | Seven PRs, one release. |
+| Version | Patch releases per part as Will asks; 1.3.0 after Part 7 | Will tagged Part 2 as 1.2.1 and asked for Part 3 as a patch. |

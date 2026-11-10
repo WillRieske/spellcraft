@@ -3,9 +3,12 @@ package io.github.willrieske.spellcraft.evoking;
 import io.github.willrieske.spellcraft.spell.Allies;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.rules.GuardArea;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
@@ -16,12 +19,17 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.util.Prediction;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.SpawnGroupData;
@@ -36,6 +44,10 @@ import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.enchantment.EnchantmentEffectComponents;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.storage.ValueInput;
@@ -48,7 +60,8 @@ import org.jspecify.annotations.Nullable;
  * The Bound Vex (Evoking II spec §3): a vex a player summons on V that lives until it dies. Vanilla's {@code Vex} gives
  * it the no-clip flight, the move control, the charging texture and the iron sword; this class owns the goals
  * (vanilla's are private classes, docs/api-notes.md §21), the stay flag, the summoner lookup, the prey rule, and the
- * small rules every goal shares: {@link #scanDue} (the clock), {@link #inGuardArea} (the box), {@link #keepsTarget}
+ * small rules every goal shares (a staying vex hovers at its post point and guards the stay area around it, Part 3
+ * spec §2): {@link #scanDue} (the clock), {@link #inGuardArea} (the box), {@link #takesTarget}, {@link #keepsTarget}
  * and {@link #huntable}.
  * Without a summoner online, alive, in its level and not spectating it idles. The summoner is the
  * {@link AllyAttachments#SUMMONER} mark, so {@code Allies}, {@code GolemMercy} and the Trailing flame already treat it as the summoner's.
@@ -60,11 +73,39 @@ public class BoundVex extends Vex {
 
     private static final String STAYING_TAG = "staying";
 
+    /** The slots a Bound Vex can hold gear in (Part 3 spec §4.1, §5.1). */
+    public static final List<EquipmentSlot> GEAR_SLOTS = List.of(
+            EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND, EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS);
+
+    private static final String STASH_TAG_PREFIX = "stash_";
+    private static final String CONJURED_TAG_PREFIX = "conjured_";
+
     /** Ticks between the target goals' scans (spec §3.4 "every 10 ticks"); read through {@link #scanDue}. */
     static final int SCAN_INTERVAL = 10;
 
     /** How far the summoner's wolves hear the call to a fight (spec §3.4), feet to feet. */
     static final double WOLF_CALL_RANGE = 16.0;
+
+    /**
+     * How far from its post point a staying, idle vex may hang before it flies back (Part 3 spec §2.2). Public for the
+     * GameTests, which live in another package.
+     */
+    public static final double POST_TOLERANCE = 1.0;
+
+    /** The return flight's speed when the vex is farther than {@link #POST_NEAR} from the post point. */
+    private static final double POST_SPEED = 0.7;
+
+    /** The return flight's speed within {@link #POST_NEAR} of the post point: slow enough that a pass cannot overshoot. */
+    private static final double POST_APPROACH_SPEED = 0.25;
+
+    /** The distance from the post point inside which the return flight uses {@link #POST_APPROACH_SPEED}. */
+    private static final double POST_NEAR = 3.0;
+
+    /**
+     * Squared speed (blocks per tick) below which a vex counts as still, so the return flight waits out a coast.
+     * Public for the GameTests, which live in another package.
+     */
+    public static final double STILL_SPEED_SQR = 0.01;
 
     /**
      * Set by {@link #restoreFrom} on the new copy a cross-dimension teleport makes of a staying vex, and spent by
@@ -77,6 +118,12 @@ public class BoundVex extends Vex {
 
     private int alliesTick = -1;
 
+    /** Given items set aside while a conjured item sits in their slot (Part 3 spec §5.1). */
+    private final Map<EquipmentSlot, ItemStack> stash = new EnumMap<>(EquipmentSlot.class);
+
+    /** The slots that hold a conjured item right now: never dropped, never taken (Part 3 spec §5.1). */
+    private final Set<EquipmentSlot> conjured = EnumSet.noneOf(EquipmentSlot.class);
+
     public BoundVex(EntityType<? extends BoundVex> type, Level level) {
         super(type, level);
         // No experience: summon-and-kill would farm 3 XP per vex, 3 vexes per press (vanilla's vex gives 3).
@@ -84,12 +131,13 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * Vanilla's vex attributes with the reach as the follow range (spec §3.1).
+     * Vanilla's vex attributes with the follow-range bound as the follow range (Part 3 spec §2.3): wide enough for a
+     * staying vex and a target at opposite corners of the stay box; the box and the reach are the real limits.
      *
      * @return the attribute builder {@code ModEntities} registers
      */
     public static AttributeSupplier.Builder createAttributes() {
-        return Vex.createAttributes().add(Attributes.FOLLOW_RANGE, GuardArea.REACH);
+        return Vex.createAttributes().add(Attributes.FOLLOW_RANGE, GuardArea.FOLLOW_RANGE);
     }
 
     @Override
@@ -100,7 +148,7 @@ public class BoundVex extends Vex {
 
     /**
      * The goals (spec §3.3). Not {@code super.registerGoals()}: vanilla's are private classes (docs/api-notes.md §21),
-     * so the charge and wander goals are this class's copies, and a Bound Vex has no raider grudge, no owner to copy a
+     * so the charge goal is this class's copy, the post-holding goal is its own, and a Bound Vex has no raider grudge, no owner to copy a
      * target from and no player hunt. Its three target goals are {@link HurtBySummonerSideGoal} (grudges),
      * {@link AllyFightGoal} (an ally's fight) and {@link NearestHostileGoal} (the patrol). The job goals sit beside
      * them: {@link FleeCreeperGoal} and {@link DodgeGolemGoal} outrank everything on the move flag,
@@ -112,9 +160,11 @@ public class BoundVex extends Vex {
         goalSelector.addGoal(0, new DodgeGolemGoal(this));
         goalSelector.addGoal(0, new FloatGoal(this));
         goalSelector.addGoal(2, new RepairGolemGoal(this));
+        goalSelector.addGoal(3, new RangedGearGoal(this));
         goalSelector.addGoal(3, new ChargeGoal());
+        goalSelector.addGoal(3, new SupportGearGoal(this));
         goalSelector.addGoal(4, new FollowSummonerGoal(this));
-        goalSelector.addGoal(5, new StayWanderGoal());
+        goalSelector.addGoal(5, new HoldPostGoal());
         goalSelector.addGoal(9, new LookAtPlayerGoal(this, Player.class, 3.0F, 1.0F));
         goalSelector.addGoal(10, new LookAtPlayerGoal(this, Mob.class, 8.0F));
         targetSelector.addGoal(1, new HurtBySummonerSideGoal(this));
@@ -126,12 +176,42 @@ public class BoundVex extends Vex {
     protected void addAdditionalSaveData(ValueOutput output) {
         super.addAdditionalSaveData(output);
         output.putBoolean(STAYING_TAG, isStaying());
+        for (EquipmentSlot slot : GEAR_SLOTS) {
+            // ItemStack.CODEC rejects an empty stack, so only a real stash is written.
+            if (!stashed(slot).isEmpty()) {
+                output.store(STASH_TAG_PREFIX + slot.getName(), ItemStack.CODEC, stashed(slot));
+            }
+            if (isConjured(slot)) {
+                output.putBoolean(CONJURED_TAG_PREFIX + slot.getName(), true);
+            }
+        }
     }
 
     @Override
     protected void readAdditionalSaveData(ValueInput input) {
         super.readAdditionalSaveData(input);
         entityData.set(STAYING, input.getBooleanOr(STAYING_TAG, false));
+        // A staying vex with no saved post (hand-edited, or /summon with NBT) would carry a post that moves with it.
+        // The position is read before this method (Entity.load), so the vex's own block is available here.
+        if (isStaying() && getBoundOrigin() == null) {
+            setBoundOrigin(blockPosition());
+        }
+        // A vex saved by Part 2 carries the old base value (7.25, the reach), which would cut a staying vex's fights
+        // short: TargetGoal.canContinueToUse reads the attribute live (docs/api-notes.md §22).
+        AttributeInstance range = getAttribute(Attributes.FOLLOW_RANGE);
+        if (range != null) {
+            range.setBaseValue(GuardArea.FOLLOW_RANGE);
+        }
+        stash.clear();
+        conjured.clear();
+        for (EquipmentSlot slot : GEAR_SLOTS) {
+            input.read(STASH_TAG_PREFIX + slot.getName(), ItemStack.CODEC).ifPresent(stack -> stash.put(slot, stack));
+            if (input.getBooleanOr(CONJURED_TAG_PREFIX + slot.getName(), false)) {
+                conjured.add(slot);
+            }
+        }
+        // The goal that conjured the item is not running after a load or a cross-dimension copy (Part 3 spec §5.1).
+        GEAR_SLOTS.forEach(this::dismiss);
     }
 
     /**
@@ -169,8 +249,8 @@ public class BoundVex extends Vex {
 
     /**
      * Vanilla's spawn (the iron sword), then the random follow-range bonus {@code Mob.finalizeSpawn} adds (the
-     * inherited {@code RANDOM_SPAWN_BONUS_ID}, docs/api-notes.md §21) goes, so the reach is exactly
-     * {@link GuardArea#REACH} (docs/api-notes.md §19: the targeting goal reads the attribute).
+     * inherited {@code RANDOM_SPAWN_BONUS_ID}, docs/api-notes.md §21) goes, so the attribute is exactly
+     * {@link GuardArea#FOLLOW_RANGE} (docs/api-notes.md §19: the targeting goal reads the attribute).
      */
     @Override
     public @Nullable SpawnGroupData finalizeSpawn(
@@ -186,13 +266,123 @@ public class BoundVex extends Vex {
         return data;
     }
 
+    /**
+     * Puts a conjured item in {@code slot} (Part 3 spec §5.1). If the slot is not conjured yet, what it holds moves to
+     * the stash first; conjuring over a conjured item just replaces it. The item is set silently
+     * ({@code setItemSlot(slot, stack, true)} skips {@code LivingEntity.onEquipItem}, so no equip sound plays,
+     * docs/api-notes.md §22).
+     *
+     * @param slot a gear slot
+     * @param stack the conjured item
+     */
+    public void conjure(EquipmentSlot slot, ItemStack stack) {
+        if (conjured.add(slot)) {
+            stash.put(slot, getItemBySlot(slot).copy());
+        }
+        setItemSlot(slot, stack, true);
+    }
+
+    /**
+     * Ends the conjure in {@code slot}: the conjured item goes and the stashed item returns (Part 3 spec §5.1). Does
+     * nothing for a slot that is not conjured. The stashed item is restored silently, like the conjure.
+     *
+     * @param slot a gear slot
+     */
+    public void dismiss(EquipmentSlot slot) {
+        if (conjured.remove(slot)) {
+            ItemStack back = stash.remove(slot);
+            setItemSlot(slot, back != null ? back : ItemStack.EMPTY, true);
+        }
+    }
+
+    /**
+     * Whether {@code slot} holds a conjured item right now.
+     *
+     * @param slot a gear slot
+     * @return true while a conjure is in effect
+     */
+    public boolean isConjured(EquipmentSlot slot) {
+        return conjured.contains(slot);
+    }
+
+    /**
+     * The item set aside for {@code slot} while a conjured item sits there.
+     *
+     * @param slot a gear slot
+     * @return a copy of the stashed stack, or {@link ItemStack#EMPTY}; changing it does not change the stash
+     */
+    public ItemStack stashed(EquipmentSlot slot) {
+        ItemStack stashed = stash.get(slot);
+        return stashed != null ? stashed.copy() : ItemStack.EMPTY;
+    }
+
+    /**
+     * Puts a gift in the stash of a conjured slot, to come back when the conjure ends (Part 3 spec §5.1). Public
+     * for the give click (Part 3 plan Task 5) and the GameTests in another package. The stash keeps a copy of
+     * {@code gift}, so a caller that changes its stack afterwards does not change the stash. A gift for a slot that is
+     * not conjured would never be restored, saved or dropped, so it is refused.
+     *
+     * @param slot a conjured gear slot
+     * @param gift the item given
+     * @return what the stash held before, or {@link ItemStack#EMPTY}
+     * @throws IllegalStateException if {@code slot} is not conjured
+     */
+    public ItemStack stashGift(EquipmentSlot slot, ItemStack gift) {
+        if (!isConjured(slot)) {
+            throw new IllegalStateException("cannot stash a gift for a slot that is not conjured: " + slot);
+        }
+        ItemStack before = stash.put(slot, gift.copy());
+        return before != null ? before : ItemStack.EMPTY;
+    }
+
+    /**
+     * Drops everything the vex was given (Part 3 spec §5.2): conjured items vanish and their stashed items return to
+     * their slots, then every gear slot is marked a guaranteed drop, which vanilla drops undamaged whoever the killer
+     * was (docs/api-notes.md §22). The marks are set here, not at spawn: vanilla zeroes the main hand's chance at
+     * spawn and saves the chances.
+     */
+    @Override
+    protected void dropCustomDeathLoot(ServerLevel level, DamageSource source, boolean killedByPlayer) {
+        for (EquipmentSlot slot : GEAR_SLOTS) {
+            dismiss(slot);
+            setGuaranteedDrop(slot);
+        }
+        super.dropCustomDeathLoot(level, source, killedByPlayer);
+    }
+
+    /**
+     * On Peaceful, vanilla discards the vex with no death and no drops (docs/api-notes.md §22), so its gear is dropped
+     * here first (Part 3 spec §5.2), under the rules of the death path: nothing drops when the {@code mob_drops} game
+     * rule is off ({@code shouldDropLoot}), and a stack with Curse of Vanishing ({@code PREVENT_EQUIPMENT_DROP}, as in
+     * {@code Mob.dropCustomDeathLoot}) is not dropped. A stack that is not dropped is cleared with the vex.
+     */
+    @Override
+    public void checkDespawn() {
+        if (level() instanceof ServerLevel level
+                && level.getDifficulty() == Difficulty.PEACEFUL
+                && !getType().isAllowedInPeaceful()) {
+            boolean dropsLoot = shouldDropLoot(level);
+            for (EquipmentSlot slot : GEAR_SLOTS) {
+                dismiss(slot);
+                ItemStack stack = getItemBySlot(slot);
+                if (dropsLoot
+                        && !stack.isEmpty()
+                        && !EnchantmentHelper.has(stack, EnchantmentEffectComponents.PREVENT_EQUIPMENT_DROP)) {
+                    spawnAtLocation(level, stack);
+                }
+                setItemSlot(slot, ItemStack.EMPTY);
+            }
+        }
+        super.checkDespawn();
+    }
+
     /** Whether the vex holds its post instead of following. */
     public boolean isStaying() {
         return entityData.get(STAYING);
     }
 
     /**
-     * Turns staying on or off; on, the block it stands at becomes the post the wander goal drifts around (spec §3.3).
+     * Turns staying on or off; on, the block it stands at becomes the post the vex hovers at (Part 3 spec §2.1).
      *
      * @param staying true to stay, false to follow again
      */
@@ -284,21 +474,58 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * Whether a target is worth taking or keeping (spec §3.4): in this vex's level (a summoner's memory can name a
-     * mob it left behind in another dimension, whose raw coordinates may line up), alive, attackable by this vex
-     * ({@code Mob.canAttack}: false for a creative or spectator player, an invulnerable mob or a ghast, the targets
-     * {@code setTarget} would not hold), still prey, and within {@link GuardArea#REACH}. The alive clause is a cheap
-     * guard: {@code canAttack} already implies it for a living target ({@code LivingEntity.canBeSeenByAnyone}). Every
-     * target goal's {@code canContinueToUse}, which replaces {@code TargetGoal}'s and never calls {@code super}
-     * (docs/api-notes.md §21), and every target goal's candidate filter.
+     * Whether a target is worth <em>taking</em> (spec §3.4; Part 3 spec §4.3): the test every target goal's pick runs.
+     * In this vex's level (a summoner's memory can name a mob it left behind in another dimension, whose raw
+     * coordinates may line up), alive, attackable by this vex ({@code Mob.canAttack}: false for a creative or spectator
+     * player, an invulnerable mob or a ghast, the targets {@code setTarget} would not hold), still prey, and, following,
+     * within {@link GuardArea#REACH} ({@link #withinReach}, whatever the vex holds), or, staying, inside the stay area
+     * ({@link #inGuardArea}, Part 3 spec §2.3). The alive clause is a cheap guard: {@code canAttack} already implies it
+     * for a living target ({@code LivingEntity.canBeSeenByAnyone}). {@link #keepsTarget} is the same test with a wider
+     * reach for ranged gear; it alone ends a fight.
+     *
+     * @param target the candidate, or null
+     * @return whether a target goal may pick it
+     */
+    boolean takesTarget(@Nullable LivingEntity target) {
+        return canFight(target) && (isStaying() ? inGuardArea(target) : withinReach(target));
+    }
+
+    /**
+     * Whether a target already held is worth <em>keeping</em> (spec §3.4; Part 3 spec §4.3): {@link #takesTarget}'s
+     * clauses, except that a following vex holding ranged gear keeps a target out to
+     * {@link RangedGearGoal#MAX_DISTANCE} plus {@link RangedGearGoal#KEEP_MARGIN} instead of {@link GuardArea#REACH}
+     * ({@link #withinKeepRange}). Every target goal's {@code canContinueToUse}, which replaces {@code TargetGoal}'s and
+     * never calls {@code super} (docs/api-notes.md §21), runs this and nothing else; no goal picks with it.
+     *
+     * @param target the held target, or null
+     * @return whether the vex keeps it
      */
     boolean keepsTarget(@Nullable LivingEntity target) {
+        return canFight(target) && (isStaying() ? inGuardArea(target) : withinKeepRange(target));
+    }
+
+    /** The clauses {@link #takesTarget} and {@link #keepsTarget} share: everything but the distance. */
+    private boolean canFight(@Nullable LivingEntity target) {
         return target != null
                 && target.level().dimension().equals(level().dimension())
                 && target.isAlive()
                 && canAttack(target)
-                && isPrey(target)
-                && withinReach(target);
+                && isPrey(target);
+    }
+
+    /**
+     * Whether a following vex still holds {@code target}: within {@link GuardArea#REACH}, except that a vex holding
+     * ranged gear keeps a target within {@link RangedGearGoal#MAX_DISTANCE} plus {@link RangedGearGoal#KEEP_MARGIN}
+     * (Part 3 spec §4.3). {@link RangedGearGoal} holds such a vex 6 to 10 blocks from its target, beyond the reach;
+     * with the reach as the limit it would back off, lose the target, return, take it again and never settle. Only the
+     * keeping widens: {@link #takesTarget} stays with the reach.
+     */
+    private boolean withinKeepRange(Entity target) {
+        if (VexGear.isRanged(getMainHandItem())) {
+            double limit = RangedGearGoal.MAX_DISTANCE + RangedGearGoal.KEEP_MARGIN;
+            return distanceToSqr(target) <= limit * limit;
+        }
+        return withinReach(target);
     }
 
     /** Whether {@code other} is within {@link GuardArea#REACH} of this vex, feet to feet. */
@@ -308,25 +535,48 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * Whether {@code other}'s position is inside this vex's guard box (spec §3.4: 8×8×7, faces included, feet to feet,
-     * {@link GuardArea#contains}). The one box test every goal uses: entity queries take {@link #guardArea()} as the
-     * broad phase and keep only what this accepts. Public for its GameTest.
+     * Whether {@code other}'s position is inside this vex's guard box, faces included, feet to feet. Following (spec
+     * §3.4): 8×8×7 around the vex ({@link GuardArea#contains}); staying (Part 3 spec §2.3): 13×13×7 around the post
+     * point, wherever the vex hangs ({@link GuardArea#containsStaying}). The one box test every goal uses: entity
+     * queries take {@link #guardArea()} as the broad phase and keep only what this accepts. Public for its GameTest.
      *
      * @param other the entity to test
      * @return true when its feet are in the box
      */
     public boolean inGuardArea(Entity other) {
+        if (isStaying()) {
+            Vec3 offset = other.position().subtract(postPoint());
+            return GuardArea.containsStaying(offset.x, offset.y, offset.z);
+        }
         Vec3 offset = other.position().subtract(position());
         return GuardArea.contains(offset.x, offset.y, offset.z);
     }
 
     /**
-     * The broad-phase box for entity queries around this vex: {@code getEntitiesOfClass} returns what this box
-     * <em>intersects</em>, which is more than {@link #inGuardArea} accepts, so filter every query's hits through it.
+     * The broad-phase box for entity queries: following, the box around the vex; staying, the stay box around the post
+     * point. {@code getEntitiesOfClass} returns what this box <em>intersects</em>, which is more than
+     * {@link #inGuardArea} accepts, so filter every query's hits through it.
      */
     AABB guardArea() {
+        if (isStaying()) {
+            Vec3 post = postPoint();
+            return new AABB(post, post)
+                    .inflate(GuardArea.STAY_HALF_WIDTH, GuardArea.HALF_HEIGHT, GuardArea.STAY_HALF_WIDTH);
+        }
         return new AABB(position(), position())
                 .inflate(GuardArea.HALF_WIDTH, GuardArea.HALF_HEIGHT, GuardArea.HALF_WIDTH);
+    }
+
+    /**
+     * The point a staying vex hovers at and its stay area is centered on: the middle of the post block's floor
+     * (Part 3 spec glossary). The post is vanilla's bound origin, set by {@link #setStaying}; a vex without one
+     * (never the case for a staying vex) answers with its own block.
+     *
+     * @return the post point
+     */
+    Vec3 postPoint() {
+        BlockPos post = getBoundOrigin();
+        return Vec3.atBottomCenterOf(post != null ? post : blockPosition());
     }
 
     /**
@@ -334,7 +584,7 @@ public class BoundVex extends Vex {
      * ({@code Enemy}), no creeper (a creeper is fought only when it provoked, through the grudge goal, and the flee
      * goal handles a hissing one), and carrying no other player's summoner mark (another player's summons are treated
      * like that player, who is no {@code Enemy}: they are prey for the grudge goal under the PvP rule, so a vex answers
-     * a hit, but never a patrol or ally-fight target). {@link #keepsTarget} is a separate test.
+     * a hit, but never a patrol or ally-fight target). {@link #takesTarget} is a separate test.
      *
      * @param target the candidate
      * @return whether the patrol and ally goals may pick it
@@ -418,16 +668,22 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * The summoner's empty-handed, un-sneaked main-hand click toggles stay (spec §3.3), with the vex's own sound;
-     * everything else passes (the sneaking click is Part 3's take-back). Only the server decides, since the client does
-     * not know the summoner (the mark is not synced). The client still answers {@code SUCCESS_SERVER} for every
-     * empty-handed, un-sneaked main-hand click: a client {@code PASS} would send {@code Minecraft.startUseItem} on to
-     * the off hand and throw a pearl or raise a shield on each toggle (docs/api-notes.md §21). The swing comes from
-     * the server; a stranger's click is answered {@code PASS} there and changes nothing.
+     * The summoner's main-hand clicks (Part 3 spec §3, §4.2, §4.4). A gear item ({@link VexGear#slotFor}), sneaking or
+     * not, is given; an empty hand sneaking toggles stay, with the vex's own sound; an empty hand not sneaking takes the
+     * main-hand weapon back; anything else is {@code PASS}. Only the server decides, since the client does not know the
+     * summoner (the mark is not synced). The client answers {@code SUCCESS_SERVER} for an empty hand and for a gear
+     * item: a client {@code PASS} would send {@code Minecraft.startUseItem} on to the off hand and throw a pearl or
+     * raise a shield on each click (docs/api-notes.md §22). The swing comes from the server; a stranger's click is
+     * answered {@code PASS} there and changes nothing.
      */
     @Override
     protected InteractionResult mobInteract(Player player, InteractionHand hand) {
-        if (hand != InteractionHand.MAIN_HAND || !player.getMainHandItem().isEmpty() || player.isShiftKeyDown()) {
+        if (hand != InteractionHand.MAIN_HAND) {
+            return InteractionResult.PASS;
+        }
+        ItemStack held = player.getMainHandItem();
+        Optional<EquipmentSlot> slot = VexGear.slotFor(held);
+        if (!held.isEmpty() && slot.isEmpty()) {
             return InteractionResult.PASS;
         }
         if (!(level() instanceof ServerLevel)) {
@@ -436,9 +692,55 @@ public class BoundVex extends Vex {
         if (!isSummonedBy(player.getUUID())) {
             return InteractionResult.PASS;
         }
-        setStaying(!isStaying());
-        playSound(SoundEvents.VEX_AMBIENT, 1.0F, 1.0F);
+        if (slot.isPresent()) {
+            give(player, held, slot.get());
+        } else if (player.isShiftKeyDown()) {
+            setStaying(!isStaying());
+            playSound(SoundEvents.VEX_AMBIENT, 1.0F, 1.0F);
+        } else {
+            takeBackWeapon(player);
+        }
         return InteractionResult.SUCCESS_SERVER;
+    }
+
+    /**
+     * Takes one item from the summoner's hand into {@code slot} and hands back what was there (Part 3 spec §4.2). While
+     * the slot holds a conjured item the gift waits in the stash and the previously stashed item comes back instead.
+     * What does not fit the player's inventory is dropped at the player. {@code setItemSlot} plays the equip sound of
+     * armor and of a shield in the off hand itself ({@code LivingEntity.onEquipItem}, docs/api-notes.md §22), so only
+     * the silent cases get the vex's own sound: the main hand, a gift that goes to the stash, and a gift identical to
+     * the piece it replaces (vanilla plays no sound when the item and its components do not change).
+     */
+    private void give(Player player, ItemStack held, EquipmentSlot slot) {
+        ItemStack gift = held.consumeAndReturn(1, player);
+        ItemStack back;
+        boolean silent = slot == EquipmentSlot.MAINHAND;
+        if (isConjured(slot)) {
+            back = stashGift(slot, gift);
+            silent = true;
+        } else {
+            back = getItemBySlot(slot).copy();
+            setItemSlot(slot, gift);
+            // Vanilla's onEquipItem plays nothing when the new piece is the same item with the same components.
+            silent |= ItemStack.isSameItemSameComponents(back, gift);
+        }
+        if (!back.isEmpty() && !player.getInventory().add(back)) {
+            player.drop(back, false, Prediction.SERVER_ONLY);
+        }
+        if (silent) {
+            playSound(SoundEvents.VEX_AMBIENT, 1.0F, 1.0F);
+        }
+    }
+
+    /** Hands the main-hand item to the summoner's empty hand; a conjured item is not handed over (spec §4.4). */
+    private void takeBackWeapon(Player player) {
+        ItemStack weapon = getMainHandItem();
+        if (weapon.isEmpty() || isConjured(EquipmentSlot.MAINHAND)) {
+            return;
+        }
+        player.setItemInHand(InteractionHand.MAIN_HAND, weapon.copy());
+        setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+        playSound(SoundEvents.VEX_AMBIENT, 1.0F, 1.0F);
     }
 
     /**
@@ -478,8 +780,63 @@ public class BoundVex extends Vex {
     }
 
     /**
+     * A shield in the off hand blocks from the front (Part 3 spec §4.3). Vanilla's own blocking needs the entity to be
+     * using the shield, which a mob never is, so this repeats its geometry (docs/api-notes.md §22): no block without
+     * a source position (fire, a fall), for a shield-bypassing damage type or a piercing arrow; otherwise the flat
+     * view vector from the head's yaw against the flat direction to the source (a hit from exactly 90° to the side is
+     * blocked, as in vanilla). A hit that would not hurt anyway is no block (it falls through to {@code super}); a
+     * block records its attacker through {@code setLastHurtByMob}, so the grudge goal answers it. No durability is
+     * spent.
+     */
+    @Override
+    public boolean hurtServer(ServerLevel level, DamageSource source, float damage) {
+        // A hit that would not have hurt anyway (a dead or dying vex, damage it is immune to, zero damage) is no block.
+        if (!isDeadOrDying() && !isInvulnerableTo(level, source) && damage > 0.0F && blocksWithShield(source)) {
+            playSound(SoundEvents.SHIELD_BLOCK.value(), 1.0F, 1.0F);
+            // Vanilla's blocking records the attacker too (resolveMobResponsibleForDamage); the grudge goal reads it.
+            if (source.getEntity() instanceof LivingEntity attacker) {
+                setLastHurtByMob(attacker);
+            }
+            return false;
+        }
+        return super.hurtServer(level, source, damage);
+    }
+
+    /** Whether the off-hand shield stops {@code source} (see {@link #hurtServer}). */
+    private boolean blocksWithShield(DamageSource source) {
+        Vec3 from = source.getSourcePosition();
+        if (from == null
+                || VexGear.kindOf(getOffhandItem()) != VexGear.Kind.SHIELD
+                || source.is(DamageTypeTags.BYPASSES_SHIELD)
+                || (source.getDirectEntity() instanceof AbstractArrow arrow && arrow.getPierceLevel() > 0)) {
+            return false;
+        }
+        Vec3 toSource = from.subtract(position()).multiply(1.0, 0.0, 1.0);
+        if (toSource.lengthSqr() < 1.0E-8) {
+            return true;
+        }
+        return calculateViewVector(0.0F, getYHeadRot()).dot(toSource.normalize()) >= 0.0;
+    }
+
+    /**
+     * The weapon is never worn down (Part 3 spec §4.5): the hit runs on the stack and a copy of the stack as it was is
+     * put back after, so durability and count are restored (only if the vex is still alive after the hit).
+     */
+    @Override
+    public boolean doHurtTarget(ServerLevel level, Entity target) {
+        ItemStack before = getMainHandItem().copy();
+        boolean hurt = super.doHurtTarget(level, target);
+        if (isAlive() && !ItemStack.matches(before, getMainHandItem())) {
+            setItemSlot(EquipmentSlot.MAINHAND, before, true);
+        }
+        return hurt;
+    }
+
+    /**
      * Vanilla's {@code Vex.VexChargeAttackGoal}, copied because it is private (docs/api-notes.md §21): fly at the
-     * target's eyes and hit it; this is how a Bound Vex uses the sword it holds.
+     * target's eyes and hit it; this is how a Bound Vex uses the sword it holds. It runs only for a vex that fights in
+     * melee: the main-hand item picks the fighting style (Part 3 spec §4.3), so ranged and support gear leave it to
+     * {@link RangedGearGoal} and {@link SupportGearGoal}.
      */
     private final class ChargeGoal extends Goal {
         ChargeGoal() {
@@ -491,6 +848,8 @@ public class BoundVex extends Vex {
             LivingEntity target = BoundVex.this.getTarget();
             return target != null
                     && target.isAlive()
+                    && !VexGear.isRanged(BoundVex.this.getMainHandItem())
+                    && !VexGear.isSupport(BoundVex.this.getMainHandItem())
                     && !BoundVex.this.getMoveControl().hasWanted()
                     && BoundVex.this.random.nextInt(reducedTickDelay(7)) == 0
                     && BoundVex.this.distanceToSqr(target) > 4.0;
@@ -543,49 +902,42 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * Vanilla's {@code Vex.VexRandomMoveGoal}, copied because it is private, and run only while staying (spec §3.3):
-     * drift to a random air block within 7 blocks sideways and 5 up or down of the post.
+     * Brings a staying, idle vex back to its post point (Part 3 spec §2.2): one flight per use, started when the vex
+     * hangs farther than {@link #POST_TOLERANCE} from it, the move control is free and the vex is nearly still.
+     * Vanilla's move control only halves the velocity when it comes within about 0.53 of the wanted point
+     * (docs/api-notes.md §22), so after a long flight the vex coasts a couple of blocks past the post; the goal
+     * therefore waits until the coast is over ({@link #STILL_SPEED_SQR}) before it flies again, and flies at the slow
+     * {@link #POST_APPROACH_SPEED} within {@link #POST_NEAR}, so that a second pass cannot overshoot the tolerance. A
+     * vex has no gravity, so once there it hangs still.
      */
-    private final class StayWanderGoal extends Goal {
-        StayWanderGoal() {
+    private final class HoldPostGoal extends Goal {
+        HoldPostGoal() {
             setFlags(EnumSet.of(Goal.Flag.MOVE));
         }
 
         @Override
         public boolean canUse() {
             return BoundVex.this.isStaying()
+                    && BoundVex.this.getTarget() == null
                     && !BoundVex.this.getMoveControl().hasWanted()
-                    && BoundVex.this.random.nextInt(reducedTickDelay(7)) == 0;
+                    && BoundVex.this.getDeltaMovement().lengthSqr() < STILL_SPEED_SQR
+                    && BoundVex.this.position().distanceToSqr(BoundVex.this.postPoint())
+                            > POST_TOLERANCE * POST_TOLERANCE;
         }
 
+        /** One move per use. */
         @Override
         public boolean canContinueToUse() {
             return false;
         }
 
         @Override
-        public void tick() {
-            BlockPos origin = BoundVex.this.getBoundOrigin();
-            if (origin == null) {
-                origin = BoundVex.this.blockPosition();
-            }
-            for (int attempt = 0; attempt < 3; attempt++) {
-                BlockPos spot = origin.offset(
-                        BoundVex.this.random.nextInt(15) - 7,
-                        BoundVex.this.random.nextInt(11) - 5,
-                        BoundVex.this.random.nextInt(15) - 7);
-                if (BoundVex.this.level().isEmptyBlock(spot)) {
-                    BoundVex.this
-                            .getMoveControl()
-                            .setWantedPosition(spot.getX() + 0.5, spot.getY() + 0.5, spot.getZ() + 0.5, 0.25);
-                    if (BoundVex.this.getTarget() == null) {
-                        BoundVex.this
-                                .getLookControl()
-                                .setLookAt(spot.getX() + 0.5, spot.getY() + 0.5, spot.getZ() + 0.5, 180.0F, 20.0F);
-                    }
-                    break;
-                }
-            }
+        public void start() {
+            Vec3 post = BoundVex.this.postPoint();
+            double speed = BoundVex.this.position().distanceToSqr(post) > POST_NEAR * POST_NEAR
+                    ? POST_SPEED
+                    : POST_APPROACH_SPEED;
+            BoundVex.this.getMoveControl().setWantedPosition(post.x, post.y, post.z, speed);
         }
     }
 }

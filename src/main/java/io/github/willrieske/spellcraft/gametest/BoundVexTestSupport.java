@@ -14,8 +14,10 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.zombie.Husk;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
@@ -40,6 +42,12 @@ public final class BoundVexTestSupport {
 
     /** The middle of the structure's box, where {@code FangGameTests.caster} stands the player. */
     static final BlockPos FEET = FangGameTests.FEET;
+
+    /**
+     * Where the flying tests hang a vex: four blocks over the structure's middle, above the barrier shell (which
+     * surrounds the box and blocks line of sight), so a hostile at the same height is in view.
+     */
+    static final BlockPos AIR_SPOT = FEET.above(4);
 
     /** A vex this far north of the caster is outside the teleport distance (12) and inside the padding (13). */
     static final int FAR_NORTH = 13;
@@ -92,6 +100,43 @@ public final class BoundVexTestSupport {
         husk.setNoAi(true);
         whenDone(helper, husk::discard);
         return husk;
+    }
+
+    /**
+     * A husk with no AI and no gravity, {@code dx} blocks east and {@code dz} blocks south of {@code at} (world axes,
+     * same height). It is spawned in the structure and then moved by absolute position: a rotated structure puts
+     * relative coordinates a block off. Discarded when the test ends.
+     *
+     * @param helper the test helper
+     * @param at the reference point, absolute
+     * @param dx blocks east of {@code at}
+     * @param dz blocks south of {@code at}
+     * @return the husk
+     */
+    static Husk huskAt(GameTestHelper helper, Vec3 at, double dx, double dz) {
+        Husk husk = husk(helper, FEET);
+        husk.setNoGravity(true);
+        husk.setPos(at.add(dx, 0.0, dz));
+        return husk;
+    }
+
+    /**
+     * A staying Bound Vex of {@code summoner} with the full AI at {@link #AIR_SPOT}, holding {@code mainHand} (the
+     * iron sword it spawned with when {@code mainHand} is empty), discarded when the test ends. Its post is where it
+     * hangs.
+     *
+     * @param helper the test helper
+     * @param summoner the player it counts as summoned by
+     * @param mainHand the item for its main hand, or {@link ItemStack#EMPTY} to keep the sword
+     * @return the vex
+     */
+    static BoundVex stayingVex(GameTestHelper helper, ServerPlayer summoner, ItemStack mainHand) {
+        BoundVex vex = boundVex(helper, AIR_SPOT, summoner);
+        if (!mainHand.isEmpty()) {
+            vex.setItemSlot(EquipmentSlot.MAINHAND, mainHand);
+        }
+        vex.setStaying(true);
+        return vex;
     }
 
     /**

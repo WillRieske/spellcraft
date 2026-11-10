@@ -69,3 +69,17 @@ b1aefe8 Task 8 done (docs, pitest 98% 247/251, minors closed); plan complete; ba
 7d4f5d7 Task 5: build green; All 197 required tests passed twice at 55be865; All 205 required tests passed twice after fix round 1
 0aeda6f Task 6: build green; All 214 required tests passed twice at c00bca8; All 215 required tests passed x3 after fix round 1 (32+ clean runs on the same production code)
 4754fb1 Task 7: markdownlint 0 errors; pitest 264/268 killed (99%), line coverage 270/284; build green (commit gate)
+8854374 Task 1: api-notes §22 recorded; baseline All 249 required tests passed at 667c882
+e5ef3e0 Task 2: GuardArea tests red then green (./gradlew test --tests *GuardArea*); build green (commit gate)
+222c588 Task 3: build green; All 257 required tests passed twice
+53e2f9f Task 4: build green; All 262 required tests passed
+36bfed5 Task 3 fix round 1: build green; All 264 required tests passed
+fa7ad8a Task 5: build green; All 275 required tests passed
+8389c81 Task 4 fix round 1: build green; All 278 required tests passed
+11b533c Task 6: build green; All 287 required tests passed twice
+d3b4c43 fix round (ranged keep range): build green; All 290 required tests passed x3
+1e3e3d2 Task 7: build green; runData exit 0 (does not construct renderers); All 290 required tests passed
+c63cf8f Task 6 fix round 1: build green; All 294 required tests passed twice
+644a2c2 Task 8: markdownlint clean (hook); pitest 271/275 killed (99%), line coverage 271/285; build green
+abe83d6 branch review fix round: build green; All 304 required tests passed twice; pitest 304/309 killed (98%)
+healer aim fix: one flaky run (healing potion missed the floating test golem) at b74c5e7; after the fix All 304 required tests passed x4

@@ -59,6 +59,10 @@ public final class BoundVexCapGameTests {
         SpellcraftGameTests.add(SHARED, "bound_vex_gives_no_experience", BoundVexCapGameTests::givesNoExperience);
         SpellcraftGameTests.add(SHARED, "bound_vex_stay_toggle", BoundVexCapGameTests::stayToggle);
         SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_stay_toggle_keeps_the_off_hand_item",
+                BoundVexCapGameTests::stayToggleKeepsTheOffHandItem);
+        SpellcraftGameTests.add(
                 SHARED, "bound_vex_idles_without_a_summoner", BoundVexCapGameTests::idlesWithoutASummoner);
         SpellcraftGameTests.add(
                 SHARED, "bound_vex_idles_with_a_dead_summoner", BoundVexCapGameTests::idlesWithADeadSummoner);
@@ -216,10 +220,10 @@ public final class BoundVexCapGameTests {
     }
 
     /**
-     * When the summoner clicks a Bound Vex with an empty main hand, should toggle stay on (the post is the block it
-     * stands at, whatever origin it had before) and off again, each handled by the server, the post kept when stay goes
-     * off; a stranger's click, a sneaking click, a click with an item in hand and an off-hand click should pass and
-     * change nothing.
+     * When the summoner sneak-clicks a Bound Vex with an empty main hand, should toggle stay on (the post is the block
+     * it stands at, whatever origin it had before) and off again, each handled by the server, the post kept when stay
+     * goes off; a stranger's click, a click with an item in hand and an off-hand click should pass and change
+     * nothing, and a plain (un-sneaked) empty-hand click by the summoner should be consumed and change nothing.
      *
      * <p>Method under test: {@code BoundVex.mobInteract} (protected), through {@code Mob.interact}
      */
@@ -236,12 +240,17 @@ public final class BoundVexCapGameTests {
                 vex.interact(stranger, InteractionHand.MAIN_HAND, Vec3.ZERO).consumesAction(),
                 "a stranger's click passes");
         helper.assertFalse(vex.isStaying(), "still following after a stranger's click");
-        summoner.setShiftKeyDown(true);
+        stranger.setShiftKeyDown(true);
         helper.assertFalse(
+                vex.interact(stranger, InteractionHand.MAIN_HAND, Vec3.ZERO).consumesAction(),
+                "a stranger's sneaking click passes");
+        helper.assertFalse(vex.isStaying(), "still following after a stranger's sneaking click");
+        helper.assertTrue(
                 vex.interact(summoner, InteractionHand.MAIN_HAND, Vec3.ZERO).consumesAction(),
-                "a sneaking click passes");
-        summoner.setShiftKeyDown(false);
+                "a plain empty-hand click by the summoner is consumed");
+        helper.assertFalse(vex.isStaying(), "a plain click leaves it following");
         GameTestSupport.hold(summoner, new ItemStack(Items.STICK));
+        summoner.setShiftKeyDown(true);
         helper.assertFalse(
                 vex.interact(summoner, InteractionHand.MAIN_HAND, Vec3.ZERO).consumesAction(),
                 "a click with an item passes");
@@ -263,6 +272,34 @@ public final class BoundVexCapGameTests {
                 "a second click is handled too");
         helper.assertFalse(vex.isStaying(), "following again");
         helper.assertValueEqual(vex.getBoundOrigin(), post, "switching stay off leaves the post");
+        helper.succeed();
+    }
+
+    /**
+     * When the summoner holds an ender pearl in the off hand and sneak-clicks a Bound Vex with the empty main hand,
+     * should get {@code SUCCESS_SERVER} (a {@code Success}, which stops the client's fall-through to the off hand),
+     * toggle stay, and still hold the whole pearl. A server-side test cannot run the client's fall-through, so the
+     * result type is what it pins; the playtest checklist covers the rest.
+     *
+     * <p>Method under test: {@code BoundVex.mobInteract} (protected), through {@code Mob.interact}
+     */
+    static void stayToggleKeepsTheOffHandItem(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer summoner = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, summoner);
+        ItemStack pearl = new ItemStack(Items.ENDER_PEARL);
+        summoner.setItemInHand(InteractionHand.OFF_HAND, pearl);
+        summoner.setShiftKeyDown(true);
+
+        // Act
+        InteractionResult result = vex.interact(summoner, InteractionHand.MAIN_HAND, Vec3.ZERO);
+
+        // Assert
+        helper.assertValueEqual(result, InteractionResult.SUCCESS_SERVER, "handled by the server");
+        helper.assertTrue(result instanceof InteractionResult.Success, "a Success, which stops the fall-through");
+        helper.assertTrue(vex.isStaying(), "stay toggled");
+        helper.assertValueEqual(summoner.getOffhandItem().getCount(), 1, "the pearl is still there");
+        helper.assertTrue(summoner.getOffhandItem().is(Items.ENDER_PEARL), "and still a pearl");
         helper.succeed();
     }
 

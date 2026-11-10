@@ -186,11 +186,11 @@ public final class BoundVexFollowGameTests {
 
     /**
      * When a staying Bound Vex's post is thirteen blocks from its summoner, should neither fly nor teleport to the
-     * summoner over sixty ticks. The post is the structure's middle and the player stands thirteen blocks south, so
-     * the wander (±7 blocks around the post) stays inside the padding. The vex has no target goals
+     * summoner over sixty ticks. The post is the structure's middle and the player stands thirteen blocks south; the
+     * vex hangs at its post, well inside the padding. The vex has no target goals
      * ({@link BoundVexTestSupport#followOnly}), so the distance check cannot be spoiled by a chase.
      *
-     * <p>Method under test: {@link FollowSummonerGoal} and {@code BoundVex.StayWanderGoal}, through the goal selector
+     * <p>Method under test: {@link FollowSummonerGoal} and {@code BoundVex.HoldPostGoal}, through the goal selector
      */
     static void stayingHoldsItsPost(GameTestHelper helper) {
         // Arrange
@@ -212,12 +212,11 @@ public final class BoundVexFollowGameTests {
 
     /**
      * When a staying Bound Vex whose post is thirteen blocks from its summoner is switched back to following after
-     * twenty ticks, should come back within five blocks of its summoner (once any wander leg under way is done). The
-     * post is the structure's middle and the player stands thirteen blocks south, so every wander leg (±7 blocks around
-     * the post) stays inside the padding: a vex that crossed into a chunk the padding did not force would stop ticking
-     * and never fly back (as in {@link #stayingHoldsItsPost}). The vex has no target goals
-     * ({@link BoundVexTestSupport#followOnly}): the subject is movement, and its legs still reach four blocks into the
-     * padding, where a neighboring test's hostile may stand and hold it (charge outranks follow).
+     * twenty ticks, should come back within five blocks of its summoner. The post is the structure's middle and the
+     * player stands thirteen blocks south, so the flight stays inside the padding: a vex that crossed into a chunk the
+     * padding did not force would stop ticking and never fly back (as in {@link #stayingHoldsItsPost}). The vex has no
+     * target goals ({@link BoundVexTestSupport#followOnly}): the subject is movement, and a neighboring test's hostile
+     * in the padding could otherwise hold it (charge outranks follow).
      *
      * <p>If this fails again, the message names the vex's target, goals and positions ({@code vexState}).
      *
