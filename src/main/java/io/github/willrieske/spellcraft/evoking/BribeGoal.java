@@ -24,13 +24,14 @@ import org.jspecify.annotations.Nullable;
 /**
  * A Bound Vex offers an enemy vex an emerald before it fights it (Evoking II Parts 4-5 spec §3.1). On each scan
  * ({@code BoundVex.scanDue}), when the vex's summoner is here, the nearest vanilla vex (exactly
- * {@code EntityTypes.VEX}: never a Bound Vex) whose feet are in the guard area, that is alive, carries neither the bribed nor the bribe-tried
- * mark, is not courted by another living Bound Vex and whose target is the summoner or an ally of the summoner is
- * taken; whether this vex has a target of its own does not matter. The vex flies to within {@link Jobs#REACH} of it (at
- * most {@link Jobs#APPROACH_LIMIT} ticks), holds a conjured emerald out for {@link #OFFER_TICKS} ticks (the villager
- * "hmm" once at the start, the head turned to the other vex) and rolls {@link BribeRule}: two in three the other vex
- * is bribed ({@link AllyAttachments#BRIBED}, its target cleared, {@link FleeFromViewGoal} its only goal), one in three
- * it refuses ({@link AllyAttachments#BRIBE_TRIED}) and is prey as before.
+ * {@code EntityTypes.VEX}: never a Bound Vex) whose feet are in the guard area, that is alive, carries neither the
+ * bribed nor the bribe-tried mark, is not courted by another living Bound Vex and whose target is the summoner or an
+ * ally of the summoner is taken; whether this vex has a target of its own does not matter. The vex flies to within
+ * {@link Jobs#REACH} of it (at most {@link Jobs#APPROACH_LIMIT} ticks), holds a conjured emerald out for
+ * {@link #OFFER_TICKS} ticks (the villager "hmm" once at the start, the head turned to the other vex) and rolls
+ * {@link BribeRule}: two in three the other vex is bribed ({@link AllyAttachments#BRIBED}, its target cleared,
+ * {@link FleeFromViewGoal} its only goal), one in three it refuses ({@link AllyAttachments#BRIBE_TRIED}) and is prey as
+ * before.
  *
  * <p>From the claim until the roll the vex is <em>courted</em> ({@link #isCourted}): {@link BoundVex#isPrey} answers
  * false for it, for every Bound Vex, so the summoner's other vexes drop it and the friendly-fire backstop cancels a

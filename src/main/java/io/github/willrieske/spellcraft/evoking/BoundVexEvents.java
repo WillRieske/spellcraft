@@ -39,7 +39,7 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  * {@code PlayerRespawnEvent} when it says the End was conquered. A respawn after a death brings nothing. Staying vexes
  * stay; a moved vex is a new entity instance that keeps its mark (an attachment) and its stay flag (saved as NBT).
  * Each follower draws its ring cell on its own, so two may share one (harmless for vexes, which clip). The same class
- * resets the repair goal's claims when the server stops ({@link #onServerStopped}).
+ * resets the job goals' claims when the server stops ({@link #onServerStopped}).
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class BoundVexEvents {

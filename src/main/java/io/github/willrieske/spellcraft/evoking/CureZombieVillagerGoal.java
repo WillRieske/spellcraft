@@ -251,8 +251,8 @@ public final class CureZombieVillagerGoal extends Goal {
     }
 
     /**
-     * Continues while the subject is alive, still carries the cure mark and is still this vex's claim, the summoner is
-     * here, the steps are not finished and the approach has not timed out. Deliberately not the vex's target (spec
+     * Continues while the subject is alive, still carries the cure mark and no other vex has claimed it, the summoner
+     * is here, the steps are not finished and the approach has not timed out. Deliberately not the vex's target (spec
      * §2.2). A subject that lost its mark was released by {@link CureEvents} (and another vex may have claimed it
      * since): a vex that wakes after that drops the job.
      */
@@ -261,7 +261,7 @@ public final class CureZombieVillagerGoal extends Goal {
         return subject != null
                 && subject.isAlive()
                 && AllyAttachments.isBeingCured(subject)
-                && CLAIMS.heldBy(subject, vex)
+                && !CLAIMS.heldByAnother(subject, vex)
                 && vex.summoner().isPresent()
                 && !finished
                 && !(step == Step.APPROACH && approachTicks >= APPROACH_LIMIT);
@@ -397,7 +397,7 @@ public final class CureZombieVillagerGoal extends Goal {
         if (subject != null) {
             // A subject that lost its mark was released by CureEvents, and one claimed since is another vex's job:
             // either way nothing here is this vex's to undo.
-            boolean mine = AllyAttachments.isBeingCured(subject) && CLAIMS.heldBy(subject, vex);
+            boolean mine = AllyAttachments.isBeingCured(subject) && !CLAIMS.heldByAnother(subject, vex);
             CLAIMS.release(subject, vex);
             if (mine && !finished && !subject.isRemoved() && !subject.isConverting()) {
                 subject.setNoAi(false);

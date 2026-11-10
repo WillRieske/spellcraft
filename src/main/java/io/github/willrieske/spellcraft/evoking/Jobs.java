@@ -91,20 +91,6 @@ final class Jobs {
         }
 
         /**
-         * Whether {@code holder} itself holds a live claim on {@code subject}.
-         *
-         * @param subject any entity
-         * @param holder the vex asking
-         * @return true if the live claim on it is {@code holder}'s
-         */
-        boolean heldBy(Entity subject, BoundVex holder) {
-            Claim claim = claims.get(subject.getUUID());
-            return claim != null
-                    && live(claim, subject.level().getGameTime())
-                    && claim.holder().getUUID().equals(holder.getUUID());
-        }
-
-        /**
          * Frees {@code holder}'s claim on {@code subject}; never another vex's.
          *
          * @param subject what was claimed

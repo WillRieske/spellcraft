@@ -3,6 +3,7 @@ package io.github.willrieske.spellcraft.gametest;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
+import io.github.willrieske.spellcraft.evoking.BribeGoal;
 import io.github.willrieske.spellcraft.evoking.ModEntities;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import java.util.LinkedHashMap;
@@ -329,5 +330,18 @@ public final class BoundVexTestSupport {
         vex.setTarget(target);
         whenDone(helper, vex::discard);
         return vex;
+    }
+
+    /**
+     * Scripts every roll of {@code vex} to {@code side} (0 and 1 accept the bribe, 2 refuses it) until the test ends.
+     */
+    static void rolling(GameTestHelper helper, BoundVex vex, int side) {
+        BribeGoal.scriptDice(vex, bound -> side);
+        whenDone(helper, () -> BribeGoal.unscriptDice(vex));
+    }
+
+    /** Whether {@code vex} carries exactly one of the two bribe marks. */
+    static boolean exactlyOneMark(Vex vex) {
+        return AllyAttachments.isBribed(vex) != AllyAttachments.wasOfferedBribe(vex);
     }
 }

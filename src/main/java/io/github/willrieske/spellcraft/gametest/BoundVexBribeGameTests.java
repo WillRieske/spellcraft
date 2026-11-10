@@ -5,6 +5,7 @@ import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.FEET;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.enemyVex;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.noTargets;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.patientCreeper;
+import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.rolling;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.stayingVex;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.summoner;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.swordBack;
@@ -13,6 +14,7 @@ import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
+import io.github.willrieske.spellcraft.evoking.BoundVexEvents;
 import io.github.willrieske.spellcraft.evoking.BribeGoal;
 import io.github.willrieske.spellcraft.evoking.FleeCreeperGoal;
 import io.github.willrieske.spellcraft.evoking.FleeFromViewGoal;
@@ -21,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -28,6 +31,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
@@ -38,8 +42,11 @@ import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 /**
  * Bound Vex GameTests for the bribe (Evoking II Parts 4-5 spec §3). Tests whose vex flies or that need headroom
@@ -55,6 +62,9 @@ public final class BoundVexBribeGameTests {
 
     /** Ticks a Bound Vex may still hold a target that became courted: the target goals re-check every second tick. */
     private static final int COURTED_TARGET_LAG = 4;
+
+    /** The environment of the test that stops the server: the stop handler clears every claim on it. */
+    private static final String SERVER_STOP_CLAIMS = "bound_vex_bribe_server_stop_claims";
 
     private BoundVexBribeGameTests() {}
 
@@ -90,6 +100,16 @@ public final class BoundVexBribeGameTests {
                 "bound_vex_bribe_each_enemy_vex_gets_exactly_one_offer",
                 BoundVexBribeGameTests::eachEnemyVexGetsExactlyOneOffer);
         padded("bound_vex_bribe_a_stale_claim_is_free", BoundVexBribeGameTests::aStaleClaimIsFree);
+        FangGameTests.addPadded(
+                SERVER_STOP_CLAIMS,
+                "bound_vex_bribe_server_stop_frees_the_bribe_claims",
+                BoundVexBribeGameTests::serverStopFreesTheBribeClaims);
+        padded(
+                "bound_vex_bribe_the_summoner_going_absent_ends_the_offer",
+                BoundVexBribeGameTests::theSummonerGoingAbsentEndsTheOffer);
+        plain(
+                "bound_vex_bribe_a_bribed_vex_arriving_in_another_dimension_only_flees",
+                BoundVexBribeGameTests::aBribedVexArrivingInAnotherDimensionOnlyFlees);
     }
 
     /** Registers {@code body} in the shared environment, padded (see {@link FangGameTests#addPadded}). */
@@ -127,15 +147,7 @@ public final class BoundVexBribeGameTests {
     }
 
     /**
-     * Scripts every roll of {@code vex} to {@code side} (0 and 1 accept the bribe, 2 refuses it) until the test ends.
-     */
-    private static void rolling(GameTestHelper helper, BoundVex vex, int side) {
-        BribeGoal.scriptDice(vex, bound -> side);
-        whenDone(helper, () -> BribeGoal.unscriptDice(vex));
-    }
-
-    /**
-     * Scripts every roll of {@code vex} to {@code side} like {@link #rolling}, and counts the rolls.
+     * Scripts every roll of {@code vex} to {@code side} like {@link BoundVexTestSupport#rolling}, and counts the rolls.
      *
      * @return the number of times the dice were rolled, still counting
      */
@@ -147,11 +159,6 @@ public final class BoundVexBribeGameTests {
         });
         whenDone(helper, () -> BribeGoal.unscriptDice(vex));
         return rolls;
-    }
-
-    /** Whether {@code vex} carries exactly one of the two bribe marks. */
-    private static boolean exactlyOneMark(Vex vex) {
-        return AllyAttachments.isBribed(vex) != AllyAttachments.wasOfferedBribe(vex);
     }
 
     /**
@@ -603,8 +610,7 @@ public final class BoundVexBribeGameTests {
                     }
                     helper.assertTrue(
                             enemies.stream().noneMatch(AllyAttachments::isBribed), "no refused vex is bribed");
-                    helper.assertTrue(
-                            enemies.stream().allMatch(BoundVexBribeGameTests::exactlyOneMark), "one mark each");
+                    helper.assertTrue(enemies.stream().allMatch(BoundVexTestSupport::exactlyOneMark), "one mark each");
                 })
                 .thenSucceed();
     }
@@ -649,14 +655,14 @@ public final class BoundVexBribeGameTests {
         // Act & Assert
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(
-                        enemies.stream().allMatch(BoundVexBribeGameTests::exactlyOneMark),
+                        enemies.stream().allMatch(BoundVexTestSupport::exactlyOneMark),
                         "every enemy vex was offered and carries a mark"))
                 .thenIdle(60)
                 .thenExecute(() -> {
                     helper.assertValueEqual(
                             rolls.stream().mapToInt(AtomicInteger::get).sum(), 3, "the dice were rolled three times");
                     helper.assertTrue(
-                            enemies.stream().allMatch(BoundVexBribeGameTests::exactlyOneMark), "still one mark each");
+                            enemies.stream().allMatch(BoundVexTestSupport::exactlyOneMark), "still one mark each");
                     helper.assertFalse(heldACourtedTarget.get(), "no Bound Vex held a courted vex as its target");
                 })
                 .thenSucceed();
@@ -686,6 +692,118 @@ public final class BoundVexBribeGameTests {
                     helper.assertFalse(BribeGoal.isCourted(other), "an old claim is free");
                     helper.assertTrue(
                             BoundVex.isPrey(helper.getLevel(), player.getUUID(), other), "and the vex is prey again");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the server stops while a Bound Vex courts an enemy vex (its approach held up, so the claim stands), should
+     * the claim be free as soon as the stop handler has run. The handler runs on its own batch
+     * ({@link #SERVER_STOP_CLAIMS}): it clears every claim on the server.
+     *
+     * <p>Method under test: {@link BoundVexEvents#onServerStopped}, through {@code BribeGoal}'s claim map
+     */
+    static void serverStopFreesTheBribeClaims(GameTestHelper helper) {
+        // Arrange: the claimant is held in place, so its approach drags on and the claim stands
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+        rolling(helper, vex, 2);
+        Vec3 post = vex.position();
+        BoundVexTestSupport.holdAt(helper, vex, post);
+        Vex other = enemyVex(helper, post, 5.0, 0.0, player);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(BribeGoal.isCourted(other), "setup: the claim stands"))
+                .thenExecute(() -> {
+                    BoundVexEvents.onServerStopped(
+                            new ServerStoppedEvent(helper.getLevel().getServer()));
+                    helper.assertFalse(BribeGoal.isCourted(other), "the stop handler freed the claim");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the summoner becomes a spectator (which counts as absent) while a Bound Vex holds the emerald out, though
+     * the roll is scripted to accept, should the offer end with no mark on the enemy vex, the claim free and the sword
+     * back in hand, and stay ended.
+     *
+     * <p>Method under test: {@link BribeGoal#canContinueToUse}: the summoner-present clause, and {@code stop}
+     */
+    static void theSummonerGoingAbsentEndsTheOffer(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+        rolling(helper, vex, 0);
+        Vex other = enemyVex(helper, vex.position(), 3.0, 0.0, player);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(holdsEmerald(vex), "setup: in the offer step"))
+                .thenExecute(() -> player.setGameMode(GameType.SPECTATOR))
+                .thenWaitUntil(() -> {
+                    helper.assertTrue(swordBack(vex), "the Bound Vex holds its sword again");
+                    helper.assertFalse(BribeGoal.isCourted(other), "the claim is free");
+                })
+                .thenExecuteFor(30, () -> {
+                    helper.assertTrue(unmarked(other), "no mark on the other vex, though the roll would accept");
+                    helper.assertFalse(holdsEmerald(vex), "and no new offer while the summoner is absent");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a bribed vex is moved to the Nether with the call {@code BoundVexEvents.bring} uses, should the arrived
+     * entity (a new instance, found by its UUID in the Nether) have the flee goal as its only goal and no target
+     * goals: the join handler puts them back.
+     *
+     * <p>Method under test: {@code BoundVexEvents.onJoin}, for an entity that arrives from another dimension
+     */
+    static void aBribedVexArrivingInAnotherDimensionOnlyFlees(GameTestHelper helper) {
+        // Arrange: a stone pocket in the Nether at the vex's own coordinates; the vex has no AI, so it neither flees
+        // nor is discarded for want of a player before the assertions run
+        Vec3 at = helper.absoluteVec(Vec3.atBottomCenterOf(AIR_SPOT));
+        BoundVexTestSupport.huskInNether(helper, at).discard();
+        ServerLevel nether = helper.getLevel().getServer().getLevel(Level.NETHER);
+        if (nether == null) {
+            throw helper.assertionException("no Nether on the GameTest server");
+        }
+        Vex vex = helper.spawn(EntityTypes.VEX, FEET);
+        vex.setNoAi(true);
+        vex.setNoGravity(true);
+        vex.setPos(at);
+        vex.setData(AllyAttachments.BRIBED, true);
+        FleeFromViewGoal.install(vex);
+        UUID id = vex.getUUID();
+        Entity[] returned = {null};
+        whenDone(helper, () -> {
+            vex.discard();
+            if (returned[0] != null) {
+                returned[0].discard();
+            }
+        });
+        helper.assertValueEqual(goalClasses(vex.goalSelector), List.of(FleeFromViewGoal.class), "setup: it flees");
+
+        // Act & Assert: the arrived vex joins the lookup a tick later (the Nether's chunk is promoted by then), and
+        // it has no AI, so the flee goal cannot have run and discarded it
+        helper.startSequence()
+                .thenExecute(() -> {
+                    returned[0] = vex.teleport(new TeleportTransition(
+                            nether, at, Vec3.ZERO, vex.getYRot(), vex.getXRot(), TeleportTransition.DO_NOTHING));
+                    helper.assertTrue(returned[0] instanceof Vex, "setup: the move made a new vex");
+                })
+                .thenWaitUntil(() -> helper.assertTrue(
+                        nether.getEntities().get(id) instanceof Vex, "setup: the vex is in the Nether, found by UUID"))
+                .thenExecute(() -> {
+                    Vex arrived = (Vex) nether.getEntities().get(id);
+                    helper.assertFalse(arrived.equals(vex), "a new instance");
+                    helper.assertTrue(AllyAttachments.isBribed(arrived), "the mark came along");
+                    helper.assertValueEqual(
+                            goalClasses(arrived.goalSelector),
+                            List.of(FleeFromViewGoal.class),
+                            "its only goal is the flee goal");
+                    helper.assertTrue(
+                            arrived.targetSelector.getAvailableGoals().isEmpty(), "and it has no target goals");
                 })
                 .thenSucceed();
     }

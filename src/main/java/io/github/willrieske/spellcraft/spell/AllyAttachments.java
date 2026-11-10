@@ -28,8 +28,8 @@ public final class AllyAttachments {
 
     /**
      * The cure mark (Evoking II Parts 4-5 spec §2.3): on a zombie villager a Bound Vex is curing, the game time the
-     * cure began. Saved. While it is present the zombie villager is frozen, is an ally of every player and is never prey.
-     * Read with {@link #isBeingCured} or {@code hasData}; the default exists only because the builder needs one.
+     * cure began. Saved. While it is present the zombie villager is frozen, is an ally of every player and is never
+     * prey. Read with {@link #isBeingCured} or {@code hasData}; the default exists only because the builder needs one.
      */
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<Long>> CURE = ATTACHMENT_TYPES.register(
             "cure",

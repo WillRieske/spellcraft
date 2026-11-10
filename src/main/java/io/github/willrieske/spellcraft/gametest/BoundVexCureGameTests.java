@@ -2,10 +2,12 @@ package io.github.willrieske.spellcraft.gametest;
 
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.AIR_SPOT;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.FEET;
+import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.enemyVex;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.frozenZombieVillager;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.huskAt;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.noTargets;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.patientCreeper;
+import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.rolling;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.stayingVex;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.swordBack;
 import static io.github.willrieske.spellcraft.gametest.FangGameTests.NORTH;
@@ -13,6 +15,8 @@ import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
+import io.github.willrieske.spellcraft.evoking.BoundVexEvents;
+import io.github.willrieske.spellcraft.evoking.BribeGoal;
 import io.github.willrieske.spellcraft.evoking.CureEvents;
 import io.github.willrieske.spellcraft.evoking.CureZombieVillagerGoal;
 import io.github.willrieske.spellcraft.evoking.FleeCreeperGoal;
@@ -34,6 +38,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -50,6 +56,7 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 /**
  * Bound Vex GameTests for the cure and its marks (Evoking II Parts 4-5 spec §2). Tests whose vex flies or that need
@@ -58,6 +65,9 @@ import net.minecraft.world.phys.Vec3;
  * {@link BoundVexBribeGameTests}.
  */
 public final class BoundVexCureGameTests {
+    /** The environment of the test that stops the server: the stop handler clears every claim on it. */
+    private static final String SERVER_STOP_CLAIMS = "bound_vex_cure_server_stop_claims";
+
     private BoundVexCureGameTests() {}
 
     static void registerAll() {
@@ -114,6 +124,19 @@ public final class BoundVexCureGameTests {
         padded(
                 "bound_vex_cure_a_claim_lives_only_while_the_mark_does",
                 BoundVexCureGameTests::aClaimLivesOnlyWhileTheMarkDoes);
+        padded(
+                "bound_vex_cure_a_direct_hit_spares_what_is_not_prey",
+                BoundVexCureGameTests::aDirectHitSparesWhatIsNotPrey);
+        FangGameTests.addPadded(
+                SERVER_STOP_CLAIMS,
+                "bound_vex_cure_server_stop_frees_the_cure_claims",
+                BoundVexCureGameTests::serverStopFreesTheCureClaims);
+        padded(
+                "bound_vex_cure_a_cure_and_a_bribe_in_reach_are_done_one_after_the_other",
+                BoundVexCureGameTests::aCureAndABribeAreDoneOneAfterTheOther);
+        padded(
+                "bound_vex_cure_twelve_vexes_three_zombie_villagers_two_enemy_vexes",
+                BoundVexCureGameTests::twelveVexesShareThreeCuresAndTwoBribes);
     }
 
     /** Registers {@code body} in the shared environment, padded (see {@link FangGameTests#addPadded}). */
@@ -883,9 +906,10 @@ public final class BoundVexCureGameTests {
     }
 
     /**
-     * When a vex is mid-cure (the apple step) and stops ticking, and the 300-tick rule then releases the zombie villager
-     * (the mark removed, its AI back), should the vex, once it ticks again, drop the job within a few ticks: its hand is
-     * back to the sword, and the zombie villager stays unmarked and unfrozen (the stop undoes nothing it no longer owns).
+     * When a vex is mid-cure (the apple step) and stops ticking, and the 300-tick rule then releases the zombie
+     * villager (the mark removed, its AI back), should the vex, once it ticks again, drop the job within a few ticks:
+     * its hand is back to the sword, and the zombie villager stays unmarked and unfrozen (the stop undoes nothing it no
+     * longer owns).
      *
      * <p>Method under test: {@link CureZombieVillagerGoal#canContinueToUse}: the cure mark must still be present
      */
@@ -962,6 +986,161 @@ public final class BoundVexCureGameTests {
                         () -> helper.assertTrue(
                                 claimed(zombieVillager), "the first vex leaves what the second vex cures alone"))
                 .thenExecute(() -> helper.assertTrue(swordBack(first), "and has its sword back"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a Bound Vex with its summoner present hits (directly, as its melee does) an unmarked zombie villager, a
+     * zombie villager carrying the cure mark and a bribed vanilla vex, should do no damage to any of them; the same
+     * hit on a husk beside them does damage (the control).
+     *
+     * <p>Method under test: {@link BoundVexEvents#onIncomingDamage}: the friendly-fire backstop spares what
+     * {@code isPrey} spares
+     */
+    static void aDirectHitSparesWhatIsNotPrey(GameTestHelper helper) {
+        // Arrange: a vex with no AI, so only the test hits anything
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+        vex.setNoAi(true);
+        Vec3 post = vex.position();
+        ServerLevel level = helper.getLevel();
+        ZombieVillager plain = frozenZombieVillager(helper, post, 3.0, 0.0);
+        ZombieVillager cured = frozenZombieVillager(helper, post, -3.0, 0.0);
+        cured.setData(AllyAttachments.CURE, level.getGameTime());
+        Vex bribed = enemyVex(helper, post, 0.0, 3.0, null);
+        bribed.setData(AllyAttachments.BRIBED, true);
+        Husk husk = huskAt(helper, post, 0.0, -3.0);
+        float huskHealth = husk.getHealth();
+
+        // Act
+        for (LivingEntity victim : List.of(plain, cured, bribed, husk)) {
+            vex.doHurtTarget(level, victim);
+        }
+
+        // Assert
+        helper.assertValueEqual(plain.getHealth(), plain.getMaxHealth(), "an unmarked zombie villager is spared");
+        helper.assertValueEqual(cured.getHealth(), cured.getMaxHealth(), "a zombie villager being cured is spared");
+        helper.assertValueEqual(bribed.getHealth(), bribed.getMaxHealth(), "a bribed vex is spared");
+        helper.assertTrue(husk.getHealth() < huskHealth, "the same hit does damage to a husk");
+        helper.succeed();
+    }
+
+    /**
+     * When the server stops while a Bound Vex cures a zombie villager, should the cure claim be gone as soon as the
+     * stop handler has run (the zombie villager still carries its mark). The handler runs on its own batch
+     * ({@link #SERVER_STOP_CLAIMS}): it clears every claim on the server.
+     *
+     * <p>Method under test: {@link BoundVexEvents#onServerStopped}, through {@code CureZombieVillagerGoal}'s claim map
+     */
+    static void serverStopFreesTheCureClaims(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+        Vec3 post = vex.position();
+        ZombieVillager zombieVillager = cureSubject(helper, post, 3.0, 0.0);
+        discardCureLeftovers(helper, post);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() ->
+                        helper.assertTrue(CureZombieVillagerGoal.isClaimed(zombieVillager), "setup: the claim stands"))
+                .thenExecute(() -> {
+                    BoundVexEvents.onServerStopped(
+                            new ServerStoppedEvent(helper.getLevel().getServer()));
+                    helper.assertFalse(CureZombieVillagerGoal.isClaimed(zombieVillager), "the claim is freed");
+                    helper.assertTrue(AllyAttachments.isBeingCured(zombieVillager), "though the mark stays");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When one staying Bound Vex has a zombie villager to cure and an enemy vanilla vex (targeting the summoner, the
+     * dice scripted to accept) to bribe in its guard area, should do both jobs, one to its end and then the other,
+     * never both at once, and never leave the zombie villager frozen and marked without a claim; in the end the zombie
+     * villager is converting, the vanilla vex is bribed and the Bound Vex holds its sword.
+     *
+     * <p>Method under test: {@link CureZombieVillagerGoal} and {@code BribeGoal}, sharing one vex's goal selector
+     */
+    static void aCureAndABribeAreDoneOneAfterTheOther(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+        rolling(helper, vex, 0);
+        Vec3 post = vex.position();
+        ZombieVillager zombieVillager = cureSubject(helper, post, 3.0, 0.0);
+        Vex other = enemyVex(helper, post, -3.0, 0.0, player);
+        other.setAbsorptionAmount(100000.0F);
+        discardCureLeftovers(helper, post);
+        AtomicBoolean bothAtOnce = new AtomicBoolean();
+        AtomicBoolean stranded = new AtomicBoolean();
+        BoundVexTestSupport.everyTick(helper, () -> {
+            boolean curing = claimed(zombieVillager) && !zombieVillager.isConverting();
+            if (curing && BribeGoal.isCourted(other)) {
+                bothAtOnce.set(true);
+            }
+            if (curing && !CureZombieVillagerGoal.isClaimed(zombieVillager)) {
+                stranded.set(true);
+            }
+        });
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        zombieVillager.isConverting() && AllyAttachments.isBribed(other) && swordBack(vex),
+                        "both jobs end: converting, bribed, sword back"))
+                .thenExecute(() -> {
+                    helper.assertFalse(bothAtOnce.get(), "never both jobs at once");
+                    helper.assertFalse(stranded.get(), "never a frozen, marked zombie villager without a claim");
+                    helper.assertFalse(BribeGoal.isCourted(other), "the bribed vex is not courted any more");
+                    helper.assertTrue(claimed(zombieVillager), "the converting zombie villager keeps its freeze");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When twelve staying Bound Vexes of one summoner share three zombie villagers and two enemy vanilla vexes (which
+     * target the summoner), should every zombie villager be converting, every vanilla vex carry exactly one of the
+     * two marks, no Bound Vex hold a conjured item, and all twelve be alive.
+     *
+     * <p>Method under test: {@link CureZombieVillagerGoal} and {@code BribeGoal}: the claims, with far more vexes than
+     * subjects
+     */
+    static void twelveVexesShareThreeCuresAndTwoBribes(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        List<BoundVex> vexes = new ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            vexes.add(stayingVex(helper, player, ItemStack.EMPTY));
+        }
+        Vec3 post = vexes.get(0).position();
+        List<ZombieVillager> zombieVillagers = List.of(
+                cureSubject(helper, post, 3.0, 0.0),
+                cureSubject(helper, post, -3.0, 0.0),
+                cureSubject(helper, post, 0.0, 3.0));
+        List<Vex> enemies =
+                List.of(enemyVex(helper, post, 0.0, -3.0, player), enemyVex(helper, post, 2.0, -3.0, player));
+        enemies.forEach(enemy -> enemy.setAbsorptionAmount(100000.0F));
+        discardCureLeftovers(helper, post);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        zombieVillagers.stream().allMatch(ZombieVillager::isConverting)
+                                && enemies.stream().allMatch(BoundVexTestSupport::exactlyOneMark),
+                        "every zombie villager converts and every enemy vex carries a mark"))
+                .thenIdle(40)
+                .thenExecute(() -> {
+                    helper.assertTrue(
+                            zombieVillagers.stream().allMatch(ZombieVillager::isConverting),
+                            "every zombie villager is still converting");
+                    helper.assertTrue(
+                            enemies.stream().allMatch(BoundVexTestSupport::exactlyOneMark),
+                            "every enemy vex carries exactly one mark");
+                    helper.assertTrue(
+                            vexes.stream().noneMatch(vex -> vex.isConjured(EquipmentSlot.MAINHAND)),
+                            "no Bound Vex holds a conjured item");
+                    helper.assertTrue(vexes.stream().allMatch(BoundVex::isAlive), "all twelve are alive");
+                })
                 .thenSucceed();
     }
 }
