@@ -1492,7 +1492,7 @@ git commit -m "feat(evoking): a Bound Vex returns a ghast's fireball in the Neth
 - **Blast damage** (`BoundVexEvents.onIncomingDamage`, first lines, before the attacker test): a `BoundVex` victim whose damage source's direct entity is an `EndCrystal` → cancelled. The acting vex, the summoner and allies are already covered by the backstop (the crystal's damage source names the vex as the causing entity).
 - **Knockback** (`onExplosionKnockback`): zero (`Vec3.ZERO`) when (a) the explosion's direct source entity is an `EndCrystal` and the affected entity is a `BoundVex`; or (b) the explosion's damage source's causing entity (`getDamageSource().getEntity()`) is a `BoundVex` with its summoner present, and the affected entity is a `LivingEntity` the backstop spares. Extract the backstop's owner-present test into `private static boolean spares(BoundVex vex, ServerPlayer owner, LivingEntity victim)` (`victim` is the owner, or `!vex.isPrey(victim)`) and use it in both handlers.
 
-- [ ] **Step 1: Write the failing GameTests**
+- [x] **Step 1: Write the failing GameTests**
 
 All in the End through `endVoid(helper, player, 48)` (a mock player does not fall; vexes and crystals float; the slot is private, so no other test's vex can reach these crystals). A crystal: `EntityTypes.END_CRYSTAL.create(end, EntitySpawnReason.COMMAND)`, `setPos`, `end.addFreshEntity`. Each test scripts the dragon for its own vexes (`scriptDragon(vex, true)`, undone in `whenDone`).
 
@@ -1509,12 +1509,12 @@ All in the End through `endVoid(helper, player, 48)` (a mock player does not fal
 - `bound_vex_world_crystal_blast_spares_another_players_vex`: a second mock player's vex 2 blocks from a crystal broken by the first player's vex → unhurt, velocity zero.
 - `bound_vex_world_crystal_claims_cleared_on_server_stop`: mirror the repair goal's server-stop test, in an environment of its own (the stop handler clears every test's state).
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:bound_vex_world_crystal_*"`
 Expected: compilation fails (`AttackCrystalGoal` does not exist).
 
-- [ ] **Step 3: Implement `AttackCrystalGoal`**
+- [x] **Step 3: Implement `AttackCrystalGoal`**
 
 Write it on `RepairGolemGoal`'s frame, with the shared claim map Part 4's branch review added (`Jobs.Claims`, no age limit; read `evoking/Jobs.java` for its exact methods: claim in `start`, prune at the top of `canUse`, "held by another" in the candidate filter, release in `stop`, `clearClaims`) and `Jobs.SPEED`. The snippet below writes those calls as `CLAIMED.values().removeIf(…)` and `claimedByAnother(…)`; use the `Jobs.Claims` equivalents. The parts that differ from the repair goal:
 
@@ -1586,7 +1586,7 @@ public void tick() {
 
 `getOrDefault` evaluates `livingDragon` every scan; that is fine (two lookups). Register in `BoundVex.registerGoals` after the bribe goal: `goalSelector.addGoal(2, new AttackCrystalGoal(this));`. `BoundVexEvents.onServerStopped` calls `AttackCrystalGoal.clearClaims()` (which also clears the scripted answers).
 
-- [ ] **Step 4: The blast in `BoundVexEvents`**
+- [x] **Step 4: The blast in `BoundVexEvents`**
 
 At the top of `onIncomingDamage`:
 
@@ -1623,7 +1623,7 @@ public static void onExplosionKnockback(ExplosionKnockbackEvent event) {
 
 Rewrite the owner-present branch of `onIncomingDamage` to call `spares`, and extend the method's Javadoc with the crystal rule. New imports: `ExplosionKnockbackEvent` (`net.neoforged.neoforge.event.level`), `ServerExplosion` (`net.minecraft.world.level`), `EndCrystal` (`net.minecraft.world.entity.boss.enderdragon`); wrap the long `ifPresent` line.
 
-- [ ] **Step 5: Run the crystal tests, full gates, commit**
+- [x] **Step 5: Run the crystal tests, full gates, commit**
 
 Run: the filtered run, then `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice.
 
@@ -1631,6 +1631,8 @@ Run: the filtered run, then `./gradlew spotlessApply build`, `./gradlew runGameT
 git add src/main/java/io/github/willrieske/spellcraft/evoking src/main/java/io/github/willrieske/spellcraft/gametest
 git commit -m "feat(evoking): Bound Vexes break end crystals; the blast spares and does not throw your side"
 ```
+
+> **As built (`e006924`):** diverged — the removed-on-the-way test puts its crystals 16 and 17 blocks off and could not be seen red (the vex ends its goal at the dead crystal anyway); the player-blast test asserts only the throw (a player takes no damage from their own blast under the server PvP rule); `AttackCrystalGoal.isClaimed` added for tests; the End-dimension and missing-summoner checks are untested; review fixes for Task 6 are in `9b58e11` (last ground in an unloaded chunk is trusted, as `VoidRule.lastGroundUsable`; three lines vanilla teleport already covers removed; a refused teleport starts no rescue). 454 tests; reason: the GameTest server and vanilla teleport.
 
 ---
 
@@ -1766,3 +1768,4 @@ git commit -m "docs(evoking): Part 5 in the README, playtest items, mutation tes
 | 5 | `7ba6f2a` | the pushes apply the fluid drag to the reported movement (lava 0.5, water 0.8) and the lava pull has a hard 0.35 cap, so `drowning_push` expects `(0.08, 0.4, 0.04)`; a rescue also ends when the player stops needing it; review fixes for Task 4 are in `7730532`. 408 tests; reason: coordinator ruling after the Task 4 review (sending the undragged movement back each tick would let a steering player speed up without limit), recorded in spec §5, §6.2 and §9. |
 | 6 | `5f3fab6` | test vexes are `NoAI` (a following vex teleports to the player before the test drops them); the 20-tick memo guards only the landing search, the last ground is still tried; the glide, ground-below and not-falling cases are separate tests; `teleportTo` already dismounts and zeroes the velocity, so those two lines cannot be seen red. 422 tests; reason: how the GameTest server and vanilla teleport behave. |
 | 7 | `f40f625` | the "left alone" cases are four tests; the unused lambda parameters are `_`; the returned fireball kills a real ghast in the test with no fallback; review fixes for Task 5 are in `0c30b8d` (the drowning passenger test rides a minecart: a pig dismounts under water). 435 tests; reason: test granularity and the sources. |
+| 8 | `e006924` | the removed-on-the-way test puts its crystals 16 and 17 blocks off and could not be seen red (the vex ends its goal at the dead crystal anyway); the player-blast test asserts only the throw (a player takes no damage from their own blast under the server PvP rule); `AttackCrystalGoal.isClaimed` added for tests; the End-dimension and missing-summoner checks are untested; review fixes for Task 6 are in `9b58e11` (last ground in an unloaded chunk is trusted, as `VoidRule.lastGroundUsable`; three lines vanilla teleport already covers removed; a refused teleport starts no rescue). 454 tests; reason: the GameTest server and vanilla teleport. |
