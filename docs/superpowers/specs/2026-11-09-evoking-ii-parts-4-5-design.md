@@ -248,7 +248,12 @@ again.
   The parent spec's `hurtMarked` does not exist in 26.3; the field is `Entity.syncVelocity`,
   which `ServerEntity` sends to the player's own client too. Because that packet replaces the
   client's velocity, every push **adds to** what the player is doing instead of overwriting it
-  (the formulas in §6.2), so the player keeps steering.
+  (the formulas in §6.2), so the player keeps steering. "What the player is doing" is the last
+  movement their client reported (`ServerPlayer.getKnownMovement()`); the server-side velocity
+  of a player is not their real one. That movement is taken **with the fluid's drag applied**
+  (×0.5 in lava, ×0.8 in water, vanilla's factors): the client moves, then slows; a packet that
+  sent the unslowed movement back every tick would cancel the drag, and a player steering toward
+  the shore would speed up without limit.
 
 ## 6. Part 5: posture, rescues, the fireball
 
@@ -315,8 +320,8 @@ feet (vexes pass through blocks); each tick it is kept there, looking at the pla
 
 | Rescue | Need | Each tick, to the player's velocity `v` | Ends |
 |---|---|---|---|
-| **Lava pull** (Overworld, Nether) | `player.isInLava()` | Find the nearest standable spot within 6 blocks sideways whose height is between the player's feet −1 and +2 and that is not in lava. With a spot: add 0.1 toward it sideways, capping the sideways speed at 0.35, and raise `v.y` to at least 0.3. With none: only raise `v.y` to at least 0.4. | When the player has been out of lava for 10 ticks, or is out of lava and on the ground; or 60 ticks after it began, whichever is first. No push is applied on ticks the player is out of lava. After any lava rescue ends, none starts for that player for 20 ticks. |
-| **Drowning push** (Overworld) | `player.isUnderWater()`, `getAirSupply() < 60`, and **a way up**: every block from the player's head upward is water (no collision) until air is reached, within 32 blocks | Raise `v.y` to at least 0.4; `v.x` and `v.z` are left alone. | The player's eyes are out of water, the way up closes, or 200 ticks. |
+| **Lava pull** (Overworld, Nether) | `player.isInLava()` | Find the nearest standable spot within 6 blocks sideways whose height is between the player's feet −1 and +2 and that is not in lava. `v` is the player's movement with lava's drag (×0.5). With a spot: add 0.1 toward it sideways, cap the sideways speed at 0.35 (a hard cap), and raise `v.y` to at least 0.3. With none: only raise `v.y` to at least 0.4. | When the player has been out of lava for 10 ticks, or is out of lava and on the ground; or 60 ticks after it began, whichever is first. No push is applied on ticks the player is out of lava. After any lava rescue ends, none starts for that player for 20 ticks. |
+| **Drowning push** (Overworld) | `player.isUnderWater()`, `getAirSupply() < 60`, and **a way up**: every block from the player's head upward is water (no collision) until air is reached, within 32 blocks | `v` is the player's movement with water's drag (×0.8). Raise `v.y` to at least 0.4; nothing is added sideways. | The player's eyes are out of water, the way up closes, or 200 ticks. |
 | **Void catch** (End) | §6.4 | One action, in the tick it starts. | After a 20-tick tail (the apple in the vex's hand). |
 
 A drowning player under a ceiling gets no push: holding them against the roof would stop them
@@ -328,8 +333,11 @@ lava: the rescuer conjures a **water bucket** in its main hand for a 20-tick tai
 on the player, and `player.clearFire()`. Once per rescue. No water block is placed. In the
 Overworld the player keeps burning (Will chose only the pull there).
 
-A rescuer keeps its own target and returns to its duties when the rescue ends. A rescue never
-uses a staying vex.
+A rescuer returns to its duties when the rescue ends. It keeps its target if that target is
+still within its reach from the player's side; one it was fighting farther off is dropped by the
+vex's ordinary rules (it was moved away from it). A rescue never uses a staying vex. A rescue
+also ends when the player stops needing it: they gain the protecting effect, go creative or
+mount something.
 
 ### 6.3 The fireball return (Nether)
 
@@ -469,13 +477,15 @@ in the damage pipeline (`LivingDamageEvent.Pre`) and still holds.
 - `GuardPosture` also answers "in place" and gives a spot from two unit rolls. Properties: every
   spot is inside its row's ranges; every spot is in place; in the three close rows every spot is
   at least 2.5 above the feet.
-- `RescuePush`: the lava-pull velocity from the current velocity and the offset to the spot (add
-  0.1 sideways toward it, sideways speed capped at 0.35, `y` raised to at least 0.3; with no
-  spot only `y` raised to at least 0.4; a spot directly above or below adds nothing sideways and
-  gives no NaN), the drowning push (`y` raised to at least 0.4, `x` and `z` kept), and the
-  returned fireball's velocity (old speed along the new heading). Properties: the sideways speed
-  never exceeds the larger of 0.35 and what it was; `y` never decreases; no component is NaN for
-  any finite input.
+- `RescuePush`: the lava-pull velocity from the reported movement and the offset to the spot
+  (lava's drag, then add 0.1 sideways toward it, sideways speed capped at 0.35, `y` raised to at
+  least 0.3; with no spot only the drag and `y` raised to at least 0.4; a spot directly above or
+  below adds nothing sideways and gives no NaN), the drowning push (water's drag, `y` raised to
+  at least 0.4), and the returned fireball's velocity (old speed along the new heading).
+  Properties: after a lava pull the sideways speed never exceeds 0.35; a lift or a drowning push
+  never raises the sideways speed; `y` is never under its floor; no component is NaN for any
+  finite input; and fed its own output plus a constant steering input, tick after tick, the
+  sideways speed stays bounded (no ratchet).
 - `VoidRule.needsCatch(y, minY, onGround, movingDown, groundWithin64, flying)`: the conditions
   of §6.4.
 

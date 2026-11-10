@@ -1111,7 +1111,7 @@ git commit -m "feat(evoking): a Bound Vex pulls its summoner out of lava; in the
 - Consumes: `VexRescues.start/carryOn/push/drop` (Task 4), `RescuePush.drowningPush`.
 - Produces: the `DROWNING` kind runs; constants `VexRescues.LOW_AIR = 60`, `DROWNING_LIMIT = 200`, `WAY_UP = 32`.
 
-- [ ] **Step 1: Write the failing GameTests**
+- [x] **Step 1: Write the failing GameTests**
 
 Arrangement (`waterColumn(helper, depth)`): the player invulnerable at `FEET`; water in the player's two blocks and `depth` blocks above the head, then air; stone around the column. A step here is `soak(player)`, then `player.setAirSupply(40)` (or the test's value), then `VexRescues.tick(player)`, in that order: `baseTick` changes the air supply (down under water, up in air), so the air is set after it. One step per server tick. Water also spreads into air beside it: keep stone on all four sides of the column.
 
@@ -1124,12 +1124,12 @@ Arrangement (`waterColumn(helper, depth)`): the player invulnerable at `FEET`; w
 - `bound_vex_world_drowning_ends_after_200_ticks`: 200 steps running (reset the air to 40 each step), not running after the next; and it starts again on the step after (no pause for drowning).
 - `bound_vex_world_drowning_only_in_the_overworld`: the same column in a Nether `room` (water placed with `setBlock`; if the Nether refuses water blocks through `setBlock`, drop this test and say so in the as-built note: the rule is then tested by the `needsDrowningPush` dimension check alone) → none.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:bound_vex_world_drowning_*"`
 Expected: the tests fail (no rescue starts).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `startFirstNeeded`, after the lava branch (`else if`):
 
@@ -1182,7 +1182,7 @@ private static void drowning(ServerPlayer player, Rescue rescue, long now) {
 
 Wire `case DROWNING -> drowning(player, rescue, now);` in `carryOn`. The start tick pushes too (`start` calls `carryOn`), which is what the first test asserts.
 
-- [ ] **Step 4: Run the drowning tests, full gates, commit**
+- [x] **Step 4: Run the drowning tests, full gates, commit**
 
 Run: the filtered run, then `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice.
 
@@ -1190,6 +1190,8 @@ Run: the filtered run, then `./gradlew spotlessApply build`, `./gradlew runGameT
 git add src/main/java/io/github/willrieske/spellcraft/evoking src/main/java/io/github/willrieske/spellcraft/gametest
 git commit -m "feat(evoking): a Bound Vex pushes its drowning summoner up through open water"
 ```
+
+> **As built (`7ba6f2a`):** diverged — the pushes apply the fluid drag to the reported movement (lava 0.5, water 0.8) and the lava pull has a hard 0.35 cap, so `drowning_push` expects `(0.08, 0.4, 0.04)`; a rescue also ends when the player stops needing it; review fixes for Task 4 are in `7730532`. 408 tests; reason: coordinator ruling after the Task 4 review (sending the undragged movement back each tick would let a steering player speed up without limit), recorded in spec §5, §6.2 and §9.
 
 ---
 
@@ -1757,3 +1759,4 @@ git commit -m "docs(evoking): Part 5 in the README, playtest items, mutation tes
 | 1 | `2c484b4` | the GameTest world is flat in every dimension (a floor at y 0..3 even in the End), so `endVoid` clears the blocks below its slot in the forced chunks and restores them; `setInvulnerable` does not exist (`setPermanentlyInvulnerable(true)`); `isInLava` also needs the second `baseTick`; `Ghast` is in `monster`; the night setup test is registered unpadded. Baseline 349, now 355; reason: the sources and the server as they are. |
 | 3 | `9fa69ec` | a close-posture flight is one goal use that ends on arrival, where the velocity is zeroed (a coasting vex sank to 1.5 above the feet), and a target mid-flight drops the wanted position; the close bands start at 2.5, not 2.2 (the move control stops up to half a block short). Measured after: min height 1.88, max sideways 2.46, no hops in 60 ticks. Review fixes for Task 2 are in `cce1ddc`. 366 tests; reason: coordinator rulings on the measurements, recorded in spec §6.1 and §10. |
 | 4 | `c8613d0` | the target-keeping test uses a vulnerable husk out of reach (an invulnerable mob cannot be targeted); lava does not ignite a mock player through `baseTick`, so the burning tests set fire ticks; a rescue starts only once the vex has ticked; the Overworld pool is cased in stone so the padded box offers no other shore; "not for the unhurt" is five tests; the tail gives the hand back only to a living rescuer. 384 tests; reason: how the GameTest server and mock players behave. |
+| 5 | `7ba6f2a` | the pushes apply the fluid drag to the reported movement (lava 0.5, water 0.8) and the lava pull has a hard 0.35 cap, so `drowning_push` expects `(0.08, 0.4, 0.04)`; a rescue also ends when the player stops needing it; review fixes for Task 4 are in `7730532`. 408 tests; reason: coordinator ruling after the Task 4 review (sending the undragged movement back each tick would let a steering player speed up without limit), recorded in spec §5, §6.2 and §9. |
