@@ -189,6 +189,7 @@ public final class BoundVexEvents {
     public static void onServerStopped(ServerStoppedEvent event) {
         FOLLOWERS.clear();
         RepairGolemGoal.clearClaims();
+        CureZombieVillagerGoal.clearClaims();
     }
 
     /**

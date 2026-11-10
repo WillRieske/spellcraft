@@ -9,8 +9,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
@@ -24,6 +26,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -236,6 +239,54 @@ public final class BoundVexTestSupport {
     static void placeBeside(BoundVex vex, Entity entity, double dx, double dz) {
         entity.setNoGravity(true);
         entity.setPos(vex.position().add(dx, 0, dz));
+    }
+
+    /** How many ticks {@link #everyTick} keeps running: longer than any padded test lasts. */
+    private static final int EVERY_TICK_SPAN = 1500;
+
+    /**
+     * Runs {@code action} once per tick until the test ends, in a sequence of its own beside the test's. Not
+     * {@code GameTestHelper.onEachTick}: that registers one entry per remaining tick in the test's tick map (a
+     * Spellcraft test that uses it crashed the server in the map's iterator when a padded test's wait added an
+     * entry), where a sequence adds none.
+     *
+     * @param helper the test helper
+     * @param action what to run each tick; it must not throw
+     */
+    static void everyTick(GameTestHelper helper, Runnable action) {
+        helper.startSequence().thenExecuteFor(EVERY_TICK_SPAN, action);
+    }
+
+    /**
+     * Holds {@code entity} at {@code at} until the test ends: every tick its position is set again and its velocity
+     * zeroed (through {@link #everyTick}). {@link #placeBeside} sets a position only once.
+     *
+     * @param helper the test helper
+     * @param entity the entity to hold
+     * @param at where to hold it, absolute
+     */
+    static void holdAt(GameTestHelper helper, Entity entity, Vec3 at) {
+        everyTick(helper, () -> {
+            entity.setPos(at);
+            entity.setDeltaMovement(Vec3.ZERO);
+        });
+    }
+
+    /**
+     * A {@link #calmCreeper} whose fuse is so long that it hisses without exploding once {@code setSwellDir(1)} is
+     * called: the fuse is the {@code Fuse} short tag, written over the creeper's own save and loaded back.
+     *
+     * @param helper the test helper
+     * @param relative where to spawn it, relative to the structure
+     * @return the creeper
+     */
+    static Creeper patientCreeper(GameTestHelper helper, BlockPos relative) {
+        Creeper creeper = calmCreeper(helper, relative);
+        CompoundTag tag = GameTestSupport.saved(creeper);
+        tag.putShort("Fuse", Short.MAX_VALUE);
+        creeper.load(TagValueInput.create(
+                ProblemReporter.DISCARDING, helper.getLevel().registryAccess(), tag));
+        return creeper;
     }
 
     private BoundVexTestSupport() {}
