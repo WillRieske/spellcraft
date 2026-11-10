@@ -32,8 +32,14 @@ final class VexShots {
     /** Potion throw speed within two blocks: the witch's. */
     static final float POTION_SPEED_CLOSE = 0.45F;
 
-    /** Potion inaccuracy. */
+    /** Potion inaccuracy at an enemy: the witch's. */
     static final float POTION_INACCURACY = 8.0F;
+
+    /**
+     * Potion inaccuracy at a friend. A healer has to hit: a splash heals by how near it bursts, and a throw that
+     * misses a friend in the open bursts wherever it lands, so support throws are aimed as tightly as the arrows.
+     */
+    static final float SUPPORT_INACCURACY = 2.0F;
 
     private VexShots() {}
 
@@ -108,7 +114,8 @@ final class VexShots {
         double dz = at.getZ() + motion.z - vex.getZ();
         double flat = Math.sqrt(dx * dx + dz * dz);
         float speed = flat <= 2.0 ? POTION_SPEED_CLOSE : POTION_SPEED;
-        Projectile.spawnProjectileUsingShoot(thrown, level, potion, dx, dy + flat * 0.2, dz, speed, POTION_INACCURACY);
+        float inaccuracy = VexGear.isSupport(potion) ? SUPPORT_INACCURACY : POTION_INACCURACY;
+        Projectile.spawnProjectileUsingShoot(thrown, level, potion, dx, dy + flat * 0.2, dz, speed, inaccuracy);
         vex.playSound(lingering ? SoundEvents.LINGERING_POTION_THROW : SoundEvents.SPLASH_POTION_THROW, 1.0F, 1.0F);
     }
 }

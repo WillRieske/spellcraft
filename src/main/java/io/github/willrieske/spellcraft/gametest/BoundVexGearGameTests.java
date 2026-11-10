@@ -1122,8 +1122,9 @@ public final class BoundVexGearGameTests {
 
     /**
      * When a vex holding a splash potion of healing has a hurt ally golem five blocks away and a husk five blocks away
-     * on the other side, should throw a potion within a hundred ticks, heal the golem, never charge, and still hold
-     * exactly one potion.
+     * on the other side, should throw potions until one heals the golem (a throw every forty ticks; the golem floats in
+     * open air here, so a throw that misses its box falls away without bursting), never charge, and still hold exactly
+     * one potion.
      *
      * <p>Method under test: {@code SupportGearGoal} and {@code VexShots#launch}, through the goal selector
      */
@@ -1143,9 +1144,12 @@ public final class BoundVexGearGameTests {
                     }
                     helper.assertFalse(vex.isCharging(), "a support vex never charges");
                 })
+                .thenWaitUntil(() -> {
+                    helper.assertFalse(vex.isCharging(), "a support vex never charges");
+                    helper.assertTrue(golem.getHealth() > 20.0F, "the golem was healed, has " + golem.getHealth());
+                })
                 .thenExecute(() -> {
                     helper.assertTrue(thrown.get(), "a splash potion of the vex flew");
-                    helper.assertTrue(golem.getHealth() > 20.0F, "the golem was healed, has " + golem.getHealth());
                     helper.assertTrue(vex.getMainHandItem().is(Items.SPLASH_POTION), "the vex still holds a potion");
                     helper.assertValueEqual(vex.getMainHandItem().getCount(), 1, "potions held");
                 })

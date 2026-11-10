@@ -237,7 +237,8 @@ it in `canUse`, so exactly one runs:
   ranged goal; it still takes targets, which calls the wolves). `SupportGearGoal` (priority 3,
   **no flags**, so the follow goal and the post goal keep running beside it): every 40 ticks, the nearest of {the summoner, an ally `LivingEntity`, a Bound Vex
   of the same summoner, itself excluded} within 10 blocks, with line of sight and **below half
-  health**, gets a copy of the potion thrown at it. Friends that healing would hurt (the undead,
+  health**, gets a copy of the potion thrown at it (aimed tightly, inaccuracy 2 against the
+  witch's 8 used at enemies: a healer has to hit). Friends that healing would hurt (the undead,
   `isInvertedHealAndHarm`) are skipped. The scan runs on the shared 10-tick clock. The goal does
   not move the vex.
 
