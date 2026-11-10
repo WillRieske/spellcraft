@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
@@ -16,11 +17,13 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -59,6 +62,15 @@ public final class VexRescues {
 
     /** How long the rescuer shows what it used (the bucket, the apple) after the rescue's work is done. */
     public static final int TAIL = 20;
+
+    /** A drowning push starts when the player has less air than this (ticks of air supply). */
+    public static final int LOW_AIR = 60;
+
+    /** A drowning push lasts at most this long. */
+    public static final int DROWNING_LIMIT = 200;
+
+    /** The open water above the player head may reach up at most this far to the air. */
+    public static final int WAY_UP = 32;
 
     /** How far to the right of the way the player faces the rescuer hangs. */
     private static final double SIDE = 0.6;
@@ -239,7 +251,48 @@ public final class VexRescues {
     private static void startFirstNeeded(ServerPlayer player) {
         if (needsLavaPull(player)) {
             start(player, Kind.LAVA, RESCUER_RANGE);
+        } else if (needsDrowningPush(player)) {
+            start(player, Kind.DROWNING, RESCUER_RANGE);
         }
+    }
+
+    /** Whether {@code player} is under water, low on air, and open water leads up to air. */
+    private static boolean needsDrowningPush(ServerPlayer player) {
+        return wantsDrowningPush(player)
+                && player.isUnderWater()
+                && player.getAirSupply() < LOW_AIR
+                && hasWayUp(player);
+    }
+
+    /** Whether {@code player} is the kind of player a drowning push is for: Overworld, not immune, not creative. */
+    private static boolean wantsDrowningPush(ServerPlayer player) {
+        return player.level().dimension().equals(Level.OVERWORLD)
+                && !player.isCreative()
+                && !player.isPassenger()
+                && !player.hasEffect(MobEffects.WATER_BREATHING)
+                && !player.hasEffect(MobEffects.CONDUIT_POWER);
+    }
+
+    /**
+     * Whether open water leads from the player head straight up to air within {@link #WAY_UP} blocks: every block on
+     * the way is water with no collision. Under a ceiling there is no push (it would pin the player to the roof).
+     */
+    private static boolean hasWayUp(ServerPlayer player) {
+        ServerLevel level = player.level();
+        BlockPos.MutableBlockPos pos =
+                BlockPos.containing(player.getEyePosition()).mutable();
+        for (int step = 0; step <= WAY_UP; step++) {
+            BlockState state = level.getBlockState(pos);
+            if (state.isAir()) {
+                return true;
+            }
+            if (!state.getFluidState().is(FluidTags.WATER)
+                    || !state.getCollisionShape(level, pos).isEmpty()) {
+                return false;
+            }
+            pos.move(Direction.UP);
+        }
+        return false;
     }
 
     /** Whether the stored last ground of {@code id} is on another block or in another dimension than {@code player}. */
@@ -311,8 +364,21 @@ public final class VexRescues {
         }
         switch (rescue.kind) {
             case LAVA -> lava(player, rescue, now);
-            case DROWNING, VOID -> drop(player.getUUID()); // Tasks 5 and 6
+            case DROWNING -> drowning(player, rescue, now);
+            case VOID -> drop(player.getUUID()); // Task 6
         }
+    }
+
+    /** One tick of a drowning push: ends at the surface, when the way up closes, on the limit or when not needed. */
+    private static void drowning(ServerPlayer player, Rescue rescue, long now) {
+        if (!wantsDrowningPush(player)
+                || !player.isUnderWater()
+                || !hasWayUp(player)
+                || now - rescue.start >= DROWNING_LIMIT) {
+            drop(player.getUUID());
+            return;
+        }
+        push(player, RescuePush.drowningPush(vector(player.getKnownMovement())));
     }
 
     /** One tick of a lava pull: counts the ticks out of lava, ends the pull, or pushes. */
