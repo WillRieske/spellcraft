@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -71,6 +72,9 @@ public final class BoundVexCureGameTests {
 
     /** The environment of the one test that clears the static claim map, which no other cure test may run beside. */
     private static final String CLAIMS = "bound_vex_cure_claims";
+
+    /** Ticks a Bound Vex may still hold a target that became courted: the target goals re-check every second tick. */
+    private static final int COURTED_TARGET_LAG = 4;
 
     private BoundVexCureGameTests() {}
 
@@ -185,6 +189,16 @@ public final class BoundVexCureGameTests {
                 SHARED,
                 "bound_vex_bribe_a_staying_vex_bribes_only_in_its_area",
                 BoundVexCureGameTests::aStayingVexBribesOnlyInItsArea);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_bribe_a_refused_vex_is_rolled_for_exactly_once",
+                BoundVexCureGameTests::aRefusedVexIsRolledForExactlyOnce);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_bribe_each_enemy_vex_gets_exactly_one_offer",
+                BoundVexCureGameTests::eachEnemyVexGetsExactlyOneOffer);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_bribe_a_stale_claim_is_free", BoundVexCureGameTests::aStaleClaimIsFree);
     }
 
     /**
@@ -1028,6 +1042,26 @@ public final class BoundVexCureGameTests {
     }
 
     /**
+     * Scripts every roll of {@code vex} to {@code side} like {@link #rolling}, and counts the rolls.
+     *
+     * @return the number of times the dice were rolled, still counting
+     */
+    private static AtomicInteger countingRolls(GameTestHelper helper, BoundVex vex, int side) {
+        AtomicInteger rolls = new AtomicInteger();
+        BribeGoal.scriptDice(vex, bound -> {
+            rolls.incrementAndGet();
+            return side;
+        });
+        whenDone(helper, () -> BribeGoal.unscriptDice(vex));
+        return rolls;
+    }
+
+    /** Whether {@code vex} carries exactly one of the two bribe marks. */
+    private static boolean exactlyOneMark(Vex vex) {
+        return AllyAttachments.isBribed(vex) != AllyAttachments.wasOfferedBribe(vex);
+    }
+
+    /**
      * A vanilla vex with no AI and no gravity, {@code dx} blocks east and {@code dz} blocks south of {@code at}
      * (absolute, same height), targeting {@code target}, discarded when the test ends. It is spawned in the structure
      * and moved by absolute position: a rotated structure puts relative coordinates a block off.
@@ -1447,6 +1481,130 @@ public final class BoundVexCureGameTests {
                 .thenExecuteFor(40, () -> {
                     helper.assertTrue(unmarked(far), "the far one is not offered");
                     helper.assertFalse(BribeGoal.isCourted(far), "and not courted");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When four staying Bound Vexes (both entity-id parities), each with its own enemy vex and its own dice that count
+     * their rolls and refuse, make their offers, should every dice be rolled exactly once, every enemy vex carry the
+     * bribe-tried mark only, and none be bribed.
+     *
+     * <p>Method under test: {@link BribeGoal#tick} and its roll: the roll happens once, though vanilla ticks a goal that
+     * requires an update every tick on ticks {@code canContinueToUse} is not asked
+     */
+    static void aRefusedVexIsRolledForExactlyOnce(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        List<BoundVex> bribers = new ArrayList<>();
+        List<AtomicInteger> rolls = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            BoundVex briber = stayingVex(helper, player, ItemStack.EMPTY);
+            bribers.add(briber);
+            rolls.add(countingRolls(helper, briber, 2));
+        }
+        Vec3 post = bribers.get(0).position();
+        List<Vex> enemies = List.of(
+                enemyVex(helper, post, 3.0, 0.0, player),
+                enemyVex(helper, post, -3.0, 0.0, player),
+                enemyVex(helper, post, 0.0, 3.0, player),
+                enemyVex(helper, post, 0.0, -3.0, player));
+        enemies.forEach(enemy -> enemy.setAbsorptionAmount(100000.0F));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        enemies.stream().allMatch(AllyAttachments::wasOfferedBribe), "every enemy vex was offered"))
+                .thenIdle(40)
+                .thenExecute(() -> {
+                    for (int i = 0; i < 4; i++) {
+                        helper.assertValueEqual(rolls.get(i).get(), 1, "Bound Vex " + i + " rolled exactly once");
+                    }
+                    helper.assertTrue(
+                            enemies.stream().noneMatch(AllyAttachments::isBribed), "no refused vex is bribed");
+                    helper.assertTrue(
+                            enemies.stream().allMatch(BoundVexCureGameTests::exactlyOneMark), "one mark each");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When four staying Bound Vexes (two roll to accept, two to refuse) and three enemy vexes that all target the
+     * summoner share one stay area, should each enemy vex be offered exactly once (exactly one mark each), the dice be
+     * rolled exactly three times in all, and no Bound Vex hold a courted vex as its target at any tick.
+     *
+     * <p>Method under test: {@link BribeGoal}: the claims and the single roll, with more briber than prey
+     */
+    static void eachEnemyVexGetsExactlyOneOffer(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        List<BoundVex> bribers = new ArrayList<>();
+        List<AtomicInteger> rolls = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            BoundVex briber = stayingVex(helper, player, ItemStack.EMPTY);
+            bribers.add(briber);
+            rolls.add(countingRolls(helper, briber, i % 2 == 0 ? 0 : 2));
+        }
+        Vec3 post = bribers.get(0).position();
+        List<Vex> enemies = List.of(
+                enemyVex(helper, post, 3.0, 0.0, player),
+                enemyVex(helper, post, -3.0, 0.0, player),
+                enemyVex(helper, post, 0.0, 3.0, player));
+        enemies.forEach(enemy -> enemy.setAbsorptionAmount(100000.0F));
+        // A target goal asks canContinueToUse only on every second tick, so a target taken before the claim goes within
+        // a tick or two; holding a courted vex for longer than LAG consecutive ticks is the failure.
+        int[] streak = new int[bribers.size()];
+        AtomicBoolean heldACourtedTarget = new AtomicBoolean();
+        BoundVexTestSupport.everyTick(helper, () -> {
+            for (int i = 0; i < streak.length; i++) {
+                LivingEntity target = bribers.get(i).getTarget();
+                streak[i] = target != null && BribeGoal.isCourted(target) ? streak[i] + 1 : 0;
+                if (streak[i] > COURTED_TARGET_LAG) {
+                    heldACourtedTarget.set(true);
+                }
+            }
+        });
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        enemies.stream().allMatch(BoundVexCureGameTests::exactlyOneMark),
+                        "every enemy vex was offered and carries a mark"))
+                .thenIdle(60)
+                .thenExecute(() -> {
+                    helper.assertValueEqual(
+                            rolls.stream().mapToInt(AtomicInteger::get).sum(), 3, "the dice were rolled three times");
+                    helper.assertTrue(
+                            enemies.stream().allMatch(BoundVexCureGameTests::exactlyOneMark), "still one mark each");
+                    helper.assertFalse(heldACourtedTarget.get(), "no Bound Vex held a courted vex as its target");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the claim on an enemy vex is made older than the longest courtship, should the vex no longer count as
+     * courted and be prey again, though the claimant still lives.
+     *
+     * <p>Method under test: {@link BribeGoal#isCourted}: the stale-claim clause
+     */
+    static void aStaleClaimIsFree(GameTestHelper helper) {
+        // Arrange: the claimant is held in place, so its approach drags on
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+        rolling(helper, vex, 2);
+        Vec3 post = vex.position();
+        BoundVexTestSupport.holdAt(helper, vex, post);
+        Vex other = enemyVex(helper, post, 5.0, 0.0, player);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(BribeGoal.isCourted(other), "setup: claimed"))
+                .thenExecute(() -> {
+                    BribeGoal.ageClaim(other, BribeGoal.APPROACH_LIMIT + BribeGoal.OFFER_TICKS + 21);
+                    helper.assertTrue(vex.isAlive(), "the claimant lives");
+                    helper.assertFalse(BribeGoal.isCourted(other), "an old claim is free");
+                    helper.assertTrue(
+                            BoundVex.isPrey(helper.getLevel(), player.getUUID(), other), "and the vex is prey again");
                 })
                 .thenSucceed();
     }

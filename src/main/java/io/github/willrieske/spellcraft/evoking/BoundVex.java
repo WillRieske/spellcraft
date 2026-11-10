@@ -437,7 +437,9 @@ public class BoundVex extends Vex {
      * ({@link BribeGoal#isCourted}, §3.1), no mob another player summoned unless the summoner may
      * harm that player (with {@code pvp} off, two players' vexes leave each other alone; an offline summoner's mobs
      * follow the {@code pvp} rule alone), and nothing while the summoner is not in {@code level}
-     * (offline or in another dimension). Public for its GameTests.
+     * (offline or in another dimension). A courted vex is spared by every player's Bound Vexes, not only the
+     * claimant's, for at most the claim's lifetime (a claim older than the longest courtship counts as free). Public
+     * for its GameTests.
      *
      * @param level the level the vex is in
      * @param summoner the UUID in the vex's summoner mark
