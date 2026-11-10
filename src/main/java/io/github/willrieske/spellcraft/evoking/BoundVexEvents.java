@@ -12,6 +12,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.Vec3;
@@ -19,6 +20,7 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
+import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerRespawnPositionEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
@@ -125,6 +127,29 @@ public final class BoundVexEvents {
         Note note = FOLLOWERS.remove(player.getUUID());
         if (note != null && event.isEndConquered()) {
             bring(player, note.vexes(), note.from());
+        }
+    }
+
+    /**
+     * The friendly-fire backstop (Part 3 spec §4.3): damage whose attacker is a Bound Vex that has a summoner present is
+     * cancelled when the victim is that summoner or a living thing the vex may not fight ({@link BoundVex#isPrey}:
+     * allies, the summoner's other vexes, a calm golem, a player the summoner cannot harm). The summoner case is
+     * explicit: {@code isPrey} already refuses it (the player is its own ally), but the rule must not rest on that. A
+     * vex's legitimate hits are prey by the same test, so they stand: hostiles, a provoked creeper, a golem that is mad
+     * at the summoner. Covers melee, arrows and potions, whose damage sources all name the vex as the causing entity.
+     * A vex without a summoner present does nothing here (it takes no targets, so it hurts nobody on purpose).
+     *
+     * @param event the incoming-damage event, before armor and reductions
+     */
+    @SubscribeEvent
+    public static void onIncomingDamage(LivingIncomingDamageEvent event) {
+        if (!(event.getSource().getEntity() instanceof BoundVex vex)) {
+            return;
+        }
+        ServerPlayer owner = vex.summoner().orElse(null);
+        LivingEntity victim = event.getEntity();
+        if (owner != null && (victim.getUUID().equals(owner.getUUID()) || !vex.isPrey(victim))) {
+            event.setCanceled(true);
         }
     }
 

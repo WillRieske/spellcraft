@@ -46,7 +46,9 @@ public final class VexGear {
     /**
      * Classifies a stack (Part 3 spec §4.1). The tests run in the spec's order: armor slots first, then the shield (a
      * vanilla shield also carries an off-hand {@code EQUIPPABLE}), the launchers, throwables and arrows, then "other
-     * equippable" (boots, body armor, saddles: wearable, but not by a vex), and last the melee weapons.
+     * equippable" (boots, body armor, saddles: wearable, but not by a vex), and last the melee weapons. A splash or
+     * lingering potion with no effects (water, awkward) is {@link Kind#NONE}, and so is an arrow tipped with at least
+     * one effect when every effect is beneficial (spec §4.1: support gear is potions only).
      *
      * @param stack the item
      * @return its kind, {@link Kind#NONE} for an empty stack
@@ -69,10 +71,11 @@ public final class VexGear {
             return Kind.LAUNCHER;
         }
         if (stack.is(Items.SPLASH_POTION) || stack.is(Items.LINGERING_POTION)) {
-            return Kind.THROWABLE;
+            return effectCount(stack) > 0 ? Kind.THROWABLE : Kind.NONE;
         }
         if (stack.getItem() instanceof ArrowItem) {
-            return Kind.ARROW;
+            // An arrow wounds whoever it hits, so one tipped with only good effects cannot heal a friend: not gear.
+            return effectCount(stack) > 0 && allBeneficial(stack) ? Kind.NONE : Kind.ARROW;
         }
         if (equippable != null) {
             return Kind.NONE;
@@ -97,34 +100,19 @@ public final class VexGear {
     }
 
     /**
-     * Whether {@code stack} is support gear: a throwable or an arrow with at least one effect, all of them beneficial
-     * (Part 3 spec §4.3).
+     * Whether {@code stack} is support gear: a throwable (so one with at least one effect) whose effects are all
+     * beneficial (Part 3 spec §4.1, §4.3). Only potions are support gear: a beneficial tipped arrow is not gear at all.
      *
      * @param stack the item
      * @return true for support gear
      */
     public static boolean isSupport(ItemStack stack) {
-        Kind kind = kindOf(stack);
-        if (kind != Kind.THROWABLE && kind != Kind.ARROW) {
-            return false;
-        }
-        PotionContents contents = stack.get(DataComponents.POTION_CONTENTS);
-        if (contents == null) {
-            return false;
-        }
-        boolean any = false;
-        for (MobEffectInstance effect : contents.getAllEffects()) {
-            if (effect.getEffect().value().getCategory() != MobEffectCategory.BENEFICIAL) {
-                return false;
-            }
-            any = true;
-        }
-        return any;
+        return kindOf(stack) == Kind.THROWABLE && allBeneficial(stack);
     }
 
     /**
      * Whether {@code stack} is ranged gear: a launcher, or a throwable or arrow that is not support gear (Part 3 spec
-     * §4.3).
+     * §4.3). A harming or poison tipped arrow and a plain or spectral arrow are ranged.
      *
      * @param stack the item
      * @return true for ranged gear
@@ -132,6 +120,32 @@ public final class VexGear {
     public static boolean isRanged(ItemStack stack) {
         Kind kind = kindOf(stack);
         return kind == Kind.LAUNCHER || ((kind == Kind.THROWABLE || kind == Kind.ARROW) && !isSupport(stack));
+    }
+
+    /** How many effects the stack's potion contents carry (its potion's and its custom ones). */
+    private static int effectCount(ItemStack stack) {
+        PotionContents contents = stack.get(DataComponents.POTION_CONTENTS);
+        int count = 0;
+        if (contents != null) {
+            for (MobEffectInstance ignored : contents.getAllEffects()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** Whether every effect of the stack's potion contents is beneficial (true when it has none). */
+    private static boolean allBeneficial(ItemStack stack) {
+        PotionContents contents = stack.get(DataComponents.POTION_CONTENTS);
+        if (contents == null) {
+            return true;
+        }
+        for (MobEffectInstance effect : contents.getAllEffects()) {
+            if (effect.getEffect().value().getCategory() != MobEffectCategory.BENEFICIAL) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

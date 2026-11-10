@@ -762,12 +762,20 @@ public class BoundVex extends Vex {
      * A shield in the off hand blocks from the front (Part 3 spec §4.3). Vanilla's own blocking needs the entity to be
      * using the shield, which a mob never is, so this repeats its geometry (docs/api-notes.md §22): no block without
      * a source position (fire, a fall), for a shield-bypassing damage type or a piercing arrow; otherwise the flat
-     * view vector from the head's yaw against the flat direction to the source. No durability is spent.
+     * view vector from the head's yaw against the flat direction to the source (a hit from exactly 90° to the side is
+     * blocked, as in vanilla). A hit that would not hurt anyway is no block (it falls through to {@code super}); a
+     * block records its attacker through {@code setLastHurtByMob}, so the grudge goal answers it. No durability is
+     * spent.
      */
     @Override
     public boolean hurtServer(ServerLevel level, DamageSource source, float damage) {
-        if (blocksWithShield(source)) {
+        // A hit that would not have hurt anyway (a dead or dying vex, damage it is immune to, zero damage) is no block.
+        if (!isDeadOrDying() && !isInvulnerableTo(level, source) && damage > 0.0F && blocksWithShield(source)) {
             playSound(SoundEvents.SHIELD_BLOCK.value(), 1.0F, 1.0F);
+            // Vanilla's blocking records the attacker too (resolveMobResponsibleForDamage); the grudge goal reads it.
+            if (source.getEntity() instanceof LivingEntity attacker) {
+                setLastHurtByMob(attacker);
+            }
             return false;
         }
         return super.hurtServer(level, source, damage);
@@ -786,18 +794,18 @@ public class BoundVex extends Vex {
         if (toSource.lengthSqr() < 1.0E-8) {
             return true;
         }
-        return calculateViewVector(0.0F, getYHeadRot()).dot(toSource.normalize()) > 0.0;
+        return calculateViewVector(0.0F, getYHeadRot()).dot(toSource.normalize()) >= 0.0;
     }
 
     /**
      * The weapon is never worn down (Part 3 spec §4.5): the hit runs on the stack and a copy of the stack as it was is
-     * put back after, so durability and count are restored.
+     * put back after, so durability and count are restored (only if the vex is still alive after the hit).
      */
     @Override
     public boolean doHurtTarget(ServerLevel level, Entity target) {
         ItemStack before = getMainHandItem().copy();
         boolean hurt = super.doHurtTarget(level, target);
-        if (!ItemStack.matches(before, getMainHandItem())) {
+        if (isAlive() && !ItemStack.matches(before, getMainHandItem())) {
             setItemSlot(EquipmentSlot.MAINHAND, before, true);
         }
         return hurt;

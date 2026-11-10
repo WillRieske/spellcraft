@@ -8,9 +8,10 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 
 /**
- * A Bound Vex holding support gear (a throwable or tipped arrow whose effects are all beneficial, Part 3 spec §4.3
- * "Support") does not fight. Every {@link #INTERVAL} ticks the nearest friend within {@link #RANGE} blocks, in sight
- * and below half health, gets a copy of the item thrown or shot at it. A friend is the summoner or an ally of the
+ * A Bound Vex holding support gear (a splash or lingering potion whose effects are all beneficial, Part 3 spec §4.3
+ * "Support") does not fight. Every {@link #INTERVAL} ticks (on the vex's shared scan clock) the nearest friend within
+ * {@link #RANGE} blocks, in sight and below half health, gets a copy of the potion thrown at it. Friends that healing
+ * would hurt ({@code isInvertedHealAndHarm}: the undead) are skipped. A friend is the summoner or an ally of the
  * summoner ({@code Allies.isAllyOf}, which counts the summoner's other Bound Vexes), the vex itself excepted. The goal
  * has no flags and never moves the vex, so the follow and post goals keep running beside it.
  */
@@ -45,6 +46,9 @@ final class SupportGearGoal extends Goal {
             cooldown--;
             return;
         }
+        if (!vex.scanDue(BoundVex.SCAN_INTERVAL)) {
+            return;
+        }
         ServerPlayer owner = vex.summoner().orElse(null);
         if (owner == null) {
             return;
@@ -61,6 +65,7 @@ final class SupportGearGoal extends Goal {
     private boolean isHurtFriend(ServerPlayer owner, LivingEntity friend) {
         return !friend.getUUID().equals(vex.getUUID())
                 && friend.isAlive()
+                && !friend.isInvertedHealAndHarm()
                 && friend.getHealth() < friend.getMaxHealth() / 2.0F
                 && (friend.getUUID().equals(owner.getUUID()) || Allies.isAllyOf(owner, friend))
                 && vex.hasLineOfSight(friend);
