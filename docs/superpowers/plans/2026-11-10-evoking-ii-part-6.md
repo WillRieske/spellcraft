@@ -5068,7 +5068,7 @@ git commit -m "feat(evoking): the request packet carries a team move; J picks an
   - `ShieldMove.tick(BoundVex, TeamMoves.Move, TeamMoves.Member, ServerLevel)` (package-private); constants `APPROACH_RANGE = 7.0`, `BACK_OFF = 6.0`, `BASH_REACH = 1.5`, `BASH_DAMAGE = 4.0F`, `BASH_KNOCKBACK = 1.5`, `BASH_INTERVAL = 40`.
   - `TeamMoveGoal.tick` calls `ShieldMove.tick` for a `SHIELD` record.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `BoundVexTeamMoveShieldGameTests` (class Javadoc `/** GameTests of the Shield team move (Parts 6-7 spec §4.1). */`) registers `FangGameTests.addPadded(SHARED, name, 200, body)` for the sequence tests and plain `FangGameTests.addPadded(SHARED, …)` for the block tests and the flight math, in this `registerAll` (static imports `FangGameTests.NORTH`, `SpellcraftGameTests.SHARED`, `TeamMoveTestSupport.*`; imports `Husk`, `EntityTypes`, `AtomicLong`; the class is called in `SpellcraftGameTests` after the Request class):
 
@@ -5297,12 +5297,12 @@ static void flightMath(GameTestHelper helper) {
 }
 ```
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_shield_*"`
 Expected: compilation fails first (`TeamFlight` does not exist); with the classes stubbed, the four sequence tests time out (nothing moves the members); the two block tests pass already (Part 3's block applies to the conjured shield), which is what they are for.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```java
 package io.github.willrieske.spellcraft.evoking;
@@ -5477,12 +5477,12 @@ public void tick() {
 
 Update the stale Javadoc here: the `TeamMoves` class Javadoc (Task 4's replacement) now also says "the Shield, Multishot, Evader and Raid parts run through `TeamMoveGoal` and one class per move".
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_shield_*"`
 Expected: all pass. If the bash lands for less than 4 or twice in a tick, read the husk's armor and invulnerability frames: `bigHusk` removes armor, and a second bash inside 10 ticks is absorbed by the frames at the same size. If `bashesForFourAndKnocksBack` sees a zero velocity, a no-AI mob does not move: the test reads `getDeltaMovement()`, so check that the bash ran (health) and that `knockback` got a nonzero direction before looking elsewhere.
 
-- [ ] **Step 5: Full gates, then commit**
+- [x] **Step 5: Full gates, then commit**
 
 Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (expect `All M required tests passed`, M = the previous task's reported total plus the 7 tests this task registers: the 3 sequence tests, the 2 block tests, the lunge give-up and the flight math; write M in the commit's as-built note).
 
@@ -5490,6 +5490,8 @@ Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (
 git add src/main/java/io/github/willrieske/spellcraft
 git commit -m "feat(evoking): the Shield team move bashes, backs off and bashes again"
 ```
+
+> **As built (`1a11c98`):** matches plan.
 
 ---
 
