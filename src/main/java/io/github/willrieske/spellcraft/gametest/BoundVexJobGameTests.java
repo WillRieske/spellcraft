@@ -17,6 +17,7 @@ import io.github.willrieske.spellcraft.evoking.BoundVexEvents;
 import io.github.willrieske.spellcraft.evoking.DodgeGolemGoal;
 import io.github.willrieske.spellcraft.evoking.FleeCreeperGoal;
 import io.github.willrieske.spellcraft.evoking.FollowSummonerGoal;
+import io.github.willrieske.spellcraft.evoking.TeamMoves;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -98,6 +99,8 @@ public final class BoundVexJobGameTests {
                 SHARED,
                 "bound_vex_dodge_ignores_a_diagonal_swing_beyond_three_blocks",
                 BoundVexJobGameTests::dodgeIgnoresADiagonalSwingBeyondThreeBlocks);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_job_repairing_vex_is_not_free", BoundVexJobGameTests::repairingVexIsNotFree);
         FangGameTests.addPadded(
                 SHARED, "bound_vex_repairs_a_hurt_ally_golem", BoundVexJobGameTests::repairsAHurtAllyGolem);
         FangGameTests.addPadded(
@@ -425,6 +428,31 @@ public final class BoundVexJobGameTests {
                 .thenExecute(() -> golem.handleEntityEvent((byte) 4))
                 .thenWaitUntil(() ->
                         helper.assertTrue(Math.abs(vex.position().z - before.z) >= 1.0, "darts once the golem swings"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a Bound Vex is repairing a hurt ally golem (it holds the claim), should the free-vex list leave it out and keep
+     * an idle vex of the same summoner in.
+     *
+     * <p>Method under test: {@code Jobs.busy}, through {@link TeamMoves#isFree}
+     */
+    static void repairingVexIsNotFree(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        MockPlayers.moveTo(helper, player, new Vec3(6.5, 1, 1.5), NORTH);
+        golemOnStone(helper, GOLEM_SPOT, 50.0F);
+        BoundVex worker = unleashed(helper, GOLEM_SPOT.north(2).above(2), player);
+        BoundVex idle = TeamMoveTestSupport.frozenVexes(helper, player, 1).get(0);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(
+                        () -> helper.assertTrue(worker.getMainHandItem().is(Items.IRON_INGOT), "setup: it repairs"))
+                .thenExecute(() -> {
+                    helper.assertFalse(TeamMoves.isFree(worker, player), "a vex mid-job is not free");
+                    helper.assertValueEqual(TeamMoves.freeVexes(player), List.of(idle), "only the idle vex is listed");
+                })
                 .thenSucceed();
     }
 

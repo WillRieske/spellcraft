@@ -20,6 +20,7 @@ import io.github.willrieske.spellcraft.evoking.BribeGoal;
 import io.github.willrieske.spellcraft.evoking.CureEvents;
 import io.github.willrieske.spellcraft.evoking.CureZombieVillagerGoal;
 import io.github.willrieske.spellcraft.evoking.FleeCreeperGoal;
+import io.github.willrieske.spellcraft.evoking.TeamMoves;
 import io.github.willrieske.spellcraft.spell.Allies;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import java.util.ArrayList;
@@ -137,6 +138,7 @@ public final class BoundVexCureGameTests {
                 "bound_vex_cure_a_vex_that_wakes_after_the_release_drops_the_job",
                 BoundVexCureGameTests::aVexThatWakesAfterTheReleaseDropsTheJob);
         padded("bound_vex_cure_a_stale_cure_starts_no_conversion", BoundVexCureGameTests::aStaleCureStartsNoConversion);
+        padded("bound_vex_cure_curing_vex_is_not_free", BoundVexCureGameTests::curingVexIsNotFree);
         padded(
                 "bound_vex_cure_a_claim_lives_only_while_the_mark_does",
                 BoundVexCureGameTests::aClaimLivesOnlyWhileTheMarkDoes);
@@ -1034,6 +1036,32 @@ public final class BoundVexCureGameTests {
         return subjects.stream()
                 .min(Comparator.comparingDouble(vex::distanceToSqr))
                 .orElseThrow();
+    }
+
+    /**
+     * When a Bound Vex is curing a zombie villager (it holds the claim), should it not be free and not be listed.
+     *
+     * <p>Method under test: {@code Jobs.busy} (the cure wiring), through {@link TeamMoves#isFree}
+     */
+    static void curingVexIsNotFree(GameTestHelper helper) {
+        // Arrange (as aClaimLivesOnlyWhileTheMarkDoes)
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex worker = stayingVex(helper, player, ItemStack.EMPTY);
+        ZombieVillager zombieVillager = cureSubject(helper, worker.position(), 3.0, 0.0);
+        discardCureLeftovers(helper, worker.position());
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        worker.getMainHandItem().is(Items.GOLDEN_APPLE)
+                                && CureZombieVillagerGoal.isClaimed(zombieVillager),
+                        "setup: the vex is in the apple step and holds the claim"))
+                .thenExecute(() -> {
+                    worker.setStaying(false);
+                    helper.assertFalse(TeamMoves.isFree(worker, player), "a vex mid-cure is not free");
+                    helper.assertFalse(TeamMoves.freeVexes(player).contains(worker), "and is not listed");
+                })
+                .thenSucceed();
     }
 
     /**

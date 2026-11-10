@@ -16,6 +16,7 @@ import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.BoundVexEvents;
 import io.github.willrieske.spellcraft.evoking.FleeCreeperGoal;
+import io.github.willrieske.spellcraft.evoking.TeamMoves;
 import io.github.willrieske.spellcraft.evoking.VexRescues;
 import java.util.Optional;
 import java.util.function.BiConsumer;
@@ -84,6 +85,7 @@ public final class BoundVexLavaGameTests {
         padded(
                 "bound_vex_world_lava_pull_not_with_a_staying_vex",
                 helper -> lavaPullNotForTheUnhurt(helper, player -> {}, true));
+        padded("bound_vex_world_lava_rescuer_is_not_free", BoundVexLavaGameTests::lavaRescuerIsNotFree);
         padded("bound_vex_world_lava_rescuer_keeps_its_target", BoundVexLavaGameTests::lavaRescuerKeepsItsTarget);
         padded("bound_vex_world_rescue_dropped_on_logout", BoundVexLavaGameTests::rescueDroppedOnLogout);
         padded("bound_vex_world_lava_pull_takes_a_fleeing_vex", BoundVexLavaGameTests::lavaPullTakesAFleeingVex);
@@ -405,6 +407,26 @@ public final class BoundVexLavaGameTests {
         husk.getAttribute(Attributes.MAX_HEALTH).setBaseValue(1000.0);
         husk.setHealth(1000.0F);
         return husk;
+    }
+
+    /**
+     * When a vex is the rescuer of a player in lava, should the free-vex list be empty (the rescuer is the only vex).
+     *
+     * <p>Method under test: {@link TeamMoves#isFree}: the rescuer clause
+     */
+    static void lavaRescuerIsNotFree(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = lavaPool(helper, 0);
+        BoundVex rescuer = followingVex(helper, player);
+
+        // Act
+        step(player);
+
+        // Assert
+        helper.assertTrue(VexRescues.rescuer(player).equals(Optional.of(rescuer)), "setup: the vex is the rescuer");
+        helper.assertFalse(TeamMoves.isFree(rescuer, player), "the rescuer is not free");
+        helper.assertTrue(TeamMoves.freeVexes(player).isEmpty(), "nobody is free");
+        helper.succeed();
     }
 
     /**

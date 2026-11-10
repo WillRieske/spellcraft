@@ -4,15 +4,18 @@ import io.github.willrieske.spellcraft.spell.Allies;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.rules.GuardArea;
 import io.github.willrieske.spellcraft.spell.rules.GuardPosture;
+import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -80,6 +83,9 @@ public class BoundVex extends Vex {
     public static final List<EquipmentSlot> GEAR_SLOTS = List.of(
             EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND, EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS);
 
+    /** Lang key of the notice for an empty-hand click on a vex in a team move (Parts 6-7 spec section 2.6). */
+    public static final String BUSY_KEY = "message.spellcraft.vex_busy";
+
     private static final String STASH_TAG_PREFIX = "stash_";
     private static final String CONJURED_TAG_PREFIX = "conjured_";
 
@@ -129,6 +135,13 @@ public class BoundVex extends Vex {
 
     /** The slots that hold a conjured item right now: never dropped, never taken (Part 3 spec §5.1). */
     private final Set<EquipmentSlot> conjured = EnumSet.noneOf(EquipmentSlot.class);
+
+    /**
+     * The team move this vex takes part in, {@link TeamMove#NONE} when it takes part in none (Parts 6-7 spec section
+     * 2.1). Server-only: not synced and not saved, because nothing on the client reads it and a vex that loads, or comes
+     * through a portal, is a new entity whose kit {@code readAdditionalSaveData} has already dismissed.
+     */
+    private TeamMove teamMove = TeamMove.NONE;
 
     public BoundVex(EntityType<? extends BoundVex> type, Level level) {
         super(type, level);
@@ -598,6 +611,21 @@ public class BoundVex extends Vex {
         return Vec3.atBottomCenterOf(post != null ? post : blockPosition());
     }
 
+    /** Returns the team move this vex takes part in, or {@link TeamMove#NONE}. */
+    public TeamMove teamMove() {
+        return teamMove;
+    }
+
+    /**
+     * Marks the vex as a member of {@code move} ({@link TeamMove#NONE} frees it). {@link TeamMoves} is the only caller in
+     * play; the GameTests mark vexes directly.
+     *
+     * @param move the move
+     */
+    public void setTeamMove(TeamMove move) {
+        teamMove = Objects.requireNonNull(move, "move");
+    }
+
     /**
      * Whether a patrol or an ally's fight may pull this vex onto {@code target} (spec §3.4 items 2 and 3): hostile
      * ({@code Enemy}), no creeper (a creeper is fought only when it provoked, through the grudge goal, and the flee
@@ -609,10 +637,22 @@ public class BoundVex extends Vex {
      * @return whether the patrol and ally goals may pick it
      */
     boolean huntable(LivingEntity target) {
+        return huntable(summonerId().orElse(null), target);
+    }
+
+    /**
+     * {@link #huntable(LivingEntity)} for a summoner that need not have a vex at hand: the team-move scan and request ask
+     * it for the summoner alone.
+     *
+     * @param summoner the summoner's UUID, or null for a vex nobody summoned
+     * @param target the candidate
+     * @return whether the patrol and ally goals of that summoner's vexes may pick it
+     */
+    static boolean huntable(@Nullable UUID summoner, LivingEntity target) {
         return target instanceof Enemy
                 && !(target instanceof Creeper)
                 && target.getExistingData(AllyAttachments.SUMMONER)
-                        .filter(mark -> !isSummonedBy(mark))
+                        .filter(mark -> !mark.equals(summoner))
                         .isEmpty();
     }
 
@@ -721,8 +761,9 @@ public class BoundVex extends Vex {
 
     /**
      * The summoner's main-hand clicks (Part 3 spec §3, §4.2, §4.4). A gear item ({@link VexGear#slotFor}), sneaking or
-     * not, is given; an empty hand sneaking toggles stay, with the vex's own sound; an empty hand not sneaking takes the
-     * main-hand weapon back; anything else is {@code PASS}. Only the server decides, since the client does not know the
+     * not, is given; an empty hand on a vex in a team move answers {@link #BUSY_KEY} and changes nothing; an empty hand
+     * sneaking toggles stay, with the vex's own sound; an empty hand not sneaking takes the main-hand weapon back;
+     * anything else is {@code PASS}. Only the server decides, since the client does not know the
      * summoner (the mark is not synced). The client answers {@code SUCCESS_SERVER} for an empty hand and for a gear
      * item: a client {@code PASS} would send {@code Minecraft.startUseItem} on to the off hand and throw a pearl or
      * raise a shield on each click (docs/api-notes.md §22). The swing comes from the server; a stranger's click is
@@ -746,6 +787,10 @@ public class BoundVex extends Vex {
         }
         if (slot.isPresent()) {
             give(player, held, slot.get());
+        } else if (teamMove != TeamMove.NONE) {
+            // A member of a team move holds its post: the empty-hand clicks change nothing (Parts 6-7 spec section
+            // 2.6).
+            player.sendOverlayMessage(Component.translatable(BUSY_KEY));
         } else if (player.isShiftKeyDown()) {
             setStaying(!isStaying());
             playSound(SoundEvents.VEX_AMBIENT, 1.0F, 1.0F);

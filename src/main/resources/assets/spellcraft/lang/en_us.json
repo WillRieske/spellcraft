@@ -15,6 +15,7 @@
   "message.spellcraft.no_targets": "No targets in range",
   "message.spellcraft.peaceful_vexes": "Vexes cannot be summoned on Peaceful",
   "message.spellcraft.too_many_vexes": "You have too many vexes",
+  "message.spellcraft.vex_busy": "That vex is busy",
 
   "spellcraft.configuration.title": "Spellcraft Configs",
   "spellcraft.configuration.section.spellcraft.server.toml": "Spellcraft Server Configs",

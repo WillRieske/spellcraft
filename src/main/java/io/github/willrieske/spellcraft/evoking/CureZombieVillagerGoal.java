@@ -130,6 +130,16 @@ public final class CureZombieVillagerGoal extends Goal {
         setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK));
     }
 
+    /**
+     * Whether {@code vex} holds a live claim of this job.
+     *
+     * @param vex a Bound Vex
+     * @return true while it does
+     */
+    static boolean holds(BoundVex vex) {
+        return CLAIMS.heldBy(vex);
+    }
+
     /** Forgets every claim (single-player loads one server per world in the same JVM). */
     static void clearClaims() {
         CLAIMS.clear();
