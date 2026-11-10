@@ -61,6 +61,7 @@ public final class SpellcraftGameTests {
         BoundVexFollowGameTests.registerAll();
         BoundVexTargetGameTests.registerAll();
         BoundVexJobGameTests.registerAll();
+        BoundVexStayGameTests.registerAll();
         GolemGameTests.registerAll();
     }
 

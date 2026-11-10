@@ -48,7 +48,8 @@ import org.jspecify.annotations.Nullable;
  * The Bound Vex (Evoking II spec §3): a vex a player summons on V that lives until it dies. Vanilla's {@code Vex} gives
  * it the no-clip flight, the move control, the charging texture and the iron sword; this class owns the goals
  * (vanilla's are private classes, docs/api-notes.md §21), the stay flag, the summoner lookup, the prey rule, and the
- * small rules every goal shares: {@link #scanDue} (the clock), {@link #inGuardArea} (the box), {@link #keepsTarget}
+ * small rules every goal shares (a staying vex hovers at its post point and guards the stay area around it, Part 3
+ * spec §2): {@link #scanDue} (the clock), {@link #inGuardArea} (the box), {@link #keepsTarget}
  * and {@link #huntable}.
  * Without a summoner online, alive, in its level and not spectating it idles. The summoner is the
  * {@link AllyAttachments#SUMMONER} mark, so {@code Allies}, {@code GolemMercy} and the Trailing flame already treat it as the summoner's.
@@ -84,12 +85,13 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * Vanilla's vex attributes with the reach as the follow range (spec §3.1).
+     * Vanilla's vex attributes with the follow-range bound as the follow range (Part 3 spec §2.3): wide enough for a
+     * staying vex and a target at opposite corners of the stay box; the box and the reach are the real limits.
      *
      * @return the attribute builder {@code ModEntities} registers
      */
     public static AttributeSupplier.Builder createAttributes() {
-        return Vex.createAttributes().add(Attributes.FOLLOW_RANGE, GuardArea.REACH);
+        return Vex.createAttributes().add(Attributes.FOLLOW_RANGE, GuardArea.FOLLOW_RANGE);
     }
 
     @Override
@@ -100,7 +102,7 @@ public class BoundVex extends Vex {
 
     /**
      * The goals (spec §3.3). Not {@code super.registerGoals()}: vanilla's are private classes (docs/api-notes.md §21),
-     * so the charge and wander goals are this class's copies, and a Bound Vex has no raider grudge, no owner to copy a
+     * so the charge goal is this class's copy, the post-holding goal is its own, and a Bound Vex has no raider grudge, no owner to copy a
      * target from and no player hunt. Its three target goals are {@link HurtBySummonerSideGoal} (grudges),
      * {@link AllyFightGoal} (an ally's fight) and {@link NearestHostileGoal} (the patrol). The job goals sit beside
      * them: {@link FleeCreeperGoal} and {@link DodgeGolemGoal} outrank everything on the move flag,
@@ -114,7 +116,7 @@ public class BoundVex extends Vex {
         goalSelector.addGoal(2, new RepairGolemGoal(this));
         goalSelector.addGoal(3, new ChargeGoal());
         goalSelector.addGoal(4, new FollowSummonerGoal(this));
-        goalSelector.addGoal(5, new StayWanderGoal());
+        goalSelector.addGoal(5, new HoldPostGoal());
         goalSelector.addGoal(9, new LookAtPlayerGoal(this, Player.class, 3.0F, 1.0F));
         goalSelector.addGoal(10, new LookAtPlayerGoal(this, Mob.class, 8.0F));
         targetSelector.addGoal(1, new HurtBySummonerSideGoal(this));
@@ -132,6 +134,12 @@ public class BoundVex extends Vex {
     protected void readAdditionalSaveData(ValueInput input) {
         super.readAdditionalSaveData(input);
         entityData.set(STAYING, input.getBooleanOr(STAYING_TAG, false));
+        // A vex saved by Part 2 carries the old base value (7.25, the reach), which would cut a staying vex's fights
+        // short: TargetGoal.canContinueToUse reads the attribute live (docs/api-notes.md §22).
+        AttributeInstance range = getAttribute(Attributes.FOLLOW_RANGE);
+        if (range != null) {
+            range.setBaseValue(GuardArea.FOLLOW_RANGE);
+        }
     }
 
     /**
@@ -169,8 +177,8 @@ public class BoundVex extends Vex {
 
     /**
      * Vanilla's spawn (the iron sword), then the random follow-range bonus {@code Mob.finalizeSpawn} adds (the
-     * inherited {@code RANDOM_SPAWN_BONUS_ID}, docs/api-notes.md §21) goes, so the reach is exactly
-     * {@link GuardArea#REACH} (docs/api-notes.md §19: the targeting goal reads the attribute).
+     * inherited {@code RANDOM_SPAWN_BONUS_ID}, docs/api-notes.md §21) goes, so the attribute is exactly
+     * {@link GuardArea#FOLLOW_RANGE} (docs/api-notes.md §19: the targeting goal reads the attribute).
      */
     @Override
     public @Nullable SpawnGroupData finalizeSpawn(
@@ -192,7 +200,7 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * Turns staying on or off; on, the block it stands at becomes the post the wander goal drifts around (spec §3.3).
+     * Turns staying on or off; on, the block it stands at becomes the post the vex hovers at (Part 3 spec §2.1).
      *
      * @param staying true to stay, false to follow again
      */
@@ -287,7 +295,8 @@ public class BoundVex extends Vex {
      * Whether a target is worth taking or keeping (spec §3.4): in this vex's level (a summoner's memory can name a
      * mob it left behind in another dimension, whose raw coordinates may line up), alive, attackable by this vex
      * ({@code Mob.canAttack}: false for a creative or spectator player, an invulnerable mob or a ghast, the targets
-     * {@code setTarget} would not hold), still prey, and within {@link GuardArea#REACH}. The alive clause is a cheap
+     * {@code setTarget} would not hold), still prey, and, following, within {@link GuardArea#REACH}, or, staying, inside the stay area
+     * ({@link #inGuardArea}, Part 3 spec §2.3). The alive clause is a cheap
      * guard: {@code canAttack} already implies it for a living target ({@code LivingEntity.canBeSeenByAnyone}). Every
      * target goal's {@code canContinueToUse}, which replaces {@code TargetGoal}'s and never calls {@code super}
      * (docs/api-notes.md §21), and every target goal's candidate filter.
@@ -298,7 +307,7 @@ public class BoundVex extends Vex {
                 && target.isAlive()
                 && canAttack(target)
                 && isPrey(target)
-                && withinReach(target);
+                && (isStaying() ? inGuardArea(target) : withinReach(target));
     }
 
     /** Whether {@code other} is within {@link GuardArea#REACH} of this vex, feet to feet. */
@@ -308,25 +317,57 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * Whether {@code other}'s position is inside this vex's guard box (spec §3.4: 8×8×7, faces included, feet to feet,
-     * {@link GuardArea#contains}). The one box test every goal uses: entity queries take {@link #guardArea()} as the
-     * broad phase and keep only what this accepts. Public for its GameTest.
+     * Whether {@code other}'s position is inside this vex's guard box, faces included, feet to feet. Following (spec
+     * §3.4): 8×8×7 around the vex ({@link GuardArea#contains}); staying (Part 3 spec §2.3): 13×13×7 around the post
+     * point, wherever the vex hangs ({@link GuardArea#containsStaying}). The one box test every goal uses: entity
+     * queries take {@link #guardArea()} as the broad phase and keep only what this accepts. Public for its GameTest.
      *
      * @param other the entity to test
      * @return true when its feet are in the box
      */
     public boolean inGuardArea(Entity other) {
+        if (isStaying()) {
+            Vec3 offset = other.position().subtract(postPoint());
+            return GuardArea.containsStaying(offset.x, offset.y, offset.z);
+        }
         Vec3 offset = other.position().subtract(position());
         return GuardArea.contains(offset.x, offset.y, offset.z);
     }
 
     /**
-     * The broad-phase box for entity queries around this vex: {@code getEntitiesOfClass} returns what this box
-     * <em>intersects</em>, which is more than {@link #inGuardArea} accepts, so filter every query's hits through it.
+     * The broad-phase box for entity queries: following, the box around the vex; staying, the stay box around the post
+     * point. {@code getEntitiesOfClass} returns what this box <em>intersects</em>, which is more than
+     * {@link #inGuardArea} accepts, so filter every query's hits through it.
      */
     AABB guardArea() {
+        if (isStaying()) {
+            Vec3 post = postPoint();
+            return new AABB(post, post)
+                    .inflate(GuardArea.STAY_HALF_WIDTH, GuardArea.HALF_HEIGHT, GuardArea.STAY_HALF_WIDTH);
+        }
         return new AABB(position(), position())
                 .inflate(GuardArea.HALF_WIDTH, GuardArea.HALF_HEIGHT, GuardArea.HALF_WIDTH);
+    }
+
+    /**
+     * How far from its post point a staying, idle vex may hang before it flies back (Part 3 spec §2.2). Public for the
+     * GameTests, which live in another package.
+     */
+    public static final double POST_TOLERANCE = 1.0;
+
+    /** The return flight's speed: the follow goal's coasting speed. */
+    private static final double POST_SPEED = 0.7;
+
+    /**
+     * The point a staying vex hovers at and its stay area is centered on: the middle of the post block's floor
+     * (Part 3 spec glossary). The post is vanilla's bound origin, set by {@link #setStaying}; a vex without one
+     * (never the case for a staying vex) answers with its own block.
+     *
+     * @return the post point
+     */
+    Vec3 postPoint() {
+        BlockPos post = getBoundOrigin();
+        return Vec3.atBottomCenterOf(post != null ? post : blockPosition());
     }
 
     /**
@@ -418,16 +459,16 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * The summoner's empty-handed, un-sneaked main-hand click toggles stay (spec §3.3), with the vex's own sound;
-     * everything else passes (the sneaking click is Part 3's take-back). Only the server decides, since the client does
-     * not know the summoner (the mark is not synced). The client still answers {@code SUCCESS_SERVER} for every
-     * empty-handed, un-sneaked main-hand click: a client {@code PASS} would send {@code Minecraft.startUseItem} on to
-     * the off hand and throw a pearl or raise a shield on each toggle (docs/api-notes.md §21). The swing comes from
-     * the server; a stranger's click is answered {@code PASS} there and changes nothing.
+     * The summoner's main-hand clicks (Part 3 spec §3). With an empty hand: sneaking toggles stay, with the vex's own
+     * sound; not sneaking is the weapon take-back, which Task 5 of the Part 3 plan adds. Only the server decides, since
+     * the client does not know the summoner (the mark is not synced). The client answers {@code SUCCESS_SERVER} for
+     * every empty-handed main-hand click: a client {@code PASS} would send {@code Minecraft.startUseItem} on to the
+     * off hand and throw a pearl or raise a shield on each click (docs/api-notes.md §22). The swing comes from the
+     * server; a stranger's click is answered {@code PASS} there and changes nothing.
      */
     @Override
     protected InteractionResult mobInteract(Player player, InteractionHand hand) {
-        if (hand != InteractionHand.MAIN_HAND || !player.getMainHandItem().isEmpty() || player.isShiftKeyDown()) {
+        if (hand != InteractionHand.MAIN_HAND || !player.getMainHandItem().isEmpty()) {
             return InteractionResult.PASS;
         }
         if (!(level() instanceof ServerLevel)) {
@@ -436,8 +477,10 @@ public class BoundVex extends Vex {
         if (!isSummonedBy(player.getUUID())) {
             return InteractionResult.PASS;
         }
-        setStaying(!isStaying());
-        playSound(SoundEvents.VEX_AMBIENT, 1.0F, 1.0F);
+        if (player.isShiftKeyDown()) {
+            setStaying(!isStaying());
+            playSound(SoundEvents.VEX_AMBIENT, 1.0F, 1.0F);
+        }
         return InteractionResult.SUCCESS_SERVER;
     }
 
@@ -543,49 +586,35 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * Vanilla's {@code Vex.VexRandomMoveGoal}, copied because it is private, and run only while staying (spec §3.3):
-     * drift to a random air block within 7 blocks sideways and 5 up or down of the post.
+     * Brings a staying, idle vex back to its post point (Part 3 spec §2.2): one flight per use, started when the vex
+     * hangs farther than {@link #POST_TOLERANCE} from it and the move control is free. The tolerance is wider than
+     * the distance at which vanilla's move control calls a move finished (about 0.53, docs/api-notes.md §22), so the
+     * goal never re-issues a move the control just ended. A vex has no gravity, so once there it hangs still.
      */
-    private final class StayWanderGoal extends Goal {
-        StayWanderGoal() {
+    private final class HoldPostGoal extends Goal {
+        HoldPostGoal() {
             setFlags(EnumSet.of(Goal.Flag.MOVE));
         }
 
         @Override
         public boolean canUse() {
             return BoundVex.this.isStaying()
+                    && BoundVex.this.getTarget() == null
                     && !BoundVex.this.getMoveControl().hasWanted()
-                    && BoundVex.this.random.nextInt(reducedTickDelay(7)) == 0;
+                    && BoundVex.this.position().distanceToSqr(BoundVex.this.postPoint())
+                            > POST_TOLERANCE * POST_TOLERANCE;
         }
 
+        /** One move per use. */
         @Override
         public boolean canContinueToUse() {
             return false;
         }
 
         @Override
-        public void tick() {
-            BlockPos origin = BoundVex.this.getBoundOrigin();
-            if (origin == null) {
-                origin = BoundVex.this.blockPosition();
-            }
-            for (int attempt = 0; attempt < 3; attempt++) {
-                BlockPos spot = origin.offset(
-                        BoundVex.this.random.nextInt(15) - 7,
-                        BoundVex.this.random.nextInt(11) - 5,
-                        BoundVex.this.random.nextInt(15) - 7);
-                if (BoundVex.this.level().isEmptyBlock(spot)) {
-                    BoundVex.this
-                            .getMoveControl()
-                            .setWantedPosition(spot.getX() + 0.5, spot.getY() + 0.5, spot.getZ() + 0.5, 0.25);
-                    if (BoundVex.this.getTarget() == null) {
-                        BoundVex.this
-                                .getLookControl()
-                                .setLookAt(spot.getX() + 0.5, spot.getY() + 0.5, spot.getZ() + 0.5, 180.0F, 20.0F);
-                    }
-                    break;
-                }
-            }
+        public void start() {
+            Vec3 post = BoundVex.this.postPoint();
+            BoundVex.this.getMoveControl().setWantedPosition(post.x, post.y, post.z, POST_SPEED);
         }
     }
 }

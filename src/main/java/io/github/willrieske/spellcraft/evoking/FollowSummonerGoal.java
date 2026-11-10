@@ -13,7 +13,7 @@ import net.minecraft.world.phys.Vec3;
  * {@link #TELEPORT_DISTANCE} blocks teleports to an air cell beside the summoner instead. Each use makes one move; the
  * move control flies it there and {@code canUse} picks the next. Without a summoner in the level the goal is idle.
  * Like vanilla's random move, the goal waits for the move control to be free ({@code !hasWanted()}), so a vex finishes
- * a wander leg or a charge before it follows.
+ * a return flight to its post or a charge before it follows.
  */
 public final class FollowSummonerGoal extends Goal {
     /** The orbit band's inner edge (feet to feet): the vex is left alone inside the band. */
