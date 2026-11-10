@@ -57,6 +57,7 @@ public final class TeamMoveGoal extends Goal {
         switch (membership.record().move) {
             case SHIELD -> ShieldMove.tick(vex, membership.record(), membership.member(), level);
             case MULTISHOT -> MultishotMove.tick(vex, membership.record(), membership.member(), level);
+            case EVADER -> EvaderMove.tick(vex, membership.record(), membership.member(), level);
             default -> {
                 // the other moves are added by the tasks that build them
             }

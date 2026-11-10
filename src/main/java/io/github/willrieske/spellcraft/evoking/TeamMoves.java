@@ -343,6 +343,8 @@ public final class TeamMoves {
             prune(owner, record);
             if (shouldEnd(owner, record, now)) {
                 end(owner, record, now);
+            } else {
+                advance(owner, record, now);
             }
         }
         if ((record == null || !record.active())
@@ -352,6 +354,16 @@ public final class TeamMoves {
             if (now >= scanning.nextScan) {
                 scanning.nextScan = now + SCAN_INTERVAL;
                 TeamMoveTriggers.scan(owner, scanning, now);
+            }
+        }
+    }
+
+    /** The record-level part of a running move: what no single member does (the Evader's shoves and deflections). */
+    private static void advance(ServerPlayer owner, Move record, long now) {
+        switch (record.move) {
+            case EVADER -> EvaderMove.guard(owner, record, now);
+            default -> {
+                // the other moves have nothing at record level, or get it with the task that builds them
             }
         }
     }
