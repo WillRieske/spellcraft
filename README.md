@@ -33,7 +33,12 @@ A NeoForge mod for Minecraft that adds spells cast from scrolls. It has four:
   are badly hurt; a shield blocks hits from the front. Nothing a vex holds is ever used up.
   Right-click with an empty hand (not sneaking) to take its weapon back; everything you gave drops
   when it dies. A vex flies away from a hissing creeper, sidesteps after an iron golem's swing, and
-  patches up a hurt iron golem with an iron ingot. Fangs spare you and your allies (your team, your pets, your own vexes,
+  patches up a hurt iron golem with an iron ingot. Your vexes never fight a zombie villager: one flies
+  up, feeds it a golden apple and throws it a potion, and twenty seconds later it is a villager again,
+  and the cured villager gives you the cure discount. It costs you nothing, and your fangs and village
+  golems leave the zombie villager alone while it is cured. When an enemy vex attacks you or your
+  allies, one of your vexes holds out an emerald to it first: two times in three it takes it and flies
+  off for good, and otherwise the fight goes on as usual. Fangs spare you and your allies (your team, your pets, your own vexes,
   villagers, wandering traders, and iron golems that are not mad at you) and hurt everything else;
   vexes spare them too and fight only what the list above says. You, your pets, your fangs and your
   vexes cannot take an iron golem below 25 health; when it gets that low, it calms down and stops

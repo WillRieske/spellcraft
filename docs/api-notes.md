@@ -1034,6 +1034,42 @@ Parts 4-5 spec, this section wins (the list is at the end).
   exit 0) and was then deleted.
 - GameTest baseline on the Task 1 tree: `All 304 required tests passed` (also in the plan's Resume State).
 
+Found while building (verified against the sources or the code):
+
+- `GameTestHelper.onEachTick(Runnable)` (`GameTestHelper.java:1150`) calls `testInfo.setRunAtTickTime(i, action::run)`
+  for every tick from now to the timeout, so it puts one entry per remaining tick into the test's
+  `Object2LongOpenHashMap<Runnable>` (`GameTestInfo.java:38,172`), each keyed by a fresh lambda. The tick loop walks
+  that map with an iterator while the entries run and removes each with `it.remove()` (`GameTestInfo.java:122-134`).
+  A test that also schedules a delayed action (`runAfterDelay`, `runAtTickTime`: the padded wrapper does) puts into
+  the same map from inside an entry that is running; that crashed the GameTest server in the map's iterator. It is
+  unsafe whenever a test also schedules delayed actions. The replacement is `BoundVexTestSupport.everyTick`, a
+  parallel `startSequence().thenExecuteFor(span, action)`, which adds no entries to the map.
+- `GameTestSequence.thenWaitUntil(long expectedDelay, Runnable)` (`GameTestSequence.java:24`) is not "wait up to N
+  ticks": when the assertion finally passes, `tick` compares the ticks since the previous event with `expectedDelay`
+  and fails the test with `test.error.sequence.invalid_tick` unless they are equal (`GameTestSequence.java:111-114`).
+  `thenWaitAtLeast` is the minimum-delay form; the plain `thenWaitUntil(Runnable)` has no delay check.
+- The vex's move control (`Vex.VexMoveControl.tick`, `Vex.java:299-327`) accelerates toward the wanted point
+  (`delta.scale(speed * 0.05 / length)` added to the velocity each tick) and switches to `WAIT` only when the distance
+  is under `getBoundingBox().getSize()` (about 0.5 blocks for a vex), then halves its velocity. A vex ordered to the
+  zombie villager's head therefore ends inside the head, with momentum. To hold a distance, order it to a point short
+  of the target, or call `getMoveControl().setWait()` and zero the velocity once it is near enough.
+- A goal's `canContinueToUse` is asked only on the selector's full pass, which `Mob.serverAiStep` runs only when
+  `tickCount + getId()` is even (§21, "The goal clock"); on the other ticks only `tickRunningGoals(false)` runs, which
+  calls `tick()` on goals with `requiresUpdateEveryTick()` (`Mob.java` around `:750-763`, `GoalSelector.java:96-107`).
+  So a goal whose own work finished on an odd tick gets one more `tick()` before `canContinueToUse` can end it; a
+  `tick()` that has a side effect (conjuring an item) must guard on its own finished flag.
+- In one full pass `GoalSelector.tick` (`GoalSelector.java:66-94`) first stops every running goal whose
+  `canContinueToUse` is false or whose flags are disabled, then asks `canUse` of every goal that is not running,
+  including the one just stopped, in the same pass; only then does it tick the running goals. A goal that aborts
+  because the approach timed out can therefore be started again at once by its own `canUse`; that is why the cure and
+  the bribe keep a retry delay (`RETRY_DELAY`).
+- `LivingChangeTargetEvent` cancelled keeps the **old** target: `Mob.setTarget` stores the event's new target only
+  `if (!changeTargetEvent.isCanceled())` (`Mob.java:259-262`). Cancelling a change to a new target does not clear an
+  existing one: an iron golem that already targets a zombie villager keeps hitting it after the cure mark appears, so
+  the claim must call `golem.setTarget(null)` itself (a null target is not cancelled by `GolemMercy`, whose check is
+  `target != null && ...`), with the mark set first so that the golem's target goals cannot hand the same target
+  straight back.
+
 Where the sources differ from the plan or the spec (the sources win):
 
 - `EntityTickEvent.Post` is posted from `ServerLevel.tickNonPassenger` and `Entity.rideTick`, not at the tail of

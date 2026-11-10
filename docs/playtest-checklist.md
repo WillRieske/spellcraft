@@ -215,6 +215,22 @@ Survival world, open ground, Strength of Evoking on, a few Bound Vexes out. Wher
 - [ ] A friend (LAN) right-clicks your vex with a sword or an empty hand: nothing happens.
 - [ ] Hold an ender pearl in your off hand, empty main hand, and click your vex (sneaking and not): no pearl is thrown.
 
+## Evoking II (Part 4)
+
+Survival world, open ground, Strength of Evoking on, a few Bound Vexes out. Where a mob can hurt you, give yourself Resistance (`/effect give @s resistance 600 4`). Zombie villagers come from `/summon zombie_villager` (a leather helmet on it stops the sun burning it).
+
+- [ ] The cure's look: a vex flies to a zombie villager and holds a golden apple at its face: crumbs at the zombie villager's mouth and the eating sound for about a second and a half. Then the vex turns its head away and a gray splash lands at the zombie villager's feet while nobody near is weakened. Then green and white smoke rises around the zombie villager for 20 seconds, and it stands still the whole time.
+- [ ] The vex stops short of the zombie villager's head (a block or so away, not inside it); its head turn is visible and the potion flies in an arc to the zombie villager's feet rather than straight down.
+- [ ] After the 20 seconds it is a villager again, and its trades show the cured-villager discount for you.
+- [ ] A cure in daylight, without a helmet on the zombie villager: does it burn before it turns? (Known: a frozen zombie villager still burns in sunlight.)
+- [ ] A village golem beside a curing zombie villager leaves it alone, and so do your fangs. Your other vexes never attack it.
+- [ ] A village golem that was already fighting the zombie villager stops when a vex claims it, and the zombie villager is not hurt afterwards.
+- [ ] A zombie villager that was chasing you stops when a vex claims it, even mid-fight.
+- [ ] A creeper hissing next to the curing vex makes it flee; the cure stops (the zombie villager walks again) and then restarts once the creeper is gone.
+- [ ] The bribe: an enemy vex (an evoker's) attacks you and a Bound Vex flies up and holds out an emerald, with one villager "hmm" at the start. With a dozen vexes out, the others hold off during the offer.
+- [ ] A bribed vex flies away from you through walls and is gone without sound or drop (it vanishes at once when out of sight, or after ten seconds at most).
+- [ ] A refused bribe (one time in three) is followed by a normal fight, and the same vex is not offered a second emerald.
+
 ## Real profile
 
 - [ ] Will installs the new jar. From the repo root, in a normal PowerShell window (the Claude app's shells cannot write under `%APPDATA%`), he runs the command below. It builds, then copies the jar whose name carries `mod_version` into `%APPDATA%\.minecraft\mods` and removes every other `spellcraft-*.jar` there; the old `1.0.0` jar goes away and the `1.2.0` jar is replaced. He then launches the NeoForge 26.3 profile and casts each scroll once.
