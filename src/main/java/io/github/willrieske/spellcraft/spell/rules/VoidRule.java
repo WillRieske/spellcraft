@@ -35,4 +35,18 @@ public final class VoidRule {
         }
         return !onGround && movingDown && y < minY + NEAR_FLOOR && !groundWithin64.getAsBoolean();
     }
+
+    /**
+     * Whether the spot a player last stood on can be used as a landing. A spot in an unloaded chunk is trusted as
+     * recorded: looking at its blocks would load the chunk on the server thread (and again every time a failing check
+     * repeats), while the teleport loads it anyway. A spot in a loaded chunk is used only if it is still standable, so
+     * a broken bridge is not a landing.
+     *
+     * @param chunkLoaded whether the spot's chunk is loaded
+     * @param standable whether the spot is still standable; asked only when the chunk is loaded
+     * @return whether to land there
+     */
+    public static boolean lastGroundUsable(boolean chunkLoaded, BooleanSupplier standable) {
+        return !chunkLoaded || standable.getAsBoolean();
+    }
 }

@@ -181,4 +181,40 @@ class VoidRuleTest {
             assertThat(asked).hasValue(0);
         }
     }
+
+    @Nested
+    class LastGroundUsable {
+        /**
+         * When the last ground's chunk is not loaded, lastGroundUsable should be true without asking whether the spot is
+         * standable (asking would load the chunk).
+         *
+         * <p>Method under test: {@link VoidRule#lastGroundUsable(boolean, BooleanSupplier)}
+         */
+        @Test
+        void unloadedChunk_isTrustedWithoutLookingAtBlocks() {
+            // Arrange
+            AtomicInteger reads = new AtomicInteger();
+
+            // Act
+            boolean usable = VoidRule.lastGroundUsable(false, () -> {
+                reads.incrementAndGet();
+                return false;
+            });
+
+            // Assert
+            assertThat(usable).isTrue();
+            assertThat(reads.get()).isZero();
+        }
+
+        /**
+         * When the chunk is loaded, lastGroundUsable should follow whether the spot is still standable.
+         *
+         * <p>Method under test: {@link VoidRule#lastGroundUsable(boolean, BooleanSupplier)}
+         */
+        @Test
+        void loadedChunk_followsStandable() {
+            assertThat(VoidRule.lastGroundUsable(true, () -> true)).isTrue();
+            assertThat(VoidRule.lastGroundUsable(true, () -> false)).isFalse();
+        }
+    }
 }

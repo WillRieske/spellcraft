@@ -42,6 +42,7 @@ import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Ghast;
 import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
@@ -55,6 +56,7 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.EventHooks;
+import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import org.slf4j.Logger;
@@ -210,6 +212,15 @@ public final class BoundVexWorldGameTests {
         padded("bound_vex_world_void_catch_last_ground_gone", BoundVexWorldGameTests::voidCatchLastGroundGone);
         padded("bound_vex_world_void_catch_rescuer_range_inside", helper -> voidRescuerRange(helper, 40, true));
         padded("bound_vex_world_void_catch_rescuer_range_outside", helper -> voidRescuerRange(helper, 70, false));
+        padded("bound_vex_world_void_catch_rescuer_range_edge_inside", helper -> voidRescuerRange(helper, 63, true));
+        padded("bound_vex_world_void_catch_rescuer_range_edge_outside", helper -> voidRescuerRange(helper, 64, false));
+        padded("bound_vex_world_void_catch_by_a_following_vex", BoundVexWorldGameTests::voidCatchByAFollowingVex);
+        padded("bound_vex_world_void_catch_not_by_a_staying_vex", BoundVexWorldGameTests::voidCatchNotByAStayingVex);
+        padded("bound_vex_world_void_catch_keeps_a_conjured_hand", BoundVexWorldGameTests::voidCatchKeepsAConjuredHand);
+        padded("bound_vex_world_void_catch_refused_teleport", BoundVexWorldGameTests::voidCatchRefusedTeleport);
+        padded(
+                "bound_vex_world_void_logout_forgets_the_empty_search",
+                BoundVexWorldGameTests::voidLogoutForgetsTheSearch);
         padded("bound_vex_world_void_catch_dismounts", BoundVexWorldGameTests::voidCatchDismounts);
         padded("bound_vex_world_void_catch_creative", BoundVexWorldGameTests::voidCatchCreative);
         padded("bound_vex_world_void_catch_not_while_gliding", BoundVexWorldGameTests::voidCatchNotWhileGliding);
@@ -2289,7 +2300,6 @@ public final class BoundVexWorldGameTests {
                     helper.assertTrue(end.getBlockState(nearest).isAir(), "air at the feet");
                     helper.assertValueEqual(player.fallDistance, 0.0, "the fall is forgotten");
                     helper.assertValueEqual(player.getDeltaMovement(), Vec3.ZERO, "the player is still");
-                    helper.assertTrue(player.syncVelocity, "the stillness is marked for sending");
                     helper.assertTrue(player.hasEffect(MobEffects.REGENERATION), "Regeneration");
                     helper.assertTrue(player.hasEffect(MobEffects.RESISTANCE), "Resistance");
                     helper.assertTrue(player.hasEffect(MobEffects.FIRE_RESISTANCE), "Fire Resistance");
@@ -2383,7 +2393,8 @@ public final class BoundVexWorldGameTests {
 
     /**
      * When a player who never stood anywhere is under the floor, should no catch start; and when they then stand on a
-     * platform 40 blocks east (one step records it) and fall again, should the catch put them back on it.
+     * platform 40 blocks east (one step records it) and fall again, all within the 20 ticks of the empty search's
+     * memory, should the catch put them back on it (the memory pauses only the landing search).
      *
      * <p>Method under test: {@code VexRescues.tick}: the last-ground fallback and its memory
      */
@@ -2489,7 +2500,8 @@ public final class BoundVexWorldGameTests {
     /**
      * When a player rides a pig under the End's floor, should the catch dismount them and put them on the platform.
      *
-     * <p>Method under test: {@code VexRescues.catchFromVoid}: {@code stopRiding} before the teleport
+     * <p>Method under test: {@code VexRescues.catchFromVoid}: vanilla's teleport dismounts the player (the catch
+     * relies on it)
      */
     static void voidCatchDismounts(GameTestHelper helper) {
         // Arrange
@@ -3045,6 +3057,180 @@ public final class BoundVexWorldGameTests {
                     whenDone(helper, fireball::discard);
                 })
                 .thenWaitUntil(() -> helper.assertTrue(!ghast.isAlive(), "the returned fireball killed the ghast"))
+                .thenSucceed();
+    }
+
+    /**
+     * The arrangement of the Task 6 review tests: an unhurtable player in the End void with a landing platform ten
+     * blocks east, placed in a place of reach 48.
+     *
+     * @param helper the test helper
+     * @param player the player
+     * @return the End's level
+     */
+    private static ServerLevel voidWithPlatform(GameTestHelper helper, ServerPlayer player) {
+        ServerLevel end = endVoid(helper, player, VOID_REACH);
+        BlockPos slot = player.blockPosition();
+        platform(helper, end, slot.offset(LANDING_EAST, PLATFORM_Y - slot.getY(), 0), 1);
+        return end;
+    }
+
+    /**
+     * When the only vex has its full AI and flies 25 blocks east of a player who has already fallen, should it be
+     * the rescuer. The player is parked under the floor before the vex spawns, so the follow goal moves it toward
+     * the player, never away; wherever it is after its first ticks it is within 64 blocks.
+     *
+     * <p>Method under test: {@code VexRescues.nearestRescuer} with a vex that runs its goals
+     */
+    static void voidCatchByAFollowingVex(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = voidPlayer(helper);
+        ServerLevel end = voidWithPlatform(helper, player);
+        BlockPos slot = player.blockPosition();
+        dropTo(player, column(slot, end.getMinY() - BELOW_FLOOR));
+        BoundVex vex = BoundVexTestSupport.noTargets(
+                vexIn(helper, end, new Vec3(slot.getX() + 0.5 + 25, end.getMinY() + 3, slot.getZ() + 0.5), player));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
+                .thenExecute(() -> {
+                    VexRescues.tick(player);
+                    assertVoidRunning(helper, player, "the catch started");
+                    helper.assertValueEqual(VexRescues.rescuer(player), Optional.of(vex), "the vex is the rescuer");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the only vex beside the fall point is told to stay, should no catch start.
+     *
+     * <p>Method under test: {@code VexRescues.holds}: a staying vex does not rescue
+     */
+    static void voidCatchNotByAStayingVex(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = voidPlayer(helper);
+        ServerLevel end = voidWithPlatform(helper, player);
+        BlockPos slot = player.blockPosition();
+        BoundVex vex = voidVex(helper, end, player, slot, VEX_EAST);
+        vex.setStaying(true);
+        Vec3 fallen = column(slot, end.getMinY() - BELOW_FLOOR);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
+                .thenExecute(() -> {
+                    dropTo(player, fallen);
+                    VexRescues.tick(player);
+                    assertStillThere(helper, player, fallen, "a staying vex does not catch");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the rescuer's main hand already holds a conjured emerald (as a job goal leaves it), should the catch still
+     * happen, the emerald stay in the hand through the tail, and the tail's end not take it away.
+     *
+     * <p>Method under test: {@code VexRescues.showInHand}: a conjured hand is left alone
+     */
+    static void voidCatchKeepsAConjuredHand(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = voidPlayer(helper);
+        ServerLevel end = voidWithPlatform(helper, player);
+        BlockPos slot = player.blockPosition();
+        BoundVex vex = voidVex(helper, end, player, slot, VEX_EAST);
+        vex.conjure(EquipmentSlot.MAINHAND, new ItemStack(Items.EMERALD));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
+                .thenExecute(() -> {
+                    dropTo(player, column(slot, end.getMinY() - BELOW_FLOOR));
+                    VexRescues.tick(player);
+                    assertVoidRunning(helper, player, "the catch started");
+                    helper.assertTrue(vex.getMainHandItem().is(Items.EMERALD), "the emerald stays");
+                })
+                .thenIdle(1)
+                .thenExecuteFor(19, () -> {
+                    VexRescues.tick(player);
+                    assertVoidRunning(helper, player, "the tail runs");
+                    helper.assertTrue(vex.getMainHandItem().is(Items.EMERALD), "the emerald stays through the tail");
+                })
+                .thenExecute(() -> {
+                    VexRescues.tick(player);
+                    assertNoRescue(helper, player, "the tail ends");
+                    helper.assertTrue(vex.getMainHandItem().is(Items.EMERALD), "the tail's end keeps the emerald");
+                    helper.assertTrue(vex.isConjured(EquipmentSlot.MAINHAND), "the emerald is still conjured");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When something cancels the teleport (a listener on the travel event), should the catch start nothing: no rescue,
+     * no apple effects, the player where they were, the rescuer's sword in its hand.
+     *
+     * <p>Method under test: {@code VexRescues.catchFromVoid}: the teleport's refusal
+     */
+    static void voidCatchRefusedTeleport(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = voidPlayer(helper);
+        ServerLevel end = voidWithPlatform(helper, player);
+        BlockPos slot = player.blockPosition();
+        BoundVex vex = voidVex(helper, end, player, slot, VEX_EAST);
+        Vec3 fallen = column(slot, end.getMinY() - BELOW_FLOOR);
+        Consumer<EntityTravelToDimensionEvent> refuse = event -> {
+            if (event.getEntity().equals(player)) {
+                event.setCanceled(true);
+            }
+        };
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
+                .thenExecute(() -> {
+                    dropTo(player, fallen);
+                    NeoForge.EVENT_BUS.addListener(refuse);
+                    try {
+                        VexRescues.tick(player);
+                    } finally {
+                        NeoForge.EVENT_BUS.unregister(refuse);
+                    }
+                    assertStillThere(helper, player, fallen, "a refused teleport starts no rescue");
+                    helper.assertFalse(player.hasEffect(MobEffects.REGENERATION), "no apple was eaten");
+                    helper.assertTrue(BoundVexTestSupport.swordBack(vex), "the rescuer's hand is untouched");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a search found nothing (the memory pauses it for 20 ticks), the player logs out, and a platform is built,
+     * should the very next step find it: the logout forgets the memory.
+     *
+     * <p>Method under test: {@code VexRescues.onLogout}: the empty search's memory
+     */
+    static void voidLogoutForgetsTheSearch(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = voidPlayer(helper);
+        ServerLevel end = endVoid(helper, player, VOID_REACH);
+        BlockPos slot = player.blockPosition();
+        BoundVex vex = voidVex(helper, end, player, slot, VEX_EAST);
+        Vec3 fallen = column(slot, end.getMinY() - BELOW_FLOOR);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
+                .thenExecute(() -> {
+                    dropTo(player, fallen);
+                    VexRescues.tick(player);
+                    assertStillThere(helper, player, fallen, "setup: nothing to land on");
+                    NeoForge.EVENT_BUS.post(new PlayerEvent.PlayerLoggedOutEvent(player));
+                    platform(helper, end, slot.offset(LANDING_EAST, PLATFORM_Y - slot.getY(), 0), 1);
+                })
+                .thenIdle(1)
+                .thenExecute(() -> {
+                    VexRescues.tick(player);
+                    assertVoidRunning(helper, player, "the memory was forgotten: the platform is found");
+                })
                 .thenSucceed();
     }
 }

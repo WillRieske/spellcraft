@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.SectionPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.ResourceKey;
@@ -322,11 +323,12 @@ public final class VexRescues {
             return;
         }
         Vec3 at = landing.get();
-        player.stopRiding();
-        player.setDeltaMovement(Vec3.ZERO); // before the teleport: its packet carries the velocity
+        // The teleport dismounts the player and sends the position with zero velocity (docs/api-notes.md §24), but
+        // it does not reset the fall distance, so the next landing would still count the fall into the void.
         player.resetFallDistance();
-        player.teleportTo(level, at.x, at.y, at.z, Set.of(), player.getYRot(), player.getXRot(), false);
-        player.syncVelocity = true;
+        if (!player.teleportTo(level, at.x, at.y, at.z, Set.of(), player.getYRot(), player.getXRot(), false)) {
+            return; // refused (an event cancelled it): no rescue, no apple
+        }
         Rescue rescue = new Rescue(Kind.VOID, found.get(), now);
         RUNNING.put(player.getUUID(), rescue);
         placeBeside(rescue.rescuer, player);
@@ -355,13 +357,26 @@ public final class VexRescues {
             }
         }
         Optional<Vec3> ground = lastGround(id)
-                .filter(last -> last.dimension().equals(Level.END)
-                        && StandableSpots.standable(level, BlockPos.containing(last.position())))
+                .filter(last -> last.dimension().equals(Level.END) && groundUsable(level, last.position()))
                 .map(Ground::position);
         if (search && ground.isEmpty()) {
             NO_LANDING_UNTIL.put(id, now + NO_LANDING_PAUSE);
         }
         return ground;
+    }
+
+    /**
+     * Whether the last ground at {@code position} can still be used. A ground whose chunk is not loaded is trusted as
+     * recorded: reading its blocks would load or generate the chunk on the server thread, and a failing check would
+     * repeat that every {@link #NO_LANDING_PAUSE} ticks, while the teleport loads the chunk anyway. A loaded chunk is
+     * read, so a broken bridge is not a landing.
+     */
+    private static boolean groundUsable(ServerLevel level, Vec3 position) {
+        BlockPos feet = BlockPos.containing(position);
+        return VoidRule.lastGroundUsable(
+                level.hasChunk(
+                        SectionPos.blockToSectionCoord(feet.getX()), SectionPos.blockToSectionCoord(feet.getZ())),
+                () -> StandableSpots.standable(level, feet));
     }
 
     /** Whether {@code player} is under water, low on air, and open water leads up to air. */
