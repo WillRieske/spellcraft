@@ -8,9 +8,9 @@ import java.util.Optional;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityReference;
 import net.minecraft.world.entity.monster.Ghast;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.EntityHitResult;
@@ -22,36 +22,52 @@ import net.neoforged.neoforge.event.entity.ProjectileImpactEvent;
 
 /**
  * A Bound Vex bats a ghast's fireball back (Parts 4–5 spec §6.3). The return hangs on the impact itself: a fireball
- * covers 1.2 to 1.9 blocks a tick, so a look once per tick would miss most of them. Nether only.
+ * covers 1.2 to 1.9 blocks a tick, so a look once per tick would miss most of them. The return is Nether only; the
+ * pass-through of its owner's own vexes holds everywhere.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class VexFireballs {
-    /** An impact this near a player (or on them) is theirs to have returned. */
+    /** An impact this near a player's body (or on them) is theirs to have returned, in blocks. */
     public static final double NEAR_PLAYER = 4.0;
 
     private VexFireballs() {}
 
     /**
-     * Cancels the impact of a large fireball that is about to hit a player, or near one, when a Bound Vex of that
-     * player is within reach of it, and sends it back. Only the server's fireballs count (a client level is ignored),
-     * and only in the Nether; a fireball a player already owns, or one near a spectator, is left alone.
+     * Handles the impact of a large fireball on the server (a client level is ignored).
+     *
+     * <p>First, a fireball whose owner is a player passes through that player's own Bound Vexes: a hit on one of them
+     * is cancelled and nothing else happens. A returned fireball would otherwise strike a sibling vex on its way to the
+     * ghast, and its owner being the player hides it from the friendly-fire backstop. Vanilla then moves the fireball
+     * on, and next tick its ray starts inside the vex's box and does not hit it ({@code AABB.clip} counts only the
+     * faces a ray enters through, at a positive distance along it, and {@code ProjectileUtil.getEntityHitResult}
+     * takes the nearest such hit).
+     *
+     * <p>Then, in the Nether only: cancels the impact of a fireball that is about to hit a player, or land within
+     * {@link #NEAR_PLAYER} blocks of the player's body (the distance from the hit to their bounding box, not to their
+     * feet), when a Bound Vex summoned by that player is within reach of the fireball, and sends it back. A fireball
+     * the player already owns, or one near a spectator, is left alone.
      *
      * @param event the impact, before vanilla explodes the fireball
      */
     @SubscribeEvent
     public static void onImpact(ProjectileImpactEvent event) {
         if (!(event.getProjectile() instanceof LargeFireball fireball)
-                || !(fireball.level() instanceof ServerLevel level)
-                || !level.dimension().equals(Level.NETHER)) {
+                || !(fireball.level() instanceof ServerLevel level)) {
             return;
         }
         HitResult hit = event.getRayTraceResult();
-        Entity struck = hit instanceof EntityHitResult entityHit ? entityHit.getEntity() : null;
+        if (strikesOwnersVex(fireball, hit)) {
+            event.setCanceled(true);
+            return;
+        }
+        if (!level.dimension().equals(Level.NETHER)) {
+            return;
+        }
         for (ServerPlayer player : level.players()) {
             if (!player.isAlive() || player.isSpectator() || player.equals(fireball.getOwner())) {
                 continue;
             }
-            if (!player.equals(struck) && hit.getLocation().distanceTo(player.position()) > NEAR_PLAYER) {
+            if (player.getBoundingBox().distanceToSqr(hit.getLocation()) > NEAR_PLAYER * NEAR_PLAYER) {
                 continue;
             }
             Optional<BoundVex> batter = nearestVexOf(level, fireball, player);
@@ -61,6 +77,14 @@ public final class VexFireballs {
                 return;
             }
         }
+    }
+
+    /** Whether {@code hit} is on a Bound Vex summoned by the player who owns {@code fireball}. */
+    private static boolean strikesOwnersVex(LargeFireball fireball, HitResult hit) {
+        return fireball.getOwner() instanceof Player owner
+                && hit instanceof EntityHitResult entityHit
+                && entityHit.getEntity() instanceof BoundVex vex
+                && vex.isSummonedBy(owner.getUUID());
     }
 
     /** The living Bound Vex of {@code player} nearest to {@code fireball}, if one is within the guard reach of it. */
