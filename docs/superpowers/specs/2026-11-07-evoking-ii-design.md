@@ -15,6 +15,10 @@ the plain empty-hand click takes the weapon back, version 1.2.2). Where the two 
 **Amended by:** [`2026-11-09-evoking-ii-parts-4-5-design.md`](2026-11-09-evoking-ii-parts-4-5-design.md)
 (Parts 4 and 5 as designed for the build: the cure's freeze and potion, bribed vexes, scan cadence,
 the fireball's owner, rescue limits). Where the two differ, that one wins.
+**Amended by:** [`2026-11-10-evoking-ii-parts-6-7-design.md`](2026-11-10-evoking-ii-parts-6-7-design.md)
+(Parts 6 and 7 as designed for the build: team-move state, rosters, triggers and each move's
+behavior; the packet's shape; the Caster's goals; Mirror images and confusion; Ghostrail's Mixin,
+flight and damage rules; scroll mobs; which villagers leave ghosts). Where the two differ, that one wins.
 **Amends:** the Evoking spec's §2 keys (F → Y), §5 fangs (a fang per target, not a carpet), §6
 vexes (vanilla vexes → Bound Vexes), §3 allies (three new ally kinds); the Trailing spec's spared
 rule (iron golems are never lit, §2.3); `CLAUDE.md`'s packet rule (the one packet gains a second
@@ -196,7 +200,8 @@ replaced by `HoldPostGoal`. What changes:
   the summoner to compute allies), takes no interactions but still shows its gear.
 - **Synced data:** each part adds the flag it first reads: `STAYING` (boolean, Part 2; also saved
   as NBT, because a cross-dimension teleport makes a new entity that copies the save but not the
-  synced data), `TEAM_MOVE` (byte, §8, Part 6), `CASTER` (boolean, §9.1, Part 7).
+  synced data), `TEAM_MOVE` (byte, §8, Part 6), `CASTER` (boolean, §9.1, Part 7). **Amended by the
+  Parts 6–7 spec §2.1:** the team move is a server-only field, not synced data.
 - **Renderer:** Part 2 registers vanilla's `VexRenderer::new` directly for the type, in
   `client.evoking.BoundVexRenderers` (`EntityRenderersEvent.RegisterRenderers`): same texture and
   model. Part 3 adds the `BoundVexRenderer extends VexRenderer` subclass with the armor layer (§4).
@@ -559,6 +564,9 @@ flying, uses a 64-block rescuer range and a height-map search, and dismounts a r
 
 ## 7. Casting-related plumbing for Part 6
 
+**Amended by the Parts 6–7 spec §2.1, §3:** the packet is `EvokingRequest(Kind, byte)`; the team-move
+record lives in `TeamMoves`; J always cycles and the server answers K, with two more refusals.
+
 ### 7.1 The request packet grows
 
 `EvokingRequest` becomes `EvokingRequest(Kind kind, byte arg)`: `CAST(spell)` as before, and
@@ -591,6 +599,10 @@ its enemy, its start tick. One move at a time per summoner.
 
 ## 8. Part 6: team moves
 
+**Amended by the Parts 6–7 spec §2 and §4:** free vexes, the trigger order (a ≥ 99 enemy without 12
+free vexes falls through to a Shield), the end rules and each move's behavior in buildable terms.
+The "H key" below is K.
+
 Common rules. A move needs a roster of Bound Vexes of the summoner that are alive, not staying,
 not Casters (§9.1; Casters join a Raid, below), and not in another move. The trigger vex "alerts"
 the others: they get `TEAM_MOVE` set, conjure the move's kit (stashing given gear), and the
@@ -613,6 +625,11 @@ checks first). In `MANUAL` mode the H key starts the selected move against the n
 fits its rule (the K key).
 
 ## 9. Part 7: Casters, Mirror, Ghostrail, villager ghosts
+
+**Amended by the Parts 6–7 spec §6–§10:** the Caster's goals and 20-tick wind-up; durations as
+constants; the Mirror effect ends with its last image and confusion applies to any mob; the
+Ghostrail Mixin target, shared flight, `/kill` and void damage still landing, mob steering; scroll
+drops by vanilla's drop chance; only monster kills leave ghosts, one ghost per player.
 
 ### 9.1 The Caster
 
@@ -804,11 +821,13 @@ GameTests per part (the plan names them; the shape):
   3× damage in the End, void teleport + apple effects. **Amended by the Parts 4–5 spec §9:** the
   full Part 5 test list is there.
 - **Part 6:** each trigger starts the right move with the right roster and kit; manual mode: K
-  with no enemy → message; move end restores stashes; cooldown.
+  with no enemy → message; move end restores stashes; cooldown. **Amended by the Parts 6–7 spec §5:** the full
+  Part 6 test list is there.
 - **Part 7:** Caster roll is 1/3 over 300 summons (statistical bound); Mirror spawns 13 images
   that die at 0 and poof at 6 minutes; redirect probability; Ghostrail noPhysics/mayfly/damage
   cancel/push-out; mob carriers 40 ticks; evoker spawns with a scroll 1/4 (bound); ghost record on
-  villager death by zombie and none by the player; ghost appears when in need and fades.
+  villager death by zombie and none by the player; ghost appears when in need and fades. **Amended by
+  the Parts 6–7 spec §11:** the full Part 7 test list is there.
 
 `runData` proves the new renderers, layers and key mappings load. ArchUnit rules unchanged;
 `pitest` after each pure-core change with `docs/mutation-testing.md` rows.
