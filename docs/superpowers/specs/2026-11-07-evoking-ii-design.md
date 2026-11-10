@@ -12,6 +12,9 @@ fangs, vexes), [`2026-11-04-trailing-design.md`](2026-11-04-trailing-design.md) 
 **Amended by:** [`2026-11-09-evoking-ii-part-3-gear-and-stay-design.md`](2026-11-09-evoking-ii-part-3-gear-and-stay-design.md)
 (Part 3 as built: stay moves to the sneak click, a staying vex hovers and guards a 13 × 13 area,
 the plain empty-hand click takes the weapon back, version 1.2.2). Where the two differ, that one wins.
+**Amended by:** [`2026-11-09-evoking-ii-parts-4-5-design.md`](2026-11-09-evoking-ii-parts-4-5-design.md)
+(Parts 4 and 5 as designed for the build: the cure's freeze and potion, bribed vexes, scan cadence,
+the fireball's owner, rescue limits). Where the two differ, that one wins.
 **Amends:** the Evoking spec's §2 keys (F → Y), §5 fangs (a fang per target, not a carpet), §6
 vexes (vanilla vexes → Bound Vexes), §3 allies (three new ally kinds); the Trailing spec's spared
 rule (iron golems are never lit, §2.3); `CLAUDE.md`'s packet rule (the one packet gains a second
