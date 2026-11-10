@@ -44,6 +44,8 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.enchantment.EnchantmentEffectComponents;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.storage.ValueInput;
@@ -241,7 +243,9 @@ public class BoundVex extends Vex {
 
     /**
      * Puts a conjured item in {@code slot} (Part 3 spec §5.1). If the slot is not conjured yet, what it holds moves to
-     * the stash first; conjuring over a conjured item just replaces it.
+     * the stash first; conjuring over a conjured item just replaces it. The item is set silently
+     * ({@code setItemSlot(slot, stack, true)} skips {@code LivingEntity.onEquipItem}, so no equip sound plays,
+     * docs/api-notes.md §22).
      *
      * @param slot a gear slot
      * @param stack the conjured item
@@ -250,19 +254,19 @@ public class BoundVex extends Vex {
         if (conjured.add(slot)) {
             stash.put(slot, getItemBySlot(slot).copy());
         }
-        setItemSlot(slot, stack);
+        setItemSlot(slot, stack, true);
     }
 
     /**
      * Ends the conjure in {@code slot}: the conjured item goes and the stashed item returns (Part 3 spec §5.1). Does
-     * nothing for a slot that is not conjured.
+     * nothing for a slot that is not conjured. The stashed item is restored silently, like the conjure.
      *
      * @param slot a gear slot
      */
     public void dismiss(EquipmentSlot slot) {
         if (conjured.remove(slot)) {
             ItemStack back = stash.remove(slot);
-            setItemSlot(slot, back != null ? back : ItemStack.EMPTY);
+            setItemSlot(slot, back != null ? back : ItemStack.EMPTY, true);
         }
     }
 
@@ -280,22 +284,29 @@ public class BoundVex extends Vex {
      * The item set aside for {@code slot} while a conjured item sits there.
      *
      * @param slot a gear slot
-     * @return the stashed stack, or {@link ItemStack#EMPTY}
+     * @return a copy of the stashed stack, or {@link ItemStack#EMPTY}; changing it does not change the stash
      */
     public ItemStack stashed(EquipmentSlot slot) {
-        return stash.getOrDefault(slot, ItemStack.EMPTY);
+        ItemStack stashed = stash.get(slot);
+        return stashed != null ? stashed.copy() : ItemStack.EMPTY;
     }
 
     /**
      * Puts a gift in the stash of a conjured slot, to come back when the conjure ends (Part 3 spec §5.1). Public
-     * for the give click (Part 3 plan Task 5) and the GameTests in another package.
+     * for the give click (Part 3 plan Task 5) and the GameTests in another package. The stash keeps a copy of
+     * {@code gift}, so a caller that changes its stack afterwards does not change the stash. A gift for a slot that is
+     * not conjured would never be restored, saved or dropped, so it is refused.
      *
      * @param slot a conjured gear slot
      * @param gift the item given
      * @return what the stash held before, or {@link ItemStack#EMPTY}
+     * @throws IllegalStateException if {@code slot} is not conjured
      */
     public ItemStack stashGift(EquipmentSlot slot, ItemStack gift) {
-        ItemStack before = stash.put(slot, gift);
+        if (!isConjured(slot)) {
+            throw new IllegalStateException("cannot stash a gift for a slot that is not conjured: " + slot);
+        }
+        ItemStack before = stash.put(slot, gift.copy());
         return before != null ? before : ItemStack.EMPTY;
     }
 
@@ -316,20 +327,25 @@ public class BoundVex extends Vex {
 
     /**
      * On Peaceful, vanilla discards the vex with no death and no drops (docs/api-notes.md §22), so its gear is dropped
-     * here first (Part 3 spec §5.2).
+     * here first (Part 3 spec §5.2), under the rules of the death path: nothing drops when the {@code mob_drops} game
+     * rule is off ({@code shouldDropLoot}), and a stack with Curse of Vanishing ({@code PREVENT_EQUIPMENT_DROP}, as in
+     * {@code Mob.dropCustomDeathLoot}) is not dropped. A stack that is not dropped is cleared with the vex.
      */
     @Override
     public void checkDespawn() {
         if (level() instanceof ServerLevel level
                 && level.getDifficulty() == Difficulty.PEACEFUL
                 && !getType().isAllowedInPeaceful()) {
+            boolean dropsLoot = shouldDropLoot(level);
             for (EquipmentSlot slot : GEAR_SLOTS) {
                 dismiss(slot);
                 ItemStack stack = getItemBySlot(slot);
-                if (!stack.isEmpty()) {
+                if (dropsLoot
+                        && !stack.isEmpty()
+                        && !EnchantmentHelper.has(stack, EnchantmentEffectComponents.PREVENT_EQUIPMENT_DROP)) {
                     spawnAtLocation(level, stack);
-                    setItemSlot(slot, ItemStack.EMPTY);
                 }
+                setItemSlot(slot, ItemStack.EMPTY);
             }
         }
         super.checkDespawn();

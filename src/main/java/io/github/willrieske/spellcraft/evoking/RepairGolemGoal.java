@@ -27,9 +27,9 @@ import org.jspecify.annotations.Nullable;
  * stops for any reason (a target, the summoner gone, the golem out of the area or mad, flee or dodge taking over),
  * the ingot goes and the item the vex held comes back. The item the vex held waits in its stash
  * ({@code BoundVex.conjure}, Part 3 spec §5.1), which is saved: a vex unloaded and reloaded, or carried through a
- * portal while repairing, gets its item back on load. Repair outranks follow, so a summoner who walks off waits until the golem is full: at most four
- * taps (a golem under 25 health needs them all), which is 4.5 seconds (90 ticks) after the vex reaches the golem, plus
- * the flight there.
+ * portal while repairing, gets its item back on load. Repair outranks follow, so a summoner who walks off waits until
+ * the golem is full: at most four taps (a golem under 25 health needs them all), which is 4.5 seconds (90 ticks) after
+ * the vex reaches the golem, plus the flight there.
  */
 final class RepairGolemGoal extends Goal {
     /** Health per tap: vanilla's iron-ingot repair. */

@@ -52,8 +52,20 @@ public final class BoundVexGearGameTests {
                 BoundVexGearGameTests::deathDropsGivenGearAndNoConjuredItem);
         SpellcraftGameTests.add(
                 SHARED,
-                "bound_vex_gear_save_keeps_the_stash_and_dismisses_conjured",
-                BoundVexGearGameTests::saveKeepsTheStashAndDismissesConjured);
+                "bound_vex_gear_load_dismisses_a_conjured_slot_and_gives_the_item_back",
+                BoundVexGearGameTests::loadDismissesAConjuredSlotAndGivesTheItemBack);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_gear_load_of_a_conjured_empty_hand_stays_empty",
+                BoundVexGearGameTests::loadOfAConjuredEmptyHandStaysEmpty);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_gear_stash_gift_refuses_a_slot_that_is_not_conjured",
+                BoundVexGearGameTests::stashGiftRefusesASlotThatIsNotConjured);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_gear_stash_keeps_copies_of_the_stacks",
+                BoundVexGearGameTests::stashKeepsCopiesOfTheStacks);
         // Sets the server difficulty, which is global, so it runs alone in its own batch, apart from the one of
         // VexGameTests.peacefulNotice (tests of one batch run side by side).
         FangGameTests.addPadded(
@@ -194,15 +206,17 @@ public final class BoundVexGearGameTests {
     }
 
     /**
-     * When a vex with an ingot conjured over its sword is saved and loaded, should come back holding the sword, with
-     * nothing conjured and an empty stash (the goal that conjured the ingot is not running).
+     * When a vex with an ingot conjured over a damaged sword is saved and loaded, should come back holding the same
+     * damaged sword (the given item survives the save intact), with nothing conjured and an empty stash: the slot
+     * that was conjured is dismissed on load because the goal that conjured the ingot is not running.
      *
      * <p>Method under test: {@code BoundVex#addAdditionalSaveData} and {@code BoundVex#readAdditionalSaveData}
      */
-    static void saveKeepsTheStashAndDismissesConjured(GameTestHelper helper) {
+    static void loadDismissesAConjuredSlotAndGivesTheItemBack(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = summoner(helper);
         BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.getMainHandItem().setDamageValue(17);
         vex.conjure(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_INGOT));
 
         // Act
@@ -210,8 +224,81 @@ public final class BoundVexGearGameTests {
 
         // Assert
         helper.assertTrue(copy.getMainHandItem().is(Items.IRON_SWORD), "the copy holds the sword");
+        helper.assertValueEqual(copy.getMainHandItem().getDamageValue(), 17, "the sword keeps its damage");
         helper.assertFalse(copy.isConjured(EquipmentSlot.MAINHAND), "nothing is conjured in the copy");
         helper.assertTrue(copy.stashed(EquipmentSlot.MAINHAND).isEmpty(), "the copy's stash is empty");
+        helper.succeed();
+    }
+
+    /**
+     * When a vex with an empty main hand has an ingot conjured and is saved and loaded, should load without an
+     * exception and come back with an empty main hand and nothing conjured.
+     *
+     * <p>Method under test: {@code BoundVex#addAdditionalSaveData} and {@code BoundVex#readAdditionalSaveData}
+     */
+    static void loadOfAConjuredEmptyHandStaysEmpty(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+        vex.conjure(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_INGOT));
+
+        // Act
+        BoundVex copy = (BoundVex) GameTestSupport.reloaded(helper.getLevel(), vex);
+
+        // Assert
+        helper.assertTrue(copy.getMainHandItem().isEmpty(), "the copy's main hand is empty");
+        helper.assertFalse(copy.isConjured(EquipmentSlot.MAINHAND), "nothing is conjured in the copy");
+        helper.succeed();
+    }
+
+    /**
+     * When a gift is stashed for a slot that is not conjured, should throw an {@code IllegalStateException} and leave
+     * the stash empty (the gift would never be restored, saved or dropped).
+     *
+     * <p>Method under test: {@link BoundVex#stashGift}
+     */
+    static void stashGiftRefusesASlotThatIsNotConjured(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        boolean thrown = false;
+
+        // Act
+        try {
+            vex.stashGift(EquipmentSlot.MAINHAND, new ItemStack(Items.DIAMOND_SWORD));
+        } catch (IllegalStateException expected) {
+            thrown = true;
+        }
+
+        // Assert
+        helper.assertTrue(thrown, "stashing for a slot that is not conjured throws");
+        helper.assertTrue(vex.stashed(EquipmentSlot.MAINHAND).isEmpty(), "nothing was stashed");
+        helper.succeed();
+    }
+
+    /**
+     * When a stack is changed after it was stashed as a gift, or the stack read from {@code stashed} is changed, should
+     * leave the stash as it was.
+     *
+     * <p>Method under test: {@link BoundVex#stashGift} and {@link BoundVex#stashed}
+     */
+    static void stashKeepsCopiesOfTheStacks(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.conjure(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_INGOT));
+        ItemStack gift = new ItemStack(Items.DIAMOND_SWORD);
+
+        // Act
+        vex.stashGift(EquipmentSlot.MAINHAND, gift);
+        gift.setDamageValue(30);
+        vex.stashed(EquipmentSlot.MAINHAND).setDamageValue(40);
+
+        // Assert
+        helper.assertValueEqual(vex.stashed(EquipmentSlot.MAINHAND).getDamageValue(), 0, "the stash is unchanged");
+        vex.dismiss(EquipmentSlot.MAINHAND);
+        helper.assertValueEqual(vex.getMainHandItem().getDamageValue(), 0, "the restored sword is undamaged");
         helper.succeed();
     }
 
