@@ -5,9 +5,11 @@ import io.github.willrieske.spellcraft.Spellcraft;
 import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.evoking.EvokingRequest;
 import io.github.willrieske.spellcraft.spell.rules.EvokerSpell;
+import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.chat.Component;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -15,9 +17,11 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import net.neoforged.neoforge.client.settings.KeyConflictContext;
+import org.jspecify.annotations.Nullable;
 
 /**
- * The two casting keys (Evoking spec §2, §7; Evoking II §2.1). A press while the local player has Evoking sends an
+ * The four Evoking keys: two casting keys (Evoking spec §2, §7; Evoking II §2.1) and J and K for team moves (Part 6
+ * spec §3.3). A press while the local player has Evoking sends an
  * {@link EvokingRequest}; the server decides what it does. Fangs default to Y (an unbound key in vanilla) and vexes to
  * V. While Evoking is on, a casting key bound to the same key as vanilla's swap-offhand (either of the two, if the
  * user rebinds one to F) swallows the swap: {@code ClientTickEvent.Pre} runs before {@code Minecraft.handleKeybinds},
@@ -27,7 +31,7 @@ import net.neoforged.neoforge.client.settings.KeyConflictContext;
  */
 @EventBusSubscriber(modid = Spellcraft.MODID, value = Dist.CLIENT)
 public final class EvokingKeys {
-    /** The "spellcraft:spells" controls category both casting keys are listed under. */
+    /** The "spellcraft:spells" controls category all four keys are listed under. */
     public static final KeyMapping.Category CATEGORY = new KeyMapping.Category(Spellcraft.id("spells"));
 
     /**
@@ -50,10 +54,29 @@ public final class EvokingKeys {
             InputConstants.KEY_V,
             CATEGORY);
 
+    /** Default J (scancode 13): no vanilla binding uses it, docs/api-notes.md §25. Cycles the selected team move. */
+    public static final KeyMapping TEAM_MOVE_CYCLE = new KeyMapping(
+            "key.spellcraft.team_move_cycle",
+            KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYBOARD,
+            InputConstants.KEY_J,
+            CATEGORY);
+
+    /** Default K (scancode 14): no vanilla binding uses it. Asks the server to start the selected team move. */
+    public static final KeyMapping TEAM_MOVE_GO = new KeyMapping(
+            "key.spellcraft.team_move_go",
+            KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYBOARD,
+            InputConstants.KEY_K,
+            CATEGORY);
+
+    /** The move J has selected. Client-side only; starts at Shield each session (spec §3.3). */
+    private static TeamMove selected = TeamMove.SHIELD;
+
     private EvokingKeys() {}
 
     /**
-     * Registers the Evoking key category and the two casting keys.
+     * Registers the Evoking key category the two casting keys and the two team-move keys.
      *
      * @param event the mod-bus event
      */
@@ -62,6 +85,8 @@ public final class EvokingKeys {
         event.registerCategory(CATEGORY);
         event.register(FANGS);
         event.register(VEXES);
+        event.register(TEAM_MOVE_CYCLE);
+        event.register(TEAM_MOVE_GO);
     }
 
     /**
@@ -91,6 +116,29 @@ public final class EvokingKeys {
                 // swallowed: a casting key cast instead of swapping while Evoking is on
             }
         }
+        teamMoveKeys(player);
+    }
+
+    /**
+     * J cycles the selection and shows it on the action bar; K sends the selected move. Neither needs Evoking (the
+     * server decides, and does not need it either) and neither shares the swap-offhand key, so there is nothing to
+     * swallow. In automatic mode J still cycles and the server's answer to K is "Team moves are automatic": the client
+     * cannot see the server's setting.
+     */
+    private static void teamMoveKeys(@Nullable LocalPlayer player) {
+        while (TEAM_MOVE_CYCLE.consumeClick()) {
+            selected = selected.next();
+            if (player != null) {
+                player.sendOverlayMessage(Component.translatable(
+                        "message.spellcraft.team_move_selected",
+                        Component.translatable("team_move.spellcraft." + selected.id())));
+            }
+        }
+        while (TEAM_MOVE_GO.consumeClick()) {
+            if (player != null) {
+                ClientPacketDistributor.sendToServer(EvokingRequest.teamMove(selected));
+            }
+        }
     }
 
     /**
@@ -102,7 +150,7 @@ public final class EvokingKeys {
         int sent = 0;
         while (key.consumeClick()) {
             if (evoking) {
-                ClientPacketDistributor.sendToServer(new EvokingRequest(spell));
+                ClientPacketDistributor.sendToServer(EvokingRequest.cast(spell));
                 sent++;
             }
         }

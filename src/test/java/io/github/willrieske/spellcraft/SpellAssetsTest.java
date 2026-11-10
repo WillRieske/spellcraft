@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.willrieske.spellcraft.spell.rules.SpellDeclarations;
 import io.github.willrieske.spellcraft.spell.rules.SpellRules;
+import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -84,5 +85,25 @@ class SpellAssetsTest {
             assertThat(lang).as("lang key for " + name).contains("\"" + name + "\"");
         }
         assertThat(lang).doesNotContain("\"key.spellcraft.fangs\"");
+    }
+
+    static Stream<TeamMove> playableMoves() {
+        return Stream.of(TeamMove.values()).filter(move -> move != TeamMove.NONE);
+    }
+
+    /**
+     * When a playable team move is shown in the J overlay, should the lang file name it: the overlay builds the key
+     * from the move's id, so a typo would show a raw key.
+     *
+     * <p>Method under test: the lang file against {@code TeamMove#id}
+     */
+    @ParameterizedTest
+    @MethodSource("playableMoves")
+    void teamMovesHaveEnglishNames(TeamMove move) throws IOException {
+        // Arrange
+        String lang = Files.readString(ASSETS.resolve("lang/en_us.json"));
+
+        // Act & Assert
+        assertThat(lang).contains("\"team_move.spellcraft." + move.id() + "\"");
     }
 }

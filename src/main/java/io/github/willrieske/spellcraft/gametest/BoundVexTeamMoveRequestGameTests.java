@@ -12,7 +12,10 @@ import io.github.willrieske.spellcraft.config.ServerConfig;
 import io.github.willrieske.spellcraft.config.TeamMoveMode;
 import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.evoking.BoundVex;
+import io.github.willrieske.spellcraft.evoking.EvokingNetwork;
+import io.github.willrieske.spellcraft.evoking.EvokingRequest;
 import io.github.willrieske.spellcraft.evoking.TeamMoves;
+import io.github.willrieske.spellcraft.spell.rules.EvokerSpell;
 import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import java.util.Comparator;
 import java.util.List;
@@ -109,6 +112,20 @@ final class BoundVexTeamMoveRequestGameTests {
                 "config_mutation",
                 "team_move_request_running_beats_cooling",
                 BoundVexTeamMoveRequestGameTests::runningBeatsCooling);
+        FangGameTests.addPadded(
+                SHARED, "team_move_packet_cast_still_casts", BoundVexTeamMoveRequestGameTests::castStillCasts);
+        FangGameTests.addPadded(
+                SHARED,
+                "team_move_packet_team_move_reaches_the_request",
+                BoundVexTeamMoveRequestGameTests::teamMoveReachesTheRequest);
+        FangGameTests.addPadded(
+                SHARED,
+                "team_move_packet_out_of_range_team_move_is_ignored",
+                BoundVexTeamMoveRequestGameTests::outOfRangeTeamMoveIsIgnored);
+        FangGameTests.addPadded(
+                SHARED,
+                "team_move_packet_out_of_range_cast_is_ignored",
+                BoundVexTeamMoveRequestGameTests::outOfRangeCastIsIgnored);
     }
 
     /** Runs {@code body} with the setting on MANUAL and gives back its answer; the setting is restored. */
@@ -530,6 +547,85 @@ final class BoundVexTeamMoveRequestGameTests {
         // Assert
         helper.assertValueEqual(answer, TeamMoves.Answer.RUNNING, "the answer");
         GameTestSupport.assertActionBarKey(helper, player, TeamMoves.RUNNING_KEY);
+        helper.succeed();
+    }
+
+    /**
+     * When a CAST request names the vexes spell, should the player start casting vexes exactly as a direct request
+     * does.
+     *
+     * <p>Method under test: {@link EvokingNetwork#handle}: the CAST kind
+     */
+    static void castStillCasts(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+
+        // Act
+        EvokingNetwork.handle(player, EvokingRequest.cast(EvokerSpell.VEXES));
+
+        // Assert
+        helper.assertTrue(player.hasEffect(ModEffects.CASTING_VEXES), "the vexes spell is being cast");
+        helper.succeed();
+    }
+
+    /**
+     * When a TEAM_MOVE request arrives in automatic mode, should the answer be "Team moves are automatic": the request
+     * got to {@code TeamMoves.request}.
+     *
+     * <p>Method under test: {@link EvokingNetwork#handle}: the TEAM_MOVE kind
+     */
+    static void teamMoveReachesTheRequest(GameTestHelper helper) {
+        // Arrange (drain first, as the other caster tests do: assertActionBarKey demands exactly one message)
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        GameTestSupport.drainActionBar(player);
+
+        // Act
+        EvokingNetwork.handle(player, EvokingRequest.teamMove(TeamMove.RAID));
+
+        // Assert
+        GameTestSupport.assertActionBarKey(helper, player, TeamMoves.AUTOMATIC_KEY);
+        helper.succeed();
+    }
+
+    /**
+     * When a TEAM_MOVE request carries NONE's ordinal, a negative byte or 99, should it be ignored: no message, no
+     * move.
+     *
+     * <p>Method under test: {@link EvokingNetwork#handle}: the argument range of TEAM_MOVE
+     */
+    static void outOfRangeTeamMoveIsIgnored(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        GameTestSupport.drainActionBar(player);
+
+        // Act
+        for (byte arg : new byte[] {TeamMove.NONE.arg(), -1, 99, Byte.MIN_VALUE, Byte.MAX_VALUE}) {
+            EvokingNetwork.handle(player, new EvokingRequest(EvokingRequest.Kind.TEAM_MOVE, arg));
+        }
+
+        // Assert
+        helper.assertTrue(GameTestSupport.drainActionBar(player).isEmpty(), "nothing is said");
+        helper.assertTrue(TeamMoves.running(player).isEmpty(), "nothing started");
+        helper.succeed();
+    }
+
+    /**
+     * When a CAST request carries an ordinal no spell has, should it be ignored: no casting effect.
+     *
+     * <p>Method under test: {@link EvokingNetwork#handle}: the argument range of CAST
+     */
+    static void outOfRangeCastIsIgnored(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+
+        // Act
+        for (byte arg : new byte[] {(byte) EvokerSpell.values().length, -1, 99, Byte.MIN_VALUE, Byte.MAX_VALUE}) {
+            EvokingNetwork.handle(player, new EvokingRequest(EvokingRequest.Kind.CAST, arg));
+        }
+
+        // Assert
+        helper.assertFalse(player.hasEffect(ModEffects.CASTING_VEXES), "no vexes");
+        helper.assertFalse(player.hasEffect(ModEffects.CASTING_FANGS), "no fangs");
         helper.succeed();
     }
 }

@@ -43,5 +43,12 @@
   "container.spellcraft.scribe.chance": "%s%% chance of an extreme-tier spell",
   "key.category.spellcraft.spells": "Spellcraft",
   "key.spellcraft.fangs_y": "Evoking: Fangs",
-  "key.spellcraft.vexes": "Evoking: Summon Vexes"
+  "key.spellcraft.vexes": "Evoking: Summon Vexes",
+  "key.spellcraft.team_move_cycle": "Evoking: Next Team Move",
+  "key.spellcraft.team_move_go": "Evoking: Team Move!",
+  "message.spellcraft.team_move_selected": "Team move: %s",
+  "team_move.spellcraft.shield": "Shield",
+  "team_move.spellcraft.multishot": "Multishot",
+  "team_move.spellcraft.evader": "Evader",
+  "team_move.spellcraft.raid": "Raid"
 }

@@ -48,9 +48,9 @@ Then grep `build/mc-src` (vanilla `net.minecraft.*` with NeoForge patches applie
   point to an item in `docs/playtest-checklist.md` and hand it over.
 - **Server owns state; the client renders it.** The client reads vanilla-synced state (effects, the
   effect-particle list) and never decides anything. The one custom packet is Evoking's
-  client→server `EvokingRequest` ("this key was pressed"), which the server validates in full;
-  nothing is sent clientbound. Add no other packets without a spec that says why vanilla's sync
-  cannot carry the state.
+  client→server `EvokingRequest` ("this key was pressed"; two request kinds: cast, team move), which
+  the server validates in full; nothing is sent clientbound. Add no other packets without a spec that
+  says why vanilla's sync cannot carry the state.
 - **Client-only code lives under `io.github.willrieske.spellcraft.client`.** ArchUnit rule 1
   enforces this; a violation crashes dedicated servers.
 - **Pure core** (`client.upsidedown`, `spell.rules`): no `net.minecraft`/NeoForge imports (ArchUnit rule 2). TDD
