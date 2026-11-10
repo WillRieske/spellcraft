@@ -4731,7 +4731,7 @@ git commit -m "feat(evoking): the manual team-move request answers in the spec's
   - `EvokingNetwork.handle(ServerPlayer, EvokingRequest)` (public static): validates in full and dispatches; `VERSION` becomes `"2"`.
   - `EvokingKeys.TEAM_MOVE_CYCLE` (J) and `EvokingKeys.TEAM_MOVE_GO` (K).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Change `FangGameTests.requestCodecRoundTrip` (and its Javadoc: "for both spells and every team move") to build requests from the new factories, plus one raw request:
 
@@ -4856,12 +4856,12 @@ static void outOfRangeCastIsIgnored(GameTestHelper helper) {
 
 `runData` is the check for the keys; the client code has no GameTest.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_packet_*"` and `"-PgameTests=spellcraft:fangs_request_codec_round_trip"`
 Expected: compilation fails (`EvokingRequest.cast`, `Kind`, `EvokingNetwork.handle` do not exist).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```java
 /**
@@ -5035,12 +5035,12 @@ Lang (append after the Task 7 keys, every key in full; the last entry of the fil
 
 `CLAUDE.md`: in the Rules bullet "Server owns state; the client renders it", the packet sentence gains the text "two request kinds: cast, team move" inside the parentheses after "this key was pressed". Re-wrap the paragraph at 100 columns; the final text of the line is ``client→server `EvokingRequest` ("this key was pressed"; two request kinds: cast, team move), which the server validates in full;``.
 
-- [ ] **Step 4: Run the tests and the client boot**
+- [x] **Step 4: Run the tests and the client boot**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_packet_*"`, `"…fangs_request_codec_round_trip"`, then `./gradlew runData`.
 Expected: the tests pass; `runData` stays green (it loads the new key mappings).
 
-- [ ] **Step 5: Full gates, then commit**
+- [x] **Step 5: Full gates, then commit**
 
 Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (expect `All M required tests passed`, M = the previous task's reported total plus the 4 tests this task registers; `requestCodecRoundTrip` is an existing test); write M in the commit's as-built note.
 
@@ -5048,6 +5048,8 @@ Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (
 git add src/main/java/io/github/willrieske/spellcraft src/test/java/io/github/willrieske/spellcraft src/main/resources/assets/spellcraft/lang/en_us.json CLAUDE.md
 git commit -m "feat(evoking): the request packet carries a team move; J picks and K starts"
 ```
+
+> **As built (`28bebae`):** diverged — `EvokingRequest.cast` carries `@SuppressWarnings("EnumOrdinal")` with a reason; reason: Error Prone -Werror.
 
 ---
 
@@ -6934,6 +6936,7 @@ git commit -m "docs(evoking): Part 6 in the README, playtest items, mutation tes
 | 5 | `2d4c6e9` | `start` reads the record with `get` and creates it only once the move begins, so a refusal leaves no empty record; `tick` never creates one; `clear()` unscripts `Dice.RAID_KIT`; reason: Task 4 review. |
 | 6 | `7d431bf` | `TeamMoves.tick` reads the record with `get` and creates one only when a scan is due (AUTOMATIC, summoner present, no move running), not `computeIfAbsent` every tick; Task 11's `tick` snippet must merge into this shape (its `advance` branch sits inside the `record != null && record.active()` block); reason: keeps Task 5's no-empty-record rule. |
 | 7 | `d00be34` | `request` reads the record with `get` (a refusal creates no record), matching `start` and `tick`; reason: Task 5's no-empty-record rule. |
+| 8 | `28bebae` | `EvokingRequest.cast` carries `@SuppressWarnings("EnumOrdinal")` with a reason; reason: Error Prone -Werror. |
 
 ## Resume State
 
