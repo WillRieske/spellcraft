@@ -77,18 +77,22 @@ Sneak + right-click with an empty main hand, by the summoner, toggles `STAYING`,
 `setStaying(true)` sets the bound origin to the vex's block, as today; that block is the **post**.
 `StayWanderGoal` (the drift) is replaced by `HoldPostGoal`, same priority (5) and flag (`MOVE`):
 
-- `canUse`: staying, no target, the move control is free (`!hasWanted()`), and the vex's feet are
-  farther than **1 block** from the post point.
-- `start`: `setWantedPosition(post point, 0.7)` (the follow goal's coasting speed). One move per
-  use (`canContinueToUse` is false).
+- `canUse`: staying, no target, the move control is free (`!hasWanted()`), the vex is **nearly
+  still** (squared speed under `STILL_SPEED_SQR = 0.01`, so the goal waits out a coast), and the
+  vex's feet are farther than **1 block** from the post point.
+- `start`: `setWantedPosition(post point, speed)` with speed **0.7** (the follow goal's coasting
+  speed) when the vex is more than **3 blocks** (`POST_NEAR`) from the post point, and **0.25**
+  within 3 blocks, slow enough that a pass cannot overshoot the tolerance. One move per use
+  (`canContinueToUse` is false).
 
 So a staying vex hangs still at its post (vanilla's vex has no gravity and its move control stops
 it when it arrives), leaves it to charge a target, to flee a hissing creeper, to dodge a golem or
 to repair one, and comes back when that is over. The 1-block tolerance is wider than the distance
 at which vanilla's move control calls a move finished (`getBoundingBox().getSize()`, the mean
 of the box's three sides: about 0.53 for the 0.4 × 0.8 vex, `Vex.java:309`), so the goal never
-fights the move control; a vex that coasts past the post by more than a block makes one more,
-slower pass. A vex with a ranged weapon (§4.3) keeps its distance from the
+fights the move control. Vanilla's move control only halves the velocity on arrival, so a vex
+that flew far coasts a couple of blocks past the post; the nearly-still test makes the goal wait
+that coast out, and the slow approach speed keeps the second pass inside the tolerance. A vex with a ranged weapon (§4.3) keeps its distance from the
 target as any shooter does and returns afterwards.
 
 The re-post after a cross-dimension teleport (the parent's §3.3) is unchanged: the arrival block
@@ -115,9 +119,12 @@ the mode:
   staying → `GuardArea.containsStaying` of the offset from the post point.
 - `guardArea()` (the broad-phase box for entity queries): following → as today; staying → the
   stay box around the post point.
-- `keepsTarget(target)`: the reach clause becomes "following → within `REACH` of the vex;
-  staying → `inGuardArea(target)`". The other clauses (same dimension, alive, attackable, prey)
-  are unchanged.
+- `takesTarget(target)` and `keepsTarget(target)`: the reach clause becomes "following → within
+  `REACH` of the vex; staying → `inGuardArea(target)`". The other clauses (same dimension, alive,
+  attackable, prey) are unchanged. **Taking** is the test every goal runs when it *picks* a target
+  (the grudge goal's `remembered`, the ally goal, the patrol goal's selector); **keeping** is the
+  test of every goal's `canContinueToUse`, and differs only for a following vex with ranged gear
+  (§4.3).
 
 What follows from that, with no further code: the patrol goal hunts hostiles in the stay area;
 the ally-fight goal joins fights of allies in the stay area; the grudge goal's "an ally in the
@@ -194,7 +201,7 @@ it in `canUse`, so exactly one runs:
   goal, as today. Vanilla's `Mob.doHurtTarget` uses the main hand's attribute modifiers and
   enchantments, so a diamond sword hits harder. Tridents are melee.
 - **Ranged** (a launcher, a throwable or arrow that is not support gear): `RangedGearGoal`
-  (priority 3, flag `MOVE`), while the vex has a target: hold between 6 and 10 blocks from it
+  (priority 3, flags `MOVE` and `LOOK`), while the vex has a target: hold between 6 and 10 blocks from it
   (fly away under 6, toward it over 10, at the charge speed), look at it, and every **40 ticks**
   with line of sight shoot:
   - bow or crossbow: `ProjectileUtil.getMobArrow(vex, new ItemStack(Items.ARROW), 1.0F, heldCopy)`
@@ -207,14 +214,23 @@ it in `canUse`, so exactly one runs:
   - potion: `ThrownSplashPotion` / `ThrownLingeringPotion` of a copy of the stack,
     `SPLASH_POTION_THROW` / `LINGERING_POTION_THROW`.
   A staying vex with a ranged weapon moves the same way; its target is still limited to the stay
-  area (§2.3). A **following** vex with ranged gear keeps its target out to **12 blocks** (the
+  area (§2.3). A **following** vex with ranged gear *keeps* its target out to **12 blocks** (the
   band's far edge plus a 2-block margin for the coast) instead of the 7.25 reach, or it would drop
-  the target the moment it backed off; it still only *takes* targets inside its 8 × 8 × 7 box.
+  the target the moment it backed off; it still only *takes* targets within the 7.25 reach
+  (`takesTarget`, §2.3) and, for the patrol, inside its 8 × 8 × 7 box: a grudge or an ally's fight
+  ten blocks away is not taken, though a target already held at ten is kept.
   **Friendly fire.** A ranged vex holds its fire while a friend (the summoner, an ally, a Bound Vex
-  of the same summoner) is in the way: for arrows, within 1 block of the line to the target; for
+  of the same summoner) is in the way: for arrows, within 1 block of the segment from the vex's eyes to the **point the arrow is
+  aimed at** (`VexShots.aimPoint`, a third of the way up the target's box, shared with the aim so
+  the two cannot drift apart; the distance is the pure `SegmentDistance.distanceToSegment`); for
   potions, within 4 blocks of the target (the splash). As a backstop, damage whose attacker is a
   Bound Vex and whose victim is its summoner or something it may not fight (`!isPrey`) is
-  cancelled (`LivingIncomingDamageEvent`). A lingering cloud left on the ground can still catch
+  cancelled (`LivingIncomingDamageEvent`). **With the summoner absent** (a vex that has a summoner
+  mark whose player is offline, dead, spectating or in another level, so `isPrey` cannot be asked),
+  an arrow or potion already in flight is still stopped: *indirect* damage (the direct entity is
+  not the vex itself) is cancelled for any victim that is not an `Enemy` and for any victim
+  carrying the same summoner mark; the vex's own melee is untouched, and a vex with no mark at all
+  does nothing here. A lingering cloud left on the ground can still catch
   a friend who walks into it; accepted, and a playtest item.
 - **Support gear** (a throwable whose effects are all `MobEffectCategory.BENEFICIAL`, and at
   least one effect): the vex does not fight (no charge, no
@@ -331,7 +347,9 @@ The exact scale and offsets are the plan's first guess and Will's eye: playtest 
 
 ## 8. Testing, docs, delivery
 
-**Pure core (TDD, jqwik):** `GuardArea.containsStaying` (examples at the faces and just outside;
+**Pure core (TDD, jqwik):** `SegmentDistance.distanceToSegment` (beside the middle, beyond each
+end clamped, a zero-length segment, a point on the segment; property: never more than the distance
+to either end) and `GuardArea.containsStaying` (examples at the faces and just outside;
 properties: symmetric in each axis, every point the following box accepts is accepted, NaN is
 out) and `FOLLOW_RANGE ≥ 2 · the stay box's half-diagonal` and `≥ REACH`. `./gradlew pitest`
 afterwards and `docs/mutation-testing.md` updated.
@@ -351,11 +369,17 @@ afterwards and `docs/mutation-testing.md` updated.
   stack of several, and none leaves a creative player's; plain empty click returns the weapon and leaves armor and shield; a stranger
   cannot give or take.
 - Fighting: a diamond-sword hit does more than an iron-sword hit; the sword's damage value is
-  unchanged after a hit; a bow vex spawns an arrow entity and keeps ≥ 6 blocks; a harming-potion
-  vex spawns a thrown potion at its target; a healing-potion vex throws at a half-health ally and
+  unchanged after a hit; a bow vex spawns an arrow entity and keeps ≥ 6 blocks; a poison-tipped
+  arrow item is shot as an `Arrow` carrying poison; a harming-potion vex spawns a thrown potion at
+  its target, a lingering one a `ThrownLingeringPotion`; a staying bow vex whose target dies
+  returns to within the post tolerance plus half a block; a healing-potion vex throws at a half-health ally and
   not at a full-health one and never at the zombie; a following bow vex keeps its target while it
-  holds the band; a ranged vex holds its fire with a friend in the way, and its arrow does not
-  hurt its summoner; the held stack's count never changes.
+  holds the band; a ranged vex holds its fire with a friend in the way (a golem, the summoner on the arrow
+  line, the summoner within 4 blocks of a splash target, and fires once clear), and its arrow does
+  not hurt its summoner; a following bow vex does not take a grudge ten blocks away (and takes one
+  at five); the backstop spares a calm golem, a sibling vex and the summoner (arrow and potion
+  sources) but not a husk or a golem mad at the summoner, and with the summoner absent it spares a
+  pig and a sibling; the held stack's count never changes.
 - Shield: a hit from the front is cancelled, from behind is not, damage with no position is not,
   a piercing arrow from the front is not; a blocked hit makes the attacker the vex's last attacker.
 - Support gear does not hold the vex: a healing-potion vex still follows its summoner.

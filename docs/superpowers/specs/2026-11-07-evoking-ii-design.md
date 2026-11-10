@@ -172,12 +172,13 @@ Bound Vex is its own type.
 with a public constructor (`Vex.java:47,57`), so subclassing is clean: the move control, the no-clip
 flight and the vex model are inherited. Vanilla's vex goals are private inner classes
 (`Vex.java:222,280,299,329`), so `BoundVex` does not call `super.registerGoals()` and has its own
-copies of the charge and wander goals. What changes:
+copies of the charge and wander goals. **Amended by the Part 3 spec §2.2:** the wander goal is
+replaced by `HoldPostGoal`. What changes:
 
 - **Registration:** `ModEntities.BOUND_VEX` (`DeferredRegister<EntityType<?>>`,
   `EntityType.Builder.of(BoundVex::new, MobCategory.MONSTER).sized(0.4F, 0.8F)` with vex's
-  tracking settings and `notInPeaceful()`), attributes = `Vex.createAttributes()` with `FOLLOW_RANGE` 7.25, registered in
-  `EntityAttributeCreationEvent`. `MobCategory.MONSTER` keeps vanilla's hostile-mob bookkeeping (it
+  tracking settings and `notInPeaceful()`), attributes = `Vex.createAttributes()` with `FOLLOW_RANGE` 7.25 (**amended by the Part 3 spec §2.3:** now 20),
+  registered in `EntityAttributeCreationEvent`. `MobCategory.MONSTER` keeps vanilla's hostile-mob bookkeeping (it
   is still a monster to golems and villagers, handled in §2.3).
 - **No spawn egg, no natural spawn, no loot table and no experience** (it drops only gear, §4.5;
   `xpReward` is 0, since summon-and-kill would farm 3 XP per vex). Will asked for no
@@ -302,8 +303,11 @@ priority order:
 All three override `canContinueToUse` as round one did: the target is dropped when it stops being
 prey, dies, is in another dimension (a summoner's memory can name a mob it left behind, whose raw
 coordinates may line up with the vex's), can no longer be attacked (`canAttack`: a creative or spectator player, for one), or is
-farther than **reach** (7.25). "In the guard area" means the entity's feet are in the box, faces
-included.
+farther than **reach** (7.25). **Amended by the Part 3 spec §2.3 and §4.3:** that limit is for
+a *following* vex only, and *taking* and *keeping* differ. A staying vex takes and keeps a target
+only while its feet are in the stay area; a following vex takes a target within 7.25 whatever it
+holds, but a following vex with ranged gear keeps one out to 12. "In the guard area" means the
+entity's feet are in the box, faces included.
 
 The three goals scan every **10 ticks** on one shared clock keyed to the vex's entity id
 (`(tickCount + id) % 10 == 0`). A plain `tickCount % 10` would never fire for half the vexes:
@@ -374,7 +378,9 @@ Right-click by the summoner with:
 - a **shield**: it goes in the **offhand**; the old offhand item returns. A shielded vex blocks: in
   `hurtServer`, melee or projectile damage whose source is in front of the vex (dot of the head's
   look vector, `getHeadLookAngle`, and source direction > 0) is cancelled with `SoundEvents.SHIELD_BLOCK`; no durability is used
-  (nothing is ever used up).
+  (nothing is ever used up). **Amended by the Part 3 spec §4.3 (Shield):** the test is vanilla's
+  flat head-yaw geometry (the flat view vector from `getYHeadRot` against the flat direction to the
+  source), not `getHeadLookAngle`, and a piercing arrow is not blocked.
 - a **splash or lingering potion** or **tipped arrow**: main hand (the thrown entities are
   `projectile.throwableitemprojectile.ThrownSplashPotion` / `ThrownLingeringPotion`; the arrow
   is `projectile.arrow.Arrow`). If every effect is
@@ -384,6 +390,9 @@ Right-click by the summoner with:
   arrow (an `Arrow` carrying the potion contents). Otherwise (any `HARMFUL` effect, or a plain
   arrow) it is a **ranged weapon**: thrown or shot at the target every 40 ticks from up to 10
   blocks, keeping 6 blocks away. The stack in hand never shrinks.
+  **Amended by the Part 3 spec §4.1 and §4.3:** support gear is potions only. A tipped arrow
+  whose effects are all beneficial is not gear (an arrow wounds before its effect heals), and a
+  potion with no effects is not gear either.
 - anything else: `PASS` (vanilla does nothing to a vex either).
 
 ### 4.3 Nothing is used up
@@ -391,7 +400,9 @@ Right-click by the summoner with:
 No gear a Bound Vex holds loses durability or count: shield blocks spend no durability (§4.2),
 thrown and shot items are copies, and melee hits restore the main-hand stack after each hit
 (`BoundVex.doHurtTarget` snapshots the stack before `super.doHurtTarget` and puts it back), so the
-item the player gets back is exactly the one they gave.
+item the player gets back is exactly the one they gave. **Amended by the Part 3 spec §4.5:**
+nothing wears the weapon in 26.3 (`Mob.doHurtTarget` never reaches the durability call), so the
+restore is a guard against an enchantment or a later version that does.
 
 ### 4.4 Taking a weapon back
 
@@ -720,7 +731,9 @@ Methodology as round one: pure core TDD with jqwik properties, GameTests for ser
   column; a box `w` wide gives at most `(⌈w⌉ + 1)²` columns (a 3-wide box across block edges touches
   4 per axis). The collapse of shared spots is not here: it needs the floor, so `Fangs.snapshot` does it.
 - `GuardArea` (`spell.rules`): the 8×8×7 box math and the 7.25 reach test; properties: symmetric,
-  a point at the box edge is inside, a point at reach + ε is out.
+  a point at the box edge is inside, a point at reach + ε is out. **Amended by the Part 3 spec §8:**
+  plus the stay box (`containsStaying`) and `FOLLOW_RANGE`, and the pure `SegmentDistance` (a
+  point to a segment, for the hold-fire line).
 - `GolemMercyRule.clamp(health, damage)` (`spell.rules`, pure; `GolemMercy` in `spell` is the event
   subscriber): `min(damage, max(0, health − 25))`, total (NaN → 0; infinities follow the arithmetic); property: health
   after is never below 25 when it was above, and a hit at ≤ 25 does 0.
