@@ -1,7 +1,7 @@
 # Spellcraft: Evoking II Part 3, gear and the new stay (design)
 
 **Date:** 2026-11-09
-**Status:** design
+**Status:** approved
 **Written by:** `/one-shot`, unattended, on 2026-11-09, from Will's playtest report; §9 lists the
 decisions Will did not state.
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
@@ -85,8 +85,10 @@ Sneak + right-click with an empty main hand, by the summoner, toggles `STAYING`,
 So a staying vex hangs still at its post (vanilla's vex has no gravity and its move control stops
 it when it arrives), leaves it to charge a target, to flee a hissing creeper, to dodge a golem or
 to repair one, and comes back when that is over. The 1-block tolerance is wider than the distance
-at which vanilla's move control calls a move finished (the vex's box size, about 0.9), so the goal
-never fights the move control. A vex with a ranged weapon (§4.3) keeps its distance from the
+at which vanilla's move control calls a move finished (`getBoundingBox().getSize()`, the mean
+of the box's three sides: about 0.53 for the 0.4 × 0.8 vex, `Vex.java:309`), so the goal never
+fights the move control; a vex that coasts past the post by more than a block makes one more,
+slower pass. A vex with a ranged weapon (§4.3) keeps its distance from the
 target as any shooter does and returns afterwards.
 
 The re-post after a cross-dimension teleport (the parent's §3.3) is unchanged: the arrival block
@@ -172,8 +174,9 @@ in this order:
 
 ### 4.2 Giving
 
-The vex takes **one** item (`stack.split(1)`; in creative the hand keeps its stack, as vanilla's
-`ItemUtils` does for instabuild players) into the kind's slot with `setItemSlot`, and the item
+The vex takes **one** item (`ItemStack.consumeAndReturn(1, player)`, `ItemStack.java:1211`: a
+copy of one, and the hand shrinks by one unless the player has infinite materials; the plan
+confirms the creative rule in its body) into the kind's slot with `setItemSlot`, and the item
 that was there goes to the summoner (`getInventory().add`, else dropped at the summoner). A
 conjured item in that slot (a repair in progress) is not handed over: the new gift goes to the
 stash (§5.1) and the old stashed item comes back instead. `SoundEvents.ARMOR_EQUIP_GENERIC` for
@@ -194,10 +197,13 @@ it in `canUse`, so exactly one runs:
   (priority 3, flag `MOVE`), while the vex has a target: hold between 6 and 10 blocks from it
   (fly away under 6, toward it over 10, at the charge speed), look at it, and every **40 ticks**
   with line of sight shoot:
-  - bow or crossbow: a plain `Arrow` (`ProjectileUtil.getMobArrow` with a conjured
-    `Items.ARROW`), `pickup` disallowed, `SoundEvents.ARROW_SHOOT` (bow) or `CROSSBOW_SHOOT`;
-  - arrow item held: an `Arrow` made from a copy of the held stack (tipped effects carried),
-    `pickup` disallowed, `ARROW_SHOOT`;
+  - bow or crossbow: `ProjectileUtil.getMobArrow(vex, new ItemStack(Items.ARROW), 1.0F, heldCopy)`
+    (`ProjectileUtil.java:273`), `pickup = DISALLOWED`, `SoundEvents.ARROW_SHOOT` (bow) or
+    `CROSSBOW_SHOOT`;
+  - arrow item held: `getMobArrow(vex, heldCopy, 1.0F, null)`, which asks the `ArrowItem` for its
+    own entity (tipped effects carried, a spectral arrow stays spectral), `pickup = DISALLOWED`
+    (set explicitly: the default is disallowed, but the rule should not rest on a default),
+    `ARROW_SHOOT`;
   - potion: `ThrownSplashPotion` / `ThrownLingeringPotion` of a copy of the stack,
     `SPLASH_POTION_THROW` / `LINGERING_POTION_THROW`.
   A staying vex with a ranged weapon moves the same way; its target is still limited to the stay
@@ -205,18 +211,22 @@ it in `canUse`, so exactly one runs:
 - **Support gear** (throwable or tipped arrow whose effects are all
   `MobEffectCategory.BENEFICIAL`, and at least one effect): the vex does not fight (no charge, no
   ranged goal; it still takes targets, which calls the wolves). `SupportGearGoal` (priority 3,
-  flag `MOVE`): every 40 ticks, the nearest of {the summoner, an ally `LivingEntity`, a Bound Vex
+  **no flags**, so the follow goal and the post goal keep running beside it): every 40 ticks, the nearest of {the summoner, an ally `LivingEntity`, a Bound Vex
   of the same summoner, itself excluded} within 10 blocks, with line of sight and **below half
   health**, gets a copy of the potion thrown at it or of the arrow shot at it. The goal does not
   move the vex.
 
 A splash potion of water (no effects) is ranged gear by the rule above and harmless; accepted.
 
-**Shield.** With a shield in the offhand, `hurtServer` cancels damage (returns false, plays
-`SoundEvents.SHIELD_BLOCK`) when the source has a position (`getSourcePosition() != null`: melee
-and projectiles, not fire or fall), is not `DamageTypeTags.BYPASSES_SHIELD`, and comes from in
-front: the dot of the vex's head look vector (`getHeadLookAngle`) with the horizontal direction to
-the source is > 0. No durability is spent.
+**Shield.** Vanilla's own blocking (`LivingEntity.applyItemBlocking`, `LivingEntity.java:1378`)
+only works for an entity that is *using* the shield (`getItemBlockingWith`), which a mob never
+is, so `BoundVex.hurtServer` does the check itself with vanilla's geometry. With a shield in the
+offhand, damage is cancelled (returns false, plays `SoundEvents.SHIELD_BLOCK`) when the source has
+a position (`getSourcePosition() != null`: melee, projectiles and explosions, not fire or fall),
+is not `DamageTypeTags.BYPASSES_SHIELD`, is not a piercing arrow (`AbstractArrow.getPierceLevel()
+> 0`, vanilla's exception), and comes from in front: the dot of the flat view vector from the
+head's yaw (`calculateViewVector(0, getYHeadRot())`) with the flattened, normalized direction from
+the vex to the source is > 0 (a 180° front arc). No durability is spent.
 
 ### 4.4 Taking the weapon back
 
@@ -230,9 +240,9 @@ unchanged). While the main hand holds a conjured item nothing is taken (§3).
 
 - Melee: `BoundVex.doHurtTarget` copies the main-hand stack before `super.doHurtTarget` and puts
   the copy back after (durability and count restored).
-- Armor: worn armor takes no durability damage: `BoundVex` overrides the method vanilla uses to
-  damage worn equipment on a hit (`doHurtEquipment` in earlier versions; the plan confirms the
-  name in 26.3's `LivingEntity`) to do nothing.
+- Armor: nothing to do. A mob's worn armor is never damaged in 26.3: `LivingEntity.hurtArmor` and
+  `hurtHelmet` are empty (`LivingEntity.java:1957-1961`) and only `Player`, `Wolf` and `Horse`
+  override them.
 - Ranged and support: copies are thrown; the held stack is never shrunk.
 - Shield: no durability call is made.
 
@@ -254,17 +264,23 @@ every conjured slot, because the goal that conjured it is not running any more.
 
 ### 5.2 Drops
 
-Bound Vexes have no loot table. On death (`dropCustomDeathLoot`, which vanilla calls from
-`dropAllDeathLoot` when the mob-loot game rule allows; vanilla's own equipment drop is switched
-off by `setDropChance(slot, 0)` for every slot at construction so nothing drops twice or
-damaged), every non-conjured slot's item and every stashed item drops as-is, the iron sword
-included.
+Bound Vexes have no loot table. Vanilla drops a mob's equipment in `Mob.dropCustomDeathLoot`
+(`Mob.java:920-946`) by per-slot drop chance; a **guaranteed** slot (`setGuaranteedDrop`,
+`Mob.java:621`) drops whoever the killer was and undamaged. `Vex.populateDefaultEquipmentSlots`
+sets the main hand's chance to 0 at spawn (`Vex.java:219`), and saved vexes carry that, so the
+chances are not trusted to be right beforehand: `BoundVex.dropCustomDeathLoot` first dismisses
+every conjured slot (the conjured item vanishes, the stashed item is back in its slot), then
+marks its five slots guaranteed, then calls `super`. Every given item, the iron sword included,
+drops as-is; no conjured item does. Vanilla's own limits apply: nothing drops with the
+`mob_drops` game rule off (`shouldDropLoot`), and an item with Curse of Vanishing does not drop.
 
-On Peaceful removal (`Mob.checkDespawn` discards the vex) the same items drop: `BoundVex`
-overrides `checkDespawn` and drops its gear before `super` when the type is not allowed on the
-level's difficulty. The parent's §10 said "in `remove` for `DISCARDED`"; that would also drop
-gear for a bribed-vex style `discard()` or a test cleanup, so the drop is tied to the Peaceful
-check alone. `/kill` is a death and drops.
+On Peaceful removal the same items drop. `Mob.checkDespawn` discards the vex
+(`Mob.java:715-716`) without any death, so `BoundVex.checkDespawn`, when the level is Peaceful
+and the type is not allowed there, dismisses conjured slots and spawns every slot's item
+(`spawnAtLocation`, clearing the slot) before calling `super`. The parent's §10 said "in `remove`
+for `DISCARDED`"; that would also drop gear on a test cleanup or a later part's silent
+`discard()`, so the drop is tied to the Peaceful check alone. If a NeoForge despawn listener
+keeps the vex alive, it has dropped its gear anyway; accepted. `/kill` is a death and drops.
 
 ### 5.3 Saving
 
@@ -312,19 +328,23 @@ afterwards and `docs/mutation-testing.md` updated.
 `BoundVexTargetGameTests`; the existing stay-toggle tests are rewritten for the sneak click):
 
 - Stay: sneak + empty click toggles; plain empty click does not; a stranger's click does nothing;
+  toggling stay off with a target farther than reach drops it; a vex loaded from a save whose
+  follow-range base is 7.25 has 20 afterwards;
   a staying vex pushed 3 blocks off its post returns to within 1 block and does not wander
   (position sampled over time stays within 1 block); a zombie 6 blocks from the post is attacked,
   one 8 blocks away is not; a target that leaves the area is dropped; the off-hand pearl is not
   thrown on a sneak click.
 - Gear: each kind lands in its slot and the old item returns (helmet over helmet, sword for the
   iron sword, shield, bow, potion); boots and a stick answer `PASS`; exactly one item leaves a
-  stack of several; plain empty click returns the weapon and leaves armor and shield; a stranger
+  stack of several, and none leaves a creative player's; plain empty click returns the weapon and leaves armor and shield; a stranger
   cannot give or take.
 - Fighting: a diamond-sword hit does more than an iron-sword hit; the sword's damage value is
   unchanged after a hit; a bow vex spawns an arrow entity and keeps ≥ 6 blocks; a harming-potion
   vex spawns a thrown potion at its target; a healing-potion vex throws at a half-health ally and
   not at a full-health one and never at the zombie; the held stack's count never changes.
-- Shield: a hit from the front is cancelled, from behind is not, fire is not.
+- Shield: a hit from the front is cancelled, from behind is not, fire is not, a piercing arrow
+  from the front is not.
+- Support gear does not hold the vex: a healing-potion vex still follows its summoner.
 - Stash and drops: conjure/dismiss round trip; a gift during a conjure comes back after
   `dismiss`; death drops given gear, the sword and the stash, and no conjured item; a save/load
   round trip (`saveWithoutId` → a new vex `load`) keeps stash and staying and dismisses conjured
@@ -338,7 +358,8 @@ hover and the 13 × 13 area.
 
 **Docs:** README (the vex paragraph: the new clicks, gear, the stay area), `neoforge.mods.toml`
 description if it mentions vex controls, `docs/api-notes.md` §22 (every vanilla fact this part
-relies on, verified against `build/mc-src`), `docs/mutation-testing.md`, the parent spec's
+relies on, verified against `build/mc-src`) and its §21 interaction note (the click rule it
+records is the old one), `docs/mutation-testing.md`, the parent spec's
 amended lines, and the Part 2 known-gap note in `RepairGolemGoal`'s Javadoc and the checklist.
 
 **Delivery:** branch `feat/evoking-ii-part-3-gear`, one PR. `mod_version` becomes `1.2.2` in the
@@ -361,7 +382,8 @@ checks a tag against `mod_version` and the tag must name the merged commit.
 | One item per gift | Yes, from a stack too | A vex holds one potion and never uses it up. |
 | Tools as weapons | Yes (anything with a main-hand attack-damage modifier) | The parent's rule; a pickaxe is a poor sword but a harmless gift. |
 | Support target | Nearest hurt friend within 10 blocks, with line of sight | The parent's numbers; sight keeps potions out of walls. |
-| Shield test | Head look vs. horizontal direction to the source | The parent's rule, flattened so a hit from above the front still counts. |
+| Shield test | Vanilla's blocking geometry (flat head-yaw view vs. flat direction to the source, piercing arrows excepted), done in `hurtServer` | Vanilla's blocking needs the entity to be using the shield; a hit from above the front still counts. |
+| Support goal holds no move flag | Yes | A healer that stopped following would be left behind. |
 | Peaceful drop | Tied to the Peaceful check, not to every discard | A discard is also how tests and later parts remove a vex silently. |
 | Stay indicator | None | The hover is the sign; Will judges in the playtest. |
 | Version | `1.2.2` now | Will: tag this as a patch. The parent's "one bump to 1.3.0 after Part 7" is amended to "patch releases per part as Will asks". |
