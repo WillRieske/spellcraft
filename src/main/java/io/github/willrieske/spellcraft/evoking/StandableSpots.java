@@ -1,10 +1,14 @@
 package io.github.willrieske.spellcraft.evoking;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -14,6 +18,12 @@ import net.minecraft.world.phys.Vec3;
 final class StandableSpots {
     /** How far sideways the lava pull looks for a shore. */
     static final double SHORE_RANGE = 6.0;
+
+    /** How far sideways the void catch looks for a landing. */
+    static final int LANDING_RANGE = 32;
+
+    /** Every column offset {@code (dx, dz)} within {@link #LANDING_RANGE} blocks, nearest first. */
+    private static final List<int[]> COLUMNS = columns();
 
     private StandableSpots() {}
 
@@ -60,6 +70,44 @@ final class StandableSpots {
             }
         }
         return Optional.ofNullable(best);
+    }
+
+    /** The column offsets of {@link #COLUMNS}: sorted once by squared distance, so the search is nearest first. */
+    private static List<int[]> columns() {
+        List<int[]> offsets = new ArrayList<>();
+        for (int dx = -LANDING_RANGE; dx <= LANDING_RANGE; dx++) {
+            for (int dz = -LANDING_RANGE; dz <= LANDING_RANGE; dz++) {
+                if (dx * dx + dz * dz <= LANDING_RANGE * LANDING_RANGE) {
+                    offsets.add(new int[] {dx, dz});
+                }
+            }
+        }
+        offsets.sort(Comparator.comparingInt(offset -> offset[0] * offset[0] + offset[1] * offset[1]));
+        return List.copyOf(offsets);
+    }
+
+    /**
+     * The nearest column to {@code from} within {@link #LANDING_RANGE} blocks whose top is a standable spot. A column
+     * with no blocks, or in an unloaded chunk, reports the level's lowest Y and is skipped.
+     *
+     * @param level the level
+     * @param from the falling player's position
+     * @return the landing's feet block, or empty
+     */
+    static Optional<BlockPos> landing(ServerLevel level, Vec3 from) {
+        BlockPos column = BlockPos.containing(from);
+        for (int[] offset : COLUMNS) {
+            int x = column.getX() + offset[0];
+            int z = column.getZ() + offset[1];
+            int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+            if (y > level.getMinY()) {
+                BlockPos feet = new BlockPos(x, y, z);
+                if (standable(level, feet)) {
+                    return Optional.of(feet);
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     /** The distance from {@code from} to the center of {@code pos}, ignoring height. */

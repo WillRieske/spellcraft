@@ -2,14 +2,17 @@ package io.github.willrieske.spellcraft.evoking;
 
 import io.github.willrieske.spellcraft.Spellcraft;
 import io.github.willrieske.spellcraft.spell.rules.RescuePush;
+import io.github.willrieske.spellcraft.spell.rules.VoidRule;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
@@ -22,8 +25,11 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.Consumable;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -51,6 +57,9 @@ public final class VexRescues {
     /** How far the rescuer may be when a lava or drowning rescue starts. */
     public static final double RESCUER_RANGE = 16.0;
 
+    /** How far the rescuer may be when a void catch starts. */
+    public static final double VOID_RESCUER_RANGE = 64.0;
+
     /** A lava pull lasts at most this long. */
     public static final int LAVA_LIMIT = 60;
 
@@ -71,6 +80,12 @@ public final class VexRescues {
 
     /** The open water above the player head may reach up at most this far to the air. */
     public static final int WAY_UP = 32;
+
+    /** How far down a falling player is checked for ground. */
+    private static final double GROUND_CHECK = 64.0;
+
+    /** After a void catch found no landing and no last ground, the landing search pauses this long. */
+    private static final int NO_LANDING_PAUSE = 20;
 
     /** How far to the right of the way the player faces the rescuer hangs. */
     private static final double SIDE = 0.6;
@@ -129,6 +144,9 @@ public final class VexRescues {
     /** The game time before which no lava pull starts for each player. */
     private static final Map<UUID, Long> LAVA_PAUSED_UNTIL = new HashMap<>();
 
+    /** The game time before which the landing search is skipped for each player (the last one found nothing). */
+    private static final Map<UUID, Long> NO_LANDING_UNTIL = new HashMap<>();
+
     private VexRescues() {}
 
     /**
@@ -154,6 +172,7 @@ public final class VexRescues {
         drop(id);
         LAST_GROUND.remove(id);
         LAVA_PAUSED_UNTIL.remove(id);
+        NO_LANDING_UNTIL.remove(id);
     }
 
     /**
@@ -245,15 +264,104 @@ public final class VexRescues {
         RUNNING.clear();
         LAST_GROUND.clear();
         LAVA_PAUSED_UNTIL.clear();
+        NO_LANDING_UNTIL.clear();
     }
 
-    /** Starts the first rescue {@code player} needs and has a rescuer for; Tasks 5 and 6 add their kinds here. */
+    /** Starts the first rescue {@code player} needs and has a rescuer for; the void is tested first. */
     private static void startFirstNeeded(ServerPlayer player) {
-        if (needsLavaPull(player)) {
+        if (needsVoidCatch(player)) {
+            catchFromVoid(player);
+        } else if (needsLavaPull(player)) {
             start(player, Kind.LAVA, RESCUER_RANGE);
         } else if (needsDrowningPush(player)) {
             start(player, Kind.DROWNING, RESCUER_RANGE);
         }
+    }
+
+    /** Whether {@code player} is in the End and {@link VoidRule} says the void is about to take them. */
+    private static boolean needsVoidCatch(ServerPlayer player) {
+        ServerLevel level = player.level();
+        return level.dimension().equals(Level.END)
+                && VoidRule.needsCatch(
+                        player.getY(),
+                        level.getMinY(),
+                        player.onGround(),
+                        player.getKnownMovement().y < 0,
+                        player.isFallFlying() || player.getAbilities().flying,
+                        () -> groundBelow(player));
+    }
+
+    /** Whether a ray straight down from the player's feet hits a block within {@link #GROUND_CHECK} blocks. */
+    private static boolean groundBelow(ServerPlayer player) {
+        Vec3 feet = player.position();
+        return player.level()
+                        .clip(new ClipContext(
+                                feet,
+                                feet.subtract(0, GROUND_CHECK, 0),
+                                ClipContext.Block.COLLIDER,
+                                ClipContext.Fluid.NONE,
+                                player))
+                        .getType()
+                != HitResult.Type.MISS;
+    }
+
+    /**
+     * The void catch: when a rescuer is within {@link #VOID_RESCUER_RANGE} and there is somewhere to land, the player
+     * is dismounted, stilled and teleported there, fed the enchanted golden apple's effects, and the rescuer shows
+     * the apple as the tail. No cooldown.
+     */
+    private static void catchFromVoid(ServerPlayer player) {
+        Optional<BoundVex> found = nearestRescuer(player, VOID_RESCUER_RANGE);
+        if (found.isEmpty()) {
+            return;
+        }
+        ServerLevel level = player.level();
+        long now = level.getGameTime();
+        Optional<Vec3> landing = voidLanding(player, now);
+        if (landing.isEmpty()) {
+            return;
+        }
+        Vec3 at = landing.get();
+        player.stopRiding();
+        player.setDeltaMovement(Vec3.ZERO); // before the teleport: its packet carries the velocity
+        player.resetFallDistance();
+        player.teleportTo(level, at.x, at.y, at.z, Set.of(), player.getYRot(), player.getXRot(), false);
+        player.syncVelocity = true;
+        Rescue rescue = new Rescue(Kind.VOID, found.get(), now);
+        RUNNING.put(player.getUUID(), rescue);
+        placeBeside(rescue.rescuer, player);
+        ItemStack apple = new ItemStack(Items.ENCHANTED_GOLDEN_APPLE);
+        Consumable consumable = apple.get(DataComponents.CONSUMABLE);
+        if (consumable != null) {
+            consumable.onConsume(level, player, apple);
+        }
+        showInHand(rescue, new ItemStack(Items.ENCHANTED_GOLDEN_APPLE), now);
+    }
+
+    /**
+     * Where the void catch puts {@code player}: the bottom center of the nearest standable column within the landing
+     * range, else the spot they last stood on if it is in the End and still standable (a broken bridge is not a
+     * landing). A search that finds neither is not repeated for {@link #NO_LANDING_PAUSE} ticks.
+     */
+    private static Optional<Vec3> voidLanding(ServerPlayer player, long now) {
+        UUID id = player.getUUID();
+        ServerLevel level = player.level();
+        boolean search = now >= NO_LANDING_UNTIL.getOrDefault(id, 0L);
+        if (search) {
+            Optional<Vec3> landing =
+                    StandableSpots.landing(level, player.position()).map(Vec3::atBottomCenterOf);
+            if (landing.isPresent()) {
+                return landing;
+            }
+        }
+        Optional<Vec3> ground = lastGround(id)
+                .filter(last -> last.dimension().equals(Level.END)
+                        && StandableSpots.standable(level, BlockPos.containing(last.position())))
+                .map(Ground::position);
+        if (search && ground.isEmpty()) {
+            NO_LANDING_UNTIL.put(id, now + NO_LANDING_PAUSE);
+        }
+        return ground;
     }
 
     /** Whether {@code player} is under water, low on air, and open water leads up to air. */
@@ -327,7 +435,18 @@ public final class VexRescues {
      */
     private static Optional<Rescue> start(ServerPlayer player, Kind kind, double range) {
         UUID id = player.getUUID();
-        Optional<BoundVex> rescuer = player
+        return nearestRescuer(player, range).map(vex -> {
+            Rescue rescue = new Rescue(kind, vex, player.level().getGameTime());
+            RUNNING.put(id, rescue);
+            placeBeside(vex, player);
+            carryOn(player, rescue);
+            return rescue;
+        });
+    }
+
+    /** The nearest vex within {@code range} that {@link #holds} {@code player}, if any. */
+    private static Optional<BoundVex> nearestRescuer(ServerPlayer player, double range) {
+        return player
                 .level()
                 .getEntitiesOfClass(
                         BoundVex.class,
@@ -335,13 +454,6 @@ public final class VexRescues {
                         vex -> holds(vex, player) && vex.distanceTo(player) <= range)
                 .stream()
                 .min(Comparator.comparingDouble(vex -> vex.distanceToSqr(player)));
-        return rescuer.map(vex -> {
-            Rescue rescue = new Rescue(kind, vex, player.level().getGameTime());
-            RUNNING.put(id, rescue);
-            placeBeside(vex, player);
-            carryOn(player, rescue);
-            return rescue;
-        });
     }
 
     /** Whether {@code vex} can (still) rescue {@code player}: alive, here, following, and theirs. */
@@ -365,7 +477,7 @@ public final class VexRescues {
         switch (rescue.kind) {
             case LAVA -> lava(player, rescue, now);
             case DROWNING -> drowning(player, rescue, now);
-            case VOID -> drop(player.getUUID()); // Task 6
+            case VOID -> drop(player.getUUID()); // a catch starts as a tail, so this is never reached with work to do
         }
     }
 
