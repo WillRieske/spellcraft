@@ -1760,7 +1760,7 @@ git commit -m "docs(evoking): Part 5 in the README, playtest items, mutation tes
 
 > **As built (`a7b074c`):** matches plan.
 >
-> **Branch review (`151fdd0`, `ac816fd`, `f20b6b1`):** the world GameTests split per feature (eight classes); the void catch moved to `VoidCatch`; the last ground is kept only in the End; a tail's bucket or apple is shown once a preempted job has given the hand back; crit particles and sound only on hits that land; tests for rescues that preempt a real cure, bribe, repair or crystal job and for a summoner who dies or changes dimension mid-rescue. 489 tests.
+> **Branch review (`151fdd0`, `ac816fd`, `f20b6b1`, `88957a9`):** the world GameTests split per feature (eight classes); the void catch moved to `VoidCatch`; the last ground is kept only in the End; a tail's bucket or apple is shown once a preempted job has given the hand back; crit particles and sound only on hits that land; tests for rescues that preempt a real cure, bribe, repair or crystal job and for a summoner who dies or changes dimension mid-rescue; the tail item survives a job that was only approaching. 496 tests.
 
 ## Divergence index
 
@@ -1783,4 +1783,4 @@ git commit -m "docs(evoking): Part 5 in the README, playtest items, mutation tes
 - Commit SHA: f20b6b1
 - Checkboxes: 49/49 ticked
 - Next task: none (plan complete)
-- Known-failing tests / caveats: Whole-branch review done and its findings fixed (151fdd0, ac816fd, f20b6b1). Visual and feel checks are in docs/playtest-checklist.md (Evoking II Part 5). No version bump, no tag.
+- Known-failing tests / caveats: Whole-branch review done and its findings fixed (151fdd0, ac816fd, f20b6b1, 88957a9). Visual and feel checks are in docs/playtest-checklist.md (Evoking II Part 5). No version bump, no tag.
