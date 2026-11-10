@@ -652,7 +652,7 @@ git commit -m "feat(evoking): a gear stash for Bound Vexes; given gear drops on 
 - Consumes: `BoundVex.isConjured`, `stashGift`, `GEAR_SLOTS` (Task 4).
 - Produces: `VexGear.Kind` (`ARMOR, SHIELD, LAUNCHER, THROWABLE, ARROW, MELEE, NONE`); `static Kind VexGear.kindOf(ItemStack)`; `static Optional<EquipmentSlot> VexGear.slotFor(ItemStack)`; `static boolean VexGear.isSupport(ItemStack)`; `static boolean VexGear.isRanged(ItemStack)` (all public: the GameTests are in another package).
 
-- [ ] **Step 1: `VexGear`.** A `public final class` with a private constructor. Class Javadoc: what a held item is to a Bound Vex (Part 3 spec §4.1), and that it reads only the stack's item and components, so the client and the server classify alike (§3). Order of the tests is the spec's table:
+- [x] **Step 1: `VexGear`.** A `public final class` with a private constructor. Class Javadoc: what a held item is to a Bound Vex (Part 3 spec §4.1), and that it reads only the stack's item and components, so the client and the server classify alike (§3). Order of the tests is the spec's table:
 
 ```java
     public static Kind kindOf(ItemStack stack) {
@@ -722,7 +722,7 @@ git commit -m "feat(evoking): a gear stash for Bound Vexes; given gear drops on 
 
 `hasMainHandAttackDamage` (private): true when `DataComponents.ATTRIBUTE_MODIFIERS` holds an entry for `Attributes.ATTACK_DAMAGE` whose slot group includes `EquipmentSlot.MAINHAND`. **Confirm** the entry accessors with what Task 1 recorded in api-notes §22 (the `ItemAttributeModifiers` entry type and its slot test) and write it from that. `slotFor`'s `ARMOR` arm dereferences a nullable `get`: bind the component to a local with a null check (or return through `Optional.ofNullable(...).map(Equippable::slot)`) so NullAway/Error Prone is satisfied. Note the shield is tested before `EQUIPPABLE`-is-other because a vanilla shield carries `EQUIPPABLE` for `OFFHAND`; the order above handles it (armor slots first, then shield, and only then "other equippable → NONE").
 
-- [ ] **Step 2: `BoundVex.mobInteract`, complete.** Replace the method (keep Task 3's Javadoc, rewriting its second sentence to the full click table and citing §3, §4.2, §4.4):
+- [x] **Step 2: `BoundVex.mobInteract`, complete.** Replace the method (keep Task 3's Javadoc, rewriting its second sentence to the full click table and citing §3, §4.2, §4.4):
 
 ```java
     @Override
@@ -786,7 +786,7 @@ git commit -m "feat(evoking): a gear stash for Bound Vexes; given gear drops on 
 
 **Confirm:** `consumeAndReturn` leaves a creative player's stack alone (api-notes §22, Task 1); if it does not, guard with `player.hasInfiniteMaterials() ? held.copyWithCount(1) : held.consumeAndReturn(1, player)`. `SoundEvents.ARMOR_EQUIP_GENERIC` is a `Holder<SoundEvent>` in recent versions (hence `.value()`); check its declared type. `Mob.setItemSlot` may play the item's own equip sound for armor; if it does, drop the explicit armor sound so it is not doubled. `player.drop(ItemStack, boolean)` exists on `Player`.
 
-- [ ] **Step 3: GameTests** (add to `BoundVexGearGameTests`, shared box, `summoner` + `parked`; each click is `GameTestSupport.hold(player, stack)` then `vex.interact(player, InteractionHand.MAIN_HAND, Vec3.ZERO)`):
+- [x] **Step 3: GameTests** (add to `BoundVexGearGameTests`, shared box, `summoner` + `parked`; each click is `GameTestSupport.hold(player, stack)` then `vex.interact(player, InteractionHand.MAIN_HAND, Vec3.ZERO)`):
 
 | Method | Arrange → Act → Assert |
 |---|---|
@@ -804,7 +804,7 @@ git commit -m "feat(evoking): a gear stash for Bound Vexes; given gear drops on 
 
 Delta: 11 tests.
 
-- [ ] **Step 4: Verify** (`spotlessApply`, `build`, `runGameTestServer`; total = previous + 11) and **commit**:
+- [x] **Step 4: Verify** (`spotlessApply`, `build`, `runGameTestServer`; total = previous + 11) and **commit**:
 
 ```bash
 git add src/main/java/io/github/willrieske/spellcraft/evoking src/main/java/io/github/willrieske/spellcraft/gametest
@@ -813,6 +813,8 @@ git add src/main/java/io/github/willrieske/spellcraft/evoking src/main/java/io/g
 ```bash
 git commit -m "feat(evoking): give a Bound Vex armor, weapons and shields; take the weapon back"
 ```
+
+> **As built (`fa7ad8a`):** diverged — `give` plays no armor sound of its own (`LivingEntity.onEquipItem` plays the equip sound for armor and an offhand shield) and plays `VEX_AMBIENT` for the main hand and for a gift that waits in the stash; the overflow drop is `Player.drop(back, false, Prediction.SERVER_ONLY)`; reason: api-notes §22 (Task 1). Task 3 also got a review fix round first (`36bfed5`: the return flight needs the vex nearly still and approaches at 0.25 inside 3 blocks; a staying vex loaded without a post gets one; two tests added).
 
 ---
 
@@ -1158,6 +1160,7 @@ git commit -m "docs: describe Bound Vex gear and the new stay; playtest items; m
 | 1 | `8854374` | the sources corrected the plan in four places later tasks use: `Player.drop` takes three arguments (`drop(ItemStack, boolean thrownFromHand, Prediction)`); `SoundEvents.ARMOR_EQUIP_GENERIC` and `SHIELD_BLOCK` are holders (`.value()`); `LivingEntity.onEquipItem` already plays the equip sound for armor and an offhand shield set with `setItemSlot`, so Task 5 plays no armor sound of its own; mobs launch projectiles with `Projectile.spawnProjectileUsingShoot` (signatures in api-notes §22); reason: api-notes §22 records what `build/mc-src` says. |
 | 3 | `222c588` | `POST_TOLERANCE` is public (the GameTests are in another package); the stay tests hang the vex at `FEET.above(4)` (the barrier shell at `FEET.above(2)` blocks line of sight) and place husks with no gravity by absolute `setPos` from the post point instead of on stone at structure coordinates (rotated tests put those a block off); the two "drops the target" tests wait with `thenWaitUntil` instead of a 30-tick window; reason: implementer, to make the tests correct under rotation and Error Prone. |
 | 4 | `53e2f9f` | `stashGift` is public (the GameTests are in another package); the Peaceful drop test runs in its own environment `peaceful_gear` (two tests in one `peaceful` batch run side by side and the difficulty change broke the other); reason: implementer, both needed to compile and pass. |
+| 5 | `fa7ad8a` | `give` plays no armor sound of its own (`LivingEntity.onEquipItem` plays the equip sound for armor and an offhand shield) and plays `VEX_AMBIENT` for the main hand and for a gift that waits in the stash; the overflow drop is `Player.drop(back, false, Prediction.SERVER_ONLY)`; reason: api-notes §22 (Task 1). Task 3 also got a review fix round first (`36bfed5`: the return flight needs the vex nearly still and approaches at 0.25 inside 3 blocks; a staying vex loaded without a post gets one; two tests added). |
 
 ## Resume State
 
