@@ -75,7 +75,8 @@ public final class FangGameTests {
     /** The caster's block (relative): the middle of the 3×3×3 structure, one above its floor layer. */
     static final BlockPos FEET = new BlockPos(1, 1, 1);
 
-    private static final Vec3 STAND = new Vec3(1.5, 1, 1.5);
+    /** Where the caster stands (relative): the middle of the {@link #FEET} block; tests send a player back here. */
+    static final Vec3 STAND = new Vec3(1.5, 1, 1.5);
 
     /** The yaw a caster faces to look north; the vex GameTests share it. */
     static final float NORTH = 180.0F;

@@ -30,6 +30,9 @@ public final class SpellcraftGameTests {
     /** Tests that change no global state share this environment (one batch). */
     static final String SHARED = "shared";
 
+    /** Tests that need the Overworld dark; a batch of its own. */
+    static final String NIGHT = "night";
+
     private static final Identifier EMPTY_STRUCTURE = Spellcraft.id("empty");
     private static final int MAX_TICKS = 20;
 
@@ -65,6 +68,7 @@ public final class SpellcraftGameTests {
         BoundVexGearGameTests.registerAll();
         BoundVexCureGameTests.registerAll();
         BoundVexBribeGameTests.registerAll();
+        BoundVexWorldGameTests.registerAll();
         GolemGameTests.registerAll();
     }
 
@@ -88,7 +92,9 @@ public final class SpellcraftGameTests {
     @SubscribeEvent
     public static void register(RegisterGameTestsEvent event) {
         BY_ENVIRONMENT.forEach((environment, registered) -> {
-            Holder<TestEnvironmentDefinition<?>> holder = event.registerEnvironment(Spellcraft.id(environment));
+            int time = environment.equals(NIGHT) ? 18000 : 6000;
+            Holder<TestEnvironmentDefinition<?>> holder =
+                    event.registerEnvironment(Spellcraft.id(environment), new OverworldTime(time));
             registered.forEach(entry -> test(event, holder, entry));
         });
     }
