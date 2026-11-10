@@ -25,10 +25,13 @@ class VoidRuleTest {
         @ParameterizedTest(name = "onGround = {0}, movingDown = {1}")
         @CsvSource({"false, false", "false, true", "true, false", "true, true"})
         void wellBelowTheFloor_isAlwaysCaught(boolean onGround, boolean movingDown) {
+            // Arrange
             BooleanSupplier groundBelow = () -> true;
 
+            // Act
             boolean caught = VoidRule.needsCatch(-4.01, 0, onGround, movingDown, false, groundBelow);
 
+            // Assert
             assertThat(caught).isTrue();
         }
 
@@ -50,6 +53,7 @@ class VoidRuleTest {
          */
         @Test
         void aLowerFloor_movesTheMargin() {
+            // Act & Assert
             assertThat(VoidRule.needsCatch(-64.01, -60, true, false, false, VoidRuleTest::noGround))
                     .isTrue();
             assertThat(VoidRule.needsCatch(-63.99, -60, true, false, false, VoidRuleTest::noGround))
@@ -140,14 +144,17 @@ class VoidRuleTest {
          */
         @Test
         void highUp_doesNotCastTheRay() {
+            // Arrange
             AtomicInteger asked = new AtomicInteger();
             BooleanSupplier counting = () -> {
                 asked.incrementAndGet();
                 return false;
             };
 
+            // Act
             boolean caught = VoidRule.needsCatch(16, 0, false, true, false, counting);
 
+            // Assert
             assertThat(caught).isFalse();
             assertThat(asked).hasValue(0);
         }
@@ -159,15 +166,18 @@ class VoidRuleTest {
          */
         @Test
         void onGroundOrRising_doesNotCastTheRay() {
+            // Arrange
             AtomicInteger asked = new AtomicInteger();
             BooleanSupplier counting = () -> {
                 asked.incrementAndGet();
                 return false;
             };
 
+            // Act
             VoidRule.needsCatch(10, 0, true, true, false, counting);
             VoidRule.needsCatch(10, 0, false, false, false, counting);
 
+            // Assert
             assertThat(asked).hasValue(0);
         }
     }

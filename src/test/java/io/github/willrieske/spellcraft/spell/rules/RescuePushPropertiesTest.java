@@ -33,8 +33,10 @@ class RescuePushPropertiesTest {
                 @ForAll @DoubleRange(min = -10, max = 10) double vz,
                 @ForAll @DoubleRange(min = -10, max = 10) double sx,
                 @ForAll @DoubleRange(min = -10, max = 10) double sz) {
+            // Arrange & Act
             Vector result = RescuePush.lavaPull(new Vector(vx, vy, vz), sx, sz);
 
+            // Assert
             assertThat(Math.hypot(result.x(), result.z()))
                     .isLessThanOrEqualTo(Math.max(RescuePush.PULL_CAP, Math.hypot(vx, vz)) + EPS);
         }
@@ -51,8 +53,10 @@ class RescuePushPropertiesTest {
                 @ForAll @DoubleRange(min = -10, max = 10) double vz,
                 @ForAll @DoubleRange(min = -10, max = 10) double sx,
                 @ForAll @DoubleRange(min = -10, max = 10) double sz) {
+            // Arrange & Act
             Vector result = RescuePush.lavaPull(new Vector(vx, vy, vz), sx, sz);
 
+            // Assert
             assertThat(result.y()).isGreaterThanOrEqualTo(vy);
             assertThat(finite(result)).isTrue();
         }
@@ -72,8 +76,10 @@ class RescuePushPropertiesTest {
                 @ForAll @DoubleRange(min = -10, max = 10) double vx,
                 @ForAll @DoubleRange(min = -10, max = 10) double vy,
                 @ForAll @DoubleRange(min = -10, max = 10) double vz) {
+            // Arrange
             Vector v = new Vector(vx, vy, vz);
 
+            // Act & Assert
             for (Vector result : new Vector[] {RescuePush.lavaLift(v), RescuePush.drowningPush(v)}) {
                 assertThat(result.y()).isGreaterThanOrEqualTo(vy);
                 assertThat(result.x()).isEqualTo(vx);
@@ -99,8 +105,10 @@ class RescuePushPropertiesTest {
                 @ForAll @DoubleRange(min = -10, max = 10) double hx,
                 @ForAll @DoubleRange(min = -10, max = 10) double hy,
                 @ForAll @DoubleRange(min = -10, max = 10) double hz) {
+            // Arrange & Act
             Vector result = RescuePush.returned(new Vector(vx, vy, vz), hx, hy, hz);
 
+            // Assert
             assertThat(finite(result)).isTrue();
             assertThat(Math.sqrt(result.x() * result.x() + result.y() * result.y() + result.z() * result.z()))
                     .isCloseTo(Math.sqrt(vx * vx + vy * vy + vz * vz), within(EPS));

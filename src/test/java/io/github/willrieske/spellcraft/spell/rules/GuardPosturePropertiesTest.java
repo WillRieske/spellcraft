@@ -27,16 +27,45 @@ class GuardPosturePropertiesTest {
                 @ForAll @DoubleRange(min = 0, max = 1) double sideRoll,
                 @ForAll @DoubleRange(min = 0, max = 1) double heightRoll,
                 @ForAll @DoubleRange(min = 0, max = 6.283) @Scale(3) double angle) {
+            // Arrange
             GuardPosture posture = GuardPosture.of(place, dark);
             double side = posture.sideways(sideRoll);
-
+            // Act
             boolean inPlace =
                     posture.inPlace(Math.cos(angle) * side, posture.height(heightRoll), Math.sin(angle) * side);
-
+            // Assert
             assertThat(inPlace).isTrue();
         }
     }
 
+    // jqwik refuses static @Group classes, so ClassCanBeStatic cannot apply.
+    @Group
+    @SuppressWarnings("ClassCanBeStatic")
+    class Spots {
+        /**
+         * For every place, darkness and rolls from 0 to 1, sideways should land within the row's sideways range and
+         * height within its height range.
+         *
+         * <p>Methods under test: {@link GuardPosture#sideways(double)}, {@link GuardPosture#height(double)}
+         */
+        @Property
+        void everySpotIsInsideItsRowsRanges(
+                @ForAll Place place,
+                @ForAll boolean dark,
+                @ForAll @DoubleRange(min = 0, max = 1) double sideRoll,
+                @ForAll @DoubleRange(min = 0, max = 1) double heightRoll) {
+            // Arrange
+            GuardPosture posture = GuardPosture.of(place, dark);
+            // Act
+            double side = posture.sideways(sideRoll);
+            double height = posture.height(heightRoll);
+            // Assert
+            assertThat(side).isBetween(posture.sideMin(), posture.sideMax());
+            assertThat(height).isBetween(posture.heightMin(), posture.heightMax());
+        }
+    }
+
+    // jqwik refuses static @Group classes, so ClassCanBeStatic cannot apply.
     @Group
     @SuppressWarnings("ClassCanBeStatic")
     class Of {
@@ -47,8 +76,10 @@ class GuardPosturePropertiesTest {
          */
         @Property
         void bandsAreNotEmpty(@ForAll Place place, @ForAll boolean dark) {
+            // Arrange & Act
             GuardPosture posture = GuardPosture.of(place, dark);
 
+            // Assert
             assertThat(posture.sideMin()).isLessThan(posture.sideMax());
             assertThat(posture.heightMin()).isLessThan(posture.heightMax());
         }
@@ -61,8 +92,10 @@ class GuardPosturePropertiesTest {
          */
         @Property
         void scanIntervalIsEvenAndAtLeastTwo(@ForAll Place place, @ForAll boolean dark) {
+            // Arrange & Act
             int interval = GuardPosture.of(place, dark).scanInterval();
 
+            // Assert
             assertThat(interval).isGreaterThanOrEqualTo(2);
             assertThat(interval % 2).isZero();
         }
@@ -74,8 +107,10 @@ class GuardPosturePropertiesTest {
          */
         @Property
         void noPostureIsWiderOrSlowerThanWide(@ForAll Place place, @ForAll boolean dark) {
+            // Arrange & Act
             GuardPosture posture = GuardPosture.of(place, dark);
 
+            // Assert
             assertThat(posture.sideMax()).isLessThanOrEqualTo(GuardPosture.WIDE.sideMax());
             assertThat(posture.scanInterval()).isLessThanOrEqualTo(GuardPosture.WIDE.scanInterval());
         }
@@ -88,8 +123,10 @@ class GuardPosturePropertiesTest {
         @Property
         void closePosturesStayOverhead(
                 @ForAll Place place, @ForAll boolean dark, @ForAll @DoubleRange(min = 0, max = 1) double roll) {
+            // Arrange & Act
             GuardPosture posture = GuardPosture.of(place, dark);
 
+            // Assert
             if (posture.close()) {
                 assertThat(posture.height(roll)).isGreaterThanOrEqualTo(2.2);
             }

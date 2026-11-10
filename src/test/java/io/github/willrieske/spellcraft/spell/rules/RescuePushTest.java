@@ -85,6 +85,7 @@ class RescuePushTest {
          */
         @Test
         void diagonalSpot_pullsOnBothAxes() {
+            // Act & Assert
             assertVector(RescuePush.lavaPull(new Vector(0, 0, 0), 3, 4), 0.06, 0.3, 0.08);
             assertVector(RescuePush.lavaPull(new Vector(0, 0, 0), -6, -8), -0.06, 0.3, -0.08);
         }
@@ -107,6 +108,28 @@ class RescuePushTest {
         @Test
         void aNearbySpot_stillPulls() {
             assertVector(RescuePush.lavaPull(new Vector(0, 0, 0), 1.0e-3, 0), 0.1, 0.3, 0);
+        }
+    }
+
+    @Nested
+    class LavaPullCrossing {
+        /**
+         * When the player already moves faster than the cap across the pull (0.5 across, spot 3 blocks away), lavaPull
+         * should keep the size of the sideways velocity at 0.5, so the crossing part gives a little to the pull: about
+         * 0.098 toward the spot and 0.490 across.
+         *
+         * <p>Method under test: {@link RescuePush#lavaPull(Vector, double, double)}
+         */
+        @Test
+        void fasterThanTheCapAcrossThePull_keepsTheSizeAndGivesALittle() {
+            // Arrange
+            Vector crossing = new Vector(0, 0, 0.5);
+            double root = Math.sqrt(0.26);
+            // Act
+            Vector result = RescuePush.lavaPull(crossing, 3, 0);
+            // Assert
+            assertVector(result, 0.05 / root, 0.3, 0.25 / root);
+            assertThat(Math.hypot(result.x(), result.z())).isCloseTo(0.5, within(EPS));
         }
     }
 

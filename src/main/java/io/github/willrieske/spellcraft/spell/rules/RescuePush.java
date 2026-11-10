@@ -17,7 +17,7 @@ public final class RescuePush {
     /** The least upward speed during a drowning push, and a lava pull with no shore. */
     public static final double LIFT = 0.4;
 
-    /** Lengths at or under this count as zero: no direction can be taken from them. */
+    /** A length in blocks at or under which a direction is too short to use, so it counts as zero. */
     private static final double TINY = 1.0e-6;
 
     /**
@@ -34,7 +34,8 @@ public final class RescuePush {
     /**
      * One tick of the lava pull toward a shore: adds {@link #PULL} sideways toward the spot, keeps the sideways speed
      * at or under the larger of {@link #PULL_CAP} and what it already was, and raises the upward speed to at least
-     * {@link #PULL_UP}. A spot straight above or below adds nothing sideways.
+     * {@link #PULL_UP}. A spot straight above or below adds nothing sideways. A player already faster than the cap keeps
+     * that speed (the size of the sideways velocity), so the part of it that crosses the pull gives a little to the pull.
      *
      * @param v the player's velocity
      * @param toSpotX blocks east from the player to the spot
