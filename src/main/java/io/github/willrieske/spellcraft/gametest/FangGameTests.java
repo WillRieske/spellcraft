@@ -150,6 +150,19 @@ public final class FangGameTests {
     }
 
     /**
+     * Like {@link #addPadded(String, String, Consumer)} for a body that runs longer than {@link #LONG} ticks.
+     *
+     * @param environment the test environment
+     * @param name the test's name
+     * @param bodyTicks how many ticks the body itself may take, after the wait of {@link #padded}
+     * @param body the test body
+     */
+    static void addPadded(String environment, String name, int bodyTicks, Consumer<GameTestHelper> body) {
+        int polls = (int) (PADDING_DEADLINE_MILLIS / POLL_MILLIS);
+        SpellcraftGameTests.add(environment, name, bodyTicks + polls, PADDING, padded(body));
+    }
+
+    /**
      * Steps the caster as the server's player tick would: a mock player gets no player tick (docs/api-notes.md §19).
      *
      * @param player the mock player to step

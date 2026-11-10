@@ -14,9 +14,11 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.ServerExplosion;
 import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.EventPriority;
@@ -27,6 +29,7 @@ import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerRespawnPositionEvent;
+import net.neoforged.neoforge.event.level.ExplosionKnockbackEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 /**
@@ -150,17 +153,24 @@ public final class BoundVexEvents {
      * own melee is not touched: it cannot hit while it has no target. A vex with no summoner mark ({@code /summon}) does
      * nothing here.
      *
+     * <p>A blast whose direct entity is an end crystal never hurts a Bound Vex, whoever set it off (spec §7.1); the
+     * vex that broke the crystal names itself as the causing entity, so the rules above spare its side.
+     *
      * @param event the incoming-damage event, before armor and reductions
      */
     @SubscribeEvent
     public static void onIncomingDamage(LivingIncomingDamageEvent event) {
+        if (event.getEntity() instanceof BoundVex && event.getSource().getDirectEntity() instanceof EndCrystal) {
+            event.setCanceled(true); // a crystal's blast never hurts a Bound Vex, whoever set it off (spec §7.1)
+            return;
+        }
         if (!(event.getSource().getEntity() instanceof BoundVex vex)) {
             return;
         }
         ServerPlayer owner = vex.summoner().orElse(null);
         LivingEntity victim = event.getEntity();
         if (owner != null) {
-            if (victim.getUUID().equals(owner.getUUID()) || !vex.isPrey(victim)) {
+            if (spares(vex, owner, victim)) {
                 event.setCanceled(true);
             }
         } else if (vex.summonerId().isPresent()
@@ -168,6 +178,37 @@ public final class BoundVexEvents {
                 && (!(victim instanceof Enemy)
                         || victim.getExistingData(AllyAttachments.SUMMONER).equals(vex.summonerId()))) {
             event.setCanceled(true);
+        }
+    }
+
+    /**
+     * Whether the friendly-fire backstop spares {@code victim} from {@code vex}, whose summoner {@code owner} is here:
+     * the summoner themselves, or anything the vex may not fight ({@link BoundVex#isPrey}).
+     */
+    private static boolean spares(BoundVex vex, ServerPlayer owner, LivingEntity victim) {
+        return victim.getUUID().equals(owner.getUUID()) || !vex.isPrey(victim);
+    }
+
+    /**
+     * Stops a blast from throwing those it may not hurt (Parts 4–5 spec §7.1): vanilla pushes everything in range even
+     * when the damage was canceled. A crystal's blast never moves a Bound Vex; a blast a Bound Vex caused never moves
+     * its summoner or anyone the friendly-fire backstop spares.
+     *
+     * @param event the knockback for one entity, after the damage and before the push
+     */
+    @SubscribeEvent
+    public static void onExplosionKnockback(ExplosionKnockbackEvent event) {
+        ServerExplosion explosion = event.getExplosion();
+        Entity affected = event.getAffectedEntity();
+        if (explosion.getDirectSourceEntity() instanceof EndCrystal && affected instanceof BoundVex) {
+            event.setKnockbackVelocity(Vec3.ZERO);
+            return;
+        }
+        if (explosion.getDamageSource().getEntity() instanceof BoundVex vex
+                && affected instanceof LivingEntity victim) {
+            vex.summoner()
+                    .filter(owner -> spares(vex, owner, victim))
+                    .ifPresent(owner -> event.setKnockbackVelocity(Vec3.ZERO));
         }
     }
 
@@ -182,7 +223,7 @@ public final class BoundVexEvents {
     }
 
     /**
-     * Drops every note, every repair claim, every cure claim, every bribe claim, every scripted bribe die and every
+     * Drops every note, every repair claim, every cure claim, every bribe claim, every crystal claim, every scripted bribe die and every
      * running rescue ({@link VexRescues#clear}) when the
      * server stops (single-player loads one server per world in the same JVM, so none may outlive its world).
      *
@@ -194,6 +235,7 @@ public final class BoundVexEvents {
         RepairGolemGoal.clearClaims();
         CureZombieVillagerGoal.clearClaims();
         BribeGoal.clearClaims();
+        AttackCrystalGoal.clearClaims();
         VexRescues.clear();
     }
 
