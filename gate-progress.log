@@ -93,3 +93,17 @@ ed57523 Part 4 cure fix round: build green; All 337 required tests passed twice
 37e1415 Part 4 bribe fix round: build green; All 340 required tests passed twice; counting-dice test shown red without the guard
 a322e68 Part 4 branch review (a322e68..HEAD): build green; All 348 required tests passed twice; new tests shown red without their guards
 Part 4 stale-cure fix round: build green; All 349 required tests passed twice; stale-cure test shown red without the guard
+2c484b4 Part 5 Task 1: build green; All 355 required tests passed twice (baseline 349)
+deed037 Part 5 Task 2: build green (unit tests, ArchUnit); pitest 398/407 module-wide
+Part 5 Task 1 fix round: build green; All 358 required tests passed twice (baseline 355); cleanup tests shown red per piece
+9fa69ec Part 5 Task 3: build green; All 366 required tests passed twice
+c8613d0 Part 5 Task 4: build green; All 384 required tests passed twice
+7ba6f2a Part 5 Tasks 4 fixes + 5: build green; All 408 required tests passed twice; pitest RescuePush 48/49, GuardPosture 36/36, VoidRule 13/13
+5f3fab6 Part 5 Task 6: build green; All 422 required tests passed twice
+f40f625 Part 5 Task 7 (+ Task 5 fixes 0c30b8d): build green; All 435 required tests passed twice
+e006924 Part 5 Task 8 (+ Task 6 fixes 9b58e11): build green; All 454 required tests passed twice
+2bdaf45 Part 5 Task 9 (+ Task 7 fixes f99d4b1): build green; All 469 required tests passed twice
+a7b074c Part 5 Task 10 (+ Task 8 fixes 8b51744): build, runData green; All 475 required tests passed twice; pitest 413/419
+ac816fd Part 5 branch-review fixes (A 151fdd0, B ac816fd, C tests): build green; All 489 required tests passed twice
+Part 5 tail-item fix round (tail self-heals after a preempted job; level-clause, blocked-crit tests): build green; All 496 required tests passed twice
+Part 5 flaky-test fix (rescuer-target tests pause the follow goal until the vex holds the husk): build green; five lava-selector runs green; All 496 required tests passed twice

@@ -4,6 +4,7 @@ import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.BribeGoal;
+import io.github.willrieske.spellcraft.evoking.FollowSummonerGoal;
 import io.github.willrieske.spellcraft.evoking.ModEntities;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import java.util.LinkedHashMap;
@@ -19,6 +20,7 @@ import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.monster.zombie.Husk;
@@ -157,6 +159,39 @@ public final class BoundVexTestSupport {
     static BoundVex noTargets(BoundVex vex) {
         vex.targetSelector.removeAllGoals(goal -> true);
         return vex;
+    }
+
+    /** The goal priority {@code BoundVex.registerGoals} gives {@link FollowSummonerGoal}. */
+    private static final int FOLLOW_PRIORITY = 4;
+
+    /**
+     * Takes the follow goal away from {@code vex} so that it hangs where it was put until its target goals have run. A
+     * full-AI vex put outside its posture band flies to a random spot in the band (a no-clip flight, into the stone
+     * of a lava or water arrangement, where its eyes lose sight of a husk), and its first scan comes up to 9 ticks
+     * after it spawns (docs/api-notes.md §21, "The goal clock"): the race between the two decides whether it ever
+     * takes the target. Give the goal back with {@link #resumeFollowing} once the target is held.
+     *
+     * @param vex the vex, just spawned
+     * @return the removed goal, for {@link #resumeFollowing}
+     */
+    static Goal pauseFollowing(BoundVex vex) {
+        Goal follow = vex.goalSelector.getAvailableGoals().stream()
+                .map(wrapped -> wrapped.getGoal())
+                .filter(FollowSummonerGoal.class::isInstance)
+                .findFirst()
+                .orElseThrow();
+        vex.goalSelector.removeGoal(follow);
+        return follow;
+    }
+
+    /**
+     * Gives {@code follow}, taken by {@link #pauseFollowing}, back to {@code vex} at its own priority.
+     *
+     * @param vex the vex
+     * @param follow the goal {@link #pauseFollowing} returned
+     */
+    static void resumeFollowing(BoundVex vex, Goal follow) {
+        vex.goalSelector.addGoal(FOLLOW_PRIORITY, follow);
     }
 
     /** A creeper with no AI, so it neither swells nor walks, discarded when the test ends. */

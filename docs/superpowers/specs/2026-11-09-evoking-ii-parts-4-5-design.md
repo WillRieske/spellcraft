@@ -1,7 +1,8 @@
 # Spellcraft: Evoking II Parts 4 and 5, cure, bribes and world helpers (design)
 
 **Date:** 2026-11-09
-**Status:** plan written (`2026-11-09-evoking-ii-part-4.md`); phase 2 plan not yet written
+**Status:** implemented 2026-11-10 via `2026-11-10-evoking-ii-part-5.md`; playtest pending
+<!-- child-plans: 2026-11-09-evoking-ii-part-4.md, 2026-11-10-evoking-ii-part-5.md -->
 **Written by:** `/one-shot`, unattended, on 2026-11-09; §10 lists the decisions Will did not state.
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
 **Builds on:** [`2026-11-07-evoking-ii-design.md`](2026-11-07-evoking-ii-design.md) ("the parent
@@ -56,7 +57,7 @@ ghast; and "scan every 5 ticks" and "every tick" are not reachable on the goal c
 | **Rescuer** | The vex picked for a rescue: the nearest living, following (not staying) Bound Vex of that summoner within 16 blocks, in the same level. |
 | **Standable spot** | A block position whose block below has a sturdy top face and where that position and the one above it are both air (so no fluid, no portal block, nothing to collide with). |
 | **Courted** | A vanilla vex that a Bound Vex has claimed for a bribe and not yet rolled for. Not prey while it lasts. |
-| **Last ground position** | The last standable spot a player stood on, with its dimension; kept in memory for every online player. |
+| **Last ground position** | The last standable spot a player stood on in the End (its only use is the void catch); kept in memory until they log out. |
 
 ## 1. Scope and delivery
 
@@ -247,7 +248,12 @@ again.
   The parent spec's `hurtMarked` does not exist in 26.3; the field is `Entity.syncVelocity`,
   which `ServerEntity` sends to the player's own client too. Because that packet replaces the
   client's velocity, every push **adds to** what the player is doing instead of overwriting it
-  (the formulas in §6.2), so the player keeps steering.
+  (the formulas in §6.2), so the player keeps steering. "What the player is doing" is the last
+  movement their client reported (`ServerPlayer.getKnownMovement()`); the server-side velocity
+  of a player is not their real one. That movement is taken **with the fluid's drag applied**
+  (×0.5 in lava, ×0.8 in water, vanilla's factors): the client moves, then slows; a packet that
+  sent the unslowed movement back every tick would cancel the drag, and a player steering toward
+  the shore would speed up without limit.
 
 ## 6. Part 5: posture, rescues, the fireball
 
@@ -260,9 +266,9 @@ and its scan interval.
 | Where | Sideways from the summoner | Height above the summoner's feet | Speed | Scan every |
 |---|---|---|---|---|
 | Overworld by day; any other dimension | 2–3.5 | 0.5–1.5 | 0.7 | 10 ticks |
-| Overworld when `level.isDarkOutside()` (night, or a thunderstorm) | 1–2 | 2.2–3.0 | 0.35 | 4 ticks |
-| Nether | 1–2 | 2.2–3.0 | 0.35 | 4 ticks |
-| End | 0.5–1.5 | 2.2–3.0 | 0.35 | 2 ticks |
+| Overworld when `level.isDarkOutside()` (night, or a thunderstorm) | 1–2 | 2.5–3.0 | 0.35 | 4 ticks |
+| Nether | 1–2 | 2.5–3.0 | 0.35 | 4 ticks |
+| End | 0.5–1.5 | 2.5–3.0 | 0.35 | 2 ticks |
 
 - **Close means overhead.** In the three close postures the vexes hover **above the player's
   head** (the player is 1.8 tall), not at eye height. At eye height, a ring of vexes within two
@@ -273,8 +279,13 @@ and its scan interval.
 - **When a vex moves.** `FollowSummonerGoal` asks the posture each time. A vex is *in place*
   when its sideways distance from the summoner is at most the row's outer edge plus 0.5 and its
   height above the summoner's feet is within the row's range widened by 0.5 each way; otherwise,
-  when idle, it flies to a random spot inside the row's two ranges at the row's speed (the slow
-  speed keeps its coast inside a narrow band). The first row keeps today's test (farther than 4
+  when idle, it flies to a random spot inside the row's two ranges at the row's speed. In the
+  three close postures the flight is one continuous goal use that ends when the vex arrives, and
+  on arrival its velocity is zeroed: a vex left to coast sank to 1.5 blocks above the feet, eye
+  height, which is what "overhead" is there to prevent. Vanilla's move control calls a spot
+  reached up to half a block short, which is why the band starts at 2.5 and not lower: a vex
+  that stops short is still about 2 blocks up. A target appearing mid-flight ends the flight at
+  once (the wanted position is dropped so the charge goal can start). The first row keeps today's test (farther than 4
   blocks, feet to feet). The teleport rule (farther than 12 blocks) is unchanged; a teleported
   vex lands within 2 blocks and then takes its place.
 - **Scan interval.** The three target goals and the job goals read their interval from
@@ -290,7 +301,8 @@ and its scan interval.
 
 `VexRescues.tick(player)` runs each tick for every online, living player who is not a spectator:
 
-1. Record the **last ground position** when the player is `onGround()` on a standable spot.
+1. In the End, record the **last ground position** when the player is `onGround()` on a
+   standable spot.
 2. If a rescue for this player is running, carry it on (below).
 3. Otherwise test the needs in this order and start the first that holds and has a rescuer:
    the void (End), lava (Overworld and Nether), drowning (Overworld).
@@ -309,8 +321,8 @@ feet (vexes pass through blocks); each tick it is kept there, looking at the pla
 
 | Rescue | Need | Each tick, to the player's velocity `v` | Ends |
 |---|---|---|---|
-| **Lava pull** (Overworld, Nether) | `player.isInLava()` | Find the nearest standable spot within 6 blocks sideways whose height is between the player's feet −1 and +2 and that is not in lava. With a spot: add 0.1 toward it sideways, capping the sideways speed at 0.35, and raise `v.y` to at least 0.3. With none: only raise `v.y` to at least 0.4. | When the player has been out of lava for 10 ticks, or is out of lava and on the ground; or 60 ticks after it began, whichever is first. No push is applied on ticks the player is out of lava. After any lava rescue ends, none starts for that player for 20 ticks. |
-| **Drowning push** (Overworld) | `player.isUnderWater()`, `getAirSupply() < 60`, and **a way up**: every block from the player's head upward is water (no collision) until air is reached, within 32 blocks | Raise `v.y` to at least 0.4; `v.x` and `v.z` are left alone. | The player's eyes are out of water, the way up closes, or 200 ticks. |
+| **Lava pull** (Overworld, Nether) | `player.isInLava()` | Find the nearest standable spot within 6 blocks sideways whose height is between the player's feet −1 and +2 and that is not in lava. `v` is the player's movement with lava's drag (×0.5). With a spot: add 0.1 toward it sideways, cap the sideways speed at 0.35 (a hard cap), and raise `v.y` to at least 0.3. With none: only raise `v.y` to at least 0.4. | When the player has been out of lava for 10 ticks, or is out of lava and on the ground; or 60 ticks after it began, whichever is first. No push is applied on ticks the player is out of lava. After any lava rescue ends, none starts for that player for 20 ticks. |
+| **Drowning push** (Overworld) | `player.isUnderWater()`, `getAirSupply() < 60`, and **a way up**: every block from the player's head upward is water (no collision) until air is reached, within 32 blocks | `v` is the player's movement with water's drag (×0.8). Raise `v.y` to at least 0.4; nothing is added sideways. | The player's eyes are out of water, the way up closes, or 200 ticks. |
 | **Void catch** (End) | §6.4 | One action, in the tick it starts. | After a 20-tick tail (the apple in the vex's hand). |
 
 A drowning player under a ceiling gets no push: holding them against the roof would stop them
@@ -322,8 +334,11 @@ lava: the rescuer conjures a **water bucket** in its main hand for a 20-tick tai
 on the player, and `player.clearFire()`. Once per rescue. No water block is placed. In the
 Overworld the player keeps burning (Will chose only the pull there).
 
-A rescuer keeps its own target and returns to its duties when the rescue ends. A rescue never
-uses a staying vex.
+A rescuer returns to its duties when the rescue ends. It keeps its target if that target is
+still within its reach from the player's side; one it was fighting farther off is dropped by the
+vex's ordinary rules (it was moved away from it). A rescue never uses a staying vex. A rescue
+also ends when the player stops needing it: they gain the protecting effect, go creative or
+mount something.
 
 ### 6.3 The fireball return (Nether)
 
@@ -336,7 +351,8 @@ When a `LargeFireball` in the Nether is about to hit, and for some living, non-s
 
 - the fireball's owner is not that player (a fireball they or their vex already returned is
   left alone), and
-- the thing hit is that player, or a block or entity within **4 blocks** of that player, and
+- the thing hit is that player, or a block or entity within **4 blocks** of that player's body
+  (measured from the hit point to their bounding box, not their feet), and
 - a living Bound Vex of that player, following or staying, is within **7.25 blocks** of the
   fireball (the nearest one acts),
 
@@ -360,6 +376,13 @@ returned fireball. Accepted (it flies away from them).
 
 A staying vex that returned a fireball flies back to its post afterwards.
 
+**A fireball you own passes through your vexes.** The returned fireball heads for the ghast your
+vexes are attacking, and because you are its owner the Part 3 backstop does not see its hit. So
+the impact of a `LargeFireball` whose owner is a player on a Bound Vex of that player is
+cancelled, in any dimension, and nothing else is done: it flies on (a ray that starts inside a
+box does not hit it). This also covers a fireball you punched back yourself. Its blast, when it
+lands on something else, still hurts what stands near, vexes included.
+
 ### 6.4 The void catch (End)
 
 **Need:** the player is in the End, is not flying with an elytra or creative flight, and either
@@ -372,12 +395,19 @@ falling player outruns the 16-block rule).
 **Action:** find where to put them: the nearest **standable spot** to the player's column
 within 32 blocks sideways, taken column by column outward from the
 `MOTION_BLOCKING_NO_LEAVES` height map (a column with no blocks, or whose top is not a standable
-spot, is skipped); else the player's **last ground position** if it is in the End. With neither,
-there is no catch. Otherwise: a riding player is dismounted; the player is teleported there;
-their velocity and fall distance are zeroed; the rescuer is brought to their side; and the vex
+spot, is skipped); else the player's **last ground position** if it is in the End and, when its
+chunk is loaded, is still a standable spot (a spot in an unloaded chunk is trusted as recorded:
+checking it would load the chunk on the server thread, and the teleport loads it anyway). With
+neither, there is no catch, and the column search is not repeated for 20 ticks. Otherwise the
+player is teleported there (vanilla's teleport dismounts a rider and zeroes the velocity, on the
+client too); if the teleport is refused (an event cancelled it), nothing more happens except that
+the landing search is paused for 20 ticks, like an empty one, so the search is not repeated every
+tick; their fall distance is zeroed; the rescuer is brought to their side; and the vex
 feeds them an **enchanted golden apple**: the apple's own consume effects are applied through
 vanilla's `Consumable.onConsume` on a throwaway stack, with its eating sound, and the vex shows
-the apple in its hand (conjured) for the 20-tick tail. No item is spent.
+the apple in its hand (conjured) for the 20-tick tail (a rescuer that was mid-job shows it as
+soon as that job has given its hand back). The apple also feeds: `onConsume` applies
+its food value as well as its effects. No item is spent.
 
 **No cooldown** (Will's choice, kept knowingly): stepping off the island with a vex near is a
 repeatable source of the apple's effects. Vanilla also counts the apple as eaten for statistics
@@ -396,8 +426,9 @@ that is not invulnerable, within **32 blocks** of a following vex or inside the 
 staying one, is not claimed. The nearest is claimed. The vex flies to within 2 blocks and calls
 `crystal.hurtServer(level, damageSources().mobAttack(vex), 1)`, which vanilla turns into the
 crystal's explosion. The goal ends then, and also when the crystal is removed by anything else
-(a neighbor's blast), when the vex gets a target, or after 200 ticks; a vex that flew far is
-brought back by the follow goal's teleport.
+(a neighbor's blast), when the vex gets a target, when its summoner is no longer present, when
+the dragon dies, or after 200 ticks; a vex that gave a crystal up after 200 ticks claims none for
+another 200 ticks. A vex that flew far is brought back by the follow goal's teleport.
 
 **The explosion and your side.** A crystal explodes with power 6: lethal near it, and its
 knockback reaches 12 blocks. Players stand on towers to reach caged crystals, and their vexes
@@ -412,7 +443,10 @@ get there first.
   `BoundVexEvents` handles NeoForge's `ExplosionKnockbackEvent`: when the explosion was caused
   by a Bound Vex, the knockback is set to zero for every entity the backstop spares (the
   summoner, allies, the summoner's vexes); and for an explosion whose direct source is an
-  `EndCrystal`, for every Bound Vex. So a vex breaking the crystal beside you neither hurts you
+  `EndCrystal`, for every Bound Vex. When the causing vex's summoner is absent (offline, dead or
+  in another level) the backstop has its other rule (indirect damage only, for anyone who is no
+  `Enemy` and anyone carrying the same summoner mark), and the knockback is zeroed for exactly
+  those victims, by the same test. So a vex breaking the crystal beside you neither hurts you
   nor throws you off the tower. A crystal *you* break still throws you, as in vanilla.
 
 ### 7.2 Critical hits
@@ -420,8 +454,10 @@ get there first.
 In the End, every **melee** hit by a Bound Vex does **3×** damage: in `BoundVexEvents`'s
 `LivingIncomingDamageEvent` handler, after the backstop's test and only when the hit was not
 cancelled, when the damage's direct entity is a Bound Vex (its own body, so arrows and potions
-are excluded) in the End, the amount is tripled, 6 `CRIT` particles appear on the victim and
-`SoundEvents.PLAYER_ATTACK_CRIT` plays. This holds for any victim the vex may fight, a player
+are excluded) in the End, whether or not its summoner is present, the amount is tripled. When
+such a hit lands (`LivingDamageEvent.Post`, damage above zero), 6 `CRIT` particles appear on the
+victim and `SoundEvents.PLAYER_ATTACK_CRIT` plays; a hit a shield blocks or invulnerability
+frames absorb shows nothing. This holds for any victim the vex may fight, a player
 under the PvP rule included, and with any weapon it was given. The golem mercy clamp runs later
 in the damage pipeline (`LivingDamageEvent.Pre`) and still holds.
 
@@ -437,6 +473,9 @@ in the damage pipeline (`LivingDamageEvent.Pre`) and still holds.
 - **The fireball's ghast is gone or out of sight:** the fireball goes straight back along its
   path. **A fireball that is not a ghast's** (a command's, for one) is returned the same way.
 - **Two fireballs in one tick:** each impact is its own event; the nearest vex acts for each.
+- **Two summoners:** a fireball one player's vex returned (so that player owns it) that lands
+  near another player with vexes is returned again, straight back (its owner is no ghast). It
+  can bounce between them. Rare; accepted.
 - **The void catch finds lava, a portal or a gateway:** a standable spot needs two blocks of
   air, so none of them qualifies; an obsidian pillar's top does.
 - **Elytra and creative flight:** no void catch while flying; it applies again the moment the
@@ -462,16 +501,20 @@ in the damage pipeline (`LivingDamageEvent.Pre`) and still holds.
   has a wider band or a slower scan than the Overworld day.
 - `GuardPosture` also answers "in place" and gives a spot from two unit rolls. Properties: every
   spot is inside its row's ranges; every spot is in place; in the three close rows every spot is
-  at least 2.2 above the feet.
-- `RescuePush`: the lava-pull velocity from the current velocity and the offset to the spot (add
-  0.1 sideways toward it, sideways speed capped at 0.35, `y` raised to at least 0.3; with no
-  spot only `y` raised to at least 0.4; a spot directly above or below adds nothing sideways and
-  gives no NaN), the drowning push (`y` raised to at least 0.4, `x` and `z` kept), and the
-  returned fireball's velocity (old speed along the new heading). Properties: the sideways speed
-  never exceeds the larger of 0.35 and what it was; `y` never decreases; no component is NaN for
-  any finite input.
-- `VoidRule.needsCatch(y, minY, onGround, movingDown, groundWithin64, flying)`: the conditions
-  of §6.4.
+  at least 2.5 above the feet.
+- `RescuePush`: the lava-pull velocity from the reported movement and the offset to the spot
+  (lava's drag, then add 0.1 sideways toward it, sideways speed capped at 0.35, `y` raised to at
+  least 0.3; with no spot only the drag and `y` raised to at least 0.4; a spot directly above or
+  below adds nothing sideways and gives no NaN), the drowning push (water's drag, `y` raised to
+  at least 0.4), and the returned fireball's velocity (old speed along the new heading).
+  Properties: after a lava pull the sideways speed never exceeds 0.35; a lift or a drowning push
+  never raises the sideways speed; `y` is never under its floor; no component is NaN for any
+  finite input; and fed its own output plus a constant steering input, tick after tick, the
+  sideways speed stays bounded (no ratchet).
+- `VoidRule.needsCatch(y, minY, onGround, movingDown, flying, groundWithin64)`: the conditions
+  of §6.4; the ground check is a `BooleanSupplier` asked last, only when everything else holds.
+  `VoidRule.lastGroundUsable(chunkLoaded, standable)`: a last ground in an unloaded chunk is
+  trusted without asking `standable`; in a loaded chunk it is used only if still standable.
 
 `./gradlew pitest` after each part, with a row in `docs/mutation-testing.md`.
 
@@ -511,11 +554,14 @@ in the damage pipeline (`LivingDamageEvent.Pre`) and still holds.
   player gets none.
 - A bribed vex loaded from a save has only the flee goal.
 
-**GameTests, Part 5** (new class `BoundVexWorldGameTests`; Nether and End pockets as the
-existing `toNether` helper builds them, with a new `toEnd` twin that carves and clears a fixed
-region, so "ground within 32 blocks" is what the test built and nothing else). A mock player is
-never moved by the server, so push tests assert the velocity the tick set and then move the
-player by hand to reach the next state.
+**GameTests, Part 5** (new class `BoundVexWorldGameTests`; the Nether and End places are built by
+`BoundVexWorldTestSupport`, so "ground within 32 blocks" is what the test built and nothing
+else). The GameTest world is flat in every dimension (a floor at y 0 to 3, the End included), so
+`endVoid` clears the floor inside its place and restores it. Tests in a batch run at the same
+time, so each End or Nether test works in a private slot of a pool, 200 blocks apart, and undoes
+all of it at the end. A mock player is never ticked or moved by the server, so push tests assert
+the velocity the tick set and then move the player by hand to reach the next state, and a mock
+player reports a fluid only after two `baseTick` calls (`soak`).
 
 - Posture: for each row of §6.1 (Overworld day, forced night, Nether, End) a following vex
   settles in place; in the three close rows its feet are at least 1.7 above the summoner's feet
@@ -528,7 +574,7 @@ player by hand to reach the next state.
   rescue; a rescuer that was fleeing a creeper still comes; a rescuer killed mid-rescue is
   replaced. In the Nether, ending out of lava clears the fire and shows the bucket once; ending
   still in lava does neither; in the Overworld the player still burns.
-- Drowning push: air below 60 under open water → `y` raised, `x` and `z` unchanged; under a
+- Drowning push: air below 60 under open water → `y` raised, `x` and `z` scaled by 0.8 (water's drag); under a
   stone ceiling: none; with air at 100: none; with Water Breathing: none; it ends when the
   player's eyes leave the water and after 200 ticks.
 - Fireball: firing `ProjectileImpactEvent` for a `LargeFireball` about to hit the player is
@@ -552,9 +598,9 @@ player by hand to reach the next state.
   arrow does not; a hit the backstop cancels stays cancelled; a hit on a mercy-protected golem
   still stops at 25.
 
-Tests that need the End's dragon fight build the smallest thing vanilla accepts; if a living
-dragon fight cannot be made on the GameTest server, the dragon-alive test is put behind a small
-package-private seam in `AttackCrystalGoal` and the plan says so.
+A living dragon fight cannot be made on the GameTest server, so the dragon-alive test is behind
+`AttackCrystalGoal.scriptDragon(vex, alive)`: a public per-vex scripted answer, empty in play,
+that replaces `livingDragon` for that vex until `unscriptDragon`.
 
 **Playtest items** (Will; `docs/playtest-checklist.md`, sections "Evoking II (Part 4)" and
 "(Part 5)"): the cure's look (apple crumbs, head turn, gray splash, smoke for 20 seconds, the
@@ -566,7 +612,8 @@ splash; the fireball swing; breaking caged crystals; the void catch and the appl
 **Docs per part:** README (the vex paragraph), `docs/api-notes.md` §23 (Part 4) and §24
 (Part 5) with every vanilla fact verified against `build/mc-src`, the playtest checklist,
 `docs/mutation-testing.md`, the parent spec's inline notes, and `CLAUDE.md` only if a rule in it
-changes (none is expected: no packet, no new Mixin; one access-transformer line).
+changes (none is expected: no packet and no new Mixin; Part 4 adds one access-transformer line,
+Part 5 none).
 
 ## 10. Decisions Will did not state
 
@@ -582,7 +629,7 @@ changes (none is expected: no packet, no new Mixin; one access-transformer line)
 | A bribed or courted vex and other Bound Vexes | Not prey | Otherwise the bribe ends in a kill, usually before the roll. |
 | Bribe subject | Any vanilla vex targeting your side | The parent's rule; an evoker-owned test would skip `/summon`ed vexes for no gain. |
 | Bribed vex flees from | The nearest player | It has no summoner of its own to remember across a save. |
-| Close postures | Overhead (2.2–3.0 above the feet) | At eye height your clicks land on your vexes. Alternative: keep the parent's "blocks from the summoner" and accept that. |
+| Close postures | Overhead (2.5–3.0 above the feet), stopping dead on arrival | At eye height your clicks land on your vexes. Alternative: keep the parent's "blocks from the summoner" and accept that. The band was 2.2–3.0 until the build measured vexes ending at 1.7. |
 | Scan cadence | 4 ticks (night, Nether), 2 ticks (End) | The goal clock cannot keep 5 or 1; see §6.1. |
 | Night | `isDarkOutside()`, so thunderstorms count | Hostiles spawn then too. |
 | Rescuer | Nearest following vex within 16 blocks (64 for the void) | The portal rule's distance; staying vexes hold their posts. |

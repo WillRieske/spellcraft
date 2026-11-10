@@ -159,7 +159,7 @@ public final class BribeGoal extends Goal {
         // A vex that died, was discarded or unloaded never ran stop(); drop its claim so the map does not keep it
         // (and its level) reachable. Such a claim already counts as free everywhere it is read.
         CLAIMS.prune();
-        if (!vex.scanDue(BoundVex.SCAN_INTERVAL) || vex.level().getGameTime() < blockedUntil) {
+        if (!vex.scanDue(vex.scanInterval()) || vex.level().getGameTime() < blockedUntil) {
             return false;
         }
         ServerPlayer owner = vex.summoner().orElse(null);

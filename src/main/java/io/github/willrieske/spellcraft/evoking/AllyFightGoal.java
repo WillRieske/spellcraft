@@ -17,7 +17,7 @@ final class AllyFightGoal extends ScanTargetGoal {
 
     @Override
     public boolean canUse() {
-        if (!vex.scanDue(BoundVex.SCAN_INTERVAL)) {
+        if (!vex.scanDue(vex.scanInterval())) {
             return false;
         }
         ServerPlayer owner = vex.summoner().orElse(null);
