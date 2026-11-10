@@ -5925,7 +5925,7 @@ git commit -m "feat(evoking): the Multishot team move fires three arrows at once
 
 The shoves and deflections run from `TeamMoves.tick`, not from the members' goals: a member paused for a rescue must not stop the guard, and the nearest member does the work whatever it is doing.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `BoundVexTeamMoveEvaderGameTests` (class Javadoc `/** GameTests of the Evader team move (Parts 6-7 spec §4.3). */`; static imports `TeamMoveTestSupport.*`, `FangGameTests.NORTH`, `SpellcraftGameTests.SHARED`; imports `Arrow`, `LargeFireball`, `Pig`, `Villager`, `Mob`, `MockPlayers`) registers `FangGameTests.addPadded(SHARED, name, 200, body)` for each test, in this `registerAll` (called in `SpellcraftGameTests` after the Multishot class):
 
@@ -6188,12 +6188,12 @@ static void followsAMovingWard(GameTestHelper helper) {
 
 Follow the traps in Global Constraints: a no-AI foe is read by velocity, not position; the villager stays out of the barrier-shell layers. (`MockPlayers.moveTo` takes a position relative to the structure; if `scene.player().position()` is absolute there, convert it with `helper.relativeVec`.)
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_evader_*"`
 Expected: the orbit, shove, reverse and follow tests fail, and `leavesTheSummonersArrowAlone` fails at its control (the skeleton's arrow is not reversed yet); `leavesAGhastFireballAlone`, `doesNotReverseTwice` (its first assertion) and `leavesAPigAlone` pass trivially now and guard the filters once the guard exists. Check the `LargeFireball` constructor in `build/mc-src` (`world/entity/projectile/hurtingprojectile/LargeFireball.java`) before writing `leavesAGhastFireballAlone`; the snippet's argument list is the 1.21 shape.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```java
 package io.github.willrieske.spellcraft.evoking;
@@ -6354,12 +6354,12 @@ private static void advance(ServerPlayer owner, Move record, long now) {
 
 `TeamMoveGoal.tick`: add `case EVADER -> EvaderMove.tick(vex, membership.record(), membership.member(), level);`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_evader_*"`
 Expected: all pass. A no-AI mob does not move, so the shove test reads `getDeltaMovement()`; if it is zero, check that the husk is `huntable` and `isPrey` for the member (it is an `Enemy`, not a creeper, no mark), not the husk's knockback resistance (a husk has none).
 
-- [ ] **Step 5: Full gates, then commit**
+- [x] **Step 5: Full gates, then commit**
 
 Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (expect `All M required tests passed`, M = the previous task's reported total plus the 9 tests this task registers; write M in the commit's as-built note).
 
@@ -6367,6 +6367,8 @@ Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (
 git add src/main/java/io/github/willrieske/spellcraft
 git commit -m "feat(evoking): the Evader team move circles, shoves and deflects"
 ```
+
+> **As built (`9210bea`):** diverged — the orbit steers with a position/velocity push plus feed-forward (named constants) instead of a plain fly-to, which settled at ~3.1 blocks (the vex move control only adds 0.05 x speed per tick); test mobs sit at player + (2.5, 3, 0), clear of the barrier shell; `advance` merged into Task 6's `tick` shape; reason: the brief's snippet could not hold radius 2, and the controller's merge instruction.
 
 ---
 
@@ -6941,6 +6943,7 @@ git commit -m "docs(evoking): Part 6 in the README, playtest items, mutation tes
 | 6 | `7d431bf` | `TeamMoves.tick` reads the record with `get` and creates one only when a scan is due (AUTOMATIC, summoner present, no move running), not `computeIfAbsent` every tick; Task 11's `tick` snippet must merge into this shape (its `advance` branch sits inside the `record != null && record.active()` block); reason: keeps Task 5's no-empty-record rule. |
 | 7 | `d00be34` | `request` reads the record with `get` (a refusal creates no record), matching `start` and `tick`; reason: Task 5's no-empty-record rule. |
 | 8 | `28bebae` | `EvokingRequest.cast` carries `@SuppressWarnings("EnumOrdinal")` with a reason; reason: Error Prone -Werror. |
+| 11 | `9210bea` | the orbit steers with a position/velocity push plus feed-forward (named constants) instead of a plain fly-to, which settled at ~3.1 blocks (the vex move control only adds 0.05 x speed per tick); test mobs sit at player + (2.5, 3, 0), clear of the barrier shell; `advance` merged into Task 6's `tick` shape; reason: the brief's snippet could not hold radius 2, and the controller's merge instruction. |
 
 ## Resume State
 
