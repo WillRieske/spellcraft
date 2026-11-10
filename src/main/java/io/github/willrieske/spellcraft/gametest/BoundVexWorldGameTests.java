@@ -24,6 +24,7 @@ import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -38,7 +39,9 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.monster.Ghast;
 import net.minecraft.world.entity.monster.zombie.Husk;
+import net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
@@ -46,8 +49,12 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.EventHooks;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import org.slf4j.Logger;
@@ -211,6 +218,29 @@ public final class BoundVexWorldGameTests {
                 "bound_vex_world_void_no_landing_is_not_searched_every_tick",
                 BoundVexWorldGameTests::voidNoLandingIsNotSearchedEveryTick);
         padded("bound_vex_world_void_not_in_the_overworld", BoundVexWorldGameTests::voidNotInTheOverworld);
+        padded("bound_vex_world_fireball_returned_to_the_ghast", BoundVexWorldGameTests::fireballReturnedToTheGhast);
+        padded(
+                "bound_vex_world_fireball_reversed_without_a_ghast",
+                BoundVexWorldGameTests::fireballReversedWithoutAGhast);
+        padded(
+                "bound_vex_world_fireball_reversed_when_the_ghast_is_hidden",
+                BoundVexWorldGameTests::fireballReversedWhenTheGhastIsHidden);
+        padded("bound_vex_world_fireball_block_hit_near_you", BoundVexWorldGameTests::fireballBlockHit);
+        padded(
+                "bound_vex_world_fireball_left_alone_when_you_own_it",
+                helper -> fireballLeftAlone(helper, true, VEX_NEAR, false, false));
+        padded(
+                "bound_vex_world_fireball_left_alone_with_no_vex_near",
+                helper -> fireballLeftAlone(helper, false, VEX_FAR, false, false));
+        padded(
+                "bound_vex_world_fireball_left_alone_for_a_spectator",
+                helper -> fireballLeftAlone(helper, false, VEX_NEAR, true, false));
+        padded(
+                "bound_vex_world_fireball_left_alone_in_the_overworld",
+                helper -> fireballLeftAlone(helper, false, VEX_NEAR, false, true));
+        padded("bound_vex_world_fireball_nearest_vex_acts", BoundVexWorldGameTests::fireballNearestVexActs);
+        padded("bound_vex_world_fireball_staying_vex_acts", BoundVexWorldGameTests::fireballStayingVexActs);
+        padded("bound_vex_world_fireball_kills_the_ghast", BoundVexWorldGameTests::fireballKillsTheGhast);
         FangGameTests.addPadded(
                 SERVER_STOP_RESCUES,
                 "bound_vex_world_rescues_cleared_on_server_stop",
@@ -2653,6 +2683,368 @@ public final class BoundVexWorldGameTests {
                     VexRescues.tick(player);
                     assertStillThere(helper, player, fallen, "no catch outside the End");
                 })
+                .thenSucceed();
+    }
+
+    // ---- Task 7: the fireball return ----
+
+    /** How far a fireball test's room reaches sideways (a ghast is 4 wide and stands 9 blocks off). */
+    private static final int FIREBALL_ROOM_HALF_WIDTH = 12;
+
+    /** How tall a fireball test's room is. */
+    private static final int FIREBALL_ROOM_HEIGHT = 8;
+
+    /** How far north of the player the ghast stands, in blocks. */
+    private static final double GHAST_DISTANCE = 9.0;
+
+    /** How far north of the player the fireball starts, in blocks. */
+    private static final double FIREBALL_DISTANCE = 1.5;
+
+    /** The speed of a fireball in these tests, in blocks per tick. */
+    private static final double FIREBALL_SPEED = 1.5;
+
+    /** How far east of the fireball the default vex hangs: well inside the vex reach of 7.25. */
+    private static final double VEX_NEAR = 3.0;
+
+    /** How far east of the fireball a vex hangs that is out of the vex reach. */
+    private static final double VEX_FAR = 9.0;
+
+    /** A survival player, at {@link FangGameTests#STAND} until a test moves them into a room. */
+    private static ServerPlayer fireballPlayer(GameTestHelper helper) {
+        return FangGameTests.caster(helper, 0.0F);
+    }
+
+    /** The Nether room of a fireball test, with {@code player} standing in it; undone when the test ends. */
+    private static ServerLevel fireballRoom(GameTestHelper helper, ServerPlayer player) {
+        return BoundVexWorldTestSupport.room(
+                helper, player, Level.NETHER, FIREBALL_ROOM_HALF_WIDTH, FIREBALL_ROOM_HEIGHT);
+    }
+
+    /**
+     * A ghast with no AI and no gravity {@link #GHAST_DISTANCE} blocks north of {@code player}, its body spanning
+     * their eye height; discarded when the test ends.
+     *
+     * @param invulnerable whether nothing can hurt it (only the kill test wants it vulnerable)
+     */
+    private static Ghast ghastNorthOf(
+            GameTestHelper helper, ServerLevel level, ServerPlayer player, boolean invulnerable) {
+        Ghast ghast = EntityTypes.GHAST.create(level, EntitySpawnReason.COMMAND);
+        if (ghast == null) {
+            throw helper.assertionException("could not create a ghast");
+        }
+        Vec3 at = player.position().add(0.0, 0.5, -GHAST_DISTANCE);
+        ghast.snapTo(at.x, at.y, at.z, 0.0F, 0.0F);
+        ghast.setNoAi(true);
+        ghast.setNoGravity(true);
+        ghast.setPersistenceRequired();
+        ghast.setPermanentlyInvulnerable(invulnerable);
+        level.addFreshEntity(ghast);
+        whenDone(helper, ghast::discard);
+        return ghast;
+    }
+
+    /** Where a fireball starts: at {@code player}'s eye height, {@link #FIREBALL_DISTANCE} blocks north of them. */
+    private static Vec3 fireballSpot(ServerPlayer player) {
+        return player.getEyePosition().add(0.0, 0.0, -FIREBALL_DISTANCE);
+    }
+
+    /**
+     * A fireball of {@code ghast} (with no owner when {@code ghast} is null) at {@code at}, flying {@code motion}. It
+     * is not in the level: the tests post its impact by hand.
+     */
+    private static LargeFireball fireballFlying(
+            GameTestHelper helper, ServerLevel level, Ghast ghast, Vec3 at, Vec3 motion) {
+        LargeFireball fireball = ghast != null
+                ? new LargeFireball(level, ghast, new Vec3(0.0, 0.0, 1.0), 1)
+                : EntityTypes.FIREBALL.create(level, EntitySpawnReason.COMMAND);
+        if (fireball == null) {
+            throw helper.assertionException("could not create a fireball");
+        }
+        fireball.setPos(at);
+        fireball.setDeltaMovement(motion);
+        return fireball;
+    }
+
+    /** A vex of {@code player} in {@code level} at {@code at}, with no AI and no targets: it stays where it is put. */
+    private static BoundVex fireballVex(GameTestHelper helper, ServerLevel level, Vec3 at, ServerPlayer player) {
+        BoundVex vex = BoundVexTestSupport.noTargets(vexIn(helper, level, at, player));
+        vex.setNoAi(true);
+        return vex;
+    }
+
+    /** Waits until every one of {@code vexes} has ticked (entity queries see it only then), then runs {@code body}. */
+    private static void afterVexesTick(GameTestHelper helper, Runnable body, BoundVex... vexes) {
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    for (BoundVex vex : vexes) {
+                        helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks");
+                    }
+                })
+                .thenExecute(body)
+                .thenSucceed();
+    }
+
+    /** Posts the impact of {@code fireball} on {@code hit} as vanilla would; true means a handler cancelled it. */
+    private static boolean impact(LargeFireball fireball, HitResult hit) {
+        return EventHooks.onProjectileImpact(fireball, hit);
+    }
+
+    /** Fails the test unless {@code fireball} flies {@code (x, y, z)}, within 1e-6. */
+    private static void assertFireballVelocity(
+            GameTestHelper helper, LargeFireball fireball, double x, double y, double z) {
+        Vec3 v = fireball.getDeltaMovement();
+        helper.assertTrue(
+                Math.abs(v.x - x) < 1.0e-6 && Math.abs(v.y - y) < 1.0e-6 && Math.abs(v.z - z) < 1.0e-6,
+                "the fireball flies (" + x + ", " + y + ", " + z + "), not " + v);
+    }
+
+    /**
+     * When a ghast's fireball is about to hit a player who has a Bound Vex 3 blocks from it and the ghast is in
+     * sight, should the impact be cancelled, the summoner own the fireball, its speed stay 1.5, its heading point at
+     * the ghast's eyes, and the vex hang at the fireball.
+     *
+     * <p>Method under test: {@code VexFireballs.onImpact}
+     */
+    static void fireballReturnedToTheGhast(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = fireballPlayer(helper);
+        ServerLevel nether = fireballRoom(helper, player);
+        Ghast ghast = ghastNorthOf(helper, nether, player, true);
+        Vec3 spot = fireballSpot(player);
+        LargeFireball fireball = fireballFlying(helper, nether, ghast, spot, new Vec3(0.0, 0.0, FIREBALL_SPEED));
+        BoundVex vex = fireballVex(helper, nether, spot.add(VEX_NEAR, 0.0, 0.0), player);
+
+        // Act & Assert
+        afterVexesTick(
+                helper,
+                () -> {
+                    boolean cancelled = impact(fireball, new EntityHitResult(player));
+                    helper.assertTrue(cancelled, "the impact is cancelled");
+                    helper.assertTrue(player.equals(fireball.getOwner()), "the summoner owns the fireball");
+                    Vec3 velocity = fireball.getDeltaMovement();
+                    helper.assertTrue(
+                            Math.abs(velocity.length() - FIREBALL_SPEED) < 1.0e-6, "the speed is kept: " + velocity);
+                    Vec3 toGhast = ghast.getEyePosition().subtract(fireball.position());
+                    helper.assertTrue(
+                            velocity.normalize().dot(toGhast.normalize()) > 0.999,
+                            "the fireball flies at the ghast's eyes: " + velocity + " vs " + toGhast);
+                    helper.assertTrue(
+                            vex.position().distanceTo(fireball.position()) < 0.1,
+                            "the vex hangs at the fireball, not " + vex.position());
+                },
+                vex);
+    }
+
+    /**
+     * When a fireball with no ghast, flying {@code (0.3, 0, 1.2)}, is about to hit a player with a Bound Vex near,
+     * should it fly straight back {@code (-0.3, 0, -1.2)} and belong to the summoner.
+     *
+     * <p>Method under test: {@code VexFireballs.sendBack}: no heading, straight back
+     */
+    static void fireballReversedWithoutAGhast(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = fireballPlayer(helper);
+        ServerLevel nether = fireballRoom(helper, player);
+        Vec3 spot = fireballSpot(player);
+        LargeFireball fireball = fireballFlying(helper, nether, null, spot, new Vec3(0.3, 0.0, 1.2));
+        BoundVex vex = fireballVex(helper, nether, spot.add(VEX_NEAR, 0.0, 0.0), player);
+
+        // Act & Assert
+        afterVexesTick(
+                helper,
+                () -> {
+                    helper.assertTrue(impact(fireball, new EntityHitResult(player)), "the impact is cancelled");
+                    assertFireballVelocity(helper, fireball, -0.3, 0.0, -1.2);
+                    helper.assertTrue(player.equals(fireball.getOwner()), "the summoner owns the fireball");
+                },
+                vex);
+    }
+
+    /**
+     * When a stone wall stands between the vex and the ghast, should the fireball fly straight back, not at the ghast.
+     *
+     * <p>Method under test: {@code VexFireballs.sendBack}: the ghast must be in the vex's sight
+     */
+    static void fireballReversedWhenTheGhastIsHidden(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = fireballPlayer(helper);
+        ServerLevel nether = fireballRoom(helper, player);
+        Ghast ghast = ghastNorthOf(helper, nether, player, true);
+        Vec3 spot = fireballSpot(player);
+        LargeFireball fireball = fireballFlying(helper, nether, ghast, spot, new Vec3(0.0, 0.0, FIREBALL_SPEED));
+        BoundVex vex = fireballVex(helper, nether, spot.add(VEX_NEAR, 0.0, 0.0), player);
+        BlockPos wall = BlockPos.containing(player.position().add(0.0, 0.0, -5.0));
+        for (int x = -4; x <= 4; x++) {
+            for (int y = 0; y < FIREBALL_ROOM_HEIGHT; y++) {
+                set(helper, nether, wall.offset(x, y, 0), Blocks.STONE.defaultBlockState());
+            }
+        }
+
+        // Act & Assert
+        afterVexesTick(
+                helper,
+                () -> {
+                    helper.assertTrue(impact(fireball, new EntityHitResult(player)), "the impact is cancelled");
+                    assertFireballVelocity(helper, fireball, 0.0, 0.0, -FIREBALL_SPEED);
+                },
+                vex);
+    }
+
+    /** A hit on the floor {@code east} blocks east of {@code player}. */
+    private static BlockHitResult floorHit(ServerPlayer player, double east) {
+        Vec3 at = player.position().add(east, 0.0, 0.0);
+        return new BlockHitResult(at, Direction.UP, BlockPos.containing(at).below(), false);
+    }
+
+    /**
+     * When a fireball is about to hit the floor 3 blocks from a player with a Bound Vex near, should the impact be
+     * cancelled; and when it is 6 blocks away, should it be left alone: no owner, same velocity.
+     *
+     * <p>Method under test: {@code VexFireballs.onImpact}: {@link VexFireballs#NEAR_PLAYER}
+     */
+    static void fireballBlockHit(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = fireballPlayer(helper);
+        ServerLevel nether = fireballRoom(helper, player);
+        Vec3 spot = fireballSpot(player);
+        LargeFireball near = fireballFlying(helper, nether, null, spot, new Vec3(0.0, 0.0, FIREBALL_SPEED));
+        LargeFireball far = fireballFlying(helper, nether, null, spot, new Vec3(0.0, 0.0, FIREBALL_SPEED));
+        BoundVex vex = fireballVex(helper, nether, spot.add(VEX_NEAR, 0.0, 0.0), player);
+
+        // Act & Assert
+        afterVexesTick(
+                helper,
+                () -> {
+                    helper.assertTrue(!impact(far, floorHit(player, 6.0)), "6 blocks away: not cancelled");
+                    helper.assertTrue(far.getOwner() == null, "6 blocks away: the owner is untouched");
+                    assertFireballVelocity(helper, far, 0.0, 0.0, FIREBALL_SPEED);
+                    helper.assertTrue(impact(near, floorHit(player, 3.0)), "3 blocks away: cancelled");
+                    helper.assertTrue(player.equals(near.getOwner()), "3 blocks away: the summoner owns it");
+                },
+                vex);
+    }
+
+    /**
+     * When {@code owned} (the player already owns the fireball), {@code vexAway} puts the only vex out of reach,
+     * {@code spectator} makes the player a spectator, or {@code overworld} moves the whole arrangement to the
+     * Overworld test level, should the impact on the player not be cancelled and the fireball, its owner and the vex
+     * stay as they were.
+     *
+     * <p>Method under test: {@code VexFireballs.onImpact}: the cases it leaves alone
+     */
+    private static void fireballLeftAlone(
+            GameTestHelper helper, boolean owned, double vexAway, boolean spectator, boolean overworld) {
+        // Arrange
+        ServerPlayer player = fireballPlayer(helper);
+        ServerLevel level = overworld ? helper.getLevel() : fireballRoom(helper, player);
+        Vec3 spot = fireballSpot(player);
+        LargeFireball fireball = fireballFlying(helper, level, null, spot, new Vec3(0.0, 0.0, FIREBALL_SPEED));
+        if (owned) {
+            fireball.setOwner(player);
+        }
+        if (spectator) {
+            player.setGameMode(GameType.SPECTATOR);
+        }
+        BoundVex vex = fireballVex(helper, level, spot.add(vexAway, 0.0, 0.0), player);
+        Vec3 vexBefore = vex.position();
+
+        // Act & Assert
+        afterVexesTick(
+                helper,
+                () -> {
+                    helper.assertTrue(!impact(fireball, new EntityHitResult(player)), "the impact is not cancelled");
+                    helper.assertTrue(
+                            owned ? player.equals(fireball.getOwner()) : fireball.getOwner() == null,
+                            "the owner is untouched");
+                    assertFireballVelocity(helper, fireball, 0.0, 0.0, FIREBALL_SPEED);
+                    helper.assertTrue(vex.position().distanceTo(vexBefore) < 1.0e-6, "the vex did not move");
+                },
+                vex);
+    }
+
+    /**
+     * When two Bound Vexes of a player are 2 and 5 blocks from a fireball about to hit them, should only the nearer
+     * one go to the fireball.
+     *
+     * <p>Method under test: {@code VexFireballs.nearestVexOf}
+     */
+    static void fireballNearestVexActs(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = fireballPlayer(helper);
+        ServerLevel nether = fireballRoom(helper, player);
+        Vec3 spot = fireballSpot(player);
+        LargeFireball fireball = fireballFlying(helper, nether, null, spot, new Vec3(0.0, 0.0, FIREBALL_SPEED));
+        BoundVex nearer = fireballVex(helper, nether, spot.add(-2.0, 0.0, 0.0), player);
+        BoundVex farther = fireballVex(helper, nether, spot.add(5.0, 0.0, 0.0), player);
+        Vec3 fartherBefore = farther.position();
+
+        // Act & Assert
+        afterVexesTick(
+                helper,
+                () -> {
+                    helper.assertTrue(impact(fireball, new EntityHitResult(player)), "the impact is cancelled");
+                    helper.assertTrue(
+                            nearer.position().distanceTo(spot) < 0.1,
+                            "the nearer vex hangs at the fireball, not " + nearer.position());
+                    helper.assertTrue(
+                            farther.position().distanceTo(fartherBefore) < 1.0e-6, "the farther vex did not move");
+                },
+                nearer,
+                farther);
+    }
+
+    /**
+     * When the only vex in reach is staying at its post, should it still return the fireball and then fly back to
+     * within a block of its post point.
+     *
+     * <p>Method under test: {@code VexFireballs.onImpact}: a staying vex acts too
+     */
+    static void fireballStayingVexActs(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = fireballPlayer(helper);
+        ServerLevel nether = fireballRoom(helper, player);
+        Vec3 spot = fireballSpot(player);
+        LargeFireball fireball = fireballFlying(helper, nether, null, spot, new Vec3(0.0, 0.0, FIREBALL_SPEED));
+        BoundVex vex = BoundVexTestSupport.noTargets(vexIn(helper, nether, spot.add(VEX_NEAR, 0.0, 0.0), player));
+        vex.setStaying(true);
+        Vec3 post = Vec3.atBottomCenterOf(vex.blockPosition());
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
+                .thenExecute(() -> {
+                    helper.assertTrue(impact(fireball, new EntityHitResult(player)), "the impact is cancelled");
+                    helper.assertTrue(
+                            vex.position().distanceTo(spot) < 0.1, "the vex hangs at the fireball for the moment");
+                })
+                .thenWaitUntil(() -> helper.assertTrue(
+                        vex.position().distanceTo(post) < 1.0, "the vex flew back to its post, not " + vex.position()))
+                .thenSucceed();
+    }
+
+    /**
+     * When a ghast's fireball is returned by a vex and then flies on in the level, should it kill the (vulnerable)
+     * ghast with the one hit vanilla gives a fireball whose owner is a player.
+     *
+     * <p>Method under test: {@code VexFireballs.sendBack}: the summoner becomes the owner
+     */
+    static void fireballKillsTheGhast(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = fireballPlayer(helper);
+        ServerLevel nether = fireballRoom(helper, player);
+        Ghast ghast = ghastNorthOf(helper, nether, player, false);
+        Vec3 spot = fireballSpot(player);
+        LargeFireball fireball = fireballFlying(helper, nether, ghast, spot, new Vec3(0.0, 0.0, FIREBALL_SPEED));
+        BoundVex vex = fireballVex(helper, nether, spot.add(VEX_NEAR, 0.0, 0.0), player);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
+                .thenExecute(() -> {
+                    helper.assertTrue(nether.addFreshEntity(fireball), "setup: the fireball joins the level");
+                    whenDone(helper, fireball::discard);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(!ghast.isAlive(), "the returned fireball killed the ghast"))
                 .thenSucceed();
     }
 }
