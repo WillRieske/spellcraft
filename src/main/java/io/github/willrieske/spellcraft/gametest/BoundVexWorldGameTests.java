@@ -64,8 +64,8 @@ public final class BoundVexWorldGameTests {
     private static final int WATCH_TICKS = 60;
 
     /**
-     * The least height above the summoner's feet a close-posture vex may hang at (spec §6.1, §9): a floor with margin,
-     * below the in-place low edge of 2.0 (band 2.5 less the 0.5 slack) so one tick of coast does not fail it.
+     * The least height above the summoner's feet a close-posture vex may hang at (spec §6.1, §9): a floor with
+     * margin, below the in-place low edge of 2.0 (band 2.5 less the 0.5 slack) so one tick of coast does not fail it.
      */
     private static final double LEAST_HEIGHT = 1.7;
 
@@ -178,6 +178,8 @@ public final class BoundVexWorldGameTests {
                 BoundVexWorldGameTests::drowningNotWithWaterBreathing);
         padded("bound_vex_world_drowning_not_with_conduit_power", BoundVexWorldGameTests::drowningNotWithConduitPower);
         padded("bound_vex_world_drowning_not_for_creative", BoundVexWorldGameTests::drowningNotForCreative);
+        padded("bound_vex_world_drowning_not_for_passengers", BoundVexWorldGameTests::drowningNotForPassengers);
+        padded("bound_vex_world_lava_before_drowning", BoundVexWorldGameTests::lavaBeforeDrowning);
         padded("bound_vex_world_drowning_ends_at_the_surface", BoundVexWorldGameTests::drowningEndsAtTheSurface);
         padded(
                 "bound_vex_world_drowning_ends_when_the_way_up_closes",
@@ -1934,6 +1936,68 @@ public final class BoundVexWorldGameTests {
      */
     static void drowningNotForCreative(GameTestHelper helper) {
         drowningNotFor(helper, player -> player.setGameMode(GameType.CREATIVE), false, 40);
+    }
+
+    /**
+     * When a player under water rides a minecart (a pig would throw them off in the water), should a step start no
+     * rescue and leave their velocity alone.
+     *
+     * <p>Method under test: {@code VexRescues.wantsDrowningPush}: passengers are not rescued
+     */
+    static void drowningNotForPassengers(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = waterColumn(helper, 1, false);
+        followingVex(helper, player);
+        Entity cart = helper.spawn(EntityTypes.MINECART, FEET);
+        cart.setNoGravity(true);
+        cart.setPermanentlyInvulnerable(true);
+        whenDone(helper, cart::discard);
+        helper.assertTrue(player.startRiding(cart), "setup: the mock player can ride");
+        soak(player);
+        player.setAirSupply(40);
+        helper.assertTrue(player.isUnderWater() && player.isPassenger(), "setup: a passenger under water");
+        Vec3 before = player.getDeltaMovement();
+
+        // Act
+        VexRescues.tick(player);
+
+        // Assert
+        assertNoRescue(helper, player, "no rescue starts");
+        helper.assertValueEqual(player.getDeltaMovement(), before, "the velocity is untouched");
+        helper.succeed();
+    }
+
+    /**
+     * When a player stands half a block up with lava in their lower block, air above it and water around their eyes
+     * (lava next to water turns to obsidian, so the air keeps them apart), low on air, so that the lava pull and the
+     * drowning push both apply, should a step start the lava rescue (the first need wins).
+     *
+     * <p>Method under test: {@code VexRescues.startFirstNeeded}: the order of the needs
+     */
+    static void lavaBeforeDrowning(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = waterColumn(helper, 0, false);
+        helper.setBlock(FEET.above(), Blocks.AIR);
+        helper.setBlock(FEET, Blocks.AIR);
+        helper.setBlock(FEET, Blocks.LAVA);
+        BlockPos eyes = FEET.above(2);
+        helper.setBlock(eyes.east(), Blocks.STONE);
+        helper.setBlock(eyes.west(), Blocks.STONE);
+        helper.setBlock(eyes.north(), Blocks.STONE);
+        helper.setBlock(eyes.south(), Blocks.STONE);
+        helper.setBlock(eyes, Blocks.WATER);
+        MockPlayers.moveTo(helper, player, FangGameTests.STAND.add(0.0, 0.5, 0.0));
+        followingVex(helper, player);
+        soak(player);
+        player.setAirSupply(40);
+        helper.assertTrue(player.isInLava() && player.isUnderWater(), "setup: in lava and under water at once");
+
+        // Act
+        VexRescues.tick(player);
+
+        // Assert
+        assertLavaRunning(helper, player, "the lava rescue started, not the drowning push");
+        helper.succeed();
     }
 
     /**

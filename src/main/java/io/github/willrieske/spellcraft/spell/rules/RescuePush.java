@@ -20,7 +20,8 @@ public final class RescuePush {
 
     /**
      * The factor vanilla multiplies a player's velocity by each tick in lava ({@code LivingEntity.travelInLava},
-     * {@code LivingEntity.java:2650}; in shallow lava the sideways factor is the same, {@code :2646}).
+     * {@code LivingEntity.java:2650}; in shallow lava the sideways factor is the same, {@code :2646}). Shallow lava
+     * uses 0.8 on {@code y} in vanilla; the floor on {@code y} in every push makes that difference moot.
      */
     public static final double LAVA_DRAG = 0.5;
 

@@ -12,8 +12,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Where a rescued player can be put or pulled to (Parts 4–5 spec §6.2, §6.4): a standable spot is a feet block with a
- * sturdy top under it and two blocks of air, so lava, water, portals and gateways never count.
+ * Where a rescued player can be put or pulled to (Parts 4–5 spec §6.2, §6.4): a standable spot is a feet block with
+ * a sturdy top under it and two blocks of air, so lava, water, portals and gateways never count.
  */
 final class StandableSpots {
     /** How far sideways the lava pull looks for a shore. */
@@ -43,7 +43,8 @@ final class StandableSpots {
 
     /**
      * The nearest standable spot for a player in lava at {@code from}: within {@link #SHORE_RANGE} blocks sideways,
-     * and from one block below their feet block to two above.
+     * and from one block below their feet block to two above. Equally near spots resolve in the order {@code
+     * BlockPos.betweenClosed} walks a box (z outermost, then y, x innermost): the first found wins.
      *
      * @param level the level
      * @param from the player's position
@@ -55,9 +56,9 @@ final class StandableSpots {
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         BlockPos best = null;
         double bestDistance = Double.MAX_VALUE;
-        for (int dx = -reach; dx <= reach; dx++) {
-            for (int dz = -reach; dz <= reach; dz++) {
-                for (int dy = -1; dy <= 2; dy++) {
+        for (int dz = -reach; dz <= reach; dz++) {
+            for (int dy = -1; dy <= 2; dy++) {
+                for (int dx = -reach; dx <= reach; dx++) {
                     pos.set(feet.getX() + dx, feet.getY() + dy, feet.getZ() + dz);
                     if (sideways(from, pos) <= SHORE_RANGE && standable(level, pos)) {
                         double distance = Vec3.atBottomCenterOf(pos).distanceToSqr(from);

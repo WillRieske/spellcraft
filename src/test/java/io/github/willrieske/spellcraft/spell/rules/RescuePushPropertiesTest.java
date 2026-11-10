@@ -62,7 +62,8 @@ class RescuePushPropertiesTest {
 
         /**
          * For any spot, a player who steers toward it by 0.02 each tick (the client adds its input, then the next push
-         * applies the drag) should never pass 0.35 sideways in 200 ticks and should settle: no ratchet.
+         * applies the drag) should never pass the fixed point of {@code m' = 0.5 * (m + 0.02) + 0.1} (0.22, well under
+         * the 0.35 cap, so the drag and not the clamp holds it) sideways in 200 ticks and should settle: no ratchet.
          *
          * <p>Method under test: {@link RescuePush#lavaPull(Vector, double, double)} iterated
          */
@@ -76,12 +77,13 @@ class RescuePushPropertiesTest {
             double iz = 0.02 * sz / Math.hypot(sx, sz);
             Vector v = new Vector(0, 0, 0);
             Vector previous = v;
+            double fixedPoint = 0.22; // m = 0.5 * (m + 0.02) + 0.1, written out so a changed drag cannot move it
 
             // Act & Assert
             for (int tick = 0; tick < 200; tick++) {
                 previous = v;
                 v = RescuePush.lavaPull(new Vector(v.x() + ix, v.y(), v.z() + iz), sx, sz);
-                assertThat(Math.hypot(v.x(), v.z())).isLessThanOrEqualTo(RescuePush.PULL_CAP + EPS);
+                assertThat(Math.hypot(v.x(), v.z())).isLessThanOrEqualTo(fixedPoint + EPS);
             }
             assertThat(Math.hypot(v.x() - previous.x(), v.z() - previous.z())).isLessThan(1.0e-6);
         }
