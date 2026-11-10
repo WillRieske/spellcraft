@@ -206,7 +206,7 @@ git commit -m "test(evoking): End and Nether rooms, fluid stepping and pinned ti
   - `RescuePush.Vector(double x, double y, double z)`; `static Vector lavaPull(Vector v, double toSpotX, double toSpotZ)`; `static Vector lavaLift(Vector v)`; `static Vector drowningPush(Vector v)`; `static Vector returned(Vector old, double headingX, double headingY, double headingZ)`.
   - `VoidRule.needsCatch(double y, int minY, boolean onGround, boolean movingDown, boolean flying, BooleanSupplier groundWithin64)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `GuardPostureTest` (examples, one test per row, then properties):
 
@@ -271,12 +271,12 @@ Properties (finite inputs in `[-10, 10]`): the sideways speed after `lavaPull` i
 
 `VoidRuleTest` (with `minY = 0`, supplier `() -> false` unless said): `y = -4.01` → true even on the ground flag false/true and not moving down; `y = -4` standing → false; falling (`onGround false, movingDown true`) at `y = 15.9` with no ground → true; at `y = 16` → false; with ground within 64 → false; `onGround true` → false; `movingDown false` → false; `flying true` → false in every case above, including `y = -100`. One test asserts the supplier is **not called** when `y ≥ minY + 16` (it is a block ray: `AtomicInteger` counter stays 0).
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew test --tests "*GuardPostureTest" --tests "*RescuePushTest" --tests "*VoidRuleTest"`
 Expected: compilation fails (the classes do not exist).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```java
 package io.github.willrieske.spellcraft.spell.rules;
@@ -519,12 +519,12 @@ public final class VoidRule {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `./gradlew test --tests "*GuardPostureTest" --tests "*RescuePushTest" --tests "*VoidRuleTest"`
 Expected: all pass.
 
-- [ ] **Step 5: Build and commit**
+- [x] **Step 5: Build and commit**
 
 Run: `./gradlew spotlessApply build`
 Expected: BUILD SUCCESSFUL (ArchUnit rule 2 holds: no Minecraft import).
@@ -533,6 +533,8 @@ Expected: BUILD SUCCESSFUL (ArchUnit rule 2 holds: no Minecraft import).
 git add src/main/java/io/github/willrieske/spellcraft/spell/rules src/test/java/io/github/willrieske/spellcraft/spell/rules
 git commit -m "feat(evoking): guard posture, rescue pushes and the void rule (pure core)"
 ```
+
+> **As built (`deed037`):** matches plan.
 
 ---
 
