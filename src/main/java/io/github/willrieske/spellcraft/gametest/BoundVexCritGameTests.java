@@ -15,8 +15,10 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.golem.IronGolem;
@@ -34,6 +36,12 @@ import net.minecraft.world.phys.Vec3;
  * (arrows, spared allies, the Nether) and how it keeps golem mercy and the player-versus-player rule.
  */
 public final class BoundVexCritGameTests {
+    /** How many ticks a husk must hold up its shield before it blocks (the shield's block delay is 5 ticks). */
+    private static final int RAISE_TICKS = 8;
+
+    /** The yaw that faces east: the husk of the blocked-hit test faces the vex, which stands east of it. */
+    private static final float FACING_EAST = -90.0F;
+
     /** How close a measured tripled loss must be to three times the plain one. */
     private static final float CRIT_TOLERANCE = 0.01F;
 
@@ -53,6 +61,9 @@ public final class BoundVexCritGameTests {
                 "bound_vex_world_crit_is_not_shown_inside_the_invulnerability_frames",
                 BoundVexCritGameTests::critNotShownInsideTheFrames);
         padded("bound_vex_world_crit_is_not_shown_on_a_spared_ally", BoundVexCritGameTests::critNotShownOnASparedAlly);
+        padded(
+                "bound_vex_world_crit_is_not_shown_on_a_fully_blocked_hit",
+                BoundVexCritGameTests::critNotShownOnAFullyBlockedHit);
     }
 
     /** The health {@code victim} loses to one melee hit by {@code vex}. */
@@ -350,5 +361,35 @@ public final class BoundVexCritGameTests {
         helper.assertFalse(showsCrit(shown), "the spared hit shows no crit");
         helper.assertValueEqual(wolf.getHealth(), health, "the wolf is unhurt");
         helper.succeed();
+    }
+
+    /**
+     * When a Bound Vex in the End hits a husk that holds up a shield facing it, and the shield blocks the whole hit
+     * (the husk loses no health), should no crit sound or particles be sent.
+     *
+     * <p>Method under test: {@code BoundVexEvents.onDamagePost}: a hit a shield blocked fully shows nothing
+     */
+    static void critNotShownOnAFullyBlockedHit(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        ServerLevel end = BoundVexWorldTestSupport.room(helper, player, Level.END, 3, 4);
+        BoundVex vex = critVex(helper, end, player);
+        Husk husk = critHuskBeside(helper, end, player);
+        husk.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.SHIELD));
+        husk.setYRot(FACING_EAST);
+        husk.setYHeadRot(FACING_EAST);
+        husk.startUsingItem(InteractionHand.OFF_HAND);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteAfter(RAISE_TICKS, () -> {
+                    helper.assertTrue(husk.isBlocking(), "setup: the husk blocks with its shield");
+                    GameTestSupport.drainShown(player); // discard what arriving sent
+                    float loss = meleeLoss(vex, husk);
+                    GameTestSupport.Shown shown = GameTestSupport.drainShown(player);
+                    helper.assertValueEqual(loss, 0.0F, "setup: the shield blocked the whole hit");
+                    helper.assertFalse(showsCrit(shown), "the blocked hit shows no crit");
+                })
+                .thenSucceed();
     }
 }

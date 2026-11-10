@@ -85,7 +85,7 @@ public final class VexRescues {
 
     /**
      * One running rescue. {@code tailUntil} is 0 until the work is done; {@code tailItem} is what the tail shows and
-     * {@code conjured} says the tail owns the hand.
+     * {@code conjured} says the hand holds the tail's item.
      */
     private static final class Rescue {
         /** What the rescue is for. */
@@ -106,7 +106,10 @@ public final class VexRescues {
         /** What the tail shows in the rescuer's hand, or null while the rescue's work goes on. */
         ItemStack tailItem;
 
-        /** Whether the tail put {@link #tailItem} in the rescuer's hand, which the end of the rescue must take away. */
+        /**
+         * Whether the rescuer's hand holds {@link #tailItem} put there by this rescue, which the end of the rescue
+         * must take away. A job's {@code stop} may dismiss it; the tail then conjures it again and this stays true.
+         */
         boolean conjured;
 
         /** Starts a rescue of {@code kind} by {@code rescuer} at game time {@code start}. */
@@ -437,25 +440,25 @@ public final class VexRescues {
     }
 
     /**
-     * Starts the tail: the rescue remembers {@code item} and shows it for {@link #TAIL} ticks. Two paths put it in
-     * the rescuer's hand. If the hand is free now (every vex with no AI, which never runs {@link RescueGoal} and has
-     * no job, and a vex with AI between jobs), the item is conjured here. If the hand is held by a job (a cure potion,
-     * an emerald, an ingot), the job gives it back in its {@code stop}, which runs when {@link RescueGoal} preempts
-     * it, after this call; so the goal conjures the item on its first tick ({@link #conjureTail(BoundVex)}).
+     * Starts the tail: the rescue remembers {@code item} and shows it for {@link #TAIL} ticks. The item is conjured
+     * here whenever the rescuer's hand is not conjured (every vex with no AI, which never runs {@link RescueGoal} and
+     * has no job, and a vex with AI between jobs or in a job's approach). A job may still be running, though: when
+     * {@link RescueGoal} preempts it, the job's {@code stop} dismisses the hand, and that would take the item with it.
+     * So the goal keeps conjuring the item on each of its ticks ({@link #conjureTail(BoundVex)}), which repairs such a
+     * dismissal on the same or the next tick.
      */
     private static void showInHand(Rescue rescue, ItemStack item, long now) {
         rescue.tailItem = item;
         rescue.tailUntil = now + TAIL;
-        if (!rescue.rescuer.isConjured(EquipmentSlot.MAINHAND)) {
-            conjureTail(rescue);
-        }
+        conjureTail(rescue);
     }
 
     /**
-     * Called by {@link RescueGoal} on each of its ticks: when {@code vex}'s rescue is in its tail, has an item and has
-     * not conjured it yet, puts the item in the vex's main hand. The goal runs only after it has preempted the vex's
-     * job, whose {@code stop} has by then given the hand back, so the item is not dismissed under the tail. Does
-     * nothing in any other state.
+     * Called by {@link RescueGoal} on each of its ticks: when {@code vex}'s rescue is in its tail and has an item,
+     * puts the item in the vex's main hand if the hand is not conjured. This is self-healing: a job that was
+     * preempted dismisses the hand in its {@code stop}, after the tail may have conjured the item at its start, and
+     * the next call conjures it again. Does nothing in any other state, and nothing while a job's own conjured item
+     * is in the hand (that item is the job's to dismiss).
      *
      * @param vex the vex that may be a rescuer
      */
@@ -468,12 +471,28 @@ public final class VexRescues {
         }
     }
 
-    /** Conjures the tail's item once, if the rescue is in its tail and has not conjured yet. */
+    /**
+     * Conjures the tail's item if the rescue is in its tail, has an item and the rescuer's main hand is not conjured;
+     * keeps {@link Rescue#conjured} true exactly while the hand holds this rescue's item.
+     */
     private static void conjureTail(Rescue rescue) {
-        if (rescue.tailUntil != 0 && rescue.tailItem != null && !rescue.conjured) {
+        if (rescue.tailUntil == 0 || rescue.tailItem == null) {
+            return;
+        }
+        if (!rescue.rescuer.isConjured(EquipmentSlot.MAINHAND)) {
             rescue.rescuer.conjure(EquipmentSlot.MAINHAND, rescue.tailItem);
             rescue.conjured = true;
+        } else if (!holdsTailItem(rescue)) {
+            rescue.conjured = false;
         }
+    }
+
+    /** Whether the rescuer's main hand holds the item this rescue conjured (and not a job's own conjured item). */
+    private static boolean holdsTailItem(Rescue rescue) {
+        return rescue.conjured
+                && rescue.tailItem != null
+                && rescue.rescuer.isConjured(EquipmentSlot.MAINHAND)
+                && ItemStack.matches(rescue.rescuer.getMainHandItem(), rescue.tailItem);
     }
 
     /** Gives the player the velocity {@code v} and marks it for sending to their client. */
@@ -487,10 +506,13 @@ public final class VexRescues {
         return new RescuePush.Vector(v.x, v.y, v.z);
     }
 
-    /** Ends the player's rescue, whatever its state, and gives the rescuer's hand back if the tail took it. */
+    /**
+     * Ends the player's rescue, whatever its state, and gives the rescuer's hand back if it currently holds this
+     * rescue's item (a job's own conjured item is never dismissed here).
+     */
     private static void drop(UUID player) {
         Rescue rescue = RUNNING.remove(player);
-        if (rescue != null && rescue.conjured && rescue.rescuer.isAlive()) {
+        if (rescue != null && rescue.rescuer.isAlive() && holdsTailItem(rescue)) {
             rescue.rescuer.dismiss(EquipmentSlot.MAINHAND);
         }
     }

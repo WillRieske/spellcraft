@@ -105,3 +105,4 @@ e006924 Part 5 Task 8 (+ Task 6 fixes 9b58e11): build green; All 454 required te
 2bdaf45 Part 5 Task 9 (+ Task 7 fixes f99d4b1): build green; All 469 required tests passed twice
 a7b074c Part 5 Task 10 (+ Task 8 fixes 8b51744): build, runData green; All 475 required tests passed twice; pitest 413/419
 ac816fd Part 5 branch-review fixes (A 151fdd0, B ac816fd, C tests): build green; All 489 required tests passed twice
+Part 5 tail-item fix round (tail self-heals after a preempted job; level-clause, blocked-crit tests): build green; All 496 required tests passed twice

@@ -47,6 +47,9 @@ public final class BoundVexRescueLifecycleGameTests {
     /** How far around the Overworld arrival point the test looks for vexes that followed. */
     private static final double SEARCH = 24.0;
 
+    /** How far from the summoner the rescuer is put before the move: past the range in which vexes follow (16). */
+    private static final double BEYOND_FOLLOWING = 24.0;
+
     /** How many ticks a body may take. */
     private static final int BODY_TICKS = 200;
 
@@ -61,6 +64,9 @@ public final class BoundVexRescueLifecycleGameTests {
         add(
                 "bound_vex_world_rescue_summoner_changes_dimension_mid_tail",
                 BoundVexRescueLifecycleGameTests::changesDimensionMidTail);
+        add(
+                "bound_vex_world_rescue_summoner_changes_dimension_and_the_rescuer_stays_behind",
+                BoundVexRescueLifecycleGameTests::changesDimensionLeavingTheRescuerBehind);
     }
 
     /** Registers a padded test with room for a pull, a tail and the aftermath. */
@@ -311,6 +317,45 @@ public final class BoundVexRescueLifecycleGameTests {
                     VexRescues.tick(scene.player());
                     assertReleased(helper, scene);
                     assertNoneHeld(helper, scene);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the summoner changes dimension during the tail of a Nether lava rescue and the rescuer is too far to follow
+     * (it stays alive in the Nether, bucket in hand), should the next rescue tick drop the entry because the rescuer
+     * is in another level, and take the conjured bucket away.
+     *
+     * <p>Method under test: {@code VexRescues.holds}: the level clause
+     */
+    static void changesDimensionLeavingTheRescuerBehind(GameTestHelper helper) {
+        // Arrange
+        Scene scene = scene(helper);
+        BoundVex vex = scene.vex();
+        ServerPlayer player = scene.player();
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
+                .thenExecute(() -> startPull(helper, scene))
+                .thenExecuteAfter(WITHIN, () -> walkOut(helper, player, scene.slot()))
+                .thenWaitUntil(() -> helper.assertTrue(
+                        vex.getMainHandItem().is(Items.WATER_BUCKET) && vex.isConjured(EquipmentSlot.MAINHAND),
+                        "setup: the tail shows the bucket"))
+                .thenExecute(() -> {
+                    scene.live().set(false);
+                    vex.setPos(player.position().add(BEYOND_FOLLOWING, 0.0, 0.0));
+                    MockPlayers.moveTo(helper, player, FangGameTests.STAND);
+                    helper.assertValueEqual(
+                            player.level().dimension(), Level.OVERWORLD, "setup: the summoner is in the Overworld");
+                    helper.assertValueEqual(
+                            vex.level().dimension(), Level.NETHER, "setup: the rescuer stayed in the Nether");
+                    helper.assertTrue(vex.isAlive(), "setup: the rescuer is alive");
+                    helper.assertTrue(vex.isConjured(EquipmentSlot.MAINHAND), "setup: the bucket is still conjured");
+                    VexRescues.tick(player);
+                    assertReleased(helper, scene);
+                    helper.assertFalse(vex.isConjured(EquipmentSlot.MAINHAND), "the bucket is dismissed");
+                    helper.assertTrue(BoundVexTestSupport.swordBack(vex), "the sword is back");
                 })
                 .thenSucceed();
     }

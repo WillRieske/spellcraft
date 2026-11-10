@@ -304,7 +304,7 @@ public final class BoundVexVoidGameTests {
     /**
      * When the platform a player last stood on is gone before they fall, should no catch start.
      *
-     * <p>Method under test: {@code VexRescues.catchFromVoid}: the last ground must still be standable
+     * <p>Method under test: {@code VoidCatch.catchFromVoid}: the last ground must still be standable
      */
     static void voidCatchLastGroundGone(GameTestHelper helper) {
         // Arrange
@@ -369,7 +369,7 @@ public final class BoundVexVoidGameTests {
     /**
      * When a player rides a pig under the End's floor, should the catch dismount them and put them on the platform.
      *
-     * <p>Method under test: {@code VexRescues.catchFromVoid}: vanilla's teleport dismounts the player (the catch
+     * <p>Method under test: {@code VoidCatch.catchFromVoid}: vanilla's teleport dismounts the player (the catch
      * relies on it)
      */
     static void voidCatchDismounts(GameTestHelper helper) {
@@ -506,7 +506,7 @@ public final class BoundVexVoidGameTests {
      * When a catch found no landing and no last ground, should the next 19 steps not search again (a platform built
      * meanwhile is not found), and the 20th step after the first catch the player.
      *
-     * <p>Method under test: {@code VexRescues.catchFromVoid}: the 20-tick memory of a failed search
+     * <p>Method under test: {@code VoidCatch.catchFromVoid}: the 20-tick memory of a failed search
      */
     static void voidNoLandingIsNotSearchedEveryTick(GameTestHelper helper) {
         // Arrange
@@ -545,7 +545,7 @@ public final class BoundVexVoidGameTests {
      * When a player is far under the Overworld's lowest Y with a vex near, should no catch start (the catch is for
      * the End).
      *
-     * <p>Method under test: {@code VexRescues.needsVoidCatch}: the dimension check
+     * <p>Method under test: {@code VoidCatch.needsCatch}: the dimension check
      */
     static void voidNotInTheOverworld(GameTestHelper helper) {
         // Arrange
@@ -639,7 +639,7 @@ public final class BoundVexVoidGameTests {
      * no apple effects, the player where they were, the rescuer's sword in its hand; and should it not try again
      * (no search, no second teleport) during the next 19 steps.
      *
-     * <p>Method under test: {@code VexRescues.catchFromVoid}: the teleport's refusal
+     * <p>Method under test: {@code VoidCatch.catchFromVoid}: the teleport's refusal
      */
     static void voidCatchRefusedTeleport(GameTestHelper helper) {
         // Arrange

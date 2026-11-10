@@ -22,6 +22,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.gametest.framework.GameTestSequence;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntitySpawnReason;
@@ -67,6 +68,12 @@ public final class BoundVexRescueJobGameTests {
 
     /** How many ticks after the rescue starts the job must be given back and the vex held at the side. */
     private static final int WITHIN = 3;
+
+    /** How many ticks of a tail the approach tests check one by one (the tail lasts 20 ticks). */
+    private static final int TAIL_CHECKS = 14;
+
+    /** At least this far from its target is a job still in its approach (the reach is 1.5 blocks). */
+    private static final double APPROACHING = 5.0;
 
     /** The summoner's yaw in these tests is 0: the side point is 0.6 west and 1.2 above their feet. */
     private static final Vec3 SIDE_OFFSET = new Vec3(-0.6, 1.2, 0.0);
@@ -123,6 +130,19 @@ public final class BoundVexRescueJobGameTests {
         add("bound_vex_world_rescue_void_preempts_a_cure_in_the_potion_step", cure(true), false);
         add("bound_vex_world_rescue_void_preempts_a_bribe_offer", bribe(), false);
         add("bound_vex_world_rescue_void_preempts_a_flight_to_a_crystal", crystal(), false);
+        add("bound_vex_world_rescue_void_keeps_the_apple_when_a_cure_was_only_approaching", cureApproach(), false);
+        addQuick("bound_vex_world_rescue_lava_keeps_the_bucket_for_a_repair_in_approach_1", repairApproach(), 1);
+        addQuick("bound_vex_world_rescue_lava_keeps_the_bucket_for_a_repair_in_approach_2", repairApproach(), 2);
+        addQuick("bound_vex_world_rescue_lava_keeps_the_bucket_for_a_bribe_in_approach_1", bribeApproach(), 1);
+        addQuick("bound_vex_world_rescue_lava_keeps_the_bucket_for_a_bribe_in_approach_2", bribeApproach(), 2);
+    }
+
+    /**
+     * Registers a test of a lava pull that ends after {@code pullTicks} ticks in lava, with {@code maker}'s job still
+     * in its approach.
+     */
+    private static void addQuick(String name, JobMaker maker, int pullTicks) {
+        FangGameTests.addPadded(SHARED, name, BODY_TICKS, helper -> lavaQuickTest(helper, maker, pullTicks));
     }
 
     /** Registers a job test: lava in a Nether room when {@code lava}, a void catch in the End otherwise. */
@@ -307,7 +327,7 @@ public final class BoundVexRescueJobGameTests {
         stepWhileLive(helper, player, live, VexRescues::tick);
 
         // Act & Assert
-        helper.startSequence()
+        GameTestSequence sequence = helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
                 .thenWaitUntil(() -> helper.assertTrue(job.running().getAsBoolean(), "setup: the job is running"))
                 .thenExecute(() -> {
@@ -330,8 +350,16 @@ public final class BoundVexRescueJobGameTests {
                                     && vex.isConjured(EquipmentSlot.MAINHAND),
                             "the tail shows the apple although the job held the hand");
                     job.givenBack().run();
-                })
-                .thenWaitUntil(
+                });
+        for (int tick = 1; tick <= TAIL_CHECKS; tick++) {
+            sequence = sequence.thenExecuteAfter(
+                    1,
+                    () -> helper.assertTrue(
+                            vex.getMainHandItem().is(Items.ENCHANTED_GOLDEN_APPLE)
+                                    && vex.isConjured(EquipmentSlot.MAINHAND),
+                            "the tail keeps showing the apple"));
+        }
+        sequence.thenWaitUntil(
                         () -> helper.assertTrue(VexRescues.running(player).isEmpty(), "the tail ends"))
                 .thenExecute(() -> {
                     helper.assertTrue(BoundVexTestSupport.swordBack(vex), "the sword is back, nothing conjured");
@@ -340,6 +368,60 @@ public final class BoundVexRescueJobGameTests {
                 })
                 .thenWaitUntil(
                         () -> helper.assertTrue(job.restarted().getAsBoolean(), "the job starts over and gets on"))
+                .thenSucceed();
+    }
+
+    /**
+     * A lava pull whose job is still in its approach (the hand holds the sword when the pull starts) ends after
+     * {@code pullTicks} ticks in lava: the bucket must be in the vex's hand for the whole tail, although the
+     * preempted job's {@code stop} dismisses the hand. Stepped by hand, so the tail starts on a known tick; the sword
+     * is back when the tail ends and the job's state is given back.
+     */
+    private static void lavaQuickTest(GameTestHelper helper, JobMaker maker, int pullTicks) {
+        // Arrange
+        ServerPlayer player = rescuePlayer(helper);
+        ServerLevel nether = netherRoom(helper, player);
+        BlockPos slot = player.blockPosition();
+        Job job = maker.make(helper, nether, player, slot);
+        BoundVex vex = job.vex();
+        Runnable bucketShown = () -> {
+            helper.assertValueEqual(
+                    VexRescues.running(player), Optional.of(VexRescues.Kind.LAVA), "the tail is a lava rescue");
+            helper.assertTrue(
+                    vex.getMainHandItem().is(Items.WATER_BUCKET) && vex.isConjured(EquipmentSlot.MAINHAND),
+                    "the tail shows the bucket");
+        };
+
+        // Act & Assert
+        GameTestSequence sequence = helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
+                .thenWaitUntil(() -> helper.assertTrue(job.running().getAsBoolean(), "setup: the job approaches"))
+                .thenExecute(() -> {
+                    helper.assertTrue(BoundVexTestSupport.swordBack(vex), "setup: the hand is free");
+                    lavaOn(helper, nether, slot);
+                    lavaStep(player);
+                });
+        for (int tick = 1; tick < pullTicks; tick++) {
+            sequence = sequence.thenExecuteAfter(1, () -> lavaStep(player));
+        }
+        sequence = sequence.thenExecuteAfter(1, () -> {
+            walkOut(helper, player, slot);
+            lavaStep(player);
+        });
+        for (int tick = 0; tick < TAIL_CHECKS; tick++) {
+            sequence = sequence.thenExecuteAfter(1, () -> {
+                lavaStep(player);
+                bucketShown.run();
+            });
+        }
+        sequence.thenWaitUntil(() -> {
+                    lavaStep(player);
+                    helper.assertTrue(VexRescues.running(player).isEmpty(), "the tail ends");
+                })
+                .thenExecute(() -> {
+                    helper.assertTrue(BoundVexTestSupport.swordBack(vex), "the sword is back, nothing conjured");
+                    job.givenBack().run();
+                })
                 .thenSucceed();
     }
 
@@ -355,22 +437,39 @@ public final class BoundVexRescueJobGameTests {
         return BoundVexTestSupport.noTargets(vexIn(helper, level, vexSpot(base), player));
     }
 
-    /** The cure: a zombie villager three blocks east and two south of {@code base}, one up; in the apple or potion step. */
+    /** A zombie villager with no goals at {@code at} in {@code level}, discarded when the test ends. */
+    private static ZombieVillager cureSubject(GameTestHelper helper, ServerLevel level, Vec3 at) {
+        ZombieVillager zombieVillager = EntityTypes.ZOMBIE_VILLAGER.create(level, EntitySpawnReason.COMMAND);
+        if (zombieVillager == null) {
+            throw helper.assertionException("could not create a zombie villager");
+        }
+        zombieVillager.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.LEATHER_HELMET));
+        zombieVillager.setNoGravity(true);
+        zombieVillager.setPersistenceRequired();
+        zombieVillager.goalSelector.removeAllGoals(goal -> true);
+        zombieVillager.targetSelector.removeAllGoals(goal -> true);
+        zombieVillager.setPos(at);
+        level.addFreshEntity(zombieVillager);
+        whenDone(helper, zombieVillager::discard);
+        return zombieVillager;
+    }
+
+    /** Fails the test unless the cure of {@code zombieVillager} was given back: unfrozen, unmarked, the claim free. */
+    private static void assertCureGivenBack(GameTestHelper helper, ZombieVillager zombieVillager) {
+        helper.assertFalse(zombieVillager.isNoAi(), "the zombie villager is unfrozen");
+        helper.assertFalse(AllyAttachments.isBeingCured(zombieVillager), "and unmarked");
+        helper.assertFalse(CureZombieVillagerGoal.isClaimed(zombieVillager), "and the claim is free");
+    }
+
+    /**
+     * The cure: a zombie villager three blocks east and two south of {@code base}, one up; in the apple or potion
+     * step.
+     */
     private static JobMaker cure(boolean potionStep) {
         return (helper, level, player, base) -> {
             BoundVex vex = jobVex(helper, level, player, base);
-            ZombieVillager zombieVillager = EntityTypes.ZOMBIE_VILLAGER.create(level, EntitySpawnReason.COMMAND);
-            if (zombieVillager == null) {
-                throw helper.assertionException("could not create a zombie villager");
-            }
-            zombieVillager.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.LEATHER_HELMET));
-            zombieVillager.setNoGravity(true);
-            zombieVillager.setPersistenceRequired();
-            zombieVillager.goalSelector.removeAllGoals(goal -> true);
-            zombieVillager.targetSelector.removeAllGoals(goal -> true);
-            zombieVillager.setPos(base.getX() + 3.5, base.getY() + 1.0, base.getZ() + 2.5);
-            level.addFreshEntity(zombieVillager);
-            whenDone(helper, zombieVillager::discard);
+            ZombieVillager zombieVillager =
+                    cureSubject(helper, level, new Vec3(base.getX() + 3.5, base.getY() + 1.0, base.getZ() + 2.5));
             BooleanSupplier inStep = potionStep
                     ? () -> ItemStack.matches(vex.getMainHandItem(), CureZombieVillagerGoal.curePotion())
                     : () -> vex.getMainHandItem().is(Items.GOLDEN_APPLE);
@@ -380,12 +479,99 @@ public final class BoundVexRescueJobGameTests {
                             && vex.isConjured(EquipmentSlot.MAINHAND)
                             && zombieVillager.isNoAi()
                             && CureZombieVillagerGoal.isClaimed(zombieVillager),
-                    () -> {
-                        helper.assertFalse(zombieVillager.isNoAi(), "the zombie villager is unfrozen");
-                        helper.assertFalse(AllyAttachments.isBeingCured(zombieVillager), "and unmarked");
-                        helper.assertFalse(CureZombieVillagerGoal.isClaimed(zombieVillager), "and the claim is free");
-                    },
+                    () -> assertCureGivenBack(helper, zombieVillager),
                     zombieVillager::isConverting);
+        };
+    }
+
+    /**
+     * Where an approach test's target stands: 3.9 blocks east and 3.9 south of the vex's spot (inside its guard area),
+     * 3 blocks below it, so the vex has about 6 blocks to fly.
+     */
+    private static Vec3 farSpot(BlockPos base) {
+        return vexSpot(base).add(3.9, -3.0, 3.9);
+    }
+
+    /** Whether a goal of {@code vex} whose class is named {@code goalName} is running right now. */
+    private static boolean goalRunning(BoundVex vex, String goalName) {
+        return vex.goalSelector.getAvailableGoals().stream()
+                .anyMatch(wrapped -> wrapped.isRunning()
+                        && wrapped.getGoal().getClass().getSimpleName().equals(goalName));
+    }
+
+    /**
+     * The cure in its approach step: a zombie villager {@link #farSpot far} from the vex, which has claimed it and
+     * flies toward it with its hand still on the sword. Nothing is restarted after the rescue.
+     */
+    private static JobMaker cureApproach() {
+        return (helper, level, player, base) -> {
+            BoundVex vex = jobVex(helper, level, player, base);
+            ZombieVillager zombieVillager = cureSubject(helper, level, farSpot(base));
+            return plainJob(
+                    vex,
+                    () -> !vex.isConjured(EquipmentSlot.MAINHAND)
+                            && zombieVillager.isNoAi()
+                            && CureZombieVillagerGoal.isClaimed(zombieVillager)
+                            && vex.distanceTo(zombieVillager) >= APPROACHING,
+                    () -> assertCureGivenBack(helper, zombieVillager),
+                    () -> true);
+        };
+    }
+
+    /**
+     * The repair in its approach: a hurt ally golem {@link #farSpot far} from the vex, whose repair goal runs with the
+     * hand still on the sword. Nothing is restarted after the rescue.
+     */
+    private static JobMaker repairApproach() {
+        return (helper, level, player, base) -> {
+            BoundVex vex = jobVex(helper, level, player, base);
+            IronGolem golem = EntityTypes.IRON_GOLEM.create(level, EntitySpawnReason.COMMAND);
+            if (golem == null) {
+                throw helper.assertionException("could not create a golem");
+            }
+            golem.setNoAi(true);
+            golem.setNoGravity(true);
+            golem.setPersistenceRequired();
+            golem.setHealth(50.0F);
+            golem.setPos(farSpot(base));
+            level.addFreshEntity(golem);
+            whenDone(helper, golem::discard);
+            return plainJob(
+                    vex,
+                    () -> !vex.isConjured(EquipmentSlot.MAINHAND)
+                            && goalRunning(vex, "RepairGolemGoal")
+                            && vex.distanceTo(golem) >= APPROACHING,
+                    () -> helper.assertFalse(goalRunning(vex, "RepairGolemGoal"), "the repair was preempted"),
+                    () -> true);
+        };
+    }
+
+    /**
+     * The bribe in its approach: an enemy vanilla vex {@link #farSpot far} from the vex, courted, with the hand still
+     * on the sword. Nothing is restarted after the rescue.
+     */
+    private static JobMaker bribeApproach() {
+        return (helper, level, player, base) -> {
+            BoundVex vex = jobVex(helper, level, player, base);
+            BoundVexTestSupport.rolling(helper, vex, 0);
+            Vex other = EntityTypes.VEX.create(level, EntitySpawnReason.COMMAND);
+            if (other == null) {
+                throw helper.assertionException("could not create a vex");
+            }
+            other.setNoAi(true);
+            other.setNoGravity(true);
+            other.setPersistenceRequired();
+            other.setPos(farSpot(base));
+            other.setTarget(player);
+            level.addFreshEntity(other);
+            whenDone(helper, other::discard);
+            return plainJob(
+                    vex,
+                    () -> !vex.isConjured(EquipmentSlot.MAINHAND)
+                            && BribeGoal.isCourted(other)
+                            && vex.distanceTo(other) >= APPROACHING,
+                    () -> helper.assertFalse(BribeGoal.isCourted(other), "the other vex is not courted"),
+                    () -> true);
         };
     }
 

@@ -159,7 +159,7 @@ public final class BoundVexEvents {
      * <p>A vex with a summoner mark whose summoner is absent (offline, dead, spectating or in another level) takes no
      * targets, but an arrow or potion it launched earlier may still be in flight, and {@code isPrey} cannot be asked
      * without the summoner. The rule then is the conservative one: <em>indirect</em> damage (the direct entity is not
-     * the vex itself, so a projectile or a splash) is cancelled for any victim that is no {@code Enemy} (the summoner's
+     * the vex itself, so a projectile or a splash) is canceled for any victim that is no {@code Enemy} (the summoner's
      * pets, villagers, golems and players) and for any victim carrying the same summoner mark (a sibling vex). The
      * vex's own melee is not touched: it cannot hit while it has no target. A vex with no summoner mark
      * ({@code /summon}) does nothing here.
@@ -292,7 +292,7 @@ public final class BoundVexEvents {
     }
 
     /**
-     * Drops a logged-out player's note (a cancelled travel event can leave one).
+     * Drops a logged-out player's note (a canceled travel event can leave one).
      *
      * @param event the logout event
      */
