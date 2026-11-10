@@ -551,7 +551,7 @@ git commit -m "feat(evoking): guard posture, rescue pushes and the void rule (pu
 - Consumes: `GuardPosture` (Task 2); `room`, `vexIn`, `NIGHT` (Task 1).
 - Produces: `GuardPosture BoundVex.posture()` (public, for GameTests); `int BoundVex.scanInterval()` (public). `BoundVex.SCAN_INTERVAL` stays, used only by `SupportGearGoal` (its 40-tick throw cooldown makes a faster look pointless; say so in its Javadoc).
 
-- [ ] **Step 1: Write the failing GameTests**
+- [x] **Step 1: Write the failing GameTests**
 
 Register with `FangGameTests.addPadded` (`SHARED` unless said):
 
@@ -562,12 +562,12 @@ Register with `FangGameTests.addPadded` (`SHARED` unless said):
 - `bound_vex_world_posture_staying_scans_by_place`: in the End room a staying vex (`vex.setStaying(true)`) does not move for 40 ticks (within 0.5 of where it was) and `scanInterval() == 2`.
 - `bound_vex_world_scan_cadence_end`: in the End room, a parked vex (`goalSelector.removeAllGoals`) and a husk 3 blocks away with no AI and no gravity: the vex has the husk as target within **3 ticks** (`thenExecuteAfter(3, …)`); the same setup in `bound_vex_world_scan_cadence_overworld_day` asserts only "within 11 ticks" (the old cadence still works).
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:bound_vex_world_posture_*"`
 Expected: compilation fails (`posture()` does not exist).
 
-- [ ] **Step 3: `BoundVex.posture()` and `scanInterval()`**
+- [x] **Step 3: `BoundVex.posture()` and `scanInterval()`**
 
 ```java
 /**
@@ -599,7 +599,7 @@ public int scanInterval() {
 
 In the six goals listed under Files, replace `vex.scanDue(BoundVex.SCAN_INTERVAL)` with `vex.scanDue(vex.scanInterval())`. Update `SCAN_INTERVAL`'s Javadoc ("the wide posture's interval; the support goal's fixed cadence") and `scanDue`'s ("every 10 ticks" → "the posture's interval").
 
-- [ ] **Step 4: `FollowSummonerGoal` asks the posture**
+- [x] **Step 4: `FollowSummonerGoal` asks the posture**
 
 Replace `canUse`'s last line and `flyToOrbit`; delete `ORBIT_SPOT_RADIUS` and `SPEED`. **Keep** `ORBIT_MIN`, `ORBIT_MAX`, `TELEPORT_DISTANCE`, `TELEPORT_SPREAD` and `TELEPORT_LANDING_MAX` with their values: the follow, gear and job GameTests read them (`ORBIT_MIN = GuardPosture.WIDE.sideMin()`; `ORBIT_MAX = 4.0`, documented as the wide posture's limit). Update the class Javadoc to describe the posture.
 
@@ -632,12 +632,12 @@ private void flyToOrbit(ServerPlayer owner) {
 
 `start()` keeps the teleport rule (`vex.distanceTo(owner) > TELEPORT_DISTANCE`).
 
-- [ ] **Step 5: Run the new tests, then every follow test**
+- [x] **Step 5: Run the new tests, then every follow test**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:bound_vex_world_*"` then `"-PgameTests=spellcraft:bound_vex_follow_*"` (use the real prefix of `BoundVexFollowGameTests`).
 Expected: all pass. If a close-posture vex overshoots its band (the "60 ticks" assertion), do not widen the assertion: report it with the measured positions; the fix is a spec ruling, not a test edit.
 
-- [ ] **Step 6: Full gates, then commit**
+- [x] **Step 6: Full gates, then commit**
 
 Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice.
 
@@ -645,6 +645,8 @@ Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice.
 git add src/main/java/io/github/willrieske/spellcraft/evoking src/main/java/io/github/willrieske/spellcraft/gametest
 git commit -m "feat(evoking): Bound Vexes close in overhead and scan faster at night, in the Nether and the End"
 ```
+
+> **As built (`9fa69ec`):** diverged — a close-posture flight is one goal use that ends on arrival, where the velocity is zeroed (a coasting vex sank to 1.5 above the feet), and a target mid-flight drops the wanted position; the close bands start at 2.5, not 2.2 (the move control stops up to half a block short). Measured after: min height 1.88, max sideways 2.46, no hops in 60 ticks. Review fixes for Task 2 are in `cce1ddc`. 366 tests; reason: coordinator rulings on the measurements, recorded in spec §6.1 and §10.
 
 ---
 
@@ -1751,3 +1753,4 @@ git commit -m "docs(evoking): Part 5 in the README, playtest items, mutation tes
 | Task | SHA | Divergence |
 |---|---|---|
 | 1 | `2c484b4` | the GameTest world is flat in every dimension (a floor at y 0..3 even in the End), so `endVoid` clears the blocks below its slot in the forced chunks and restores them; `setInvulnerable` does not exist (`setPermanentlyInvulnerable(true)`); `isInLava` also needs the second `baseTick`; `Ghast` is in `monster`; the night setup test is registered unpadded. Baseline 349, now 355; reason: the sources and the server as they are. |
+| 3 | `9fa69ec` | a close-posture flight is one goal use that ends on arrival, where the velocity is zeroed (a coasting vex sank to 1.5 above the feet), and a target mid-flight drops the wanted position; the close bands start at 2.5, not 2.2 (the move control stops up to half a block short). Measured after: min height 1.88, max sideways 2.46, no hops in 60 ticks. Review fixes for Task 2 are in `cce1ddc`. 366 tests; reason: coordinator rulings on the measurements, recorded in spec §6.1 and §10. |

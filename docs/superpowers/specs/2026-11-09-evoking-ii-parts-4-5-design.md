@@ -261,9 +261,9 @@ and its scan interval.
 | Where | Sideways from the summoner | Height above the summoner's feet | Speed | Scan every |
 |---|---|---|---|---|
 | Overworld by day; any other dimension | 2–3.5 | 0.5–1.5 | 0.7 | 10 ticks |
-| Overworld when `level.isDarkOutside()` (night, or a thunderstorm) | 1–2 | 2.2–3.0 | 0.35 | 4 ticks |
-| Nether | 1–2 | 2.2–3.0 | 0.35 | 4 ticks |
-| End | 0.5–1.5 | 2.2–3.0 | 0.35 | 2 ticks |
+| Overworld when `level.isDarkOutside()` (night, or a thunderstorm) | 1–2 | 2.5–3.0 | 0.35 | 4 ticks |
+| Nether | 1–2 | 2.5–3.0 | 0.35 | 4 ticks |
+| End | 0.5–1.5 | 2.5–3.0 | 0.35 | 2 ticks |
 
 - **Close means overhead.** In the three close postures the vexes hover **above the player's
   head** (the player is 1.8 tall), not at eye height. At eye height, a ring of vexes within two
@@ -274,8 +274,13 @@ and its scan interval.
 - **When a vex moves.** `FollowSummonerGoal` asks the posture each time. A vex is *in place*
   when its sideways distance from the summoner is at most the row's outer edge plus 0.5 and its
   height above the summoner's feet is within the row's range widened by 0.5 each way; otherwise,
-  when idle, it flies to a random spot inside the row's two ranges at the row's speed (the slow
-  speed keeps its coast inside a narrow band). The first row keeps today's test (farther than 4
+  when idle, it flies to a random spot inside the row's two ranges at the row's speed. In the
+  three close postures the flight is one continuous goal use that ends when the vex arrives, and
+  on arrival its velocity is zeroed: a vex left to coast sank to 1.5 blocks above the feet, eye
+  height, which is what "overhead" is there to prevent. Vanilla's move control calls a spot
+  reached up to half a block short, which is why the band starts at 2.5 and not lower: a vex
+  that stops short is still about 2 blocks up. A target appearing mid-flight ends the flight at
+  once (the wanted position is dropped so the charge goal can start). The first row keeps today's test (farther than 4
   blocks, feet to feet). The teleport rule (farther than 12 blocks) is unchanged; a teleported
   vex lands within 2 blocks and then takes its place.
 - **Scan interval.** The three target goals and the job goals read their interval from
@@ -463,7 +468,7 @@ in the damage pipeline (`LivingDamageEvent.Pre`) and still holds.
   has a wider band or a slower scan than the Overworld day.
 - `GuardPosture` also answers "in place" and gives a spot from two unit rolls. Properties: every
   spot is inside its row's ranges; every spot is in place; in the three close rows every spot is
-  at least 2.2 above the feet.
+  at least 2.5 above the feet.
 - `RescuePush`: the lava-pull velocity from the current velocity and the offset to the spot (add
   0.1 sideways toward it, sideways speed capped at 0.35, `y` raised to at least 0.3; with no
   spot only `y` raised to at least 0.4; a spot directly above or below adds nothing sideways and
@@ -583,7 +588,7 @@ changes (none is expected: no packet, no new Mixin; one access-transformer line)
 | A bribed or courted vex and other Bound Vexes | Not prey | Otherwise the bribe ends in a kill, usually before the roll. |
 | Bribe subject | Any vanilla vex targeting your side | The parent's rule; an evoker-owned test would skip `/summon`ed vexes for no gain. |
 | Bribed vex flees from | The nearest player | It has no summoner of its own to remember across a save. |
-| Close postures | Overhead (2.2–3.0 above the feet) | At eye height your clicks land on your vexes. Alternative: keep the parent's "blocks from the summoner" and accept that. |
+| Close postures | Overhead (2.5–3.0 above the feet), stopping dead on arrival | At eye height your clicks land on your vexes. Alternative: keep the parent's "blocks from the summoner" and accept that. The band was 2.2–3.0 until the build measured vexes ending at 1.7. |
 | Scan cadence | 4 ticks (night, Nether), 2 ticks (End) | The goal clock cannot keep 5 or 1; see §6.1. |
 | Night | `isDarkOutside()`, so thunderstorms count | Hostiles spawn then too. |
 | Rescuer | Nearest following vex within 16 blocks (64 for the void) | The portal rule's distance; staying vexes hold their posts. |
