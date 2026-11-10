@@ -3,6 +3,7 @@ package io.github.willrieske.spellcraft.evoking;
 import io.github.willrieske.spellcraft.spell.Allies;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.rules.GuardArea;
+import io.github.willrieske.spellcraft.spell.rules.GuardPosture;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
@@ -15,6 +16,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -81,7 +83,10 @@ public class BoundVex extends Vex {
     private static final String STASH_TAG_PREFIX = "stash_";
     private static final String CONJURED_TAG_PREFIX = "conjured_";
 
-    /** Ticks between the target goals' scans (spec §3.4 "every 10 ticks"); read through {@link #scanDue}. */
+    /**
+     * The wide posture's scan interval (spec §3.4 "every 10 ticks") and the fixed cadence of {@link SupportGearGoal}.
+     * Every other scanning goal reads {@link #scanInterval()}; all of them go through {@link #scanDue}.
+     */
     static final int SCAN_INTERVAL = 10;
 
     /** How far the summoner's wolves hear the call to a fight (spec §3.4), feet to feet. */
@@ -654,7 +659,8 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * The goal clock (spec §3.4 "every 10 ticks"): true once every {@code interval} ticks. {@code Mob.serverAiStep}
+     * The goal clock (spec §3.4): true once every {@code interval} ticks, the posture's ({@link #scanInterval()}).
+     * {@code Mob.serverAiStep}
      * asks a goal's {@code canUse} only when {@code tickCount + getId()} is even (docs/api-notes.md §21, "The goal
      * clock"), so a plain {@code tickCount % 10} gate never opens for an odd id; keyed the same way, an even interval
      * always lands on a tick where {@code canUse} runs. Every scanning goal reads its cadence here.
@@ -664,6 +670,32 @@ public class BoundVex extends Vex {
      */
     boolean scanDue(int interval) {
         return (tickCount + getId()) % interval == 0;
+    }
+
+    /**
+     * Where this vex hovers and how often it scans, by where it is (Parts 4–5 spec §6.1): the Overworld by day and any
+     * modded dimension keep the wide posture; the dark Overworld, the Nether and the End close in overhead.
+     *
+     * @return the posture for this vex's level, now
+     */
+    public GuardPosture posture() {
+        ResourceKey<Level> dimension = level().dimension();
+        GuardPosture.Place place = dimension.equals(Level.OVERWORLD)
+                ? GuardPosture.Place.OVERWORLD
+                : dimension.equals(Level.NETHER)
+                        ? GuardPosture.Place.NETHER
+                        : dimension.equals(Level.END) ? GuardPosture.Place.END : GuardPosture.Place.OTHER;
+        return GuardPosture.of(place, level().isDarkOutside());
+    }
+
+    /**
+     * Ticks between this vex's scans: the posture's (10, 4 or 2). Even, so it lands on the goal clock
+     * ({@link #scanDue}).
+     *
+     * @return the scan interval
+     */
+    public int scanInterval() {
+        return posture().scanInterval();
     }
 
     /**

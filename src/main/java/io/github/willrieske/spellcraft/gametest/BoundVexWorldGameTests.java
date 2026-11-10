@@ -12,9 +12,13 @@ import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.NIGHT;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
+import com.mojang.logging.LogUtils;
 import io.github.willrieske.spellcraft.evoking.BoundVex;
+import io.github.willrieske.spellcraft.evoking.FollowSummonerGoal;
 import io.github.willrieske.spellcraft.gametest.BoundVexWorldTestSupport.Place;
+import io.github.willrieske.spellcraft.spell.rules.GuardPosture;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.gametest.framework.GameTestAssertException;
@@ -24,18 +28,32 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
+import org.slf4j.Logger;
 
 /**
  * GameTests of the Part 5 world helpers. This class holds the tests of the support code ({@link
  * BoundVexWorldTestSupport} and the pinned time of day); the rule tests of the later tasks register here too.
  */
 public final class BoundVexWorldGameTests {
+    /** Where the posture tests log what they measured. */
+    private static final Logger LOGGER = LogUtils.getLogger();
+
+    /** How many ticks a close posture is watched once its vex is in place. */
+    private static final int WATCH_TICKS = 60;
+
+    /** The least height above the summoner's feet a close-posture vex may hang at (spec §6.1, §9). */
+    private static final double LEAST_HEIGHT = 1.7;
+
+    /** A runaway guard only: a close-posture vex farther sideways than this has left its band by far. */
+    private static final double RUNAWAY = 5.0;
+
     private BoundVexWorldGameTests() {}
 
     static void registerAll() {
@@ -48,6 +66,17 @@ public final class BoundVexWorldGameTests {
         padded("bound_vex_world_setup_fluids", BoundVexWorldGameTests::setupFluids);
         SpellcraftGameTests.add(NIGHT, "bound_vex_world_setup_night", BoundVexWorldGameTests::setupNight);
         SpellcraftGameTests.add(SHARED, "bound_vex_world_setup_day", BoundVexWorldGameTests::setupDay);
+        padded("bound_vex_world_posture_overworld_day", BoundVexWorldGameTests::postureOverworldDay);
+        FangGameTests.addPadded(NIGHT, "bound_vex_world_posture_night", BoundVexWorldGameTests::postureNight);
+        padded("bound_vex_world_posture_nether", BoundVexWorldGameTests::postureNether);
+        padded("bound_vex_world_posture_end", BoundVexWorldGameTests::postureEnd);
+        padded("bound_vex_world_posture_staying_scans_by_place", BoundVexWorldGameTests::postureStayingScansByPlace);
+        FangGameTests.addPadded(
+                NIGHT,
+                "bound_vex_world_posture_close_flight_yields_to_a_target",
+                BoundVexWorldGameTests::closeFlightYieldsToATarget);
+        padded("bound_vex_world_scan_cadence_end", BoundVexWorldGameTests::scanCadenceEnd);
+        padded("bound_vex_world_scan_cadence_overworld_day", BoundVexWorldGameTests::scanCadenceOverworldDay);
     }
 
     /** Registers {@code body} in the shared environment with the padded box and its chunk wait. */
@@ -282,6 +311,283 @@ public final class BoundVexWorldGameTests {
                 "a room 181 blocks wide");
         helper.assertValueEqual(freeSlots(helper, Level.NETHER), free, "the rejected room took no slot");
         helper.succeed();
+    }
+
+    /**
+     * When a following Bound Vex is in the Overworld by day, should its posture be the wide one and its scan interval
+     * 10.
+     *
+     * <p>Method under test: {@code BoundVex.posture} and {@code BoundVex.scanInterval}
+     */
+    static void postureOverworldDay(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+
+        // Act
+        BoundVex vex = BoundVexTestSupport.followOnly(helper, FEET.above(1), player);
+
+        // Assert
+        helper.assertTrue(vex.posture().equals(GuardPosture.WIDE), "the Overworld by day has the wide posture");
+        helper.assertValueEqual(vex.scanInterval(), 10, "the wide posture scans every 10 ticks");
+        helper.succeed();
+    }
+
+    /**
+     * When a following Bound Vex six blocks north of its summoner is in the Overworld at night, should it close in
+     * overhead (at least 1.7 above the summoner's feet for 60 ticks, never far off sideways) and scan every 4 ticks.
+     *
+     * <p>Method under test: {@code BoundVex.posture} through {@code FollowSummonerGoal}
+     */
+    static void postureNight(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        BoundVex vex = BoundVexTestSupport.followOnly(helper, FEET.offset(0, 0, -6), player);
+
+        // Act & Assert
+        watchClosePosture(
+                helper,
+                player,
+                vex,
+                "night",
+                4,
+                () -> helper.assertTrue(helper.getLevel().isDarkOutside(), "setup: it is night"));
+    }
+
+    /**
+     * When a following Bound Vex three blocks east of its summoner is in a Nether room, should it close in overhead (at
+     * least 1.7 above the summoner's feet for 60 ticks, never far off sideways) and scan every 4 ticks.
+     *
+     * <p>Method under test: {@code BoundVex.posture} through {@code FollowSummonerGoal}
+     */
+    static void postureNether(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        ServerLevel nether = BoundVexWorldTestSupport.room(helper, player, Level.NETHER, 4, 5);
+        BoundVex vex = BoundVexTestSupport.noTargets(
+                vexIn(helper, nether, player.position().add(3, 0, 0), player));
+
+        // Act & Assert
+        watchClosePosture(helper, player, vex, "nether", 4, () -> {});
+    }
+
+    /**
+     * When a following Bound Vex three blocks east of its summoner is in an End room, should it close in overhead (at
+     * least 1.7 above the summoner's feet for 60 ticks, never far off sideways) and scan every 2 ticks.
+     *
+     * <p>Method under test: {@code BoundVex.posture} through {@code FollowSummonerGoal}
+     */
+    static void postureEnd(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        ServerLevel end = BoundVexWorldTestSupport.room(helper, player, Level.END, 4, 5);
+        BoundVex vex = BoundVexTestSupport.noTargets(
+                vexIn(helper, end, player.position().add(3, 0, 0), player));
+
+        // Act & Assert
+        watchClosePosture(helper, player, vex, "end", 2, () -> {});
+    }
+
+    /**
+     * Waits until {@code vex} is in place for its posture, watches it for {@link #WATCH_TICKS} ticks, logs what it
+     * measured (the largest sideways distance, the lowest height, how many times the vex set off for a new spot),
+     * then asserts the height, the runaway guard and the scan interval. Ends the test.
+     *
+     * @param helper the test helper
+     * @param player the summoner
+     * @param vex the following vex, already spawned
+     * @param label the posture's name, for the log line
+     * @param scanInterval the scan interval the posture should give
+     * @param precondition a check that must pass before the vex's position is read (it may throw a GameTest failure)
+     */
+    private static void watchClosePosture(
+            GameTestHelper helper,
+            ServerPlayer player,
+            BoundVex vex,
+            String label,
+            int scanInterval,
+            Runnable precondition) {
+        double[] farthest = {0.0};
+        double[] lowest = {Double.MAX_VALUE};
+        int[] hops = {0};
+        boolean[] flying = {false};
+        int[] ticks = {0};
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    precondition.run();
+                    Vec3 offset = vex.position().subtract(player.position());
+                    helper.assertTrue(
+                            vex.posture().inPlace(offset.x, offset.y, offset.z), "setup: the vex is in place");
+                })
+                .thenExecuteFor(WATCH_TICKS, () -> {
+                    Vec3 offset = vex.position().subtract(player.position());
+                    farthest[0] = Math.max(farthest[0], Math.hypot(offset.x, offset.z));
+                    lowest[0] = Math.min(lowest[0], offset.y);
+                    boolean wanted = vex.getMoveControl().hasWanted();
+                    if (ticks[0]++ > 0 && wanted && !flying[0]) {
+                        hops[0]++;
+                    }
+                    flying[0] = wanted;
+                })
+                .thenExecute(() -> {
+                    LOGGER.info(
+                            "posture {}: largest sideways distance {}, lowest height {}, hops {} in {} ticks",
+                            label,
+                            farthest[0],
+                            lowest[0],
+                            hops[0],
+                            WATCH_TICKS);
+                    helper.assertTrue(
+                            lowest[0] >= LEAST_HEIGHT,
+                            label + ": the vex stays at least " + LEAST_HEIGHT + " above the feet, lowest "
+                                    + lowest[0]);
+                    helper.assertTrue(
+                            farthest[0] < RUNAWAY,
+                            label + ": the vex stays within " + RUNAWAY + " sideways, farthest " + farthest[0]);
+                    helper.assertValueEqual(vex.scanInterval(), scanInterval, label + ": scan interval");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a Bound Vex with its full AI is mid-flight to its close spot at night and a husk appears in its guard area,
+     * should the vex take the husk as its target within 20 ticks with the follow goal no longer running, and then come
+     * nearer: the longer-running follow goal does not hold the vex.
+     *
+     * <p>Method under test: {@code FollowSummonerGoal} (package-private), interrupted by the charge goal
+     */
+    static void closeFlightYieldsToATarget(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        BoundVex vex = BoundVexTestSupport.boundVex(helper, FEET.offset(0, 0, -6), player);
+        Husk[] husk = new Husk[1];
+        double[] before = {0.0};
+        double[] nearest = {Double.MAX_VALUE};
+        boolean[] targeted = {false};
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    helper.assertTrue(helper.getLevel().isDarkOutside(), "setup: it is night");
+                    helper.assertTrue(vex.getMoveControl().hasWanted(), "setup: the vex is mid-flight");
+                })
+                .thenExecute(() -> {
+                    husk[0] = BoundVexTestSupport.husk(helper, FEET);
+                    husk[0].setNoGravity(true);
+                    BoundVexTestSupport.placeBeside(vex, husk[0], 0, -3);
+                    before[0] = vex.distanceTo(husk[0]);
+                })
+                .thenExecuteFor(20, () -> {
+                    targeted[0] |= husk[0].equals(vex.getTarget());
+                    nearest[0] = Math.min(nearest[0], vex.distanceTo(husk[0]));
+                })
+                .thenExecute(() -> {
+                    helper.assertTrue(targeted[0], "the vex took the husk as its target");
+                    helper.assertFalse(
+                            vex.goalSelector.getAvailableGoals().stream()
+                                    .anyMatch(g -> g.isRunning() && g.getGoal() instanceof FollowSummonerGoal),
+                            "the follow goal no longer holds the vex");
+                })
+                // The charge goal rolls a one-in-seven chance per check, so the approach itself gets the test's time.
+                .thenWaitUntil(() -> {
+                    nearest[0] = Math.min(nearest[0], vex.distanceTo(husk[0]));
+                    helper.assertTrue(
+                            nearest[0] < before[0],
+                            "the vex came nearer to the husk: " + nearest[0] + " from " + before[0]);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a staying Bound Vex is in an End room, should it not move for 40 ticks and scan every 2 ticks: staying
+     * changes where it hovers, not how often it looks.
+     *
+     * <p>Method under test: {@code BoundVex.scanInterval}
+     */
+    static void postureStayingScansByPlace(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        ServerLevel end = BoundVexWorldTestSupport.room(helper, player, Level.END, 4, 5);
+        BoundVex vex = vexIn(helper, end, player.position().add(1, 2.5, 0), player);
+        vex.setStaying(true);
+        Vec3[] start = new Vec3[1];
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
+                .thenExecute(() -> start[0] = vex.position())
+                .thenExecuteFor(
+                        40,
+                        () -> helper.assertTrue(
+                                vex.position().distanceTo(start[0]) <= 0.5, "the staying vex stays where it was"))
+                .thenExecute(() -> helper.assertValueEqual(vex.scanInterval(), 2, "a staying vex scans by place"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a husk stands three blocks from a parked Bound Vex in an End room, should the vex have it as its target
+     * within 3 ticks.
+     *
+     * <p>Method under test: {@code BoundVex.scanDue} with the End posture's interval
+     */
+    static void scanCadenceEnd(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        ServerLevel end = BoundVexWorldTestSupport.room(helper, player, Level.END, 4, 5);
+        BoundVex vex = vexIn(helper, end, player.position().add(0, 2, 0), player);
+        vex.goalSelector.removeAllGoals(goal -> true);
+
+        // Act & Assert
+        expectTargetWithin(helper, vex, 3, () -> huskIn(end, player.position().add(3, 2, 0)));
+    }
+
+    /**
+     * When a husk stands three blocks from a parked Bound Vex in the Overworld by day, should the vex have it as its
+     * target within 11 ticks (the old cadence still works).
+     *
+     * <p>Method under test: {@code BoundVex.scanDue} with the wide posture's interval
+     */
+    static void scanCadenceOverworldDay(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        BoundVex vex = BoundVexTestSupport.parked(helper, FEET.offset(6, 1, 0), player); // outside the barrier shell
+
+        // Act & Assert
+        expectTargetWithin(helper, vex, 11, () -> {
+            Husk husk = BoundVexTestSupport.husk(helper, FEET);
+            husk.setNoGravity(true);
+            BoundVexTestSupport.placeBeside(vex, husk, 3, 0);
+            return husk;
+        });
+    }
+
+    /**
+     * Waits until {@code vex} has ticked, makes the husk appear, and asserts that {@code ticks} ticks later the vex
+     * has that husk as its target.
+     */
+    private static void expectTargetWithin(GameTestHelper helper, BoundVex vex, int ticks, Supplier<Husk> appear) {
+        Husk[] husk = new Husk[1];
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
+                .thenExecute(() -> {
+                    helper.assertTrue(vex.getTarget() == null, "setup: the vex has no target yet");
+                    husk[0] = appear.get();
+                })
+                .thenExecuteAfter(
+                        ticks,
+                        () -> helper.assertTrue(
+                                husk[0].equals(vex.getTarget()), "the vex targets the husk within " + ticks + " ticks"))
+                .thenSucceed();
+    }
+
+    /** A persistent husk with no AI and no gravity at {@code at} in {@code level}; the place's cleanup removes it. */
+    private static Husk huskIn(ServerLevel level, Vec3 at) {
+        Husk husk = EntityTypes.HUSK.create(level, EntitySpawnReason.COMMAND);
+        husk.setNoAi(true);
+        husk.setNoGravity(true);
+        husk.setPersistenceRequired();
+        husk.setPos(at);
+        level.addFreshEntity(husk);
+        return husk;
     }
 
     /** Fails the test unless {@code action} throws a GameTest failure whose message contains "setup:". */

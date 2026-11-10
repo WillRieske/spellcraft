@@ -30,7 +30,7 @@ final class NearestHostileGoal extends NearestAttackableTargetGoal<LivingEntity>
     /** Only on a scan tick; then vanilla's search, whose roll always passes with a random interval of 1. */
     @Override
     public boolean canUse() {
-        return vex.scanDue(BoundVex.SCAN_INTERVAL) && super.canUse();
+        return vex.scanDue(vex.scanInterval()) && super.canUse();
     }
 
     /** The broad phase of the search; the selector keeps only what {@code inGuardArea} accepts. */

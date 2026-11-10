@@ -1,5 +1,6 @@
 package io.github.willrieske.spellcraft.evoking;
 
+import io.github.willrieske.spellcraft.spell.rules.GuardPosture;
 import java.util.EnumSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -8,18 +9,22 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Keeps a Bound Vex at its summoner's side (Evoking II spec §3.3): while following (not staying) and idle (no target),
- * a vex farther than the orbit band flies to a random spot inside it, and a vex farther than
- * {@link #TELEPORT_DISTANCE} blocks teleports to an air cell beside the summoner instead. Each use makes one move; the
- * move control flies it there and {@code canUse} picks the next. Without a summoner in the level the goal is idle.
+ * Keeps a Bound Vex at its summoner's side (Evoking II spec §3.3, Parts 4–5 spec §6.1): while following (not staying)
+ * and idle (no target), a vex outside its posture's band ({@code BoundVex.posture()}: wide by day in the Overworld,
+ * close and overhead at night, in the Nether and in the End) flies to a random spot inside the band at the posture's
+ * speed, and a vex farther than {@link #TELEPORT_DISTANCE} blocks teleports to an air cell beside the summoner
+ * instead. In the wide posture each use makes one move; the move control flies it there and {@code canUse} picks the
+ * next. In a close posture the use lasts until the vex arrives, and then {@link #stop} halts it dead: at speed 0.35 a
+ * vex that coasted past its spot sank to the summoner's eye height (measured 1.5 above the feet), into their clicks.
+ * Without a summoner in the level the goal is idle.
  * Like vanilla's random move, the goal waits for the move control to be free ({@code !hasWanted()}), so a vex finishes
  * a return flight to its post or a charge before it follows.
  */
 public final class FollowSummonerGoal extends Goal {
-    /** The orbit band's inner edge (feet to feet): the vex is left alone inside the band. */
-    public static final double ORBIT_MIN = 2.0;
+    /** The wide posture's inner sideways edge (feet to feet); the GameTests read it. */
+    public static final double ORBIT_MIN = GuardPosture.WIDE.sideMin();
 
-    /** The orbit band's outer edge (feet to feet): beyond it the vex moves. */
+    /** The wide posture's limit (feet to feet): beyond it a wide-posture vex moves. */
     public static final double ORBIT_MAX = 4.0;
 
     /** Farther than this (feet to feet), the vex teleports instead of flying. */
@@ -36,18 +41,15 @@ public final class FollowSummonerGoal extends Goal {
      */
     public static final double TELEPORT_LANDING_MAX = 4.5;
 
-    /**
-     * The orbit spot's farthest horizontal distance; with the spot 0.5–1.5 blocks above the summoner's feet, every spot
-     * is at most √(3.5² + 1.5²) ≈ 3.8 blocks from the feet, inside {@link #ORBIT_MAX}, so one hop lands in the band.
-     */
-    private static final double ORBIT_SPOT_RADIUS = 3.5;
-
     private static final int TELEPORT_TRIES = 10;
 
-    /** Below vanilla's charge speed (1.0), so the vex coasts about a block past its spot instead of darting through. */
-    private static final double SPEED = 0.7;
-
     private final BoundVex vex;
+
+    /**
+     * Whether the current use is a flight in a close posture (never a teleport): such a use runs until the vex arrives
+     * and then brakes it, so it cannot coast out of its overhead band.
+     */
+    private boolean closeFlight;
 
     FollowSummonerGoal(BoundVex vex) {
         this.vex = vex;
@@ -59,17 +61,47 @@ public final class FollowSummonerGoal extends Goal {
         if (vex.isStaying() || vex.getTarget() != null || vex.getMoveControl().hasWanted()) {
             return false;
         }
-        return vex.summoner().filter(owner -> vex.distanceTo(owner) > ORBIT_MAX).isPresent();
+        GuardPosture posture = vex.posture();
+        return vex.summoner()
+                .filter(owner -> {
+                    Vec3 offset = vex.position().subtract(owner.position());
+                    return !posture.inPlace(offset.x, offset.y, offset.z);
+                })
+                .isPresent();
     }
 
-    /** One move per use. */
+    /**
+     * One move per use in the wide posture. A close-posture flight continues while the move control still has a wanted
+     * position and the vex is still following, idle and has its summoner; arriving clears the wanted position.
+     */
     @Override
     public boolean canContinueToUse() {
-        return false;
+        return closeFlight
+                && vex.getMoveControl().hasWanted()
+                && !vex.isStaying()
+                && vex.getTarget() == null
+                && vex.summoner().isPresent();
+    }
+
+    /**
+     * Ends a close-posture flight. When the move control has arrived (no wanted position) the vex is stopped dead;
+     * stopped for any other reason its velocity is left alone; when a target appeared, the flight's wanted position is
+     * dropped so that the charge goal (which waits for a free move control) can start at once.
+     */
+    @Override
+    public void stop() {
+        if (closeFlight && !vex.getMoveControl().hasWanted()) {
+            vex.setDeltaMovement(Vec3.ZERO);
+        } else if (closeFlight && vex.getTarget() != null) {
+            // The charge goal starts only when the move control is free, and a close flight is long: let it go.
+            vex.getMoveControl().setWait();
+        }
+        closeFlight = false;
     }
 
     @Override
     public void start() {
+        closeFlight = false;
         vex.summoner().ifPresent(owner -> {
             if (vex.distanceTo(owner) > TELEPORT_DISTANCE) {
                 teleportBeside(owner);
@@ -79,16 +111,16 @@ public final class FollowSummonerGoal extends Goal {
         });
     }
 
-    /**
-     * A random spot 2–3.5 blocks sideways from the summoner's feet and 0.5–1.5 blocks up: built from the same point
-     * {@code canUse} measures from, so the spot is always inside the band.
-     */
+    /** A random spot inside the posture's band, measured from the summoner's feet as {@code canUse} measures. */
     private void flyToOrbit(ServerPlayer owner) {
         RandomSource random = vex.getRandom();
+        GuardPosture posture = vex.posture();
         double angle = random.nextDouble() * Math.PI * 2.0;
-        double radius = ORBIT_MIN + random.nextDouble() * (ORBIT_SPOT_RADIUS - ORBIT_MIN);
-        Vec3 spot = owner.position().add(Math.cos(angle) * radius, 0.5 + random.nextDouble(), Math.sin(angle) * radius);
-        vex.getMoveControl().setWantedPosition(spot.x, spot.y, spot.z, SPEED);
+        double side = posture.sideways(random.nextDouble());
+        Vec3 spot = owner.position()
+                .add(Math.cos(angle) * side, posture.height(random.nextDouble()), Math.sin(angle) * side);
+        vex.getMoveControl().setWantedPosition(spot.x, spot.y, spot.z, posture.speed());
+        closeFlight = posture.close();
     }
 
     /**

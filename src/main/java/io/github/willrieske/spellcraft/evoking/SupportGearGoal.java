@@ -13,7 +13,8 @@ import net.minecraft.world.entity.ai.goal.Goal;
  * {@link #RANGE} blocks, in sight and below half health, gets a copy of the potion thrown at it. Friends that healing
  * would hurt ({@code isInvertedHealAndHarm}: the undead) are skipped. A friend is the summoner or an ally of the
  * summoner ({@code Allies.isAllyOf}, which counts the summoner's other Bound Vexes), the vex itself excepted. The goal
- * has no flags and never moves the vex, so the follow and post goals keep running beside it.
+ * has no flags and never moves the vex, so the follow and post goals keep running beside it. It looks on the fixed
+ * {@code BoundVex.SCAN_INTERVAL} clock, not the posture's: its 40-tick throw cooldown makes a faster look pointless.
  * (The cure potion a vex conjures, Parts 4-5 spec §2.2, is not support gear: it has no effects, and
  * {@code VexGear.kindOf} gives an effect-free potion {@code NONE}.)
  */
