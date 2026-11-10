@@ -6384,7 +6384,7 @@ git commit -m "feat(evoking): the Evader team move circles, shoves and deflects"
 - Consumes: `TeamMoveRules.gridAcross/gridDepth`, `TeamMoves.Phase`, `TeamMoves.subjectOf`, `VexShots.rocket` and the `VexShots.friendInTheWay(vex, target, ignoring)` overload (Task 10; a rocketeer passes the roster, so fellow members of the same Raid are not friends in its way, while the summoner, allies and Bound Vexes outside the roster still hold its fire), `Dice.RAID_KIT` (scripted by the tests of the `team_move_dice` environment).
 - Produces: `public final class RaidMove` with `public static Vec3 cell(Vec3 enemyEye, Vec3 summoner, int cell)` (the grid cell's position: 8 blocks from the enemy toward the summoner, rows facing the enemy, at the enemy's eye height), `static void advance(TeamMoves.Move, long now)` (Gather → Charge after 40 ticks), `static void tick(BoundVex, TeamMoves.Move, TeamMoves.Member, ServerLevel)`; constants `GATHER_TICKS = 40`, `GRID_DISTANCE = 8.0`, `ATTACK_INTERVAL = 20`, `ROCKET_NEAR = 7.0`, `ROCKET_FAR = 9.0`, `ROCKET_HOLD = 8.0`, `ROCKET_INTERVAL = 40`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `BoundVexTeamMoveRaidGameTests` (class Javadoc `/** GameTests of the Raid team move (Parts 6-7 spec §4.4). */`; static imports `TeamMoveTestSupport.*`, `FangGameTests.NORTH`, `SpellcraftGameTests.SHARED`; imports `Ravager`, `Husk`, `FireworkRocketEntity`, `AABB`, `Item`, `Items`, `EquipmentSlot`, `Dice`, `MockPlayers`, `Attributes`, `ArrayList`): the first three in `SHARED` (`FangGameTests.addPadded(SHARED, name, 300, body)`, the geometry test without a body-ticks argument), the last four in their own environment `team_move_dice` (`FangGameTests.addPadded("team_move_dice", name, 400, body)`), because they script the global `Dice.RAID_KIT` and a scripting test running beside another would eat its script (the tests of one environment run one after another, as `config_mutation`'s do, and each unscripts when done). The `registerAll` block (called in `SpellcraftGameTests` after the Evader class):
 
@@ -6694,12 +6694,12 @@ private static List<FireworkRocketEntity> rockets(GameTestHelper helper, BoundVe
 }
 ```
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_raid_*"`
 Expected: compilation fails (`RaidMove` does not exist); after a stub of `RaidMove` (`cell` returning `Vec3.ZERO`, empty `advance` and `tick`), the sequence tests time out (nothing moves, hits or fires) and `gridGeometry` fails.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```java
 package io.github.willrieske.spellcraft.evoking;
@@ -6842,12 +6842,12 @@ switch (record.move) {
 
 Nothing else in `TeamMoves.tick` changes: its final text is the one shown in Task 11 Step 3, and `advance` runs on a tick the move did not end.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_raid_*"`.
 Expected: all pass. If the rocket never fires, print `vex.hasLineOfSight(ravager)` for member 0 first (the GameTest barrier shell blocks it: keep the whole scene above the box), then the distance from the summoner to the segment (it must stay above 1.0; member 0 is cell 0, the cell farthest from the grid axis). If the rocket passes over the enemy (it has no gravity and the aim adds `0.2 × distance` of lift, so a shorter enemy or a different hold height misses and the rocket explodes tens of blocks off), lower the hold height in `rocketeer`: use `enemy.getY(0.5)` instead of `enemy.getEyeY()` in the `ringPoint` call.
 
-- [ ] **Step 5: Full gates, then commit**
+- [x] **Step 5: Full gates, then commit**
 
 Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (expect `All M required tests passed`, M = the previous task's reported total plus the 7 tests this task registers; write M in the commit's as-built note).
 
@@ -6855,6 +6855,8 @@ Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (
 git add src/main/java/io/github/willrieske/spellcraft
 git commit -m "feat(evoking): the Raid team move gathers in a grid, charges and fires rockets"
 ```
+
+> **As built (`0efd173`):** diverged — fixed Task 10's `VexShots.friendInTheWay(…, ignoring)` (it returned early only after `Allies.isAllyOf`, which already matched roster vexes; now an ignored `BoundVex` is skipped first; the two-argument form is unchanged); melee members steer with a spring plus damping inside 3 blocks of the enemy (using the enemy's real step) to keep the 20-tick hit cadence; reason: the ignore overload did nothing, and a plain fly-to hit every ~22 ticks.
 
 ---
 
@@ -6944,6 +6946,7 @@ git commit -m "docs(evoking): Part 6 in the README, playtest items, mutation tes
 | 7 | `d00be34` | `request` reads the record with `get` (a refusal creates no record), matching `start` and `tick`; reason: Task 5's no-empty-record rule. |
 | 8 | `28bebae` | `EvokingRequest.cast` carries `@SuppressWarnings("EnumOrdinal")` with a reason; reason: Error Prone -Werror. |
 | 11 | `9210bea` | the orbit steers with a position/velocity push plus feed-forward (named constants) instead of a plain fly-to, which settled at ~3.1 blocks (the vex move control only adds 0.05 x speed per tick); test mobs sit at player + (2.5, 3, 0), clear of the barrier shell; `advance` merged into Task 6's `tick` shape; reason: the brief's snippet could not hold radius 2, and the controller's merge instruction. |
+| 12 | `0efd173` | fixed Task 10's `VexShots.friendInTheWay(…, ignoring)` (it returned early only after `Allies.isAllyOf`, which already matched roster vexes; now an ignored `BoundVex` is skipped first; the two-argument form is unchanged); melee members steer with a spring plus damping inside 3 blocks of the enemy (using the enemy's real step) to keep the 20-tick hit cadence; reason: the ignore overload did nothing, and a plain fly-to hit every ~22 ticks. |
 
 ## Resume State
 
