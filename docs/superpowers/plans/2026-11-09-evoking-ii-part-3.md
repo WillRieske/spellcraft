@@ -13,8 +13,8 @@
 ## Global Constraints
 
 - Minecraft **26.3**; NeoForge **26.3.0.23-beta**, pinned; Java **25**. Mod ID **`spellcraft`**; base package **`io.github.willrieske.spellcraft`**.
-- **Branch:** `feat/evoking-ii-part-3-gear` in the main checkout `C:\dev\spellcraft` (already checked out). In the Bash tool use `./gradlew`; in PowerShell use `.\gradlew.bat`. Push nothing between tasks.
-- **Minecraft sources for checks:** unpacked at `build/mc-src` (vanilla, patched) and `build/nf-src` (NeoForge). Read them with Grep/Read. Every vanilla name in this plan was checked on 2026-11-09 where a `file:line` is given; where a step says **confirm**, read the cited vanilla method first and follow what it does, not this plan's sketch. Task 1 records the facts in `docs/api-notes.md` §22; read §21 and §22 before writing Java.
+- **Branch:** `feat/evoking-ii-part-3-gear` in the worktree `C:\dev\spellcraft\.claude\worktrees\evoking-ii-part-3`; commands run from that worktree's root. Never `cd` to `C:\dev\spellcraft` itself. In the Bash tool use `./gradlew`; in PowerShell use `.\gradlew.bat`. Push nothing between tasks.
+- **Minecraft sources for checks:** unpacked in the main checkout at `C:\dev\spellcraft\build\mc-src` (vanilla, patched) and `C:\dev\spellcraft\build\nf-src` (NeoForge); every `build/mc-src` path below means that directory (the worktree has no copy). Read them with Grep/Read. Every vanilla name in this plan was checked on 2026-11-09 where a `file:line` is given; where a step says **confirm**, read the cited vanilla method first and follow what it does, not this plan's sketch. Task 1 records the facts in `docs/api-notes.md` §22; read §21 and §22 before writing Java.
 - **Numbers (spec, verbatim):** stay area **13 × 13 × 7** (`±6.5`, `±3.5`, `±6.5` from the post point, faces included); post point = `(x + 0.5, y, z + 0.5)` of the bound-origin block; return tolerance **1** block; return speed **0.7**; `FOLLOW_RANGE` attribute **20**; following reach stays **7.25** and the following box **8 × 8 × 7**; ranged band **6–10** blocks; shot interval **40** ticks; support range **10** blocks, below **half health**; one item per gift.
 - **Click table (§3), main hand only, summoner only:** empty + sneaking → toggle stay; empty + not sneaking → take the main-hand weapon back; a gear item (sneaking or not) → give; anything else → `PASS`. The client answers `SUCCESS_SERVER` for an empty main hand and for a gear item, `PASS` otherwise; the server answers `PASS` to anyone but the summoner.
 - Pure core (`spell.rules`): no `net.minecraft`/NeoForge/jspecify imports (ArchUnit rule 2). Client-only code only under `client` (rule 1). Common code never references `client`.
@@ -1143,4 +1143,4 @@ git commit -m "docs: describe Bound Vex gear and the new stay; playtest items; m
 
 ## Resume State
 
-Not started. Baseline GameTests: (Task 1 fills this in.)
+Not started. Baseline GameTests: 249 (measured 2026-11-09 at `667c882`, before Task 1; Task 1 Step 2 is already done).
