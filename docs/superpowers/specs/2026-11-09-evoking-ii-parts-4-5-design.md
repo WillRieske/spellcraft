@@ -1,7 +1,7 @@
 # Spellcraft: Evoking II Parts 4 and 5, cure, bribes and world helpers (design)
 
 **Date:** 2026-11-09
-**Status:** plan written (`2026-11-10-evoking-ii-part-5.md`)
+**Status:** implemented 2026-11-10 via `2026-11-10-evoking-ii-part-5.md`
 <!-- child-plans: 2026-11-09-evoking-ii-part-4.md, 2026-11-10-evoking-ii-part-5.md -->
 **Written by:** `/one-shot`, unattended, on 2026-11-09; §10 lists the decisions Will did not state.
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle

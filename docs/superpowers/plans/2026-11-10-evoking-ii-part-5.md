@@ -1714,11 +1714,11 @@ git commit -m "feat(evoking): a Bound Vex's melee hits three times as hard in th
 - Modify: `README.md`, `docs/playtest-checklist.md`, `docs/mutation-testing.md`, `docs/api-notes.md` (§24 corrections found on the way)
 - Modify: `docs/superpowers/specs/2026-11-09-evoking-ii-parts-4-5-design.md` (only the as-built sentences listed below)
 
-- [ ] **Step 1: README**
+- [x] **Step 1: README**
 
 In the Bound Vex paragraph (after Part 4's cure and bribe sentences) add, in the README's own voice: at night, in the Nether and in the End the vexes close in above your head and watch more often; one pulls you out of lava (and douses you in the Nether), pushes you up when you are drowning under open water, catches you over the End's void and feeds you an enchanted golden apple, bats a ghast's fireball back, breaks end crystals while the dragon lives, and hits three times as hard in the End. Update the mod description file if the README's summary is mirrored there (check `neoforge.mods.toml`'s description; change it only if it lists vex behaviors).
 
-- [ ] **Step 2: Playtest checklist**
+- [x] **Step 2: Playtest checklist**
 
 Add a section "Evoking II (Part 5)" to `docs/playtest-checklist.md`, in the file's existing item format, with these items (each is Will's to check; none is claimed):
 
@@ -1733,12 +1733,12 @@ Add a section "Evoking II (Part 5)" to `docs/playtest-checklist.md`, in the file
 9. Critical hits in the End: the particles and sound on every vex hit.
 10. A rescuer that was mid-cure or fleeing a creeper: does it come, and does the cure restart afterwards?
 
-- [ ] **Step 3: Mutation testing**
+- [x] **Step 3: Mutation testing**
 
 Run: `./gradlew pitest` (background it if it takes over two minutes; read the summary from its report).
 Add a row to `docs/mutation-testing.md` for this part in the file's format: date 2026-11-10, the three new classes, killed/total, and each surviving mutant with either the test added to kill it or one line on why it is equivalent. Add the tests that kill non-equivalent survivors, then rerun until only equivalents remain.
 
-- [ ] **Step 4: Spec sentences that the code settled**
+- [x] **Step 4: Spec sentences that the code settled**
 
 In the Parts 4–5 spec, bring these sentences in line with the code as built (and with any divergence the earlier tasks' as-built notes record):
 
@@ -1749,7 +1749,7 @@ In the Parts 4–5 spec, bring these sentences in line with the code as built (a
 - §6.1: only if Task 3's as-built note reports that a vex coasts out of a close band: the measured overshoot, as a note for Will (no rule change without him).
 - §9: mock players report fluids only after `baseTick`; the dragon-alive test is behind the per-vex scripted answer in `AttackCrystalGoal`.
 
-- [ ] **Step 5: Gates and commit**
+- [x] **Step 5: Gates and commit**
 
 Run: `./gradlew spotlessApply build`, `./gradlew runData` (the client-dist boot; nothing here touches client code, so it must stay green), `./gradlew runGameTestServer` twice.
 
@@ -1757,6 +1757,8 @@ Run: `./gradlew spotlessApply build`, `./gradlew runData` (the client-dist boot;
 git add README.md docs
 git commit -m "docs(evoking): Part 5 in the README, playtest items, mutation testing, as-built spec notes"
 ```
+
+> **As built (`a7b074c`):** matches plan.
 
 ## Divergence index
 
@@ -1772,3 +1774,11 @@ git commit -m "docs(evoking): Part 5 in the README, playtest items, mutation tes
 | 7 | `f40f625` | the "left alone" cases are four tests; the unused lambda parameters are `_`; the returned fireball kills a real ghast in the test with no fallback; review fixes for Task 5 are in `0c30b8d` (the drowning passenger test rides a minecart: a pig dismounts under water). 435 tests; reason: test granularity and the sources. |
 | 8 | `e006924` | the removed-on-the-way test puts its crystals 16 and 17 blocks off and could not be seen red (the vex ends its goal at the dead crystal anyway); the player-blast test asserts only the throw (a player takes no damage from their own blast under the server PvP rule); `AttackCrystalGoal.isClaimed` added for tests; the End-dimension and missing-summoner checks are untested; review fixes for Task 6 are in `9b58e11` (last ground in an unloaded chunk is trusted, as `VoidRule.lastGroundUsable`; three lines vanilla teleport already covers removed; a refused teleport starts no rescue). 454 tests; reason: the GameTest server and vanilla teleport. |
 | 9 | `2bdaf45` | the backstop moved into a private helper so the crit runs after it for any uncanceled melee hit by a vex in the End, summoner present or not; the Overworld baseline is also checked against the attack-damage attribute (a crit leaking outside the End would otherwise raise the baseline too); the spared-victim test cannot go red (a canceled hit does nothing at any size); a mock player moved into the End needs `hasChangedDimension()` before it can be hurt; review fixes for Task 7 are in `f99d4b1` (a fireball its summoner owns passes through that summoner vexes; "within 4 blocks" is measured to the body). 469 tests; reason: Task 8 restructured the handler, and coordinator rulings recorded in spec §6.3 and §8. |
+
+## Resume State
+
+- Last completed task: Task 10: Docs, playtest items, mutation testing
+- Commit SHA: a7b074c
+- Checkboxes: 49/49 ticked
+- Next task: none (plan complete)
+- Known-failing tests / caveats: Task 8 review fixes are in 8b51744. Whole-branch review (/review-will) still to run; visual and feel checks are in docs/playtest-checklist.md (Evoking II Part 5). No version bump, no tag.
