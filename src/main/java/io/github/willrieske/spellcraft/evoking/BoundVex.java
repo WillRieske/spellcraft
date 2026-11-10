@@ -158,10 +158,12 @@ public class BoundVex extends Vex {
      * target from and no player hunt. Its three target goals are {@link HurtBySummonerSideGoal} (grudges),
      * {@link AllyFightGoal} (an ally's fight) and {@link NearestHostileGoal} (the patrol). The job goals sit beside
      * them: {@link FleeCreeperGoal} and {@link DodgeGolemGoal} outrank everything on the move flag,
-     * {@link RepairGolemGoal}, {@link CureZombieVillagerGoal} and {@link BribeGoal} outrank the charge and the follow.
+     * {@link RepairGolemGoal}, {@link CureZombieVillagerGoal} and {@link BribeGoal} outrank the charge and the follow;
+     * {@link RescueGoal} (priority -1) outranks them all while {@link VexRescues} names the vex a rescuer.
      */
     @Override
     protected void registerGoals() {
+        goalSelector.addGoal(-1, new RescueGoal(this));
         goalSelector.addGoal(0, new FleeCreeperGoal(this));
         goalSelector.addGoal(0, new DodgeGolemGoal(this));
         goalSelector.addGoal(0, new FloatGoal(this));

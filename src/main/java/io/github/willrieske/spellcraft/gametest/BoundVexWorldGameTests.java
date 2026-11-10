@@ -14,9 +14,12 @@ import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARE
 
 import com.mojang.logging.LogUtils;
 import io.github.willrieske.spellcraft.evoking.BoundVex;
+import io.github.willrieske.spellcraft.evoking.BoundVexEvents;
 import io.github.willrieske.spellcraft.evoking.FollowSummonerGoal;
+import io.github.willrieske.spellcraft.evoking.VexRescues;
 import io.github.willrieske.spellcraft.gametest.BoundVexWorldTestSupport.Place;
 import io.github.willrieske.spellcraft.spell.rules.GuardPosture;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
@@ -25,16 +28,26 @@ import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.zombie.Husk;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import org.slf4j.Logger;
 
 /**
@@ -56,6 +69,18 @@ public final class BoundVexWorldGameTests {
 
     /** A runaway guard only: a close-posture vex farther sideways than this has left its band by far. */
     private static final double RUNAWAY = 5.0;
+
+    /** The server-stop test clears every rescue on the server, so it runs in an environment of its own. */
+    private static final String SERVER_STOP_RESCUES = "bound_vex_world_server_stop_rescues";
+
+    /** How far sideways from the player the lava arrangement fills with stone (the shore search reaches 6). */
+    private static final int POOL_REACH = 6;
+
+    /** How far below the player's feet the lava arrangement fills with stone. */
+    private static final int POOL_DEPTH = 6;
+
+    /** How close a rescuer must hang to its summoner's side point. */
+    private static final double SIDE_TOLERANCE = 0.1;
 
     private BoundVexWorldGameTests() {}
 
@@ -80,6 +105,39 @@ public final class BoundVexWorldGameTests {
                 BoundVexWorldGameTests::closeFlightYieldsToATarget);
         padded("bound_vex_world_scan_cadence_end", BoundVexWorldGameTests::scanCadenceEnd);
         padded("bound_vex_world_scan_cadence_overworld_day", BoundVexWorldGameTests::scanCadenceOverworldDay);
+        padded("bound_vex_world_lava_pull", BoundVexWorldGameTests::lavaPull);
+        padded("bound_vex_world_lava_pull_keeps_your_steering", BoundVexWorldGameTests::lavaPullKeepsYourSteering);
+        padded("bound_vex_world_lava_pull_ends_on_the_shore", BoundVexWorldGameTests::lavaPullEndsOnTheShore);
+        padded("bound_vex_world_lava_pull_pauses_after_60_ticks", BoundVexWorldGameTests::lavaPullPausesAfter60);
+        padded("bound_vex_world_lava_pull_ignores_a_low_shore", BoundVexWorldGameTests::lavaPullIgnoresALowShore);
+        padded(
+                "bound_vex_world_lava_pull_not_for_fire_resistance",
+                helper -> lavaPullNotForTheUnhurt(helper, BoundVexWorldGameTests::fireResistant, false));
+        padded(
+                "bound_vex_world_lava_pull_not_for_spectators",
+                helper -> lavaPullNotForTheUnhurt(helper, player -> player.setGameMode(GameType.SPECTATOR), false));
+        padded(
+                "bound_vex_world_lava_pull_not_for_creative",
+                helper -> lavaPullNotForTheUnhurt(helper, player -> player.setGameMode(GameType.CREATIVE), false));
+        padded("bound_vex_world_lava_pull_not_for_passengers", BoundVexWorldGameTests::lavaPullNotForPassengers);
+        padded(
+                "bound_vex_world_lava_pull_not_with_a_staying_vex",
+                helper -> lavaPullNotForTheUnhurt(helper, player -> {}, true));
+        padded("bound_vex_world_lava_rescuer_keeps_its_target", BoundVexWorldGameTests::lavaRescuerKeepsItsTarget);
+        padded("bound_vex_world_rescue_dropped_on_logout", BoundVexWorldGameTests::rescueDroppedOnLogout);
+        padded("bound_vex_world_lava_pull_takes_a_fleeing_vex", BoundVexWorldGameTests::lavaPullTakesAFleeingVex);
+        padded(
+                "bound_vex_world_lava_pull_replaces_a_dead_rescuer",
+                BoundVexWorldGameTests::lavaPullReplacesADeadRescuer);
+        padded("bound_vex_world_lava_overworld_keeps_burning", BoundVexWorldGameTests::lavaOverworldKeepsBurning);
+        padded("bound_vex_world_lava_nether_bucket", BoundVexWorldGameTests::lavaNetherBucket);
+        padded(
+                "bound_vex_world_lava_nether_no_bucket_while_in_lava",
+                BoundVexWorldGameTests::lavaNetherNoBucketWhileInLava);
+        FangGameTests.addPadded(
+                SERVER_STOP_RESCUES,
+                "bound_vex_world_rescues_cleared_on_server_stop",
+                BoundVexWorldGameTests::rescuesClearedOnServerStop);
     }
 
     /** Registers {@code body} in the shared environment with the padded box and its chunk wait. */
@@ -712,5 +770,595 @@ public final class BoundVexWorldGameTests {
             helper.assertFalse(helper.getLevel().isDarkOutside(), "it is not dark in the shared environment");
             helper.succeed();
         });
+    }
+
+    // ---- Task 4: the lava pull and the Nether's water bucket ----
+
+    /**
+     * The lava arrangement of the Task 4 tests: a survival player (made unhurtable) at {@link FangGameTests#STAND},
+     * facing south, in a two-block column of lava inside a solid mass of stone, so no air touches the lava (lava
+     * spreads into air) and the only standable spot within the shore search is the shore this method carves, if any.
+     * The shore is two blocks east of the player, {@code shoreDrop} blocks below their feet level: stone under it, two
+     * blocks of air over it.
+     *
+     * @param helper the test helper
+     * @param shoreDrop how far below the player's feet level the shore's feet block is; negative for no shore at all
+     * @return the player
+     */
+    private static ServerPlayer lavaPool(GameTestHelper helper, int shoreDrop) {
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        player.setPermanentlyInvulnerable(true);
+        whenDone(helper, () -> player.setPermanentlyInvulnerable(false));
+        for (int x = -POOL_REACH; x <= POOL_REACH; x++) {
+            for (int z = -POOL_REACH; z <= POOL_REACH; z++) {
+                for (int y = -POOL_DEPTH; y <= 2; y++) {
+                    helper.setBlock(FEET.offset(x, y, z), Blocks.STONE);
+                }
+            }
+        }
+        if (shoreDrop >= 0) {
+            BlockPos shore = FEET.east(2).below(shoreDrop);
+            helper.setBlock(shore, Blocks.AIR);
+            helper.setBlock(shore.above(), Blocks.AIR);
+        }
+        fillPool(helper, Blocks.LAVA);
+        return player;
+    }
+
+    /** Fills the player's two-block column with {@code block} (lava, or air to drain it). */
+    private static void fillPool(GameTestHelper helper, Block block) {
+        helper.setBlock(FEET, block);
+        helper.setBlock(FEET.above(), block);
+    }
+
+    /** One server step of a mock player: the fluid state it would have, then the rescue tick (one per server tick). */
+    private static void step(ServerPlayer player) {
+        soak(player);
+        VexRescues.tick(player);
+    }
+
+    /** A following vex of {@code player} five blocks from them (three up, four south), above the stone. */
+    private static BoundVex followingVex(GameTestHelper helper, ServerPlayer player) {
+        return BoundVexTestSupport.followOnly(helper, FEET.offset(0, 3, 4), player);
+    }
+
+    /** Fails the test unless the player's velocity is {@code (x, y, z)} within 1e-6. */
+    private static void assertVelocity(GameTestHelper helper, ServerPlayer player, double x, double y, double z) {
+        Vec3 v = player.getDeltaMovement();
+        helper.assertTrue(
+                Math.abs(v.x - x) < 1.0e-6 && Math.abs(v.y - y) < 1.0e-6 && Math.abs(v.z - z) < 1.0e-6,
+                "the velocity is (" + x + ", " + y + ", " + z + "), not " + v);
+    }
+
+    /** Fails the test unless a lava rescue is running for {@code player}. */
+    private static void assertLavaRunning(GameTestHelper helper, ServerPlayer player, String what) {
+        helper.assertValueEqual(VexRescues.running(player), Optional.of(VexRescues.Kind.LAVA), what);
+    }
+
+    /** Fails the test unless no rescue is running for {@code player}. */
+    private static void assertNoRescue(GameTestHelper helper, ServerPlayer player, String what) {
+        helper.assertTrue(VexRescues.running(player).isEmpty(), what);
+    }
+
+    /** The shore of {@link #lavaPool}, in the test's coordinates: the center of the shore's feet block. */
+    private static final Vec3 SHORE = new Vec3(3.5, 1, 1.5);
+
+    /** Drains the pool and puts the player on the shore, standing on the ground. */
+    private static void walkOut(GameTestHelper helper, ServerPlayer player) {
+        fillPool(helper, Blocks.AIR);
+        MockPlayers.moveTo(helper, player, SHORE);
+        player.setOnGround(true);
+    }
+
+    /** Fills the pool with lava again and puts the player back in it. */
+    private static void walkBack(GameTestHelper helper, ServerPlayer player) {
+        fillPool(helper, Blocks.LAVA);
+        MockPlayers.moveTo(helper, player, FangGameTests.STAND);
+        player.setOnGround(false);
+    }
+
+    /**
+     * When a player stands in lava with a shore two blocks east and a following vex five blocks away, should one step
+     * start a lava rescue, push them {@code (0.1, 0.3, 0)}, mark the velocity for sending and put the vex at their
+     * side.
+     *
+     * <p>Method under test: {@code VexRescues.tick}, {@code RescuePush.lavaPull} through it
+     */
+    static void lavaPull(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = lavaPool(helper, 0);
+        BoundVex vex = followingVex(helper, player);
+
+        // Act
+        step(player);
+
+        // Assert
+        assertLavaRunning(helper, player, "the lava rescue started");
+        assertVelocity(helper, player, 0.1, 0.3, 0.0);
+        helper.assertTrue(player.syncVelocity, "the velocity is marked for sending");
+        Vec3 side = player.position().add(-0.6, 1.2, 0.0);
+        helper.assertTrue(
+                vex.position().distanceTo(side) <= SIDE_TOLERANCE,
+                "the vex hangs at the player's side " + side + ", not " + vex.position());
+        helper.assertTrue(VexRescues.rescuer(player).equals(Optional.of(vex)), "the vex is the rescuer");
+        helper.succeed();
+    }
+
+    /**
+     * When the client last reported the player moving south at 0.2, should the lava pull add to that and not replace
+     * it: velocity {@code (0.1, 0.3, 0.2)}.
+     *
+     * <p>Method under test: {@code VexRescues.tick}: the push reads {@code getKnownMovement}
+     */
+    static void lavaPullKeepsYourSteering(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = lavaPool(helper, 0);
+        followingVex(helper, player);
+        player.setKnownMovement(new Vec3(0, 0, 0.2));
+
+        // Act
+        step(player);
+
+        // Assert
+        assertVelocity(helper, player, 0.1, 0.3, 0.2);
+        helper.succeed();
+    }
+
+    /**
+     * When the player gets out onto the shore, should the rescue end at once, no new one start for 19 more steps and
+     * a new one start on the 20th step after the ending.
+     *
+     * <p>Method under test: {@code VexRescues.tick}: the end on the ground and the 20-tick pause
+     */
+    static void lavaPullEndsOnTheShore(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = lavaPool(helper, 0);
+        followingVex(helper, player);
+        long[] ended = {0};
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecute(() -> {
+                    step(player);
+                    assertLavaRunning(helper, player, "setup: the rescue started");
+                })
+                .thenIdle(1)
+                .thenExecute(() -> {
+                    walkOut(helper, player);
+                    step(player);
+                    assertNoRescue(helper, player, "the rescue ends when the player stands on the shore");
+                    ended[0] = helper.getLevel().getGameTime();
+                    walkBack(helper, player);
+                })
+                .thenIdle(1)
+                .thenExecuteFor(19, () -> {
+                    step(player);
+                    assertNoRescue(helper, player, "no rescue starts during the pause");
+                })
+                .thenExecute(() -> {
+                    step(player);
+                    helper.assertValueEqual(
+                            helper.getLevel().getGameTime() - ended[0], 20L, "setup: this is the 20th tick after");
+                    assertLavaRunning(helper, player, "a rescue starts again 20 ticks after the ending");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the player is held in lava, should the rescue run through the 60th step, end on the 61st, and (the pause
+     * being 20 ticks) start again on the 20th step after that.
+     *
+     * <p>Method under test: {@code VexRescues.tick}: the 60-tick limit
+     */
+    static void lavaPullPausesAfter60(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = lavaPool(helper, 0);
+        followingVex(helper, player);
+        long[] marks = {0, 0};
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecute(() -> {
+                    step(player);
+                    assertLavaRunning(helper, player, "the first step starts the rescue");
+                    marks[0] = helper.getLevel().getGameTime();
+                })
+                .thenIdle(1)
+                .thenExecuteFor(59, () -> {
+                    step(player);
+                    assertLavaRunning(helper, player, "the rescue runs through the 60th step");
+                })
+                .thenExecute(() -> {
+                    step(player);
+                    helper.assertValueEqual(
+                            helper.getLevel().getGameTime() - marks[0], 60L, "setup: this is the 61st step");
+                    assertNoRescue(helper, player, "the 61st step ends the rescue");
+                    marks[1] = helper.getLevel().getGameTime();
+                })
+                .thenIdle(1)
+                .thenExecuteFor(19, () -> {
+                    step(player);
+                    assertNoRescue(helper, player, "no rescue starts during the pause");
+                })
+                .thenExecute(() -> {
+                    step(player);
+                    helper.assertValueEqual(
+                            helper.getLevel().getGameTime() - marks[1], 20L, "setup: this is the 20th tick after");
+                    assertLavaRunning(helper, player, "a rescue starts again 20 ticks after the ending");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the only standable spot is two blocks east and four blocks lower (out of the shore search), should the
+     * pull be the lift: velocity {@code (0, 0.4, 0)}.
+     *
+     * <p>Method under test: {@code StandableSpots.shore} through {@code VexRescues.tick}
+     */
+    static void lavaPullIgnoresALowShore(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = lavaPool(helper, 4);
+        followingVex(helper, player);
+
+        // Act
+        step(player);
+
+        // Assert
+        assertLavaRunning(helper, player, "the rescue started");
+        assertVelocity(helper, player, 0.0, 0.4, 0.0);
+        helper.succeed();
+    }
+
+    /** Gives {@code player} fire resistance. */
+    private static void fireResistant(ServerPlayer player) {
+        player.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, 1200));
+    }
+
+    /**
+     * When a player in lava has {@code unhurt} applied (or the only vex in range is staying), should a step start no
+     * rescue and leave their velocity alone.
+     *
+     * <p>Method under test: {@code VexRescues.tick}: who gets the lava pull
+     *
+     * @param helper the test helper
+     * @param unhurt what makes the player a poor candidate
+     * @param stayingVex whether the vex in range is told to stay
+     */
+    private static void lavaPullNotForTheUnhurt(
+            GameTestHelper helper, Consumer<ServerPlayer> unhurt, boolean stayingVex) {
+        // Arrange
+        ServerPlayer player = lavaPool(helper, 0);
+        BoundVex vex = followingVex(helper, player);
+        vex.setStaying(stayingVex);
+        unhurt.accept(player);
+        Vec3 before = player.getDeltaMovement();
+
+        // Act
+        step(player);
+
+        // Assert
+        assertNoRescue(helper, player, "no rescue starts");
+        helper.assertValueEqual(player.getDeltaMovement(), before, "the velocity is untouched");
+        helper.succeed();
+    }
+
+    /**
+     * When a player in lava rides a pig, should a step start no rescue and leave their velocity alone.
+     *
+     * <p>Method under test: {@code VexRescues.tick}: passengers are not rescued
+     */
+    static void lavaPullNotForPassengers(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = lavaPool(helper, 0);
+        followingVex(helper, player);
+        Mob pig = helper.spawn(EntityTypes.PIG, FEET);
+        pig.setNoAi(true);
+        pig.setNoGravity(true);
+        pig.setPermanentlyInvulnerable(true);
+        whenDone(helper, pig::discard);
+        helper.assertTrue(player.startRiding(pig), "setup: the mock player can ride");
+        soak(player);
+        helper.assertTrue(player.isInLava() && player.isPassenger(), "setup: a passenger in lava");
+        Vec3 before = player.getDeltaMovement();
+
+        // Act
+        step(player);
+
+        // Assert
+        assertNoRescue(helper, player, "no rescue starts");
+        helper.assertValueEqual(player.getDeltaMovement(), before, "the velocity is untouched");
+        helper.succeed();
+    }
+
+    /**
+     * When the rescuer had a target (a husk), should it still have that target after the rescue ends.
+     *
+     * <p>Method under test: {@code RescueGoal} and the end of a rescue
+     */
+    static void lavaRescuerKeepsItsTarget(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = lavaPool(helper, 0);
+        BoundVex vex = followingVex(helper, player);
+        Mob husk = BoundVexTestSupport.husk(helper, FEET.offset(0, 5, 0));
+        husk.setNoGravity(true);
+        vex.setTarget(husk);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecute(() -> {
+                    step(player);
+                    assertLavaRunning(helper, player, "setup: the rescue started");
+                })
+                .thenExecuteAfter(2, () -> {
+                    walkOut(helper, player);
+                    step(player);
+                    assertNoRescue(helper, player, "setup: the rescue ended");
+                })
+                .thenExecuteAfter(2, () -> helper.assertTrue(husk.equals(vex.getTarget()), "the vex kept its target"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a player with a running rescue logs out, should the rescue be gone and the rescuer's goal let go: two
+     * ticks later the vex is no longer held at the player's side.
+     *
+     * <p>Method under test: {@code VexRescues.onLogout}, {@code RescueGoal}
+     */
+    static void rescueDroppedOnLogout(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = lavaPool(helper, 0);
+        BoundVex vex = followingVex(helper, player);
+        step(player);
+        assertLavaRunning(helper, player, "setup: the rescue started");
+
+        // Act
+        NeoForge.EVENT_BUS.post(new PlayerEvent.PlayerLoggedOutEvent(player));
+        Vec3 away = player.position().add(0, 6, 5);
+        vex.setPos(away);
+
+        // Assert
+        assertNoRescue(helper, player, "the logout drops the rescue");
+        helper.runAfterDelay(2, () -> {
+            Vec3 side = player.position().add(-0.6, 1.2, 0.0);
+            helper.assertTrue(vex.position().distanceTo(side) > 2.0, "the goal no longer holds the vex at the side");
+            helper.succeed();
+        });
+    }
+
+    /**
+     * When the vex is mid-flight from a hissing creeper (its flee goal runs), should the lava rescue still pick it
+     * and hold it at the player's side two ticks later.
+     *
+     * <p>Method under test: {@code RescueGoal} (priority -1) against {@code FleeCreeperGoal}
+     */
+    static void lavaPullTakesAFleeingVex(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = lavaPool(helper, 0);
+        Creeper creeper = BoundVexTestSupport.patientCreeper(helper, FEET.offset(0, 3, 2));
+        creeper.setNoGravity(true);
+        BoundVex vex = BoundVexTestSupport.boundVex(helper, FEET.offset(0, 3, 4), player);
+        double[] before = {0.0};
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecute(() -> {
+                    creeper.setSwellDir(1);
+                    before[0] = vex.distanceTo(creeper);
+                })
+                .thenExecuteAfter(
+                        12,
+                        () -> helper.assertTrue(
+                                vex.distanceTo(creeper) >= before[0] + 2.0,
+                                "setup: the vex flees; it was " + before[0] + " from the creeper, now "
+                                        + vex.distanceTo(creeper)))
+                .thenExecute(() -> {
+                    step(player);
+                    helper.assertTrue(VexRescues.rescuer(player).equals(Optional.of(vex)), "the fleeing vex rescues");
+                })
+                .thenExecuteAfter(2, () -> {
+                    Vec3 side = player.position().add(-0.6, 1.2, 0.0);
+                    helper.assertTrue(
+                            vex.position().distanceTo(side) <= SIDE_TOLERANCE,
+                            "the vex is at the player's side, not " + vex.position());
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the nearer of two vexes is the rescuer and it dies, should the next step drop the rescue and the one after
+     * it make the other vex the rescuer.
+     *
+     * <p>Method under test: {@code VexRescues.tick}: a rescuer that no longer holds
+     */
+    static void lavaPullReplacesADeadRescuer(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = lavaPool(helper, 0);
+        BoundVex near = BoundVexTestSupport.followOnly(helper, FEET.offset(0, 3, 2), player);
+        BoundVex far = BoundVexTestSupport.followOnly(helper, FEET.offset(0, 3, 6), player);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecute(() -> {
+                    step(player);
+                    helper.assertTrue(VexRescues.rescuer(player).equals(Optional.of(near)), "the nearer vex rescues");
+                    near.kill(helper.getLevel());
+                })
+                .thenIdle(1)
+                .thenExecute(() -> {
+                    step(player);
+                    assertNoRescue(helper, player, "the dead rescuer's rescue is dropped");
+                })
+                .thenIdle(1)
+                .thenExecute(() -> {
+                    step(player);
+                    helper.assertTrue(VexRescues.rescuer(player).equals(Optional.of(far)), "the other vex rescues");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a burning player is pulled out of lava in the Overworld, should they still burn afterwards and the
+     * rescuer still hold its sword: only the Nether has the bucket.
+     *
+     * <p>Method under test: {@code VexRescues.tick}: the end of a lava rescue by dimension
+     */
+    static void lavaOverworldKeepsBurning(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = lavaPool(helper, 0);
+        BoundVex vex = followingVex(helper, player);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecute(() -> {
+                    step(player);
+                    assertLavaRunning(helper, player, "setup: the rescue started");
+                })
+                .thenIdle(1)
+                .thenExecute(() -> {
+                    walkOut(helper, player);
+                    player.setRemainingFireTicks(100);
+                    step(player);
+                    assertNoRescue(helper, player, "the rescue ended on the shore");
+                    helper.assertTrue(player.getRemainingFireTicks() > 0, "the player still burns");
+                    helper.assertTrue(BoundVexTestSupport.swordBack(vex), "the rescuer holds its sword, no bucket");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * The Nether arrangement of the bucket tests: a room at a private place, the player in a two-block column of
+     * lava with stone on every side, a following vex three blocks east.
+     *
+     * @return the vex; the player is {@code player}
+     */
+    private static BoundVex netherPool(GameTestHelper helper, ServerPlayer player) {
+        ServerLevel nether = BoundVexWorldTestSupport.room(helper, player, Level.NETHER, 4, 5);
+        BlockPos slot = player.blockPosition();
+        for (BlockPos column : new BlockPos[] {slot, slot.above()}) {
+            for (BlockPos side : new BlockPos[] {column.east(), column.west(), column.north(), column.south()}) {
+                set(helper, nether, side, Blocks.STONE.defaultBlockState());
+            }
+        }
+        set(helper, nether, slot.above(2), Blocks.STONE.defaultBlockState());
+        set(helper, nether, slot, Blocks.LAVA.defaultBlockState());
+        set(helper, nether, slot.above(), Blocks.LAVA.defaultBlockState());
+        return BoundVexTestSupport.noTargets(
+                vexIn(helper, nether, player.position().add(3, 3, 0), player));
+    }
+
+    /** Drains the Nether pool and puts the player on the floor three blocks east of it, on the ground. */
+    private static void netherWalkOut(GameTestHelper helper, ServerPlayer player, BlockPos slot) {
+        ServerLevel nether = player.level();
+        set(helper, nether, slot, Blocks.AIR.defaultBlockState());
+        set(helper, nether, slot.above(), Blocks.AIR.defaultBlockState());
+        player.setPos(slot.getX() + 3.5, slot.getY(), slot.getZ() + 0.5);
+        player.setOnGround(true);
+    }
+
+    /**
+     * When a burning player is pulled out of lava in the Nether, should the fire go out, the rescuer hold a water
+     * bucket (conjured) for a tail of 20 ticks in which nothing pushes the player, and then hold its sword again.
+     *
+     * <p>Method under test: {@code VexRescues.tick}: the Nether's bucket and its tail
+     */
+    static void lavaNetherBucket(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        player.setPermanentlyInvulnerable(true);
+        whenDone(helper, () -> player.setPermanentlyInvulnerable(false));
+        BoundVex vex = netherPool(helper, player);
+        BlockPos slot = player.blockPosition();
+        long[] ended = {0};
+        Vec3[] velocity = new Vec3[1];
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
+                .thenExecute(() -> {
+                    step(player);
+                    assertLavaRunning(helper, player, "setup: the rescue started in the Nether");
+                })
+                .thenIdle(1)
+                .thenExecute(() -> {
+                    netherWalkOut(helper, player, slot);
+                    player.setRemainingFireTicks(100);
+                    step(player);
+                    ended[0] = helper.getLevel().getGameTime();
+                    velocity[0] = player.getDeltaMovement();
+                    assertLavaRunning(helper, player, "the rescue lives on as a tail");
+                    helper.assertTrue(player.getRemainingFireTicks() <= 0, "the fire is out");
+                    helper.assertTrue(vex.getMainHandItem().is(Items.WATER_BUCKET), "the rescuer holds the bucket");
+                    helper.assertTrue(vex.isConjured(EquipmentSlot.MAINHAND), "the bucket is conjured");
+                })
+                .thenIdle(1)
+                .thenExecuteFor(19, () -> {
+                    step(player);
+                    assertLavaRunning(helper, player, "the tail runs");
+                    helper.assertValueEqual(player.getDeltaMovement(), velocity[0], "the tail pushes nothing");
+                    helper.assertTrue(player.getRemainingFireTicks() <= 0, "the fire stays out");
+                    helper.assertTrue(vex.getMainHandItem().is(Items.WATER_BUCKET), "the bucket stays in the hand");
+                })
+                .thenExecute(() -> {
+                    step(player);
+                    assertNoRescue(helper, player, "the tail ends after 20 ticks");
+                    helper.assertTrue(BoundVexTestSupport.swordBack(vex), "the sword is back");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a player is held in Nether lava for 61 steps, should the rescuer never hold a bucket and the player still
+     * burn: the bucket is for a player who is out.
+     *
+     * <p>Method under test: {@code VexRescues.tick}: no bucket while in lava
+     */
+    static void lavaNetherNoBucketWhileInLava(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        player.setPermanentlyInvulnerable(true);
+        whenDone(helper, () -> player.setPermanentlyInvulnerable(false));
+        BoundVex vex = netherPool(helper, player);
+        Runnable check = () -> {
+            step(player);
+            helper.assertFalse(vex.getMainHandItem().is(Items.WATER_BUCKET), "the rescuer never holds a bucket");
+            helper.assertTrue(player.getRemainingFireTicks() > 0, "the player still burns");
+        };
+        player.setRemainingFireTicks(1000); // lava ignites a moving entity, and a mock player never moves
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
+                .thenExecute(() -> {
+                    check.run();
+                    assertLavaRunning(helper, player, "setup: the rescue started");
+                })
+                .thenIdle(1)
+                .thenExecuteFor(59, check)
+                .thenExecute(() -> {
+                    check.run();
+                    assertNoRescue(helper, player, "the 61st step ends the rescue");
+                    helper.assertTrue(BoundVexTestSupport.swordBack(vex), "the sword is still in the hand");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the server stops with a rescue running, should no rescue run afterwards.
+     *
+     * <p>Method under test: {@code BoundVexEvents.onServerStopped}, {@code VexRescues.clear}
+     */
+    static void rescuesClearedOnServerStop(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = lavaPool(helper, 0);
+        followingVex(helper, player);
+        step(player);
+        assertLavaRunning(helper, player, "setup: the rescue started");
+
+        // Act
+        BoundVexEvents.onServerStopped(new ServerStoppedEvent(helper.getLevel().getServer()));
+
+        // Assert
+        assertNoRescue(helper, player, "the server stop drops the rescue");
+        helper.succeed();
     }
 }

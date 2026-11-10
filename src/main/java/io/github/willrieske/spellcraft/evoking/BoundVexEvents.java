@@ -182,7 +182,8 @@ public final class BoundVexEvents {
     }
 
     /**
-     * Drops every note, every repair claim, every cure claim, every bribe claim and every scripted bribe die when the
+     * Drops every note, every repair claim, every cure claim, every bribe claim, every scripted bribe die and every
+     * running rescue ({@link VexRescues#clear}) when the
      * server stops (single-player loads one server per world in the same JVM, so none may outlive its world).
      *
      * @param event the server-stopped event
@@ -193,6 +194,7 @@ public final class BoundVexEvents {
         RepairGolemGoal.clearClaims();
         CureZombieVillagerGoal.clearClaims();
         BribeGoal.clearClaims();
+        VexRescues.clear();
     }
 
     /**
