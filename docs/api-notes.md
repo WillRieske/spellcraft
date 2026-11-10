@@ -1191,7 +1191,7 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   void catch uses `hasChunk(SectionPos.blockToSectionCoord(x), …)` and trusts a last ground in an unloaded chunk.
 - **`LivingDamageEvent.Post` and the crit's show.** `LivingEntity.hurtServer` posts it (`CommonHooks.onLivingDamagePost`,
   `LivingEntity.java:1355`) after `actuallyHurt`, whenever the hit was not dropped earlier. A hit canceled in
-  `LivingIncomingDamageEvent`, or one the invulnerability frames refuse (`damage <= lastHurt`, `LivingEntity.java:1278`),
+  `LivingIncomingDamageEvent`, or one the invulnerability frames refuse (`damage <= lastHurt`, `LivingEntity.java:1273`),
   returns before it. It is **not** a proof that health was lost: a source the victim is invulnerable to, or a fully blocked
   hit, still posts it with `getInflictedDamage()` 0. A harder hit inside the frames posts it with
   `shouldCauseSideEffects()` false (the hurt sound is skipped the same way). The crit's particles and sound require a

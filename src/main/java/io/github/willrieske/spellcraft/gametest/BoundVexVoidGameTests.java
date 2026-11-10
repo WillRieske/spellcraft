@@ -26,7 +26,6 @@ import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
@@ -82,7 +81,6 @@ public final class BoundVexVoidGameTests {
         padded("bound_vex_world_void_catch_rescuer_range_edge_outside", helper -> voidRescuerRange(helper, 64, false));
         padded("bound_vex_world_void_catch_by_a_following_vex", BoundVexVoidGameTests::voidCatchByAFollowingVex);
         padded("bound_vex_world_void_catch_not_by_a_staying_vex", BoundVexVoidGameTests::voidCatchNotByAStayingVex);
-        padded("bound_vex_world_void_catch_keeps_a_conjured_hand", BoundVexVoidGameTests::voidCatchKeepsAConjuredHand);
         padded("bound_vex_world_void_catch_refused_teleport", BoundVexVoidGameTests::voidCatchRefusedTeleport);
         padded(
                 "bound_vex_world_void_logout_forgets_the_empty_search",
@@ -632,44 +630,6 @@ public final class BoundVexVoidGameTests {
                     dropTo(player, fallen);
                     VexRescues.tick(player);
                     assertStillThere(helper, player, fallen, "a staying vex does not catch");
-                })
-                .thenSucceed();
-    }
-
-    /**
-     * When the rescuer's main hand already holds a conjured emerald (as a job goal leaves it), should the catch still
-     * happen, the emerald stay in the hand through the tail, and the tail's end not take it away.
-     *
-     * <p>Method under test: {@code VexRescues.showInHand}: a conjured hand is left alone
-     */
-    static void voidCatchKeepsAConjuredHand(GameTestHelper helper) {
-        // Arrange
-        ServerPlayer player = voidPlayer(helper);
-        ServerLevel end = voidWithPlatform(helper, player);
-        BlockPos slot = player.blockPosition();
-        BoundVex vex = voidVex(helper, end, player, slot, VEX_EAST);
-        vex.conjure(EquipmentSlot.MAINHAND, new ItemStack(Items.EMERALD));
-
-        // Act & Assert
-        helper.startSequence()
-                .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
-                .thenExecute(() -> {
-                    dropTo(player, column(slot, end.getMinY() - BELOW_FLOOR));
-                    VexRescues.tick(player);
-                    assertVoidRunning(helper, player, "the catch started");
-                    helper.assertTrue(vex.getMainHandItem().is(Items.EMERALD), "the emerald stays");
-                })
-                .thenIdle(1)
-                .thenExecuteFor(19, () -> {
-                    VexRescues.tick(player);
-                    assertVoidRunning(helper, player, "the tail runs");
-                    helper.assertTrue(vex.getMainHandItem().is(Items.EMERALD), "the emerald stays through the tail");
-                })
-                .thenExecute(() -> {
-                    VexRescues.tick(player);
-                    assertNoRescue(helper, player, "the tail ends");
-                    helper.assertTrue(vex.getMainHandItem().is(Items.EMERALD), "the tail's end keeps the emerald");
-                    helper.assertTrue(vex.isConjured(EquipmentSlot.MAINHAND), "the emerald is still conjured");
                 })
                 .thenSucceed();
     }
