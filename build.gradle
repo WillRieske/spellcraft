@@ -43,9 +43,14 @@ neoForge {
         }
         // Launches the GameTest server, runs every registered test, exits non-zero on failure.
         // With no tests registered it crashes by design (fail closed).
+        // -PgameTests=<selector> runs only the tests whose ID matches (vanilla's --tests option, wildcards
+        // allowed: -PgameTests="spellcraft:bound_vex_gear_*"). For the inner loop only: gates run every test.
         gameTestServer {
             type = "gameTestServer"
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            if (project.hasProperty('gameTests')) {
+                programArguments.addAll '--tests', project.property('gameTests').toString()
+            }
         }
         data {
             clientData()

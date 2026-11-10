@@ -15,6 +15,7 @@ Run from the repo root. In the Bash tool use `./gradlew`; in PowerShell use `.\g
 | `./gradlew build` | spotlessCheck + Error Prone/`-Xlint:all -Werror` + tests + jar |
 | `./gradlew spotlessApply` | Format (palantir-java-format) |
 | `./gradlew runGameTestServer` | GameTests (server rules and common Mixins); non-zero exit on failure. |
+| `./gradlew runGameTestServer "-PgameTests=spellcraft:bound_vex_gear_*"` | Only the GameTests whose ID matches the selector (wildcards allowed), for the inner loop while writing a test. A selector that matches nothing fails. Never a substitute for the full run: a name cannot tell which tests a change affects, and the gates run every test. |
 | `./gradlew runData` | Headless client-dist boot (loads client classes and config specs); the only automated check of client code, and it proves the `ArmPose` enum wiring (`EvokingArmPoseCheck`) |
 | `./gradlew runClient` | Dev client, for Will's playtest only |
 | `powershell -ExecutionPolicy Bypass -File scripts\Deploy-TestEnv.ps1` | Gate checks + GameTests, then launch the dev client (or keep a current one); asks before stopping a stale one. `-CheckOnly`: status only. Exit codes in the script header |
