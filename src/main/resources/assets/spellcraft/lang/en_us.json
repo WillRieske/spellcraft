@@ -20,6 +20,10 @@
   "message.spellcraft.team_move_multishot": "Your vexes ready a Multishot!",
   "message.spellcraft.team_move_evader": "Your vexes form an Evader guard!",
   "message.spellcraft.team_move_raid": "Your vexes Raid!",
+  "message.spellcraft.team_moves_automatic": "Team moves are automatic",
+  "message.spellcraft.team_move_running": "Your vexes are already in a team move",
+  "message.spellcraft.team_move_cooling": "That team move is not ready yet",
+  "message.spellcraft.team_move_unavailable": "Not enough vexes, or no enemy for that move",
 
   "spellcraft.configuration.title": "Spellcraft Configs",
   "spellcraft.configuration.section.spellcraft.server.toml": "Spellcraft Server Configs",

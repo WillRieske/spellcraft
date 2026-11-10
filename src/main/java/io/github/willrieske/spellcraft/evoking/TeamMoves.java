@@ -34,7 +34,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Team moves of a summoner's Bound Vexes (Parts 6-7 spec section 2): the free-vex test, the per-summoner record, the
- * start and tick of a move; the triggers and the request arrive in Tasks 6-7.
+ * start and tick of a move (with the automatic trigger scan on the tick), and the manual request with its answers.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class TeamMoves {
@@ -353,6 +353,95 @@ public final class TeamMoves {
                 TeamMoveTriggers.scan(owner, scanning, now);
             }
         }
+    }
+
+    /** Lang key of the answer in automatic mode. */
+    public static final String AUTOMATIC_KEY = "message.spellcraft.team_moves_automatic";
+
+    /** Lang key of the answer while a move runs. */
+    public static final String RUNNING_KEY = "message.spellcraft.team_move_running";
+
+    /** Lang key of the answer while the kind is cooling down. */
+    public static final String COOLING_KEY = "message.spellcraft.team_move_cooling";
+
+    /** Lang key of the answer when no roster or no subject fits. */
+    public static final String UNAVAILABLE_KEY = "message.spellcraft.team_move_unavailable";
+
+    /** The manual request looks for an enemy this far from the summoner (spec section 3.4). */
+    public static final double REQUEST_RANGE = 16.0;
+
+    /** What a team-move request did. Only {@code STARTED} starts a move. */
+    public enum Answer {
+        /** A dead or spectating sender, or no real move. */
+        IGNORED,
+        /** The setting is automatic. */
+        AUTOMATIC,
+        /** A move already runs. */
+        RUNNING,
+        /** The kind is cooling down. */
+        COOLING,
+        /** No roster or no subject. */
+        UNAVAILABLE,
+        /** The move started. */
+        STARTED
+    }
+
+    /**
+     * Handles one team-move request from the K key (spec section 3.4). It ignores a dead or spectating sender and does
+     * not need the Evoking effect (the vexes outlive it, and automatic moves do not need it either). Then the first
+     * that applies is the answer, shown on the action bar: automatic mode; a move already running; the kind cooling;
+     * no roster or no subject (the nearest hostile within {@link #REQUEST_RANGE} blocks that is huntable, prey and fits
+     * the move; for an Evader the ward of {@link #wardFor}); otherwise the move starts with its usual message.
+     *
+     * @param owner the sender
+     * @param move the requested move
+     * @return what the request did
+     */
+    public static Answer request(ServerPlayer owner, TeamMove move) {
+        if (move == TeamMove.NONE || !isPresent(owner)) {
+            return Answer.IGNORED;
+        }
+        if (ServerConfig.teamMoveMode() == TeamMoveMode.AUTOMATIC) {
+            return refuse(owner, Answer.AUTOMATIC, AUTOMATIC_KEY);
+        }
+        Move record = STATES.get(owner.getUUID());
+        if (record != null && record.active()) {
+            return refuse(owner, Answer.RUNNING, RUNNING_KEY);
+        }
+        if (record != null && record.cooling(move, owner.level().getGameTime())) {
+            return refuse(owner, Answer.COOLING, COOLING_KEY);
+        }
+        LivingEntity subject = subjectFor(owner, move);
+        if (subject == null || !start(owner, move, subject)) {
+            return refuse(owner, Answer.UNAVAILABLE, UNAVAILABLE_KEY);
+        }
+        return Answer.STARTED;
+    }
+
+    /** Answers {@code answer} on the action bar with {@code key} and returns it. */
+    private static Answer refuse(ServerPlayer owner, Answer answer, String key) {
+        owner.sendOverlayMessage(Component.translatable(key));
+        return answer;
+    }
+
+    /** The enemy a manual move is fought against, or the ward of an Evader. */
+    private static @Nullable LivingEntity subjectFor(ServerPlayer owner, TeamMove move) {
+        if (move == TeamMove.EVADER) {
+            return wardFor(owner);
+        }
+        ServerLevel level = owner.level();
+        return level
+                .getEntitiesOfClass(
+                        LivingEntity.class,
+                        owner.getBoundingBox().inflate(REQUEST_RANGE),
+                        enemy -> enemy.isAlive()
+                                && enemy.distanceTo(owner) <= REQUEST_RANGE
+                                && BoundVex.huntable(owner.getUUID(), enemy)
+                                && BoundVex.isPrey(level, owner.getUUID(), enemy)
+                                && TeamMoveRules.fits(move, enemy.getMaxHealth(), attackDamage(enemy)))
+                .stream()
+                .min(Comparator.comparingDouble(owner::distanceToSqr))
+                .orElse(null);
     }
 
     /** An entity's attack damage, 0 for one with no such attribute (ghasts, shulkers, the dragon). */
