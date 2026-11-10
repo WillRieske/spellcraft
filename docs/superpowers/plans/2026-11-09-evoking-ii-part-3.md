@@ -1037,9 +1037,9 @@ git commit -m "feat(evoking): Bound Vexes shoot, throw, heal and block with the 
 - Consumes: `BoundVex` (reads `getItemBySlot`); vanilla as recorded in api-notes §22 "Client".
 - Produces: nothing other tasks read.
 
-- [ ] **Step 1: Read first.** `build/mc-src/net/minecraft/client/renderer/entity/VexRenderer.java`, `layers/HumanoidArmorLayer.java`, `layers/EquipmentLayerRenderer.java`, `ArmorModelSet.java`, `model/monster/vex/VexModel.java` (the part names: root children `body` and `head`; `body` has the arms and wings), `ZombieRenderer.java` (how an armor set is baked: `ArmorModelSet.bake(ModelLayers.ZOMBIE_ARMOR, context.getModelSet(), ZombieModel::new)`), and `model/HumanoidModel.java` (its constructor and whether a plain `HumanoidModel<HumanoidRenderState>` can be built from an armor layer's `ModelPart`).
+- [x] **Step 1: Read first.** `build/mc-src/net/minecraft/client/renderer/entity/VexRenderer.java`, `layers/HumanoidArmorLayer.java`, `layers/EquipmentLayerRenderer.java`, `ArmorModelSet.java`, `model/monster/vex/VexModel.java` (the part names: root children `body` and `head`; `body` has the arms and wings), `ZombieRenderer.java` (how an armor set is baked: `ArmorModelSet.bake(ModelLayers.ZOMBIE_ARMOR, context.getModelSet(), ZombieModel::new)`), and `model/HumanoidModel.java` (its constructor and whether a plain `HumanoidModel<HumanoidRenderState>` can be built from an armor layer's `ModelPart`).
 
-- [ ] **Step 2: Write the three classes.**
+- [x] **Step 2: Write the three classes.**
 
 `BoundVexRenderState extends VexRenderState`: three public `ItemStack` fields `headArmor`, `chestArmor`, `legsArmor`, all `ItemStack.EMPTY` by default. Javadoc: the offhand and main-hand items already ride `ArmedEntityRenderState`.
 
@@ -1075,9 +1075,9 @@ Constants (first guess, named and Javadoc'd as "Will's eye decides, playtest che
 
 Everything is under `client.evoking` (ArchUnit rule 1). `@OnlyIn` is not used in this mod's client classes; follow `BoundVexRenderers`.
 
-- [ ] **Step 3: Verify.** `spotlessApply`; `./gradlew build` (recipe); `./gradlew runData` (recipe): `exit=0`, which loads the client classes and constructs the renderers (if `runData` does not bake entity renderers, say so in the task report: then the layer's construction is proven only by Will's playtest; do not claim otherwise). `runGameTestServer` is unchanged by this task but run it once: the dedicated server must still start (no client class leaked into common code).
+- [x] **Step 3: Verify.** `spotlessApply`; `./gradlew build` (recipe); `./gradlew runData` (recipe): `exit=0`, which loads the client classes and constructs the renderers (if `runData` does not bake entity renderers, say so in the task report: then the layer's construction is proven only by Will's playtest; do not claim otherwise). `runGameTestServer` is unchanged by this task but run it once: the dedicated server must still start (no client class leaked into common code).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/main/java/io/github/willrieske/spellcraft/client/evoking
@@ -1086,6 +1086,8 @@ git add src/main/java/io/github/willrieske/spellcraft/client/evoking
 ```bash
 git commit -m "feat(evoking): draw a Bound Vex's helmet, chestplate and leggings"
 ```
+
+> **As built (`1e3e3d2`):** diverged — `BoundVexRenderer` is final (Error Prone `this-escape`); the fit is one `Fit` record per slot (a scale per axis and a downward shift) instead of one `SCALE`, because the vex body is 3×6×2 against a humanoid 8×12×4; sleeves and legs of the armor models are hidden; `runData` does NOT construct entity renderers, so the layer is proven by compilation only until the playtest; reason: implementer, from the 26.3 client code. A fix round came first (`d3b4c43`: a following vex with ranged gear keeps its target out to 12 blocks, since the 6–10 band is beyond the 7.25 reach; identical-piece swaps are audible; three tests added).
 
 ---
 
@@ -1164,6 +1166,7 @@ git commit -m "docs: describe Bound Vex gear and the new stay; playtest items; m
 | 4 | `53e2f9f` | `stashGift` is public (the GameTests are in another package); the Peaceful drop test runs in its own environment `peaceful_gear` (two tests in one `peaceful` batch run side by side and the difficulty change broke the other); reason: implementer, both needed to compile and pass. |
 | 5 | `fa7ad8a` | `give` plays no armor sound of its own (`LivingEntity.onEquipItem` plays the equip sound for armor and an offhand shield) and plays `VEX_AMBIENT` for the main hand and for a gift that waits in the stash; the overflow drop is `Player.drop(back, false, Prediction.SERVER_ONLY)`; reason: api-notes §22 (Task 1). Task 3 also got a review fix round first (`36bfed5`: the return flight needs the vex nearly still and approaches at 0.25 inside 3 blocks; a staying vex loaded without a post gets one; two tests added). |
 | 6 | `11b533c` | `RangedGearGoal` and its constants are public (tests read them); `VexShots` aims potions from the projectile's own height (a vex's eyes are low) with the witch's speeds; `doHurtTarget` restores the weapon silently (`setItemSlot(…, true)`); the shield test's no-position damage is `generic()` (the vex is fire immune) and tests reset `damageCooldownTime`; the bow, potion and healing tests use a staying vex so the stay area bounds its targets; reason: implementer, 26.3 names and test stability. Task 4 also got a review fix round first (`8389c81`: `stashGift` guards and copies, conjure/dismiss are silent, the Peaceful drop honors `mob_drops` and Curse of Vanishing, three tests added). |
+| 7 | `1e3e3d2` | `BoundVexRenderer` is final (Error Prone `this-escape`); the fit is one `Fit` record per slot (a scale per axis and a downward shift) instead of one `SCALE`, because the vex body is 3×6×2 against a humanoid 8×12×4; sleeves and legs of the armor models are hidden; `runData` does NOT construct entity renderers, so the layer is proven by compilation only until the playtest; reason: implementer, from the 26.3 client code. A fix round came first (`d3b4c43`: a following vex with ranged gear keeps its target out to 12 blocks, since the 6–10 band is beyond the 7.25 reach; identical-piece swaps are audible; three tests added). |
 
 ## Resume State
 

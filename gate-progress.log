@@ -77,3 +77,5 @@ e5ef3e0 Task 2: GuardArea tests red then green (./gradlew test --tests *GuardAre
 fa7ad8a Task 5: build green; All 275 required tests passed
 8389c81 Task 4 fix round 1: build green; All 278 required tests passed
 11b533c Task 6: build green; All 287 required tests passed twice
+d3b4c43 fix round (ranged keep range): build green; All 290 required tests passed x3
+1e3e3d2 Task 7: build green; runData exit 0 (does not construct renderers); All 290 required tests passed

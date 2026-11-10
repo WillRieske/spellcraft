@@ -44,11 +44,11 @@ The change is released as a patch: version `1.2.2`, tag `v1.2.2`.
 | **Post** | The block a staying vex was in when it was told to stay (vanilla's `boundOrigin`). The **post point** is the middle of that block's floor: `(x + 0.5, y, z + 0.5)`. |
 | **Stay area** | The box a staying vex defends: 13 × 13 blocks wide (the post block and six blocks each way, so ±6.5 from the post point east–west and north–south) and 7 tall (±3.5 from the post point). It does not move while the vex fights. |
 | **Guard area** | The box a vex looks for hostiles, allies and golems in. For a following vex: the parent spec's 8 × 8 × 7 box around the vex. For a staying vex: the stay area. |
-| **Reach** | 7.25 blocks: how far a *following* vex keeps a target. A staying vex keeps a target for as long as the target's feet are in the stay area. |
+| **Reach** | 7.25 blocks: how far a *following* vex keeps a target (12 blocks while it holds ranged gear, §4.3). A staying vex keeps a target for as long as the target's feet are in the stay area. |
 | **Given gear** | Items the summoner handed the vex, plus its own iron sword. Real: they come back or drop. |
 | **Conjured gear** | Items a vex makes for a job (today only the repair's iron ingot). Never drops, cannot be taken. |
 | **Stash** | Where a given item waits while a conjured item sits in its slot. Saved with the vex. |
-| **Support gear** | A splash or lingering potion or tipped arrow whose effects are all beneficial: thrown or shot at hurt friends, not at enemies. |
+| **Support gear** | A splash or lingering potion whose effects are all beneficial: thrown at hurt friends, not at enemies. |
 | **Gear kind** | What a held item is to a vex: armor (head, chest or legs), melee weapon, launcher (bow or crossbow), shield, throwable (splash or lingering potion), arrow, or not gear. |
 
 ## 1. Scope
@@ -167,10 +167,10 @@ in this order:
 | Armor | `DataComponents.EQUIPPABLE` with slot `HEAD`, `CHEST` or `LEGS` | that slot |
 | Shield | `DataComponents.BLOCKS_ATTACKS` present (vanilla's shield test; the plan confirms the component's name in 26.3) | `OFFHAND` |
 | Launcher | `BowItem` or `CrossbowItem` | `MAINHAND` |
-| Throwable | `Items.SPLASH_POTION` or `Items.LINGERING_POTION` | `MAINHAND` |
-| Arrow | `ArrowItem` (plain, tipped, spectral) | `MAINHAND` |
+| Throwable | `Items.SPLASH_POTION` or `Items.LINGERING_POTION` with at least one effect | `MAINHAND` |
+| Arrow | `ArrowItem` (plain, tipped, spectral), unless it is tipped with only beneficial effects | `MAINHAND` |
 | Melee | an `ATTACK_DAMAGE` modifier for `MAINHAND` in `DataComponents.ATTRIBUTE_MODIFIERS` (swords, axes, maces, tridents, and tools) | `MAINHAND` |
-| Not gear | everything else, and `EQUIPPABLE` items for `FEET` or `BODY` | none |
+| Not gear | everything else; `EQUIPPABLE` items for `FEET` or `BODY`; a potion with no effects (water, awkward); a tipped arrow whose effects are all beneficial (an arrow wounds whoever it hits, so it cannot heal a friend) | none |
 
 ### 4.2 Giving
 
@@ -207,16 +207,23 @@ it in `canUse`, so exactly one runs:
   - potion: `ThrownSplashPotion` / `ThrownLingeringPotion` of a copy of the stack,
     `SPLASH_POTION_THROW` / `LINGERING_POTION_THROW`.
   A staying vex with a ranged weapon moves the same way; its target is still limited to the stay
-  area (§2.3).
-- **Support gear** (throwable or tipped arrow whose effects are all
-  `MobEffectCategory.BENEFICIAL`, and at least one effect): the vex does not fight (no charge, no
+  area (§2.3). A **following** vex with ranged gear keeps its target out to **12 blocks** (the
+  band's far edge plus a 2-block margin for the coast) instead of the 7.25 reach, or it would drop
+  the target the moment it backed off; it still only *takes* targets inside its 8 × 8 × 7 box.
+  **Friendly fire.** A ranged vex holds its fire while a friend (the summoner, an ally, a Bound Vex
+  of the same summoner) is in the way: for arrows, within 1 block of the line to the target; for
+  potions, within 4 blocks of the target (the splash). As a backstop, damage whose attacker is a
+  Bound Vex and whose victim is its summoner or something it may not fight (`!isPrey`) is
+  cancelled (`LivingIncomingDamageEvent`). A lingering cloud left on the ground can still catch
+  a friend who walks into it; accepted, and a playtest item.
+- **Support gear** (a throwable whose effects are all `MobEffectCategory.BENEFICIAL`, and at
+  least one effect): the vex does not fight (no charge, no
   ranged goal; it still takes targets, which calls the wolves). `SupportGearGoal` (priority 3,
   **no flags**, so the follow goal and the post goal keep running beside it): every 40 ticks, the nearest of {the summoner, an ally `LivingEntity`, a Bound Vex
   of the same summoner, itself excluded} within 10 blocks, with line of sight and **below half
-  health**, gets a copy of the potion thrown at it or of the arrow shot at it. The goal does not
-  move the vex.
-
-A splash potion of water (no effects) is ranged gear by the rule above and harmless; accepted.
+  health**, gets a copy of the potion thrown at it. Friends that healing would hurt (the undead,
+  `isInvertedHealAndHarm`) are skipped. The scan runs on the shared 10-tick clock. The goal does
+  not move the vex.
 
 **Shield.** Vanilla's own blocking (`LivingEntity.applyItemBlocking`, `LivingEntity.java:1378`)
 only works for an entity that is *using* the shield (`getItemBlockingWith`), which a mob never
@@ -226,7 +233,9 @@ a position (`getSourcePosition() != null`: melee, projectiles and explosions, no
 is not `DamageTypeTags.BYPASSES_SHIELD`, is not a piercing arrow (`AbstractArrow.getPierceLevel()
 > 0`, vanilla's exception), and comes from in front: the dot of the flat view vector from the
 head's yaw (`calculateViewVector(0, getYHeadRot())`) with the flattened, normalized direction from
-the vex to the source is > 0 (a 180° front arc). No durability is spent.
+the vex to the source is ≥ 0 (vanilla's 90° each side). A hit that would not have hurt anyway (a
+dead or invulnerable vex, zero damage) is not a block. A blocked hit still records its attacker
+(`setLastHurtByMob`), as vanilla's blocking does, so the vex answers it. No durability is spent.
 
 ### 4.4 Taking the weapon back
 
@@ -341,9 +350,11 @@ afterwards and `docs/mutation-testing.md` updated.
 - Fighting: a diamond-sword hit does more than an iron-sword hit; the sword's damage value is
   unchanged after a hit; a bow vex spawns an arrow entity and keeps ≥ 6 blocks; a harming-potion
   vex spawns a thrown potion at its target; a healing-potion vex throws at a half-health ally and
-  not at a full-health one and never at the zombie; the held stack's count never changes.
-- Shield: a hit from the front is cancelled, from behind is not, fire is not, a piercing arrow
-  from the front is not.
+  not at a full-health one and never at the zombie; a following bow vex keeps its target while it
+  holds the band; a ranged vex holds its fire with a friend in the way, and its arrow does not
+  hurt its summoner; the held stack's count never changes.
+- Shield: a hit from the front is cancelled, from behind is not, damage with no position is not,
+  a piercing arrow from the front is not; a blocked hit makes the attacker the vex's last attacker.
 - Support gear does not hold the vex: a healing-potion vex still follows its summoner.
 - Stash and drops: conjure/dismiss round trip; a gift during a conjure comes back after
   `dismiss`; death drops given gear, the sword and the stash, and no conjured item; a save/load
@@ -382,6 +393,11 @@ checks a tag against `mod_version` and the tag must name the merged commit.
 | One item per gift | Yes, from a stack too | A vex holds one potion and never uses it up. |
 | Tools as weapons | Yes (anything with a main-hand attack-damage modifier) | The parent's rule; a pickaxe is a poor sword but a harmless gift. |
 | Support target | Nearest hurt friend within 10 blocks, with line of sight | The parent's numbers; sight keeps potions out of walls. |
+| Support gear is potions only | A beneficial tipped arrow is not gear | The parent spec allowed it, but an arrow does damage before its effect: it would wound, or kill, the friend it was meant to heal. |
+| Potions with no effects | Not gear | A vex throwing water forever is noise. |
+| Ranged keep range | 12 blocks for a following vex with ranged gear | The 6–10 band lies beyond the 7.25 reach; found in the build. |
+| Friendly fire | Hold fire near friends, cancel direct damage to them | A pet that shoots its owner is worse than one that waits. |
+| Curse of Vanishing | Such gear is destroyed with the vex | Vanilla's rule for every mob. |
 | Shield test | Vanilla's blocking geometry (flat head-yaw view vs. flat direction to the source, piercing arrows excepted), done in `hurtServer` | Vanilla's blocking needs the entity to be using the shield; a hit from above the front still counts. |
 | Support goal holds no move flag | Yes | A healer that stopped following would be left behind. |
 | Peaceful drop | Tied to the Peaceful check, not to every discard | A discard is also how tests and later parts remove a vex silently. |
