@@ -17,9 +17,13 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.monster.zombie.Husk;
+import net.minecraft.world.entity.monster.zombie.ZombieVillager;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
@@ -28,6 +32,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.phys.Vec3;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Shared constants and helpers of the Bound Vex GameTests (the cap, follow, target and job classes). Tests whose
@@ -290,4 +295,39 @@ public final class BoundVexTestSupport {
     }
 
     private BoundVexTestSupport() {}
+
+    /**
+     * A zombie villager with no AI and no gravity and a leather helmet (against sunburn), {@code dx} blocks east and
+     * {@code dz} blocks south of {@code at} (absolute, same height), discarded when the test ends. It is spawned in the
+     * structure and moved by absolute position: a rotated structure puts relative coordinates a block off.
+     */
+    static ZombieVillager frozenZombieVillager(GameTestHelper helper, Vec3 at, double dx, double dz) {
+        ZombieVillager zombieVillager = helper.spawn(EntityTypes.ZOMBIE_VILLAGER, FEET);
+        zombieVillager.setNoAi(true);
+        zombieVillager.setNoGravity(true);
+        zombieVillager.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.LEATHER_HELMET));
+        zombieVillager.setPos(at.add(dx, 0.0, dz));
+        whenDone(helper, zombieVillager::discard);
+        return zombieVillager;
+    }
+
+    /** Whether {@code vex} holds its own iron sword again, nothing conjured. */
+    static boolean swordBack(BoundVex vex) {
+        return vex.getMainHandItem().is(Items.IRON_SWORD) && !vex.isConjured(EquipmentSlot.MAINHAND);
+    }
+
+    /**
+     * A vanilla vex with no AI and no gravity, {@code dx} blocks east and {@code dz} blocks south of {@code at}
+     * (absolute, same height), targeting {@code target}, discarded when the test ends. It is spawned in the structure
+     * and moved by absolute position: a rotated structure puts relative coordinates a block off.
+     */
+    static Vex enemyVex(GameTestHelper helper, Vec3 at, double dx, double dz, @Nullable LivingEntity target) {
+        Vex vex = helper.spawn(EntityTypes.VEX, FEET);
+        vex.setNoAi(true);
+        vex.setNoGravity(true);
+        vex.setPos(at.add(dx, 0.0, dz));
+        vex.setTarget(target);
+        whenDone(helper, vex::discard);
+        return vex;
+    }
 }
