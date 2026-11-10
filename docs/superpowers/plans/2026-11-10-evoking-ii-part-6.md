@@ -1606,7 +1606,7 @@ git commit -m "feat(evoking): free vexes, the team-move flag and the busy refusa
   - `TeamMoves.start(ServerPlayer owner, TeamMove move, @Nullable LivingEntity subject)` → `boolean` (public); `running(ServerPlayer)` → `Optional<TeamMove>`; `roster(ServerPlayer)` → `List<BoundVex>` (roster order); `subject(ServerPlayer)` → `Optional<UUID>` (all public); `MESSAGE_PREFIX = "message.spellcraft.team_move_"`; `nearest(List<BoundVex>, Vec3)` (package-private; `EvaderMove` uses it too).
   - Package-private nested `TeamMoves.Move` (a summoner's state: fields `move`, `roster`, `members`, `subject`, `start`, `phase`, `cooldownEnd`, `nextScan`, `shoved`; methods `active()`, `cooling(TeamMove, long)`, `begin(TeamMove, UUID, long)`, `add(UUID, Map)`, `finish(long)`; named `Move`, not `Record`, which would hide `java.lang.Record`), `TeamMoves.Member` (`cell`, `kit`, `nextAction`, `lungeStart`, `stage`), `enum Phase { GATHER, CHARGE }`, `Member.Stage { READY, LUNGING, BACKING }`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `BoundVexTeamMoveRosterGameTests.registerAll` (thirteen lines, in the Task 3 shape; the method names are the ones below, in this order):
 
@@ -2050,12 +2050,12 @@ static void assertRaidGear(GameTestHelper helper, BoundVex vex) {
 
 `DiceTest` (plain JUnit under `src/test/java/io/github/willrieske/spellcraft/evoking/`, Arrange/Act/Assert, `@Nested` per method): `RandomSource.create(1L)` stands in for the source if `net.minecraft.util.RandomSource` loads on the unit-test classpath (if it does not, write the same checks as one GameTest `team_move_dice_script_rules` in the `team_move_dice` environment). Tests: scripted rolls come back in order, then the random source answers (a value in `[0, bound)`); `unscript` empties the queue; a scripted roll equal to `bound` or `-1` throws `IllegalStateException`. Its commit stages `src/test`.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_start_*"`
 Expected: compilation fails (`TeamMoves.start`, `running`, `roster`, `subject`, `MESSAGE_PREFIX` do not exist).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```java
 package io.github.willrieske.spellcraft.evoking;
@@ -2487,12 +2487,12 @@ Lang: add these four lines after `"message.spellcraft.vex_busy"` (Task 3); they 
 "message.spellcraft.team_move_raid": "Your vexes Raid!",
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_start_*"`
 Expected: all pass. `startRaidTwelveGeared` uses the random Raid dice and asserts structure only.
 
-- [ ] **Step 5: Full gates, then commit**
+- [x] **Step 5: Full gates, then commit**
 
 Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (expect `All M required tests passed`, M = the previous task's reported total plus the 13 tests this task registers; write M in the commit's as-built note).
 
@@ -2500,6 +2500,8 @@ Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (
 git add src/main/java/io/github/willrieske/spellcraft src/test/java/io/github/willrieske/spellcraft src/main/resources/assets/spellcraft/lang/en_us.json
 git commit -m "feat(evoking): starting a team move picks the roster and conjures the kit"
 ```
+
+> **As built (`e37f437`):** diverged — `DiceTest` is the GameTest `team_move_dice_script_rules` in `team_move_dice` (the brief's fallback: `RandomSource` is not on the unit-test classpath), so 14 tests (528); the Multishot test reads `ItemStack.getEnchantmentLevel(Holder)` (the helper is deprecated under -Werror); reason: classpath and compile rules.
 
 ---
 
@@ -6922,6 +6924,7 @@ git commit -m "docs(evoking): Part 6 in the README, playtest items, mutation tes
 |---|---|---|
 | 2 | `c19b658` | `@SuppressWarnings("EnumOrdinal")` with a why-comment on `TeamMove.arg()`, `next()` and the test's `Arg.roundTrips`; reason: Error Prone -Werror flags ordinal use, and the ordinal is the packet arg by design. |
 | 3 | `a24543f` | `frozenVexes` uses `Math.floorDiv(i, 4)` (Error Prone `NarrowCalculation`); the Bribe job test finds the worker by its conjured emerald because `BribeGoal.holds` is package-private; reason: compile rules, same behavior. |
+| 4 | `e37f437` | `DiceTest` is the GameTest `team_move_dice_script_rules` in `team_move_dice` (the brief's fallback: `RandomSource` is not on the unit-test classpath), so 14 tests (528); the Multishot test reads `ItemStack.getEnchantmentLevel(Holder)` (the helper is deprecated under -Werror); reason: classpath and compile rules. |
 
 ## Resume State
 
