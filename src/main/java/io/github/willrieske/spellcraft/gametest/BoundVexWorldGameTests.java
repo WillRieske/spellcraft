@@ -14,12 +14,23 @@ import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.NIGHT;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
+import com.mojang.serialization.DynamicOps;
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.gametest.BoundVexWorldTestSupport.Place;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.LayeredRegistryAccess;
+import net.minecraft.core.RegistrySynchronization;
 import net.minecraft.core.SectionPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.gametest.framework.TestEnvironmentDefinition;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.Tag;
+import net.minecraft.server.RegistryLayer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -52,6 +63,10 @@ public final class BoundVexWorldGameTests {
         padded("bound_vex_world_setup_fluids", BoundVexWorldGameTests::setupFluids);
         SpellcraftGameTests.add(NIGHT, "bound_vex_world_setup_night", BoundVexWorldGameTests::setupNight);
         SpellcraftGameTests.add(SHARED, "bound_vex_world_setup_day", BoundVexWorldGameTests::setupDay);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_world_setup_registries_reach_a_client",
+                BoundVexWorldGameTests::setupRegistriesReachAClient);
     }
 
     /**
@@ -402,5 +417,39 @@ public final class BoundVexWorldGameTests {
             helper.assertFalse(helper.getLevel().isDarkOutside(), "it is not dark in the shared environment");
             helper.succeed();
         });
+    }
+
+    /**
+     * When the server packs its synchronized registries as it does for a joining client, should every entry encode
+     * and every test environment decode again as the client decodes it: an entry that cannot be encoded leaves the
+     * client on "Loading terrain".
+     *
+     * <p>Method under test: {@code OverworldTime.CODEC} and its registration
+     * ({@code SpellcraftGameTests.ENVIRONMENT_TYPES})
+     */
+    static void setupRegistriesReachAClient(GameTestHelper helper) {
+        // Arrange
+        LayeredRegistryAccess<RegistryLayer> registries =
+                helper.getLevel().getServer().registries();
+        DynamicOps<Tag> ops = registries.compositeAccess().createSerializationContext(NbtOps.INSTANCE);
+        List<RegistrySynchronization.PackedRegistryEntry> environments = new ArrayList<>();
+
+        // Act: as SynchronizeRegistriesTask does, with no packs the client already knows (so nothing is skipped)
+        RegistrySynchronization.packRegistries(
+                ops, registries.getAccessFrom(RegistryLayer.WORLD), Set.of(), (key, entries) -> {
+                    if (key.equals(Registries.TEST_ENVIRONMENT)) {
+                        environments.addAll(entries);
+                    }
+                });
+
+        // Assert: packing threw nothing; the test environments were packed, with contents the client can decode
+        helper.assertFalse(environments.isEmpty(), "the test environments are sent to clients");
+        for (RegistrySynchronization.PackedRegistryEntry entry : environments) {
+            Tag contents = entry.data().orElseThrow(() -> helper.assertionException("no contents for " + entry.id()));
+            TestEnvironmentDefinition.DIRECT_CODEC
+                    .parse(ops, contents)
+                    .getOrThrow(error -> helper.assertionException(entry.id() + " does not decode: " + error));
+        }
+        helper.succeed();
     }
 }

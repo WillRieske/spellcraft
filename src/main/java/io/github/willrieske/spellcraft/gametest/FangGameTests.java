@@ -85,17 +85,23 @@ public final class FangGameTests {
     private static final int WARMUP = EvokerSpell.WARMUP_TICKS;
     private static final int LONG = 200;
     private static final int PADDING = 13;
-    /** The longest {@link #padded} waits for the padded chunks to tick, in wall-clock time. */
+    /**
+     * The longest {@link #padded} waits for the padded chunks to tick, as time this test itself spends waiting. It is
+     * not a wall-clock deadline: every test of a batch starts on one server tick, and the other tests' setup in that
+     * tick (an End area takes most of a second to build) would count against a deadline.
+     */
     private static final long PADDING_DEADLINE_MILLIS = 15_000L;
 
     /** How long one wait between polls lasts; a polling tick takes at least this long. */
     private static final long POLL_MILLIS = 10L;
 
+    /** How many polls {@link #padded} makes before it gives up: the deadline in polls. */
+    private static final int PADDING_POLLS = (int) (PADDING_DEADLINE_MILLIS / POLL_MILLIS);
+
     /**
-     * The test's own {@link #LONG} ticks plus the most polling ticks the wait can take: the deadline divided by the
-     * poll time (the GameTest server ticks as fast as it can, so a polling tick lasts about {@link #POLL_MILLIS}).
+     * The test's own {@link #LONG} ticks plus the most polling ticks the wait can take, one tick a poll.
      */
-    private static final int PADDED_MAX_TICKS = LONG + (int) (PADDING_DEADLINE_MILLIS / POLL_MILLIS);
+    private static final int PADDED_MAX_TICKS = LONG + PADDING_POLLS;
 
     /**
      * The server-stop test clears every player's cast, so it runs in an environment of its own: batches run one after
@@ -158,8 +164,7 @@ public final class FangGameTests {
      * @param body the test body
      */
     static void addPadded(String environment, String name, int bodyTicks, Consumer<GameTestHelper> body) {
-        int polls = (int) (PADDING_DEADLINE_MILLIS / POLL_MILLIS);
-        SpellcraftGameTests.add(environment, name, bodyTicks + polls, PADDING, padded(body));
+        SpellcraftGameTests.add(environment, name, bodyTicks + PADDING_POLLS, PADDING, padded(body));
     }
 
     /**
@@ -184,28 +189,28 @@ public final class FangGameTests {
      * Wraps a padded test: forces every chunk of the padded box, waits until they all tick (a forced chunk is promoted
      * to entity-ticking over the following ticks, and chunk generation runs in real time on worker threads), then runs
      * {@code body}. Every delay in the body counts from that point. The wait is bounded by
-     * {@link #PADDING_DEADLINE_MILLIS} of wall-clock time; when it runs out, the test fails naming the first chunk that
-     * is not ticking.
+     * {@link #PADDING_DEADLINE_MILLIS} of this test's own waiting ({@link #PADDING_POLLS} polls); when it runs out, the
+     * test fails naming the first chunk that is not ticking.
      */
     static Consumer<GameTestHelper> padded(Consumer<GameTestHelper> body) {
         return helper -> {
             forcePadding(helper);
-            awaitPadding(helper, System.nanoTime() + PADDING_DEADLINE_MILLIS * 1_000_000L, body);
+            awaitPadding(helper, PADDING_POLLS, body);
         };
     }
 
-    private static void awaitPadding(GameTestHelper helper, long deadlineNanos, Consumer<GameTestHelper> body) {
+    private static void awaitPadding(GameTestHelper helper, int pollsLeft, Consumer<GameTestHelper> body) {
         ChunkPos missing = firstNotTicking(helper);
         if (missing == null) {
             body.accept(helper);
-        } else if (System.nanoTime() >= deadlineNanos) {
+        } else if (pollsLeft <= 0) {
             throw helper.assertionException("setup: padded chunk " + missing + " is not entity-ticking after "
-                    + PADDING_DEADLINE_MILLIS / 1000 + " s");
+                    + PADDING_DEADLINE_MILLIS / 1000 + " s of waiting");
         } else {
             // Keeps running the main-thread chunk tasks while it waits (BlockableEventLoop.managedBlock).
             long until = System.nanoTime() + POLL_MILLIS * 1_000_000L;
             helper.getLevel().getServer().managedBlock(() -> System.nanoTime() >= until);
-            helper.runAfterDelay(1, () -> awaitPadding(helper, deadlineNanos, body));
+            helper.runAfterDelay(1, () -> awaitPadding(helper, pollsLeft - 1, body));
         }
     }
 
