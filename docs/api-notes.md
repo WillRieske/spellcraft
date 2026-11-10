@@ -963,7 +963,7 @@ Parts 4-5 spec, this section wins (the list is at the end).
   through `owner`, an `EntityReference<LivingEntity>`, `:52,141`), `setOwner(Mob)` (`:177`). `Vex` does not override
   `setTarget`; `Mob.setTarget(@Nullable LivingEntity)` (`Mob.java:257`) filters through `asValidTarget` (`:245`: null
   for a creative or spectator player or a `canAttack` refusal), then posts NeoForge's `LivingChangeTargetEvent` and
-  stores the event's new target unless cancelled. `setTarget(null)` is therefore accepted unless a listener cancels
+  stores the event's new target unless canceled. `setTarget(null)` is therefore accepted unless a listener cancels
   it. `getTarget()` (`:237`) applies the same `asValidTarget`; `getTargetUnchecked()` (`:241`) is the raw field. A
   **zombie villager's** own goals (inherited from `Zombie.addBehaviourGoals`, `:131-141`): target goals
   `HurtByTargetGoal` (1), `NearestAttackableTargetGoal` for `Player` (2, must see), `AbstractVillager` (3),
@@ -1063,10 +1063,10 @@ Found while building (verified against the sources or the code):
   including the one just stopped, in the same pass; only then does it tick the running goals. A goal that aborts
   because the approach timed out can therefore be started again at once by its own `canUse`; that is why the cure and
   the bribe keep a retry delay (`RETRY_DELAY`).
-- `LivingChangeTargetEvent` cancelled keeps the **old** target: `Mob.setTarget` stores the event's new target only
+- `LivingChangeTargetEvent` canceled keeps the **old** target: `Mob.setTarget` stores the event's new target only
   `if (!changeTargetEvent.isCanceled())` (`Mob.java:259-262`). Cancelling a change to a new target does not clear an
   existing one: an iron golem that already targets a zombie villager keeps hitting it after the cure mark appears, so
-  the claim must call `golem.setTarget(null)` itself (a null target is not cancelled by `GolemMercy`, whose check is
+  the claim must call `golem.setTarget(null)` itself (a null target is not canceled by `GolemMercy`, whose check is
   `target != null && ...`), with the mark set first so that the golem's target goals cannot hand the same target
   straight back.
 

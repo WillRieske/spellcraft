@@ -151,7 +151,7 @@ public final class BoundVexBribeGameTests {
      *
      * @return the number of times the dice were rolled, still counting
      */
-    private static AtomicInteger countingRolls(GameTestHelper helper, BoundVex vex, int side) {
+    static AtomicInteger countingRolls(GameTestHelper helper, BoundVex vex, int side) {
         AtomicInteger rolls = new AtomicInteger();
         BribeGoal.scriptDice(vex, bound -> {
             rolls.incrementAndGet();
@@ -355,7 +355,7 @@ public final class BoundVexBribeGameTests {
                     other.hurtServer(level, level.damageSources().mobAttack(first), 4.0F);
                     other.hurtServer(level, level.damageSources().mobAttack(second), 4.0F);
                     helper.assertValueEqual(
-                            other.getHealth(), before, "a hit by a Bound Vex on a courted vex is cancelled");
+                            other.getHealth(), before, "a hit by a Bound Vex on a courted vex is canceled");
                 })
                 .thenWaitUntil(() -> helper.assertTrue(AllyAttachments.wasOfferedBribe(other), "the roll refuses"))
                 .thenExecute(() -> {

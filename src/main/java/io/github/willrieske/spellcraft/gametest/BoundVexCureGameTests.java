@@ -23,11 +23,13 @@ import io.github.willrieske.spellcraft.evoking.FleeCreeperGoal;
 import io.github.willrieske.spellcraft.spell.Allies;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.UUIDUtil;
@@ -67,6 +69,19 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 public final class BoundVexCureGameTests {
     /** The environment of the test that stops the server: the stop handler clears every claim on it. */
     private static final String SERVER_STOP_CLAIMS = "bound_vex_cure_server_stop_claims";
+
+    /**
+     * Ticks after the first one with the potion in hand at which the stale-cure test releases the zombie villager: the
+     * potion step has {@link CureZombieVillagerGoal#POTION_TICKS} ticks, the first being the one that conjures the
+     * potion, so the release lands just before the last.
+     */
+    private static final int POTION_STEP_TICKS_BEFORE_LAST = CureZombieVillagerGoal.POTION_TICKS - 2;
+
+    /** How far above its place the stale-cure test lifts a released zombie villager, out of every guard area. */
+    private static final double FAR_ABOVE = 40.0;
+
+    /** How near a zombie villager's head a vex counts as working on it, a little beyond the goal's own reach. */
+    private static final double WORKING_DISTANCE = 2.0;
 
     private BoundVexCureGameTests() {}
 
@@ -121,6 +136,7 @@ public final class BoundVexCureGameTests {
         padded(
                 "bound_vex_cure_a_vex_that_wakes_after_the_release_drops_the_job",
                 BoundVexCureGameTests::aVexThatWakesAfterTheReleaseDropsTheJob);
+        padded("bound_vex_cure_a_stale_cure_starts_no_conversion", BoundVexCureGameTests::aStaleCureStartsNoConversion);
         padded(
                 "bound_vex_cure_a_claim_lives_only_while_the_mark_does",
                 BoundVexCureGameTests::aClaimLivesOnlyWhileTheMarkDoes);
@@ -947,6 +963,80 @@ public final class BoundVexCureGameTests {
     }
 
     /**
+     * When the 300-tick rule releases a zombie villager (the mark removed, its AI back) just before the vex's last
+     * potion-step tick, should the vex start no conversion, whether that tick is one on which vanilla asks
+     * {@code canContinueToUse} first (the even id-based ticks) or one on which it does not (the odd ones): the
+     * zombie villager is never converting afterwards, stays unmarked (it is lifted out of reach after the release, so no
+     * vex takes it again), and the vex's hand is back to its sword. The test makes the parity of the vex's id-based tick count differ between
+     * its two vexes (it moves {@code tickCount} by one where needed), so both kinds of tick are exercised.
+     *
+     * <p>Method under test: {@link CureZombieVillagerGoal}: its tick drops a job whose subject lost the mark
+     */
+    static void aStaleCureStartsNoConversion(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        List<BoundVex> vexes =
+                List.of(stayingVex(helper, player, ItemStack.EMPTY), stayingVex(helper, player, ItemStack.EMPTY));
+        Vec3 post = vexes.get(0).position();
+        List<ZombieVillager> subjects =
+                List.of(cureSubject(helper, post, 3.0, 0.0), cureSubject(helper, post, -3.0, 0.0));
+        discardCureLeftovers(helper, post);
+        int[] ticksSincePotion = {-1, -1};
+        boolean[] released = new boolean[2];
+        ZombieVillager[] held = new ZombieVillager[2];
+        boolean[] swordSeen = new boolean[2];
+        AtomicBoolean converted = new AtomicBoolean();
+        AtomicBoolean marked = new AtomicBoolean();
+        BoundVexTestSupport.everyTick(helper, () -> {
+            for (int i = 0; i < vexes.size(); i++) {
+                BoundVex vex = vexes.get(i);
+                ZombieVillager subject = held[i];
+                if (released[i]) {
+                    converted.compareAndSet(false, subject.isConverting());
+                    marked.compareAndSet(false, !free(subject));
+                    swordSeen[i] |= swordBack(vex);
+                } else if (ticksSincePotion[i] < 0) {
+                    ticksSincePotion[i] = vex.getMainHandItem().is(Items.SPLASH_POTION) ? 0 : -1;
+                    held[i] = ticksSincePotion[i] < 0 ? null : nearestTo(vex, subjects);
+                } else if (++ticksSincePotion[i] == POTION_STEP_TICKS_BEFORE_LAST) {
+                    // The vex's next tick is its last in the potion step. The id-based count it will see is
+                    // tickCount + 1 + id (the count is raised before the goals run): odd on the first vex (no
+                    // canContinueToUse first), even on the second (it asks first).
+                    int wanted = i == 0 ? 0 : 1;
+                    if ((vex.tickCount + vex.getId()) % 2 != wanted) {
+                        vex.tickCount++;
+                    }
+                    subject.setNoAi(false);
+                    subject.removeData(AllyAttachments.CURE);
+                    // Out of every guard area, so no vex takes it again; the stale tick does not look at where it is
+                    subject.setNoGravity(true);
+                    subject.setPos(subject.getX(), subject.getY() + FAR_ABOVE, subject.getZ());
+                    released[i] = true;
+                }
+            }
+        });
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() ->
+                        helper.assertTrue(released[0] && released[1], "setup: both vexes reached the potion step"))
+                .thenIdle(40)
+                .thenExecute(() -> {
+                    helper.assertFalse(converted.get(), "a stale cure never starts a conversion");
+                    helper.assertFalse(marked.get(), "the zombie villager stays unmarked and unfrozen");
+                    helper.assertTrue(swordSeen[0] && swordSeen[1], "each vex had its sword back");
+                })
+                .thenSucceed();
+    }
+
+    /** The one of {@code subjects} nearest to {@code vex}: the one it works on once it holds the potion. */
+    private static ZombieVillager nearestTo(BoundVex vex, List<ZombieVillager> subjects) {
+        return subjects.stream()
+                .min(Comparator.comparingDouble(vex::distanceToSqr))
+                .orElseThrow();
+    }
+
+    /**
      * When one vex stops ticking mid-cure (holding its claim) and the 300-tick rule releases the zombie villager,
      * should a second vex claim it at once, though the first vex lives and never released its claim; and when the first
      * vex ticks again, should it drop the job without unfreezing or unmarking what the second vex now cures.
@@ -1100,7 +1190,11 @@ public final class BoundVexCureGameTests {
     /**
      * When twelve staying Bound Vexes of one summoner share three zombie villagers and two enemy vanilla vexes (which
      * target the summoner), should every zombie villager be converting, every vanilla vex carry exactly one of the
-     * two marks, no Bound Vex hold a conjured item, and all twelve be alive.
+     * two marks, no Bound Vex hold a conjured item, and all twelve be alive. To catch two Bound Vexes sharing a job,
+     * the bribe dice of every Bound Vex are scripted and counted (the dice see no subject, so the check is the total:
+     * each enemy vex is rolled for exactly once, so two rolls in all; two vexes on one enemy would roll three times or
+     * leave the other enemy unoffered), and at every tick no zombie villager has two Bound Vexes holding a conjured
+     * apple or potion within {@link #WORKING_DISTANCE} of its head (the cure's claim, seen from outside).
      *
      * <p>Method under test: {@link CureZombieVillagerGoal} and {@code BribeGoal}: the claims, with far more vexes than
      * subjects
@@ -1109,8 +1203,11 @@ public final class BoundVexCureGameTests {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
         List<BoundVex> vexes = new ArrayList<>();
+        List<AtomicInteger> rolls = new ArrayList<>();
         for (int i = 0; i < 12; i++) {
-            vexes.add(stayingVex(helper, player, ItemStack.EMPTY));
+            BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+            vexes.add(vex);
+            rolls.add(BoundVexBribeGameTests.countingRolls(helper, vex, i % 2 == 0 ? 0 : 2));
         }
         Vec3 post = vexes.get(0).position();
         List<ZombieVillager> zombieVillagers = List.of(
@@ -1121,6 +1218,21 @@ public final class BoundVexCureGameTests {
                 List.of(enemyVex(helper, post, 0.0, -3.0, player), enemyVex(helper, post, 2.0, -3.0, player));
         enemies.forEach(enemy -> enemy.setAbsorptionAmount(100000.0F));
         discardCureLeftovers(helper, post);
+        AtomicBoolean sharedACure = new AtomicBoolean();
+        BoundVexTestSupport.everyTick(helper, () -> {
+            for (ZombieVillager zombieVillager : zombieVillagers) {
+                Vec3 head = new Vec3(zombieVillager.getX(), zombieVillager.getEyeY(), zombieVillager.getZ());
+                long workers = vexes.stream()
+                        .filter(vex -> vex.isConjured(EquipmentSlot.MAINHAND)
+                                && (vex.getMainHandItem().is(Items.GOLDEN_APPLE)
+                                        || vex.getMainHandItem().is(Items.SPLASH_POTION)))
+                        .filter(vex -> vex.position().distanceTo(head) <= WORKING_DISTANCE)
+                        .count();
+                if (workers > 1) {
+                    sharedACure.set(true);
+                }
+            }
+        });
 
         // Act & Assert
         helper.startSequence()
@@ -1140,6 +1252,9 @@ public final class BoundVexCureGameTests {
                             vexes.stream().noneMatch(vex -> vex.isConjured(EquipmentSlot.MAINHAND)),
                             "no Bound Vex holds a conjured item");
                     helper.assertTrue(vexes.stream().allMatch(BoundVex::isAlive), "all twelve are alive");
+                    helper.assertFalse(sharedACure.get(), "never two Bound Vexes at work on one zombie villager");
+                    helper.assertValueEqual(
+                            rolls.stream().mapToInt(AtomicInteger::get).sum(), 2, "each enemy vex was rolled for once");
                 })
                 .thenSucceed();
     }

@@ -33,9 +33,9 @@ import org.jspecify.annotations.Nullable;
  * A Bound Vex cures a zombie villager (Evoking II Parts 4-5 spec §2.2): on each scan ({@code BoundVex.scanDue}), when
  * the vex's summoner is here, the nearest zombie villager whose feet are in the guard area and that can be taken is
  * taken. It can be taken if it is alive, not converting, not already {@code NoAI} (a map-made statue is left alone),
- * carries no cure mark and is not claimed by another living Bound Vex. It must also meet one more condition: either the
- * vex has no target, or the zombie villager's own target is the summoner or an ally (an attacker is stopped even
- * mid-fight). The vex claims it, freezes it ({@code setNoAi(true)}) and gives it the cure mark
+ * carries no cure mark (the mark is what keeps a second vex off a subject: a claim counts only while the mark is
+ * there). It must also meet one more condition: either the vex has no target, or the zombie villager's own target is
+ * the summoner or an ally (an attacker is stopped even mid-fight). The vex claims it, freezes it ({@code setNoAi(true)}) and gives it the cure mark
  * ({@link AllyAttachments#CURE}). The vex then flies to within {@link Jobs#REACH} of the zombie villager's head (at
  * most {@link Jobs#APPROACH_LIMIT} ticks), feeds it a golden apple for {@link #APPLE_TICKS} ticks (the eat sound and
  * crumbs), turns its head away and throws the cure potion at its feet for {@link #POTION_TICKS} ticks, and then begins
@@ -169,7 +169,7 @@ public final class CureZombieVillagerGoal extends Goal {
     @Override
     public boolean canUse() {
         // A vex that died, was discarded or unloaded never ran stop(); drop its claim so the map does not keep it
-        // (and its level) reachable. Such a claim already counts as free in claimedByAnother.
+        // (and its level) reachable. Such a claim already counts as free in Jobs.Claims.heldByAnother.
         CLAIMS.prune();
         if (!vex.scanDue(BoundVex.SCAN_INTERVAL) || vex.level().getGameTime() < blockedUntil) {
             return false;
@@ -191,15 +191,15 @@ public final class CureZombieVillagerGoal extends Goal {
     }
 
     /**
-     * Whether {@code candidate} may be taken now: alive, not converting, not a statue, not marked, not claimed by
-     * another living vex, and either this vex has no target or the candidate is attacking the summoner's side.
+     * Whether {@code candidate} may be taken now: alive, not converting, not a statue, not marked (the mark is what
+     * keeps a second vex off a subject), and either this vex has no target or the candidate is attacking the summoner's
+     * side.
      */
     private boolean curable(ServerPlayer owner, ZombieVillager candidate) {
         if (!candidate.isAlive()
                 || candidate.isConverting()
                 || candidate.isNoAi()
-                || AllyAttachments.isBeingCured(candidate)
-                || claimedByAnother(candidate)) {
+                || AllyAttachments.isBeingCured(candidate)) {
             return false;
         }
         if (vex.getTarget() == null) {
@@ -207,11 +207,6 @@ public final class CureZombieVillagerGoal extends Goal {
         }
         LivingEntity theirs = candidate.getTarget();
         return theirs != null && Allies.isAllyOf(owner, theirs);
-    }
-
-    /** Whether a living Bound Vex other than this one holds a live claim on {@code candidate}. */
-    private boolean claimedByAnother(ZombieVillager candidate) {
-        return AllyAttachments.isBeingCured(candidate) && CLAIMS.heldByAnother(candidate, vex);
     }
 
     @Override
@@ -237,7 +232,7 @@ public final class CureZombieVillagerGoal extends Goal {
     /**
      * Ends every iron golem's fight with {@code claimed} within {@link #GOLEM_CALM_RADIUS} blocks: its target is
      * cleared. The mark is already set, so {@code GolemMercy} cancels the golem's target goals picking it again (a
-     * null target is never cancelled).
+     * null target is never canceled).
      */
     private static void calmGolems(ZombieVillager claimed) {
         UUID id = claimed.getUUID();
@@ -258,18 +253,29 @@ public final class CureZombieVillagerGoal extends Goal {
      */
     @Override
     public boolean canContinueToUse() {
-        return subject != null
-                && subject.isAlive()
-                && AllyAttachments.isBeingCured(subject)
-                && !CLAIMS.heldByAnother(subject, vex)
+        return holdsSubject()
                 && vex.summoner().isPresent()
                 && !finished
                 && !(step == Step.APPROACH && approachTicks >= APPROACH_LIMIT);
     }
 
+    /** Whether the subject is still alive, still carries the cure mark and no other vex holds the claim. */
+    private boolean holdsSubject() {
+        return subject != null
+                && subject.isAlive()
+                && AllyAttachments.isBeingCured(subject)
+                && !CLAIMS.heldByAnother(subject, vex);
+    }
+
     @Override
     public void tick() {
         if (subject == null || finished) {
+            return;
+        }
+        if (!holdsSubject()) {
+            // Vanilla runs a goal's tick on odd ticks without asking canContinueToUse first, so a vex that stalled
+            // and wakes after the release (or after another vex took over) gets here before the check drops the job.
+            finished = true;
             return;
         }
         Vec3 head = new Vec3(subject.getX(), subject.getEyeY(), subject.getZ());
@@ -371,9 +377,9 @@ public final class CureZombieVillagerGoal extends Goal {
     }
 
     /**
-     * Step 4: unless a player fed the zombie villager by hand meanwhile (vanilla's conversion and that player's
-     * discount are left as they are), begin the conversion in the summoner's name; then the hand goes and the goal
-     * ends.
+     * Step 4, reached only while {@link #tick} found the vex still holding its subject: unless a player fed the
+     * zombie villager by hand meanwhile (vanilla's conversion and that player's discount are left as they are), begin
+     * the conversion in the summoner's name; then the hand goes and the goal ends.
      */
     private void begin(ZombieVillager target) {
         if (!target.isConverting()) {

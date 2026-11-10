@@ -18,7 +18,7 @@ import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
  * summoned) never takes an iron golem under {@link GolemMercyRule#MERCY_HEALTH}, a golem left there forgives, and a
  * golem never takes a player's summon, nor a zombie villager a Bound Vex is curing (the cure mark), as its target. The
  * rule is {@link GolemMercyRule}; this class is the three event hooks. A golem already fighting a zombie villager when
- * a vex claims it is told to stop by the cure itself ({@code CureZombieVillagerGoal}), because a cancelled change only
+ * a vex claims it is told to stop by the cure itself ({@code CureZombieVillagerGoal}), because a canceled change only
  * keeps the old target.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
@@ -58,7 +58,7 @@ public final class GolemMercy {
     /**
      * A golem never targets a mob a player summoned (the summoner attachment) nor a zombie villager a Bound Vex
      * is curing (the cure mark, Parts 4-5 spec §2.1): vanilla's golem attacks every {@code Enemy} but creepers, and a
-     * summoned vex or a zombie villager is one. A cancelled change keeps the golem's old target.
+     * summoned vex or a zombie villager is one. A canceled change keeps the golem's old target.
      *
      * @param event the change-target event for any living entity
      */

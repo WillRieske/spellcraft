@@ -277,7 +277,8 @@ git commit -m "docs: describe the cure and the bribe; playtest items; mutation r
 ```
 
 > **As built (`3eadfac`):** diverged — a review fix round for the cure came first (`ed57523`: a claim clears the target of golems already fighting the subject; the vex stops short of the head so the turn and throw show; a zombie villager being cured is not avenged; `tick` does nothing once finished; four tests added, `clearClaims` made public for its test); reason: the Task 3–4 review.
-> **Branch review (`a322e68`..the branch-review commits):** shared `Jobs` claim map and constants; a cure claim lives only while the mark does; the `SupportGearGoal` conjured-hand guard removed (Task 4's stated reason did not hold: the cure potion is not support gear); bribe tests split into `BoundVexBribeGameTests`; 9 tests added.
+>
+> **Branch review (`a322e68`..the branch-review commits):** shared `Jobs` claim map and constants; a cure claim lives only while the mark does; the `SupportGearGoal` conjured-hand guard removed (Task 4's stated reason did not hold: the cure potion is not support gear); bribe tests split into `BoundVexBribeGameTests`; 9 tests added, 1 removed; a stale cure starts no conversion.
 
 ---
 

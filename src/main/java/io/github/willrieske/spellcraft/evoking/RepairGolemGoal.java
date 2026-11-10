@@ -67,7 +67,7 @@ final class RepairGolemGoal extends Goal {
     public boolean canUse() {
         // A vex that died, was discarded or unloaded never ran stop(); drop its claim so the map does not keep it
         // (and its level) reachable. Done before any early return, so it does not wait for an idle scan. Such a claim
-        // already counts as free in claimedByAnother.
+        // already counts as free in Jobs.Claims.heldByAnother.
         CLAIMS.prune();
         if (!vex.scanDue(BoundVex.SCAN_INTERVAL) || vex.getTarget() != null) {
             return false;
