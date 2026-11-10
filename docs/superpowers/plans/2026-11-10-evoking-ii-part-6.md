@@ -955,7 +955,7 @@ git commit -m "feat(evoking): the pure rules of the team moves"
   - `TeamMoves.FREE_RANGE = 32.0`, `public static boolean isFree(BoundVex vex, ServerPlayer owner)`, `public static List<BoundVex> freeVexes(ServerPlayer owner)`.
   - In `TeamMoveTestSupport` (package-private, all static): `Vec3 hangPoint(GameTestHelper)`, `List<BoundVex> frozenVexes(GameTestHelper, ServerPlayer, int count)` (following, no AI, no gravity, in rows of four around the hang point), `List<BoundVex> flyingVexes(GameTestHelper, ServerPlayer, int count, Vec3 center)` (full AI, no target goals, in a row of one-block spacing), `<T extends Mob> T foe(GameTestHelper, EntityType<T>, Vec3 at)` (no AI, no gravity, persistent), `Husk bigHusk(GameTestHelper, Vec3 at)` (40 health, no armor), `void setBase(LivingEntity, Holder<Attribute>, double)`, `Vec3 beside(GameTestHelper)` (a point 3 blocks east of the hang point, where a test's foe stands; Tasks 4-7 use it instead of private copies).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `TeamMoveTestSupport` (it must compile before any test can; the helpers only use classes that exist after this task):
 
@@ -1395,12 +1395,12 @@ static void crystalVexIsNotFree(GameTestHelper helper) {
 
 The Bribe and Cure tests have the same shape with `BribeGoal.isCourted(other)` / `CureZombieVillagerGoal.isClaimed(zombieVillager)` as the `thenWaitUntil` probe. If an arrangement cannot hold the claim long enough, say so in the as-built note rather than dropping the test silently.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_free_*"`
 Expected: compilation fails (`TeamMoves`, `TeamMove` on `BoundVex`, `BUSY_KEY` do not exist).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `Jobs.Claims` gets the scan the keyed map needs (add beside `held`):
 
@@ -1571,12 +1571,12 @@ public final class TeamMoves {
 
 Lang: add `"message.spellcraft.vex_busy": "That vex is busy",` after `too_many_vexes`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_free_*"`, then `"-PgameTests=spellcraft:team_move_busy_*"`, `"-PgameTests=spellcraft:bound_vex_*_is_not_free"` (the four job and rescue tests; none of the other filters matches their names), `"…bound_vex_world_lava_rescuer_*"`.
 Expected: all pass. If `lavaRescuerIsNotFree` finds no rescuer, read `lavaPull` (it starts the rescue with one `step`) and match it.
 
-- [ ] **Step 5: Full gates, then commit**
+- [x] **Step 5: Full gates, then commit**
 
 Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (expect `All M required tests passed`, M = the baseline from §25 plus the 17 tests this task registers: 12 roster-class tests, 1 repair, 1 bribe, 1 cure, 1 crystal, 1 lava rescuer; write M in the commit's as-built note).
 
@@ -1584,6 +1584,8 @@ Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (
 git add src/main/java/io/github/willrieske/spellcraft src/main/resources/assets/spellcraft/lang/en_us.json
 git commit -m "feat(evoking): free vexes, the team-move flag and the busy refusals"
 ```
+
+> **As built (`a24543f`):** diverged — `frozenVexes` uses `Math.floorDiv(i, 4)` (Error Prone `NarrowCalculation`); the Bribe job test finds the worker by its conjured emerald because `BribeGoal.holds` is package-private; reason: compile rules, same behavior.
 
 ---
 
@@ -6919,6 +6921,7 @@ git commit -m "docs(evoking): Part 6 in the README, playtest items, mutation tes
 | Task | SHA | Divergence |
 |---|---|---|
 | 2 | `c19b658` | `@SuppressWarnings("EnumOrdinal")` with a why-comment on `TeamMove.arg()`, `next()` and the test's `Arg.roundTrips`; reason: Error Prone -Werror flags ordinal use, and the ordinal is the packet arg by design. |
+| 3 | `a24543f` | `frozenVexes` uses `Math.floorDiv(i, 4)` (Error Prone `NarrowCalculation`); the Bribe job test finds the worker by its conjured emerald because `BribeGoal.holds` is package-private; reason: compile rules, same behavior. |
 
 ## Resume State
 

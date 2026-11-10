@@ -109,3 +109,4 @@ Part 5 tail-item fix round (tail self-heals after a preempted job; level-clause,
 Part 5 flaky-test fix (rescuer-target tests pause the follow goal until the vex holds the husk): build green; five lava-selector runs green; All 496 required tests passed twice
 4f42510 Task 1 docs-only; GameTests 497 (baseline)
 c19b658 Task 2 unit tests green (TeamMove*), build green
+a24543f Task 3 GameTests 514 passed x2
