@@ -72,15 +72,17 @@ All Java paths are under `src/main/java/io/github/willrieske/spellcraft/`; unit 
 
 - Modify: `docs/api-notes.md` (new §25)
 
-- [ ] **Step 1: Take the baseline**
+- [x] **Step 1: Take the baseline**
 
 Run `./gradlew build` then `./gradlew runGameTestServer` once, both in the background (a cold build takes 5-15 min; `build` also warms the Gradle cache so the commit gate's own `build` fits in 300 s). Expected: green; note the `All N required tests passed` number `N`. Write it into the last bullet of §25 (Step 2) before the commit; every later task's gate compares against it plus the tests registered so far.
 
-- [ ] **Step 2: Verify the facts and write `docs/api-notes.md` §25**
+- [x] **Step 2: Verify the facts and write `docs/api-notes.md` §25**
 
 Check each line below in the sources (`Grep` the quoted names in `build/mc-src` and `build/nf-src`; keep or correct the cited line). They were read once while writing this plan; confirm them. If a line is wrong, write what the sources say and tell the coordinator which later task is affected.
 
 ```markdown
+
+> **As built (`4f42510`):** matches plan.
 ## 25. Evoking II, Part 6: team moves (Evoking II Part 6, Task 1)
 
 Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-src`; paths are under
