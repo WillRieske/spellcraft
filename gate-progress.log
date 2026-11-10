@@ -100,3 +100,4 @@ Part 5 Task 1 fix round: build green; All 358 required tests passed twice (basel
 c8613d0 Part 5 Task 4: build green; All 384 required tests passed twice
 7ba6f2a Part 5 Tasks 4 fixes + 5: build green; All 408 required tests passed twice; pitest RescuePush 48/49, GuardPosture 36/36, VoidRule 13/13
 5f3fab6 Part 5 Task 6: build green; All 422 required tests passed twice
+f40f625 Part 5 Task 7 (+ Task 5 fixes 0c30b8d): build green; All 435 required tests passed twice

@@ -386,9 +386,13 @@ falling player outruns the 16-block rule).
 **Action:** find where to put them: the nearest **standable spot** to the player's column
 within 32 blocks sideways, taken column by column outward from the
 `MOTION_BLOCKING_NO_LEAVES` height map (a column with no blocks, or whose top is not a standable
-spot, is skipped); else the player's **last ground position** if it is in the End. With neither,
-there is no catch. Otherwise: a riding player is dismounted; the player is teleported there;
-their velocity and fall distance are zeroed; the rescuer is brought to their side; and the vex
+spot, is skipped); else the player's **last ground position** if it is in the End and, when its
+chunk is loaded, is still a standable spot (a spot in an unloaded chunk is trusted as recorded:
+checking it would load the chunk on the server thread, and the teleport loads it anyway). With
+neither, there is no catch, and the column search is not repeated for 20 ticks. Otherwise the
+player is teleported there (vanilla's teleport dismounts a rider and zeroes the velocity, on the
+client too); if the teleport is refused, nothing more happens; their fall distance is zeroed;
+the rescuer is brought to their side; and the vex
 feeds them an **enchanted golden apple**: the apple's own consume effects are applied through
 vanilla's `Consumable.onConsume` on a throwaway stack, with its eating sound, and the vex shows
 the apple in its hand (conjured) for the 20-tick tail. No item is spent.

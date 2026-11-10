@@ -1349,7 +1349,7 @@ git commit -m "feat(evoking): a Bound Vex catches its summoner over the End's vo
 - Consumes: `RescuePush.returned`, `GuardArea.REACH` (7.25), `room`, `vexIn`.
 - Produces: `VexFireballs.onImpact(ProjectileImpactEvent)` (a subscriber); constants `NEAR_PLAYER = 4.0`.
 
-- [ ] **Step 1: Write the failing GameTests**
+- [x] **Step 1: Write the failing GameTests**
 
 All in a Nether `room(helper, player, Level.NETHER, 12, 8)` unless said. Fireballs are created and **not** added to the level; the test posts the impact through `EventHooks.onProjectileImpact(fireball, hit)` (true = cancelled). A ghast: `EntityTypes.GHAST.create(nether, EntitySpawnReason.COMMAND)`, no AI, no gravity, invulnerable, added 9 blocks north of the player at their eye height (inside the room, in sight). A fireball of that ghast: `new LargeFireball(nether, ghast, new Vec3(0, 0, 1), 1)` positioned 1.5 blocks north of the player with `setDeltaMovement(0, 0, 1.5)`; without a ghast: `EntityTypes.FIREBALL.create(nether, EntitySpawnReason.COMMAND)`.
 
@@ -1362,12 +1362,12 @@ All in a Nether `room(helper, player, Level.NETHER, 12, 8)` unless said. Firebal
 - `bound_vex_world_fireball_staying_vex_acts`: a staying vex within 7.25 → cancelled; `thenWaitUntil` it is back within 1 block of its post point (it flies back afterwards).
 - `bound_vex_world_fireball_kills_the_ghast`: a vulnerable ghast; after the return, call the fireball's hit on the ghast as vanilla would (add the fireball to the level and let it fly, `thenWaitUntil(() -> !ghast.isAlive())`) → the ghast dies from the one hit (vanilla's rule needs the player as owner; this is the reason the owner is the summoner).
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:bound_vex_world_fireball_*"`
 Expected: fail (nothing cancels the impact).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```java
 package io.github.willrieske.spellcraft.evoking;
@@ -1456,7 +1456,7 @@ public final class VexFireballs {
 
 Check in the sources: the `deflect` overload and `EntityReference.of`; that `needsSync` is public (if not, use the public call vanilla's `ProjectileDeflection.REVERSE` uses); `ServerLevel.players()`; the import path of `LargeFireball` and `Ghast`. "Following or staying" is why there is no `isStaying` test. A vex whose summoner is that player is always "present" here, since the loop walks the level's living players.
 
-- [ ] **Step 4: Run the fireball tests, full gates, commit**
+- [x] **Step 4: Run the fireball tests, full gates, commit**
 
 Run: the filtered run, then `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice.
 
@@ -1464,6 +1464,8 @@ Run: the filtered run, then `./gradlew spotlessApply build`, `./gradlew runGameT
 git add src/main/java/io/github/willrieske/spellcraft/evoking src/main/java/io/github/willrieske/spellcraft/gametest
 git commit -m "feat(evoking): a Bound Vex returns a ghast's fireball in the Nether"
 ```
+
+> **As built (`f40f625`):** diverged — the "left alone" cases are four tests; the unused lambda parameters are `_`; the returned fireball kills a real ghast in the test with no fallback; review fixes for Task 5 are in `0c30b8d` (the drowning passenger test rides a minecart: a pig dismounts under water). 435 tests; reason: test granularity and the sources.
 
 ---
 
@@ -1763,3 +1765,4 @@ git commit -m "docs(evoking): Part 5 in the README, playtest items, mutation tes
 | 4 | `c8613d0` | the target-keeping test uses a vulnerable husk out of reach (an invulnerable mob cannot be targeted); lava does not ignite a mock player through `baseTick`, so the burning tests set fire ticks; a rescue starts only once the vex has ticked; the Overworld pool is cased in stone so the padded box offers no other shore; "not for the unhurt" is five tests; the tail gives the hand back only to a living rescuer. 384 tests; reason: how the GameTest server and mock players behave. |
 | 5 | `7ba6f2a` | the pushes apply the fluid drag to the reported movement (lava 0.5, water 0.8) and the lava pull has a hard 0.35 cap, so `drowning_push` expects `(0.08, 0.4, 0.04)`; a rescue also ends when the player stops needing it; review fixes for Task 4 are in `7730532`. 408 tests; reason: coordinator ruling after the Task 4 review (sending the undragged movement back each tick would let a steering player speed up without limit), recorded in spec §5, §6.2 and §9. |
 | 6 | `5f3fab6` | test vexes are `NoAI` (a following vex teleports to the player before the test drops them); the 20-tick memo guards only the landing search, the last ground is still tried; the glide, ground-below and not-falling cases are separate tests; `teleportTo` already dismounts and zeroes the velocity, so those two lines cannot be seen red. 422 tests; reason: how the GameTest server and vanilla teleport behave. |
+| 7 | `f40f625` | the "left alone" cases are four tests; the unused lambda parameters are `_`; the returned fireball kills a real ghast in the test with no fallback; review fixes for Task 5 are in `0c30b8d` (the drowning passenger test rides a minecart: a pig dismounts under water). 435 tests; reason: test granularity and the sources. |
