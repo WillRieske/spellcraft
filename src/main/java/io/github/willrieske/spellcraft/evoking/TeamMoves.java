@@ -34,7 +34,8 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Team moves of a summoner's Bound Vexes (Parts 6-7 spec section 2): the free-vex test, the per-summoner record, the
- * start and tick of a move (with the automatic trigger scan on the tick), and the manual request with its answers.
+ * start and tick of a move (with the automatic trigger scan on the tick), and the manual request with its answers. The Shield, Multishot, Evader and
+ * Raid parts run through {@code TeamMoveGoal} and one class per move.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class TeamMoves {
