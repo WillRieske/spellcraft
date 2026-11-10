@@ -87,3 +87,4 @@ healer aim fix: one flaky run (healing potion missed the floating test golem) at
 d10cea4 Part 4 Task 2: BribeRule tests red then green (16 tests); build green (commit gate)
 7994ed3 Part 4 Task 3: build green; All 309 required tests passed twice
 09a8e97 Part 4 Task 4: build green; All 323 required tests passed twice
+a7ef1fe Part 4 Task 5: build green; All 333 required tests passed twice
