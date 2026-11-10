@@ -171,9 +171,9 @@ Survival world, open ground, a village nearby if you can, with Strength of Evoki
 
 - [ ] Press V four times (wait for each cooldown): 3, 6, 9, 12 vexes (`/execute if entity @e[type=spellcraft:bound_vex]` prints the count). A fifth press: "You have too many vexes" above the hotbar, arms stay down, no sound; `/kill @e[type=spellcraft:bound_vex,limit=1]` and V works again at once (no cooldown was spent on the refusal). `/kill @e[type=spellcraft:bound_vex,limit=2]` from twelve: V summons two. From eleven: one.
 - [ ] Walk and sprint around: the vexes keep up and hover 2–4 blocks from you, and settle there without darting through you. `/tp @s ~15 ~ ~`: they pop up beside you within a second.
-- [ ] Right-click a vex with an empty hand (not sneaking): the vex's sound and your arm swings; it stops following and drifts around that spot. Walk 20 blocks away: it stays. Right-click it again: it follows (it may finish a short drift first). Right-click while holding something, or while sneaking: nothing. A friend's click (LAN): nothing.
-- [ ] Hold an ender pearl (or a shield) in your off hand and an empty main hand, then right-click your vex: stay toggles, and no pearl is thrown (no shield is raised).
-- [ ] Walk through a nether portal with vexes near you: they arrive beside you in the Nether, still yours (a click still toggles stay). A staying vex stays behind in the Overworld, and so does a following vex more than 16 blocks from you when you step in.
+- [ ] Sneak and right-click a vex with an empty hand: the vex's sound and your arm swings; it stops following and hangs still on that spot (it does not drift). Walk 20 blocks away: it stays. Sneak and right-click it again: it follows. A friend's click (LAN): nothing.
+- [ ] Hold an ender pearl (or a shield) in your off hand and an empty main hand, then sneak and right-click your vex: stay toggles, and no pearl is thrown (no shield is raised).
+- [ ] Walk through a nether portal with vexes near you: they arrive beside you in the Nether, still yours (a sneak click still toggles stay). A staying vex stays behind in the Overworld, and so does a following vex more than 16 blocks from you when you step in.
 - [ ] The End exit: with vexes following you in the End (after the dragon, or `/tp` to the exit portal if you have not seen the credits), step into the exit portal for the first time: the credits play, and when you wake in the Overworld the following vexes are beside you, still yours. A staying vex stays in the End. Step into the exit portal a second time (no credits): the vexes come along as through any portal. Die in the End and respawn: no vex follows.
 - [ ] Spectator: switch to spectator mode (`/gamemode spectator`) with vexes following you: they stop following and stay put, and do not attack a nearby zombie. Back to survival: they fly to you again and fight as before.
 - [ ] Log out and back in: the vexes are where you left them, still yours. Quit to title and reopen the world: same.
@@ -188,9 +188,32 @@ Survival world, open ground, a village nearby if you can, with Strength of Evoki
 - [ ] `/summon spellcraft:bound_vex`: a vex that hovers and fights nothing, even with a zombie next to it; its name reads "Bound Vex" (`/data get entity @e[type=spellcraft:bound_vex,limit=1,sort=nearest] id` shows `spellcraft:bound_vex`; `/kill` it and the death message names it).
 - [ ] On Peaceful: existing Bound Vexes vanish (vanilla's monster rule); V says "Vexes cannot be summoned on Peaceful". Back on Normal, V works.
 - [ ] Optional (LAN, two players with vexes, `/gamerule pvp false`): your vexes and theirs leave each other alone; with pvp on, they still ignore each other on sight and fight only after one side hurts the other, its player or an ally.
-- [ ] Known until Part 3: a vex that is unloaded (you leave the area), saved and reloaded, or carried through a portal while repairing a golem keeps the ingot in its hand instead of its sword.
 - [ ] Known and accepted: two vexes can land on the same spot after a portal; a vex only follows or rides a portal while its chunk is loaded, so after an elytra flight, a pearl or a `/tp` far away, vexes left in unloaded chunks stay there until you come back.
 - [ ] If this world still has round-one vexes (summoned before this update): those vanilla vexes may attack you for their remaining seconds, then die on their own.
+
+## Evoking II (Part 3)
+
+Survival world, open ground, Strength of Evoking on, a few Bound Vexes out. Where a mob can hurt you, give yourself Resistance (`/effect give @s resistance 600 4`).
+
+- [ ] FIRST: start the client and look at any Bound Vex: the game loads without a crash and the vex draws as before. (The armor layer's construction is not covered by any automated check; `runData` does not build entity renderers.)
+- [ ] Sneak + right-click a vex with an empty hand: its sound, your arm swings, it stops and hovers on the spot. Walk 20 blocks away: it has not moved. A zombie that walks within 6 blocks of the spot is attacked, and the vex flies back to the spot afterwards; a zombie 8 blocks away is left alone. Sneak + right-click again: it follows.
+- [ ] A staying vex that is pulled far from its post (fights something 6 blocks out, or you push it) and returns settles on its post without wobbling back and forth.
+- [ ] Is it clear enough which vexes are staying? (There is no marker beyond the hover.)
+- [ ] Right-click (not sneaking) with an empty hand: you now hold the vex's iron sword and the vex fights bare-handed. Right-click it holding the sword: it has it back.
+- [ ] Give a helmet, a chestplate and leggings (iron, diamond, a dyed leather piece, a trimmed piece): each shows on the vex, sits where it should and is the right size; giving a second helmet returns the first to you. Boots: nothing happens.
+- [ ] Armor fit, per slot: the helmet follows the vex's head turn; the chestplate has no sleeves; the leggings' hem shows under a chestplate; an enchanted piece glints; a trimmed piece shows its trim and a dyed leather piece its color. The numbers live in `BoundVexArmorLayer`'s `HEAD_FIT`, `CHEST_FIT` and `LEGS_FIT`: report what to change.
+- [ ] Give a diamond sword: the iron sword comes back, and the vex kills a zombie faster. Give an axe, a mace, a trident: held and used in melee.
+- [ ] Give a shield: it shows in the left hand, the sword stays in the right. Let a skeleton shoot at the vex from the front: arrows are blocked with the shield sound.
+- [ ] A shielded vex hit from the front by a zombie blocks it and then answers the attacker (it turns on the zombie even if you and the vex were not fighting it).
+- [ ] Give a bow, then a crossbow: the vex backs off to about 6 to 10 blocks and shoots an arrow every two seconds. The arrows cannot be picked up. A following bow vex keeps shooting one target instead of flitting back and forth between targets.
+- [ ] A bow vex behind you does not shoot you: stand between it and a zombie and it waits (no arrow) until you step aside. Same with a pet or a village golem in the way. A lingering harmful cloud on the ground can still catch you if you walk into it (known).
+- [ ] Give a splash potion of harming (from a stack of several: only one leaves your hand): the vex throws one at its target every two seconds and still holds one.
+- [ ] Give a splash potion of healing, then get below half health near the vex: it throws healing at you. It does not attack while it holds the healing potion. A zombie or skeleton ally of yours is not healed (it would be hurt).
+- [ ] Refused gifts: a splash water bottle, boots and a regeneration-tipped arrow are not taken (the click does nothing).
+- [ ] Give a vex full armor, a shield and a sword, then `/kill` it: everything drops, undamaged. Switch to Peaceful with a geared vex out: its gear drops where it was.
+- [ ] While a vex repairs a golem (ingot in hand), give it a sword: the ingot stays until the repair ends, then the new sword is in its hand and the old one came back to you.
+- [ ] A friend (LAN) right-clicks your vex with a sword or an empty hand: nothing happens.
+- [ ] Hold an ender pearl in your off hand, empty main hand, and click your vex (sneaking and not): no pearl is thrown.
 
 ## Real profile
 

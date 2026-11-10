@@ -758,8 +758,13 @@ Verified 2026-11-09 against the unpacked sources (`build/mc-src`). Paths are und
 - Armor wear: `LivingEntity.hurtArmor` and `hurtHelmet` are empty (`LivingEntity.java:1957-1961`);
   only `Player`, `Wolf` and `Horse` override them, so a mob's worn armor is never damaged.
 - Weapon wear: `Mob.doHurtTarget` (`Mob.java:1415-1436`) reads `getWeaponItem()` (the main hand,
-  `LivingEntity.java:2316`), applies its enchantments, and calls `weaponItem.hurtEnemy`, which costs
-  durability.
+  `LivingEntity.java:2316`), applies its enchantments, and calls `weaponItem.hurtEnemy`. That call costs
+  no durability in 26.3: `ItemStack.hurtEnemy` (`ItemStack.java:577`) only runs `Item.hurtEnemy`
+  (empty, `Item.java:287`) and awards a stat to a player. The wear is in `ItemStack.postHurtEnemy`
+  (`ItemStack.java:591`, `hurtAndBreak(weapon.itemDamagePerAttack())`), which only `Player.attack`
+  calls (`Player.itemAttackInteraction`, `Player.java:1153`). So a mob's weapon is not worn by vanilla; `BoundVex.doHurtTarget`'s
+  restore is a guard (a modded `hurtEnemy`, a later vanilla change), and the test's control wears a
+  sword through `postHurtEnemy`.
 - Blocking: `LivingEntity.applyItemBlocking` (`LivingEntity.java:1378-1422`) needs
   `getItemBlockingWith()` (`:3768`; null unless `isUsingItem()`), which a mob never has. Its geometry: no
   block for a piercing arrow; otherwise the flat view vector `calculateViewVector(0, getYHeadRot())`
@@ -858,3 +863,30 @@ Verified 2026-11-09 against the unpacked sources (`build/mc-src`). Paths are und
   `HumanoidArmorLayer.shouldRender(stack, slot)` (`:37`, public static; the stack has `EQUIPPABLE` with an
   `assetId` and the same slot), else `ItemStack.EMPTY`. A custom renderer for a non-humanoid state (the
   Bound Vex) does the same four reads on its own render state.
+- Damage gate in tests: `Entity.invulnerableTime` is private (`Entity.java:260`; `setInvulnerableTime`
+  `:4346` and `isTemporarilyInvulnerable` `:3150` are the only doors). The post-hit gate that
+  `LivingEntity.hurtServer` tests (`LivingEntity.java:1272`, `> 10` unless the source bypasses the
+  cooldown) is the public field `LivingEntity.damageCooldownTime` (`:242`, set after a hit to the damage
+  container's post-attack invulnerability ticks, 20 by default, `:1288-1292`; counted down in
+  `baseTick` `:495` except for a `ServerPlayer`; §20 has the same field). A test that hits the same mob
+  twice in one tick sets that field to 0 between the hits.
+- Silent equipment: `LivingEntity.setItemSlot(EquipmentSlot, ItemStack, boolean insideTransaction)`
+  (`LivingEntity.java:2380`) is NeoForge's addition; with `true` it only stores the stack and skips
+  `onEquipItem` (no sound, no `EQUIP` game event). The two-argument `setItemSlot` is the `false` form.
+  `onEquipItem` (`:711-735`) also does nothing for a new stack that is the same item with the same
+  components as the old one (`ItemStack.isSameItemSameComponents`), so swapping an identical helmet is
+  silent unless the caller plays its own sound.
+- A stack's attribute modifiers reach a mob on its next tick, not at `setItemSlot`:
+  `LivingEntity.detectEquipmentUpdates` (`LivingEntity.java:3036`, called from the tick at `:2888`)
+  compares the slots with `lastEquipmentItems` and applies the new stack's `forEachModifier` as
+  transient modifiers. A test that swaps a sword and measures the next hit waits a few ticks.
+- `runData` and renderers: the headless client-dist boot of `./gradlew runData` scans and subscribes
+  `@SubscribeEvent` listeners for `EntityRenderersEvent.RegisterRenderers` (the log shows
+  `BoundVexRenderers.onRegisterRenderers` subscribed to the mod bus) but does not fire the event, so no
+  entity renderer and no render layer is constructed. Observed from the `runData` log and the Part 3
+  armor layer's build (it compiled and `runData` passed with the layer unproven); the layer's first run is
+  the playtest.
+- Error Prone `this-escape` (`-Xlint:all -Werror`): a renderer that adds a layer in its constructor
+  (`addLayer(new BoundVexArmorLayer(this, context))`) passes `this` out of a constructor of a
+  non-final class and fails the build (Part 3 Task 7's as-built note). `BoundVexRenderer` is `final`,
+  which is the fix; no suppression is needed.
