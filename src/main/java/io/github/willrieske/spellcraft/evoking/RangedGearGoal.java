@@ -1,0 +1,74 @@
+package io.github.willrieske.spellcraft.evoking;
+
+import java.util.EnumSet;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.phys.Vec3;
+
+/**
+ * A Bound Vex holding ranged gear (a launcher, or a throwable or arrow that is not support gear, Part 3 spec §4.3
+ * "Ranged") keeps between {@link #MIN_DISTANCE} and {@link #MAX_DISTANCE} blocks from its target, looks at it, and
+ * every {@link #SHOT_INTERVAL} ticks with line of sight shoots or throws a copy of the held item
+ * ({@link VexShots#launch}). Priority 3, flag {@code MOVE}: it takes the place of the charge goal, which the same
+ * main-hand test keeps out. A staying vex may back out of its stay area to hold the band; it returns through the post
+ * goal once the target is gone (spec §2.2).
+ */
+public final class RangedGearGoal extends Goal {
+    /** Closer than this and the vex flies away (spec §4.3). */
+    public static final double MIN_DISTANCE = 6.0;
+
+    /** Farther than this and the vex flies in (spec §4.3). */
+    public static final double MAX_DISTANCE = 10.0;
+
+    /** Ticks between shots (spec §4.3). */
+    public static final int SHOT_INTERVAL = 40;
+
+    private final BoundVex vex;
+    private int cooldown;
+
+    RangedGearGoal(BoundVex vex) {
+        this.vex = vex;
+        setFlags(EnumSet.of(Goal.Flag.MOVE));
+    }
+
+    @Override
+    public boolean canUse() {
+        LivingEntity target = vex.getTarget();
+        return target != null && target.isAlive() && VexGear.isRanged(vex.getMainHandItem());
+    }
+
+    @Override
+    public boolean requiresUpdateEveryTick() {
+        return true;
+    }
+
+    @Override
+    public void start() {
+        cooldown = SHOT_INTERVAL / 2;
+    }
+
+    @Override
+    public void tick() {
+        LivingEntity target = vex.getTarget();
+        if (target == null) {
+            return;
+        }
+        double distance = vex.distanceTo(target);
+        Vec3 eye = target.getEyePosition();
+        vex.getLookControl().setLookAt(eye.x, eye.y, eye.z, 30.0F, 30.0F);
+        if (distance < MIN_DISTANCE || distance > MAX_DISTANCE) {
+            // A point on the line through the target and the vex, in the middle of the band, at the target's eye
+            // height.
+            Vec3 away = vex.position().subtract(target.position()).multiply(1.0, 0.0, 1.0);
+            Vec3 direction = away.lengthSqr() < 1.0E-4 ? new Vec3(1.0, 0.0, 0.0) : away.normalize();
+            Vec3 spot = target.position().add(direction.scale((MIN_DISTANCE + MAX_DISTANCE) / 2.0));
+            vex.getMoveControl().setWantedPosition(spot.x, eye.y, spot.z, 1.0);
+        }
+        if (cooldown > 0) {
+            cooldown--;
+        } else if (distance <= MAX_DISTANCE && vex.hasLineOfSight(target)) {
+            VexShots.launch(vex, target);
+            cooldown = SHOT_INTERVAL;
+        }
+    }
+}

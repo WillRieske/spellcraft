@@ -19,6 +19,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Prediction;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
@@ -43,6 +44,7 @@ import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.EnchantmentEffectComponents;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
@@ -137,7 +139,9 @@ public class BoundVex extends Vex {
         goalSelector.addGoal(0, new DodgeGolemGoal(this));
         goalSelector.addGoal(0, new FloatGoal(this));
         goalSelector.addGoal(2, new RepairGolemGoal(this));
+        goalSelector.addGoal(3, new RangedGearGoal(this));
         goalSelector.addGoal(3, new ChargeGoal());
+        goalSelector.addGoal(3, new SupportGearGoal(this));
         goalSelector.addGoal(4, new FollowSummonerGoal(this));
         goalSelector.addGoal(5, new HoldPostGoal());
         goalSelector.addGoal(9, new LookAtPlayerGoal(this, Player.class, 3.0F, 1.0F));
@@ -734,8 +738,55 @@ public class BoundVex extends Vex {
     }
 
     /**
+     * A shield in the off hand blocks from the front (Part 3 spec §4.3). Vanilla's own blocking needs the entity to be
+     * using the shield, which a mob never is, so this repeats its geometry (docs/api-notes.md §22): no block without
+     * a source position (fire, a fall), for a shield-bypassing damage type or a piercing arrow; otherwise the flat
+     * view vector from the head's yaw against the flat direction to the source. No durability is spent.
+     */
+    @Override
+    public boolean hurtServer(ServerLevel level, DamageSource source, float damage) {
+        if (blocksWithShield(source)) {
+            playSound(SoundEvents.SHIELD_BLOCK.value(), 1.0F, 1.0F);
+            return false;
+        }
+        return super.hurtServer(level, source, damage);
+    }
+
+    /** Whether the off-hand shield stops {@code source} (see {@link #hurtServer}). */
+    private boolean blocksWithShield(DamageSource source) {
+        Vec3 from = source.getSourcePosition();
+        if (from == null
+                || VexGear.kindOf(getOffhandItem()) != VexGear.Kind.SHIELD
+                || source.is(DamageTypeTags.BYPASSES_SHIELD)
+                || (source.getDirectEntity() instanceof AbstractArrow arrow && arrow.getPierceLevel() > 0)) {
+            return false;
+        }
+        Vec3 toSource = from.subtract(position()).multiply(1.0, 0.0, 1.0);
+        if (toSource.lengthSqr() < 1.0E-8) {
+            return true;
+        }
+        return calculateViewVector(0.0F, getYHeadRot()).dot(toSource.normalize()) > 0.0;
+    }
+
+    /**
+     * The weapon is never worn down (Part 3 spec §4.5): the hit runs on the stack and a copy of the stack as it was is
+     * put back after, so durability and count are restored.
+     */
+    @Override
+    public boolean doHurtTarget(ServerLevel level, Entity target) {
+        ItemStack before = getMainHandItem().copy();
+        boolean hurt = super.doHurtTarget(level, target);
+        if (!ItemStack.matches(before, getMainHandItem())) {
+            setItemSlot(EquipmentSlot.MAINHAND, before, true);
+        }
+        return hurt;
+    }
+
+    /**
      * Vanilla's {@code Vex.VexChargeAttackGoal}, copied because it is private (docs/api-notes.md §21): fly at the
-     * target's eyes and hit it; this is how a Bound Vex uses the sword it holds.
+     * target's eyes and hit it; this is how a Bound Vex uses the sword it holds. It runs only for a vex that fights in
+     * melee: the main-hand item picks the fighting style (Part 3 spec §4.3), so ranged and support gear leave it to
+     * {@link RangedGearGoal} and {@link SupportGearGoal}.
      */
     private final class ChargeGoal extends Goal {
         ChargeGoal() {
@@ -747,6 +798,8 @@ public class BoundVex extends Vex {
             LivingEntity target = BoundVex.this.getTarget();
             return target != null
                     && target.isAlive()
+                    && !VexGear.isRanged(BoundVex.this.getMainHandItem())
+                    && !VexGear.isSupport(BoundVex.this.getMainHandItem())
                     && !BoundVex.this.getMoveControl().hasWanted()
                     && BoundVex.this.random.nextInt(reducedTickDelay(7)) == 0
                     && BoundVex.this.distanceToSqr(target) > 4.0;

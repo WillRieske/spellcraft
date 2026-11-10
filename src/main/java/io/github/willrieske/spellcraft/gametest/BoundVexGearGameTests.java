@@ -1,25 +1,49 @@
 package io.github.willrieske.spellcraft.gametest;
 
+import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.FEET;
+import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.PREY_SPOT;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.VEX_SPOT;
+import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.boundVex;
+import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.followOnly;
+import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.husk;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.parked;
+import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.placeBeside;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.summoner;
 import static io.github.willrieske.spellcraft.gametest.FangGameTests.NORTH;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
+import io.github.willrieske.spellcraft.evoking.FollowSummonerGoal;
+import io.github.willrieske.spellcraft.evoking.RangedGearGoal;
 import io.github.willrieske.spellcraft.evoking.VexGear;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.zombie.Husk;
+import net.minecraft.world.entity.projectile.ProjectileUtil;
+import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
+import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownSplashPotion;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -27,6 +51,7 @@ import net.minecraft.world.item.alchemy.Potion;
 import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.alchemy.Potions;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -73,6 +98,7 @@ public final class BoundVexGearGameTests {
                 "bound_vex_gear_peaceful_removal_drops_gear",
                 BoundVexGearGameTests::peacefulRemovalDropsGear);
         registerGiving();
+        registerFighting();
     }
 
     /** Registers Task 5's tests (kinds, giving, taking back); called from {@link #registerAll}. */
@@ -651,6 +677,396 @@ public final class BoundVexGearGameTests {
         // Assert
         helper.assertTrue(vex.getItemBySlot(EquipmentSlot.HEAD).is(Items.IRON_HELMET), "the helmet is worn");
         helper.assertFalse(vex.isStaying(), "the vex does not stay");
+        helper.succeed();
+    }
+
+    /** Registers Task 6's tests (fighting with gear); called from {@link #registerAll}. */
+    private static void registerFighting() {
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_gear_a_better_sword_hits_harder", BoundVexGearGameTests::aBetterSwordHitsHarder);
+        SpellcraftGameTests.add(
+                SHARED, "bound_vex_gear_the_sword_is_not_worn_down", BoundVexGearGameTests::theSwordIsNotWornDown);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_gear_a_bow_vex_shoots_and_keeps_its_distance",
+                BoundVexGearGameTests::aBowVexShootsAndKeepsItsDistance);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_gear_a_harming_potion_vex_throws_at_its_target",
+                BoundVexGearGameTests::aHarmingPotionVexThrowsAtItsTarget);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_gear_a_healing_potion_vex_throws_at_a_hurt_ally",
+                BoundVexGearGameTests::aHealingPotionVexThrowsAtAHurtAlly);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_gear_a_healing_potion_vex_ignores_a_healthy_ally",
+                BoundVexGearGameTests::aHealingPotionVexIgnoresAHealthyAlly);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_gear_a_support_vex_still_follows", BoundVexGearGameTests::aSupportVexStillFollows);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_gear_a_shield_blocks_from_the_front",
+                BoundVexGearGameTests::aShieldBlocksFromTheFront);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_gear_without_a_shield_nothing_is_blocked",
+                BoundVexGearGameTests::withoutAShieldNothingIsBlocked);
+    }
+
+    /** Where the fighting tests hang a vex: four blocks over the structure's middle, above the barrier shell. */
+    private static final BlockPos AIR_SPOT = FEET.above(4);
+
+    /**
+     * A husk with no AI and no gravity, {@code dx} blocks east and {@code dz} blocks south of {@code at}. It is spawned
+     * in the structure and then moved by absolute position: a rotated structure puts relative coordinates a block off.
+     */
+    private static Husk huskAt(GameTestHelper helper, Vec3 at, double dx, double dz) {
+        Husk husk = husk(helper, FEET);
+        husk.setNoGravity(true);
+        husk.setPos(at.add(dx, 0.0, dz));
+        return husk;
+    }
+
+    /** Gives {@code mob} a thousand health, so a few hits cannot kill it. */
+    private static void toughen(LivingEntity mob) {
+        mob.getAttribute(Attributes.MAX_HEALTH).setBaseValue(1000.0);
+        mob.setHealth(1000.0F);
+    }
+
+    /** The arrows {@code vex} shot that are alive near it. */
+    private static List<AbstractArrow> arrowsOf(GameTestHelper helper, BoundVex vex) {
+        return helper.getLevel()
+                .getEntitiesOfClass(
+                        AbstractArrow.class, vex.getBoundingBox().inflate(16.0), arrow -> vex.equals(arrow.getOwner()));
+    }
+
+    /** The splash potions {@code vex} threw that are alive near it. */
+    private static List<ThrownSplashPotion> potionsOf(GameTestHelper helper, BoundVex vex) {
+        return helper.getLevel()
+                .getEntitiesOfClass(
+                        ThrownSplashPotion.class,
+                        vex.getBoundingBox().inflate(16.0),
+                        potion -> vex.equals(potion.getOwner()));
+    }
+
+    /** Discards the arrows and potions of {@code vex} when the test ends. */
+    private static void discardShotsWhenDone(GameTestHelper helper, BoundVex vex) {
+        whenDone(helper, () -> {
+            arrowsOf(helper, vex).forEach(Entity::discard);
+            potionsOf(helper, vex).forEach(Entity::discard);
+        });
+    }
+
+    /**
+     * When a vex hits a husk with its iron sword and then, after the attribute update, with a diamond sword, should
+     * hurt the second husk more than the first.
+     *
+     * <p>Method under test: {@code BoundVex#doHurtTarget}
+     */
+    static void aBetterSwordHitsHarder(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        Husk huskA = husk(helper, PREY_SPOT);
+        Husk huskB = husk(helper, PREY_SPOT);
+        toughen(huskA);
+        toughen(huskB);
+
+        // Act
+        vex.doHurtTarget(helper.getLevel(), huskA);
+        float lostA = 1000.0F - huskA.getHealth();
+        vex.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.DIAMOND_SWORD));
+
+        // Assert (a stack's attribute modifiers reach the vex on its next tick)
+        helper.runAfterDelay(3, () -> {
+            vex.doHurtTarget(helper.getLevel(), huskB);
+            float lostB = 1000.0F - huskB.getHealth();
+            helper.assertTrue(lostA > 0.0F, "the iron sword hurt");
+            helper.assertTrue(lostB > lostA, "the diamond sword hurt more: " + lostB + " against " + lostA);
+            helper.succeed();
+        });
+    }
+
+    /**
+     * When a vex holding an undamaged diamond sword hits a husk five times, should still hold one sword with a damage
+     * value of 0.
+     *
+     * <p>Method under test: {@code BoundVex#doHurtTarget}
+     */
+    static void theSwordIsNotWornDown(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.DIAMOND_SWORD));
+        Husk husk = husk(helper, PREY_SPOT);
+        toughen(husk);
+
+        // Act
+        for (int hit = 0; hit < 5; hit++) {
+            husk.damageCooldownTime = 0;
+            vex.doHurtTarget(helper.getLevel(), husk);
+        }
+
+        // Assert
+        helper.assertTrue(husk.getHealth() < 1000.0F, "setup: the hits landed");
+        helper.assertTrue(vex.getMainHandItem().is(Items.DIAMOND_SWORD), "the vex still holds the sword");
+        helper.assertValueEqual(vex.getMainHandItem().getCount(), 1, "swords held");
+        helper.assertValueEqual(vex.getMainHandItem().getDamageValue(), 0, "the sword's damage value");
+        helper.succeed();
+    }
+
+    /**
+     * When a staying vex holding a bow has a husk three blocks away, should shoot an arrow it owns within a hundred and
+     * thirty ticks, keep at least {@code MIN_DISTANCE - 1.5} blocks from the husk once it has settled (from tick 60),
+     * never charge, and keep an undamaged bow.
+     *
+     * <p>Method under test: {@code RangedGearGoal} and {@code VexShots#launch}, through the goal selector
+     */
+    static void aBowVexShootsAndKeepsItsDistance(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = boundVex(helper, AIR_SPOT, player);
+        vex.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
+        vex.setStaying(true);
+        huskAt(helper, vex.position(), 3.0, 0.0);
+        discardShotsWhenDone(helper, vex);
+        AtomicInteger ticks = new AtomicInteger();
+        AtomicBoolean shot = new AtomicBoolean();
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(130, () -> {
+                    if (!arrowsOf(helper, vex).isEmpty()) {
+                        shot.set(true);
+                    }
+                    helper.assertFalse(vex.isCharging(), "a bow vex never charges");
+                    LivingEntity target = vex.getTarget();
+                    if (ticks.incrementAndGet() > 60 && target != null) {
+                        helper.assertTrue(
+                                vex.distanceTo(target) >= RangedGearGoal.MIN_DISTANCE - 1.5,
+                                "keeps its distance, got " + vex.distanceTo(target));
+                    }
+                })
+                .thenExecute(() -> {
+                    helper.assertTrue(shot.get(), "an arrow of the vex flew");
+                    helper.assertTrue(vex.getMainHandItem().is(Items.BOW), "the vex still holds the bow");
+                    helper.assertValueEqual(vex.getMainHandItem().getDamageValue(), 0, "the bow's damage value");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a staying vex holding one splash potion of harming has a husk six blocks away, should throw a splash potion
+     * it owns within a hundred ticks and still hold exactly one potion. (Harming heals undead: the test asserts the
+     * throw, not the damage.)
+     *
+     * <p>Method under test: {@code RangedGearGoal} and {@code VexShots#launch}, through the goal selector
+     */
+    static void aHarmingPotionVexThrowsAtItsTarget(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = boundVex(helper, AIR_SPOT, player);
+        vex.setItemSlot(EquipmentSlot.MAINHAND, potion(Items.SPLASH_POTION, Potions.HARMING));
+        vex.setStaying(true);
+        huskAt(helper, vex.position(), 6.0, 0.0);
+        discardShotsWhenDone(helper, vex);
+        AtomicBoolean thrown = new AtomicBoolean();
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(100, () -> {
+                    if (!potionsOf(helper, vex).isEmpty()) {
+                        thrown.set(true);
+                    }
+                })
+                .thenExecute(() -> {
+                    helper.assertTrue(thrown.get(), "a splash potion of the vex flew");
+                    helper.assertTrue(vex.getMainHandItem().is(Items.SPLASH_POTION), "the vex still holds a potion");
+                    helper.assertValueEqual(vex.getMainHandItem().getCount(), 1, "potions held");
+                })
+                .thenSucceed();
+    }
+
+    /** An iron golem with no AI and no gravity, {@code dx} east of {@code at}, with {@code health} health. */
+    private static IronGolem golemAt(GameTestHelper helper, Vec3 at, double dx, float health) {
+        IronGolem golem = helper.spawn(EntityTypes.IRON_GOLEM, FEET);
+        golem.setNoAi(true);
+        golem.setNoGravity(true);
+        golem.setPos(at.add(dx, 0.0, 0.0));
+        golem.setHealth(health);
+        whenDone(helper, golem::discard);
+        return golem;
+    }
+
+    /**
+     * A staying Bound Vex of {@code player} holding a splash potion of healing at {@link #AIR_SPOT}, without the repair
+     * goal (a hurt golem would send it off to conjure an ingot over the potion; repair is Part 2's subject).
+     */
+    private static BoundVex healer(GameTestHelper helper, ServerPlayer player) {
+        BoundVex vex = boundVex(helper, AIR_SPOT, player);
+        vex.goalSelector.removeAllGoals(goal -> goal.getClass().getSimpleName().equals("RepairGolemGoal"));
+        vex.setItemSlot(EquipmentSlot.MAINHAND, potion(Items.SPLASH_POTION, Potions.HEALING));
+        vex.setStaying(true);
+        discardShotsWhenDone(helper, vex);
+        return vex;
+    }
+
+    /**
+     * When a vex holding a splash potion of healing has a hurt ally golem five blocks away and a husk five blocks away
+     * on the other side, should throw a potion within a hundred ticks, heal the golem, never charge, and still hold
+     * exactly one potion.
+     *
+     * <p>Method under test: {@code SupportGearGoal} and {@code VexShots#launch}, through the goal selector
+     */
+    static void aHealingPotionVexThrowsAtAHurtAlly(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = healer(helper, player);
+        IronGolem golem = golemAt(helper, vex.position(), 5.0, 20.0F);
+        huskAt(helper, vex.position(), -5.0, 0.0);
+        AtomicBoolean thrown = new AtomicBoolean();
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(100, () -> {
+                    if (!potionsOf(helper, vex).isEmpty()) {
+                        thrown.set(true);
+                    }
+                    helper.assertFalse(vex.isCharging(), "a support vex never charges");
+                })
+                .thenExecute(() -> {
+                    helper.assertTrue(thrown.get(), "a splash potion of the vex flew");
+                    helper.assertTrue(golem.getHealth() > 20.0F, "the golem was healed, has " + golem.getHealth());
+                    helper.assertTrue(vex.getMainHandItem().is(Items.SPLASH_POTION), "the vex still holds a potion");
+                    helper.assertValueEqual(vex.getMainHandItem().getCount(), 1, "potions held");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a vex holding a splash potion of healing has an ally golem at full health five blocks away, should throw no
+     * potion in a hundred ticks.
+     *
+     * <p>Method under test: {@code SupportGearGoal} through the goal selector
+     */
+    static void aHealingPotionVexIgnoresAHealthyAlly(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = healer(helper, player);
+        golemAt(helper, vex.position(), 5.0, 100.0F);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        100, () -> helper.assertTrue(potionsOf(helper, vex).isEmpty(), "no potion is thrown"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a vex that only follows holds a splash potion of healing and stands eight blocks from its summoner with
+     * nobody hurt, should still fly into the orbit band around the summoner.
+     *
+     * <p>Method under test: {@code FollowSummonerGoal} beside {@code SupportGearGoal}, through the goal selector
+     */
+    static void aSupportVexStillFollows(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = followOnly(helper, AIR_SPOT, player);
+        vex.setItemSlot(EquipmentSlot.MAINHAND, potion(Items.SPLASH_POTION, Potions.HEALING));
+        vex.setPos(player.position().add(8.0, 1.0, 0.0));
+        helper.assertTrue(vex.distanceTo(player) > FollowSummonerGoal.ORBIT_MAX + 2.0, "setup: eight blocks out");
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        vex.distanceTo(player) <= FollowSummonerGoal.ORBIT_MAX + 1.0,
+                        "follows its summoner, got " + vex.distanceTo(player)))
+                .thenSucceed();
+    }
+
+    /** Whether {@code source} hurt {@code vex} just now: what {@code hurtServer} returned. */
+    private static boolean hit(GameTestHelper helper, BoundVex vex, DamageSource source) {
+        vex.damageCooldownTime = 0;
+        return vex.hurtServer(helper.getLevel(), source, 1.0F);
+    }
+
+    /** An arrow of {@code shooter}, not in the level, lying {@code dz} blocks south of {@code vex}. */
+    private static AbstractArrow arrowSouthOf(BoundVex vex, Husk shooter, double dz) {
+        AbstractArrow arrow = ProjectileUtil.getMobArrow(shooter, new ItemStack(Items.ARROW), 1.0F, null);
+        arrow.setPos(vex.position().add(0.0, 0.0, dz));
+        return arrow;
+    }
+
+    /**
+     * When a vex with a shield in its off hand faces south and is hit by a husk to the south, then by one to the north,
+     * by a damage source with no position, by a plain arrow from the south and by a piercing arrow from the south,
+     * should block the husk in front (false, health unchanged, shield intact) and the plain arrow, and take the other
+     * three.
+     *
+     * <p>Method under test: {@code BoundVex#hurtServer}
+     */
+    static void aShieldBlocksFromTheFront(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.SHIELD));
+        vex.setYHeadRot(0.0F);
+        Husk husk = husk(helper, PREY_SPOT);
+        ServerLevel level = helper.getLevel();
+
+        // Act & Assert: a husk in front
+        placeBeside(vex, husk, 0.0, 2.0);
+        float full = vex.getHealth();
+        helper.assertFalse(hit(helper, vex, level.damageSources().mobAttack(husk)), "a hit from the front is blocked");
+        helper.assertValueEqual(vex.getHealth(), full, "health after the blocked hit");
+        helper.assertValueEqual(vex.getOffhandItem().getDamageValue(), 0, "the shield is not worn");
+
+        // Act & Assert: a husk behind
+        placeBeside(vex, husk, 0.0, -2.0);
+        helper.assertTrue(hit(helper, vex, level.damageSources().mobAttack(husk)), "a hit from behind lands");
+        helper.assertTrue(vex.getHealth() < full, "health dropped after the hit from behind");
+
+        // Act & Assert: no source position (the vex is fire immune, so a generic source stands for fire)
+        helper.assertTrue(hit(helper, vex, level.damageSources().generic()), "damage with no position lands");
+
+        // Act & Assert: a plain arrow from the south is blocked
+        helper.assertFalse(
+                hit(helper, vex, level.damageSources().arrow(arrowSouthOf(vex, husk, 2.0), husk)),
+                "a plain arrow from the front is blocked");
+
+        // Act & Assert: a piercing arrow from the south lands (the pierce level is private: set it through a save)
+        AbstractArrow piercing = arrowSouthOf(vex, husk, 2.0);
+        CompoundTag tag = GameTestSupport.saved(piercing);
+        tag.putByte("PierceLevel", (byte) 1);
+        piercing.load(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), tag));
+        piercing.setPos(vex.position().add(0.0, 0.0, 2.0));
+        helper.assertValueEqual((int) piercing.getPierceLevel(), 1, "setup: the arrow pierces");
+        helper.assertTrue(
+                hit(helper, vex, level.damageSources().arrow(piercing, husk)), "a piercing arrow from the front lands");
+        helper.succeed();
+    }
+
+    /**
+     * When a vex with an empty off hand is hit by a husk to the south while facing south, should take the hit.
+     *
+     * <p>Method under test: {@code BoundVex#hurtServer}
+     */
+    static void withoutAShieldNothingIsBlocked(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.setYHeadRot(0.0F);
+        Husk husk = husk(helper, PREY_SPOT);
+        placeBeside(vex, husk, 0.0, 2.0);
+        float full = vex.getHealth();
+
+        // Act
+        boolean hurt = hit(helper, vex, helper.getLevel().damageSources().mobAttack(husk));
+
+        // Assert
+        helper.assertTrue(hurt, "the hit lands without a shield");
+        helper.assertTrue(vex.getHealth() < full, "health dropped");
         helper.succeed();
     }
 }
