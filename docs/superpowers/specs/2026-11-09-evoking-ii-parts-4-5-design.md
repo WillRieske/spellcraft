@@ -1,7 +1,7 @@
 # Spellcraft: Evoking II Parts 4 and 5, cure, bribes and world helpers (design)
 
 **Date:** 2026-11-09
-**Status:** implemented 2026-11-10 via `2026-11-10-evoking-ii-part-5.md`
+**Status:** implemented 2026-11-10 via `2026-11-10-evoking-ii-part-5.md`; playtest pending
 <!-- child-plans: 2026-11-09-evoking-ii-part-4.md, 2026-11-10-evoking-ii-part-5.md -->
 **Written by:** `/one-shot`, unattended, on 2026-11-09; §10 lists the decisions Will did not state.
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
@@ -57,7 +57,7 @@ ghast; and "scan every 5 ticks" and "every tick" are not reachable on the goal c
 | **Rescuer** | The vex picked for a rescue: the nearest living, following (not staying) Bound Vex of that summoner within 16 blocks, in the same level. |
 | **Standable spot** | A block position whose block below has a sturdy top face and where that position and the one above it are both air (so no fluid, no portal block, nothing to collide with). |
 | **Courted** | A vanilla vex that a Bound Vex has claimed for a bribe and not yet rolled for. Not prey while it lasts. |
-| **Last ground position** | The last standable spot a player stood on, with its dimension; kept in memory for every online player. |
+| **Last ground position** | The last standable spot a player stood on in the End (its only use is the void catch); kept in memory until they log out. |
 
 ## 1. Scope and delivery
 
@@ -301,7 +301,8 @@ and its scan interval.
 
 `VexRescues.tick(player)` runs each tick for every online, living player who is not a spectator:
 
-1. Record the **last ground position** when the player is `onGround()` on a standable spot.
+1. In the End, record the **last ground position** when the player is `onGround()` on a
+   standable spot.
 2. If a rescue for this player is running, carry it on (below).
 3. Otherwise test the needs in this order and start the first that holds and has a rescuer:
    the void (End), lava (Overworld and Nether), drowning (Overworld).
@@ -404,7 +405,8 @@ the landing search is paused for 20 ticks, like an empty one, so the search is n
 tick; their fall distance is zeroed; the rescuer is brought to their side; and the vex
 feeds them an **enchanted golden apple**: the apple's own consume effects are applied through
 vanilla's `Consumable.onConsume` on a throwaway stack, with its eating sound, and the vex shows
-the apple in its hand (conjured) for the 20-tick tail. The apple also feeds: `onConsume` applies
+the apple in its hand (conjured) for the 20-tick tail (a rescuer that was mid-job shows it as
+soon as that job has given its hand back). The apple also feeds: `onConsume` applies
 its food value as well as its effects. No item is spent.
 
 **No cooldown** (Will's choice, kept knowingly): stepping off the island with a vex near is a
@@ -452,8 +454,10 @@ get there first.
 In the End, every **melee** hit by a Bound Vex does **3×** damage: in `BoundVexEvents`'s
 `LivingIncomingDamageEvent` handler, after the backstop's test and only when the hit was not
 cancelled, when the damage's direct entity is a Bound Vex (its own body, so arrows and potions
-are excluded) in the End, whether or not its summoner is present, the amount is tripled, 6 `CRIT` particles appear on the victim and
-`SoundEvents.PLAYER_ATTACK_CRIT` plays. This holds for any victim the vex may fight, a player
+are excluded) in the End, whether or not its summoner is present, the amount is tripled. When
+such a hit lands (`LivingDamageEvent.Post`, damage above zero), 6 `CRIT` particles appear on the
+victim and `SoundEvents.PLAYER_ATTACK_CRIT` plays; a hit a shield blocks or invulnerability
+frames absorb shows nothing. This holds for any victim the vex may fight, a player
 under the PvP rule included, and with any weapon it was given. The golem mercy clamp runs later
 in the damage pipeline (`LivingDamageEvent.Pre`) and still holds.
 
@@ -608,7 +612,8 @@ splash; the fireball swing; breaking caged crystals; the void catch and the appl
 **Docs per part:** README (the vex paragraph), `docs/api-notes.md` §23 (Part 4) and §24
 (Part 5) with every vanilla fact verified against `build/mc-src`, the playtest checklist,
 `docs/mutation-testing.md`, the parent spec's inline notes, and `CLAUDE.md` only if a rule in it
-changes (none is expected: no packet, no new Mixin; one access-transformer line).
+changes (none is expected: no packet and no new Mixin; Part 4 adds one access-transformer line,
+Part 5 none).
 
 ## 10. Decisions Will did not state
 
