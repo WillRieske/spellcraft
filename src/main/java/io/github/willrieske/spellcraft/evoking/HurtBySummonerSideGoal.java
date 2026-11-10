@@ -7,7 +7,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The grudge goal (Evoking II spec §3.4, first in the target selector): on each scan ({@code BoundVex.scanDue}), the
- * first fresh memory in this order that the vex may take ({@code BoundVex.keepsTarget}): the mob that last hurt this
+ * first fresh memory in this order that the vex may take ({@code BoundVex.takesTarget}): the mob that last hurt this
  * vex, the mob that last hurt the summoner, the mob the summoner last hit, the mob that last hurt an ally inside the
  * guard area. The order is the spec's priority (self-defense first, the ally scan only when nothing nearer matches) and
  * costs one pass instead of comparing four ages. A memory is fresh for {@link #MEMORY_TICKS} on its owner's own clock
@@ -45,13 +45,14 @@ public final class HurtBySummonerSideGoal extends ScanTargetGoal {
         return found != null;
     }
 
-    /** {@code remembered} when the memory is fresh on {@code rememberer}'s clock and the vex may take it. */
+    /** {@code remembered} when the memory is fresh on {@code rememberer}'s clock and the vex may take it
+     * ({@code takesTarget}: a following vex takes only what is within the reach, whatever it holds). */
     @Nullable
     private LivingEntity remembered(LivingEntity rememberer, @Nullable LivingEntity remembered, int timestamp) {
         if (remembered == null || rememberer.tickCount - timestamp > MEMORY_TICKS) {
             return null;
         }
-        return vex.keepsTarget(remembered) ? remembered : null;
+        return vex.takesTarget(remembered) ? remembered : null;
     }
 
     /** The attacker of the first ally in the guard area that remembers one. */

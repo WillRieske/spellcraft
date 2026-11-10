@@ -70,12 +70,24 @@ final class VexShots {
         }
     }
 
-    /** The skeleton's aim: the target's lower body, lifted by a fifth of the flat distance for the arrow's drop. */
+    /**
+     * The point an arrow is aimed at: the target's lower body, a third of the way up its box (the skeleton's aim).
+     * {@link RangedGearGoal} measures its friendly-fire line to this point, so the two cannot drift apart.
+     *
+     * @param at the target
+     * @return the aim point
+     */
+    static Vec3 aimPoint(LivingEntity at) {
+        return new Vec3(at.getX(), at.getY(1.0 / 3.0), at.getZ());
+    }
+
+    /** The skeleton's aim: {@link #aimPoint}, lifted by a fifth of the flat distance for the arrow's drop. */
     private static void shootArrow(
             ServerLevel level, BoundVex vex, AbstractArrow arrow, ItemStack ammo, LivingEntity at) {
-        double dx = at.getX() - vex.getX();
-        double dy = at.getY(1.0 / 3.0) - arrow.getY();
-        double dz = at.getZ() - vex.getZ();
+        Vec3 aim = aimPoint(at);
+        double dx = aim.x - vex.getX();
+        double dy = aim.y - arrow.getY();
+        double dz = aim.z - vex.getZ();
         double flat = Math.sqrt(dx * dx + dz * dz);
         arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
         Projectile.spawnProjectileUsingShoot(

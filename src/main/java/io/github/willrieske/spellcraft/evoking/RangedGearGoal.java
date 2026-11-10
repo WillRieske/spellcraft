@@ -1,6 +1,7 @@
 package io.github.willrieske.spellcraft.evoking;
 
 import io.github.willrieske.spellcraft.spell.Allies;
+import io.github.willrieske.spellcraft.spell.rules.SegmentDistance;
 import java.util.EnumSet;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
@@ -95,8 +96,8 @@ public final class RangedGearGoal extends Goal {
     /**
      * Whether a friend (the summoner, an ally of the summoner, or another Bound Vex of the same summoner; never the
      * vex itself or its target) stands where the shot would hurt it (spec §4.3 "Friendly fire"): for an arrow, a friend
-     * whose bounding-box center is within {@link #LINE_CLEARANCE} of the segment from the vex's eyes to the target's
-     * eyes; for a thrown potion, a friend within {@link #SPLASH_CLEARANCE} of the target.
+     * whose bounding-box center is within {@link #LINE_CLEARANCE} of the segment from the vex's eyes to the point the
+     * arrow is aimed at ({@link VexShots#aimPoint}: the target's lower body, not its eyes); for a thrown potion, a friend within {@link #SPLASH_CLEARANCE} of the target.
      */
     private boolean friendInTheWay(LivingEntity target) {
         ServerPlayer owner = vex.summoner().orElse(null);
@@ -105,7 +106,7 @@ public final class RangedGearGoal extends Goal {
         }
         boolean thrown = VexGear.kindOf(vex.getMainHandItem()) == VexGear.Kind.THROWABLE;
         Vec3 from = vex.getEyePosition();
-        Vec3 to = target.getEyePosition();
+        Vec3 to = VexShots.aimPoint(target);
         AABB box = thrown ? target.getBoundingBox().inflate(SPLASH_CLEARANCE + 2.0) : new AABB(from, to).inflate(4.0);
         return !vex.level()
                 .getEntitiesOfClass(LivingEntity.class, box, friend -> {
@@ -120,16 +121,13 @@ public final class RangedGearGoal extends Goal {
                     }
                     return thrown
                             ? friend.distanceTo(target) <= SPLASH_CLEARANCE
-                            : distanceToSegment(friend.getBoundingBox().getCenter(), from, to) <= LINE_CLEARANCE;
+                            : lineDistance(friend.getBoundingBox().getCenter(), from, to) <= LINE_CLEARANCE;
                 })
                 .isEmpty();
     }
 
-    /** The distance from {@code point} to the segment {@code a}-{@code b}. */
-    static double distanceToSegment(Vec3 point, Vec3 a, Vec3 b) {
-        Vec3 ab = b.subtract(a);
-        double lengthSqr = ab.lengthSqr();
-        double along = lengthSqr < 1.0E-9 ? 0.0 : Math.clamp(point.subtract(a).dot(ab) / lengthSqr, 0.0, 1.0);
-        return point.distanceTo(a.add(ab.scale(along)));
+    /** {@link SegmentDistance#distanceToSegment} for {@code Vec3}s. */
+    private static double lineDistance(Vec3 point, Vec3 a, Vec3 b) {
+        return SegmentDistance.distanceToSegment(point.x, point.y, point.z, a.x, a.y, a.z, b.x, b.y, b.z);
     }
 }

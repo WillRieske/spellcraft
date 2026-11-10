@@ -33,6 +33,8 @@ public final class BoundVexRenderer extends VexRenderer {
     @Override
     public void extractRenderState(Vex entity, VexRenderState state, float partialTicks) {
         super.extractRenderState(entity, state, partialTicks);
+        // Always true: createRenderState above makes every state this renderer extracts into. The pattern keeps the
+        // cast safe without a branch that does anything else.
         if (state instanceof BoundVexRenderState gear) {
             gear.headArmor = renderable(entity, EquipmentSlot.HEAD);
             gear.chestArmor = renderable(entity, EquipmentSlot.CHEST);

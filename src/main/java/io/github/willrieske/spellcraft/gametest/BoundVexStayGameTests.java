@@ -1,9 +1,9 @@
 package io.github.willrieske.spellcraft.gametest;
 
-import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.FEET;
+import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.AIR_SPOT;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.boundVex;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.followOnly;
-import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.husk;
+import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.huskAt;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.parked;
 import static io.github.willrieske.spellcraft.gametest.FangGameTests.NORTH;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
@@ -31,12 +31,6 @@ import net.minecraft.world.phys.Vec3;
  * Shared constants and helpers live in {@link BoundVexTestSupport}.
  */
 public final class BoundVexStayGameTests {
-    /**
-     * Where the tests hang a vex: four blocks above the structure's middle, over the barrier shell (which
-     * surrounds the box and blocks the patrol goal's line of sight), so a hostile at the same height is in view.
-     */
-    private static final BlockPos POST_SPOT = FEET.above(4);
-
     private BoundVexStayGameTests() {}
 
     static void registerAll() {
@@ -81,19 +75,6 @@ public final class BoundVexStayGameTests {
         return Vec3.atBottomCenterOf(origin);
     }
 
-    /**
-     * A husk with no AI and no gravity, placed {@code dx} blocks east and {@code dz} blocks south of {@code post} (world
-     * axes) at the post's height. It is spawned inside the structure and then moved by absolute position: the test
-     * structure may be rotated, and a rotated spawn position lands up to a block off the intended cell. No gravity
-     * keeps it at the post's height in the padded box, which is air.
-     */
-    private static Husk huskBeside(GameTestHelper helper, Vec3 post, int dx, int dz) {
-        Husk husk = husk(helper, FEET);
-        husk.setNoGravity(true);
-        husk.setPos(post.add(dx, 0.0, dz));
-        return husk;
-    }
-
     private static boolean targets(BoundVex vex, LivingEntity expected) {
         LivingEntity target = vex.getTarget();
         return target != null && target.getUUID().equals(expected.getUUID());
@@ -108,7 +89,7 @@ public final class BoundVexStayGameTests {
     static void returnsToItsPostAndHovers(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        BoundVex vex = followOnly(helper, POST_SPOT, player);
+        BoundVex vex = followOnly(helper, AIR_SPOT, player);
         vex.setStaying(true);
         Vec3 post = postOf(helper, vex);
         vex.setPos(post.add(3.0, 0.0, 0.0));
@@ -137,7 +118,7 @@ public final class BoundVexStayGameTests {
     static void returnsFromFarAndSettles(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        BoundVex vex = followOnly(helper, POST_SPOT, player);
+        BoundVex vex = followOnly(helper, AIR_SPOT, player);
         vex.setStaying(true);
         Vec3 post = postOf(helper, vex);
         vex.setPos(post.add(10.0, 0.0, 0.0));
@@ -180,7 +161,7 @@ public final class BoundVexStayGameTests {
     static void stayingSaveWithoutAPostGetsOne(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        BoundVex vex = parked(helper, POST_SPOT, player);
+        BoundVex vex = parked(helper, AIR_SPOT, player);
         vex.setStaying(true);
         CompoundTag tag = GameTestSupport.saved(vex);
         tag.remove("bound_pos");
@@ -210,9 +191,9 @@ public final class BoundVexStayGameTests {
     static void attacksAHostileInsideTheArea(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        BoundVex vex = boundVex(helper, POST_SPOT, player);
+        BoundVex vex = boundVex(helper, AIR_SPOT, player);
         vex.setStaying(true);
-        Husk husk = huskBeside(helper, postOf(helper, vex), 6, 0);
+        Husk husk = huskAt(helper, postOf(helper, vex), 6, 0);
 
         // Act & Assert
         helper.startSequence()
@@ -229,9 +210,9 @@ public final class BoundVexStayGameTests {
     static void ignoresAHostileOutsideTheArea(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        BoundVex vex = boundVex(helper, POST_SPOT, player);
+        BoundVex vex = boundVex(helper, AIR_SPOT, player);
         vex.setStaying(true);
-        huskBeside(helper, postOf(helper, vex), 8, 0);
+        huskAt(helper, postOf(helper, vex), 8, 0);
 
         // Act & Assert
         helper.startSequence()
@@ -253,12 +234,12 @@ public final class BoundVexStayGameTests {
     static void areaIsMeasuredFromThePostNotTheVex(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        BoundVex vex = parked(helper, POST_SPOT, player);
+        BoundVex vex = parked(helper, AIR_SPOT, player);
         vex.setStaying(true);
         Vec3 post = postOf(helper, vex);
         vex.setPos(post.add(-5.0, 0.0, 0.0));
-        Husk westHusk = huskBeside(helper, post, -8, 0);
-        Husk eastHusk = huskBeside(helper, post, 6, 0);
+        Husk westHusk = huskAt(helper, post, -8, 0);
+        Husk eastHusk = huskAt(helper, post, 6, 0);
 
         // Act & Assert: staying
         helper.assertFalse(vex.inGuardArea(westHusk), "staying: eight blocks west of the post is outside");
@@ -280,10 +261,10 @@ public final class BoundVexStayGameTests {
     static void dropsATargetThatLeavesTheArea(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        BoundVex vex = parked(helper, POST_SPOT, player);
+        BoundVex vex = parked(helper, AIR_SPOT, player);
         vex.setStaying(true);
         Vec3 post = postOf(helper, vex);
-        Husk husk = huskBeside(helper, post, 5, 0);
+        Husk husk = huskAt(helper, post, 5, 0);
 
         // Act & Assert
         helper.startSequence()
@@ -303,11 +284,11 @@ public final class BoundVexStayGameTests {
     static void stayOffDropsAFarTarget(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        BoundVex vex = parked(helper, POST_SPOT, player);
+        BoundVex vex = parked(helper, AIR_SPOT, player);
         vex.setStaying(true);
         Vec3 post = postOf(helper, vex);
         vex.setPos(post.add(-6.0, 0.0, 0.0));
-        Husk husk = huskBeside(helper, post, 6, 0);
+        Husk husk = huskAt(helper, post, 6, 0);
 
         // Act & Assert
         helper.startSequence()
@@ -327,7 +308,7 @@ public final class BoundVexStayGameTests {
     static void oldSaveGetsTheNewFollowRange(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        BoundVex vex = boundVex(helper, POST_SPOT, player);
+        BoundVex vex = boundVex(helper, AIR_SPOT, player);
         var range = vex.getAttribute(Attributes.FOLLOW_RANGE);
         if (range == null) {
             throw helper.assertionException("a Bound Vex has a follow range");

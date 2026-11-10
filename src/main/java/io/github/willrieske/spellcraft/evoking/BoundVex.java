@@ -61,7 +61,7 @@ import org.jspecify.annotations.Nullable;
  * it the no-clip flight, the move control, the charging texture and the iron sword; this class owns the goals
  * (vanilla's are private classes, docs/api-notes.md §21), the stay flag, the summoner lookup, the prey rule, and the
  * small rules every goal shares (a staying vex hovers at its post point and guards the stay area around it, Part 3
- * spec §2): {@link #scanDue} (the clock), {@link #inGuardArea} (the box), {@link #keepsTarget}
+ * spec §2): {@link #scanDue} (the clock), {@link #inGuardArea} (the box), {@link #takesTarget}, {@link #keepsTarget}
  * and {@link #huntable}.
  * Without a summoner online, alive, in its level and not spectating it idles. The summoner is the
  * {@link AllyAttachments#SUMMONER} mark, so {@code Allies}, {@code GolemMercy} and the Trailing flame already treat it as the summoner's.
@@ -85,6 +85,27 @@ public class BoundVex extends Vex {
 
     /** How far the summoner's wolves hear the call to a fight (spec §3.4), feet to feet. */
     static final double WOLF_CALL_RANGE = 16.0;
+
+    /**
+     * How far from its post point a staying, idle vex may hang before it flies back (Part 3 spec §2.2). Public for the
+     * GameTests, which live in another package.
+     */
+    public static final double POST_TOLERANCE = 1.0;
+
+    /** The return flight's speed when the vex is farther than {@link #POST_NEAR} from the post point. */
+    private static final double POST_SPEED = 0.7;
+
+    /** The return flight's speed within {@link #POST_NEAR} of the post point: slow enough that a pass cannot overshoot. */
+    private static final double POST_APPROACH_SPEED = 0.25;
+
+    /** The distance from the post point inside which the return flight uses {@link #POST_APPROACH_SPEED}. */
+    private static final double POST_NEAR = 3.0;
+
+    /**
+     * Squared speed (blocks per tick) below which a vex counts as still, so the return flight waits out a coast.
+     * Public for the GameTests, which live in another package.
+     */
+    public static final double STILL_SPEED_SQR = 0.01;
 
     /**
      * Set by {@link #restoreFrom} on the new copy a cross-dimension teleport makes of a staying vex, and spent by
@@ -453,22 +474,43 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * Whether a target is worth taking or keeping (spec §3.4): in this vex's level (a summoner's memory can name a
-     * mob it left behind in another dimension, whose raw coordinates may line up), alive, attackable by this vex
-     * ({@code Mob.canAttack}: false for a creative or spectator player, an invulnerable mob or a ghast, the targets
-     * {@code setTarget} would not hold), still prey, and, following, within {@link GuardArea#REACH} ({@link #withinKeepRange}: wider for ranged gear), or, staying, inside the stay area
-     * ({@link #inGuardArea}, Part 3 spec §2.3). The alive clause is a cheap
-     * guard: {@code canAttack} already implies it for a living target ({@code LivingEntity.canBeSeenByAnyone}). Every
-     * target goal's {@code canContinueToUse}, which replaces {@code TargetGoal}'s and never calls {@code super}
-     * (docs/api-notes.md §21), and every target goal's candidate filter.
+     * Whether a target is worth <em>taking</em> (spec §3.4; Part 3 spec §4.3): the test every target goal's pick runs.
+     * In this vex's level (a summoner's memory can name a mob it left behind in another dimension, whose raw
+     * coordinates may line up), alive, attackable by this vex ({@code Mob.canAttack}: false for a creative or spectator
+     * player, an invulnerable mob or a ghast, the targets {@code setTarget} would not hold), still prey, and, following,
+     * within {@link GuardArea#REACH} ({@link #withinReach}, whatever the vex holds), or, staying, inside the stay area
+     * ({@link #inGuardArea}, Part 3 spec §2.3). The alive clause is a cheap guard: {@code canAttack} already implies it
+     * for a living target ({@code LivingEntity.canBeSeenByAnyone}). {@link #keepsTarget} is the same test with a wider
+     * reach for ranged gear; it alone ends a fight.
+     *
+     * @param target the candidate, or null
+     * @return whether a target goal may pick it
+     */
+    boolean takesTarget(@Nullable LivingEntity target) {
+        return canFight(target) && (isStaying() ? inGuardArea(target) : withinReach(target));
+    }
+
+    /**
+     * Whether a target already held is worth <em>keeping</em> (spec §3.4; Part 3 spec §4.3): {@link #takesTarget}'s
+     * clauses, except that a following vex holding ranged gear keeps a target out to
+     * {@link RangedGearGoal#MAX_DISTANCE} plus {@link RangedGearGoal#KEEP_MARGIN} instead of {@link GuardArea#REACH}
+     * ({@link #withinKeepRange}). Every target goal's {@code canContinueToUse}, which replaces {@code TargetGoal}'s and
+     * never calls {@code super} (docs/api-notes.md §21), runs this and nothing else; no goal picks with it.
+     *
+     * @param target the held target, or null
+     * @return whether the vex keeps it
      */
     boolean keepsTarget(@Nullable LivingEntity target) {
+        return canFight(target) && (isStaying() ? inGuardArea(target) : withinKeepRange(target));
+    }
+
+    /** The clauses {@link #takesTarget} and {@link #keepsTarget} share: everything but the distance. */
+    private boolean canFight(@Nullable LivingEntity target) {
         return target != null
                 && target.level().dimension().equals(level().dimension())
                 && target.isAlive()
                 && canAttack(target)
-                && isPrey(target)
-                && (isStaying() ? inGuardArea(target) : withinKeepRange(target));
+                && isPrey(target);
     }
 
     /**
@@ -476,7 +518,7 @@ public class BoundVex extends Vex {
      * ranged gear keeps a target within {@link RangedGearGoal#MAX_DISTANCE} plus {@link RangedGearGoal#KEEP_MARGIN}
      * (Part 3 spec §4.3). {@link RangedGearGoal} holds such a vex 6 to 10 blocks from its target, beyond the reach;
      * with the reach as the limit it would back off, lose the target, return, take it again and never settle. Only the
-     * keeping widens: taking a target stays with the guard box.
+     * keeping widens: {@link #takesTarget} stays with the reach.
      */
     private boolean withinKeepRange(Entity target) {
         if (VexGear.isRanged(getMainHandItem())) {
@@ -526,27 +568,6 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * How far from its post point a staying, idle vex may hang before it flies back (Part 3 spec §2.2). Public for the
-     * GameTests, which live in another package.
-     */
-    public static final double POST_TOLERANCE = 1.0;
-
-    /** The return flight's speed when the vex is farther than {@link #POST_NEAR} from the post point. */
-    private static final double POST_SPEED = 0.7;
-
-    /** The return flight's speed within {@link #POST_NEAR} of the post point: slow enough that a pass cannot overshoot. */
-    private static final double POST_APPROACH_SPEED = 0.25;
-
-    /** The distance from the post point inside which the return flight uses {@link #POST_APPROACH_SPEED}. */
-    private static final double POST_NEAR = 3.0;
-
-    /**
-     * Squared speed (blocks per tick) below which a vex counts as still, so the return flight waits out a coast.
-     * Public for the GameTests, which live in another package.
-     */
-    public static final double STILL_SPEED_SQR = 0.01;
-
-    /**
      * The point a staying vex hovers at and its stay area is centered on: the middle of the post block's floor
      * (Part 3 spec glossary). The post is vanilla's bound origin, set by {@link #setStaying}; a vex without one
      * (never the case for a staying vex) answers with its own block.
@@ -563,7 +584,7 @@ public class BoundVex extends Vex {
      * ({@code Enemy}), no creeper (a creeper is fought only when it provoked, through the grudge goal, and the flee
      * goal handles a hissing one), and carrying no other player's summoner mark (another player's summons are treated
      * like that player, who is no {@code Enemy}: they are prey for the grudge goal under the PvP rule, so a vex answers
-     * a hit, but never a patrol or ally-fight target). {@link #keepsTarget} is a separate test.
+     * a hit, but never a patrol or ally-fight target). {@link #takesTarget} is a separate test.
      *
      * @param target the candidate
      * @return whether the patrol and ally goals may pick it

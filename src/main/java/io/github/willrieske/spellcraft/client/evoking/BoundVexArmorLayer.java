@@ -103,6 +103,8 @@ public class BoundVexArmorLayer extends RenderLayer<VexRenderState, VexModel> {
             VexRenderState state,
             float yRot,
             float xRot) {
+        // Always true: BoundVexRenderer.createRenderState is the only source of this layer's state and makes a
+        // BoundVexRenderState. The pattern keeps the cast safe should another renderer ever share the layer.
         if (!(state instanceof BoundVexRenderState gear)) {
             return;
         }
@@ -111,7 +113,11 @@ public class BoundVexArmorLayer extends RenderLayer<VexRenderState, VexModel> {
         draw(poseStack, collector, lightCoords, state, EquipmentSlot.HEAD, gear.headArmor);
     }
 
-    /** Draws one piece at its vex part; nothing for an empty stack or one without an armor model for the slot. */
+    /**
+     * Draws one piece at its vex part; nothing for an empty stack. The renderer's extraction ({@code
+     * BoundVexRenderer.renderable}) is the one test of whether a piece has an armor model for its slot, as in vanilla,
+     * so a non-empty stack here always has its equippable component and asset id (an empty one has no component).
+     */
     private void draw(
             PoseStack poseStack,
             SubmitNodeCollector collector,
@@ -120,7 +126,7 @@ public class BoundVexArmorLayer extends RenderLayer<VexRenderState, VexModel> {
             EquipmentSlot slot,
             ItemStack stack) {
         Equippable equippable = stack.get(DataComponents.EQUIPPABLE);
-        if (equippable == null || equippable.assetId().isEmpty()) {
+        if (equippable == null) { // an empty stack has no components
             return;
         }
         Fit fit = slot == EquipmentSlot.HEAD ? HEAD_FIT : slot == EquipmentSlot.CHEST ? CHEST_FIT : LEGS_FIT;

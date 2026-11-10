@@ -9,7 +9,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * What the Bound Vex's two scanning target goals ({@link HurtBySummonerSideGoal} and {@link AllyFightGoal}) share: a
  * scan leaves its pick in {@link #found}, {@code start} takes it, and the goal holds it for as long as the vex may
- * ({@code BoundVex.keepsTarget}). The sight rule of {@code TargetGoal} is not used here (spec §3.4 items 1 and 2), so
+ * keep it ({@code BoundVex.keepsTarget}); a scan picks with {@code BoundVex.takesTarget}. The sight rule of {@code TargetGoal} is not used here (spec §3.4 items 1 and 2), so
  * {@code canContinueToUse} never calls {@code super}.
  */
 abstract class ScanTargetGoal extends TargetGoal {
