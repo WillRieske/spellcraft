@@ -1,6 +1,7 @@
 package io.github.willrieske.spellcraft.gametest;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
+import io.github.willrieske.spellcraft.evoking.VexGear;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.Holder;
@@ -8,12 +9,14 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.zombie.Husk;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
 /** Helpers of the Part 6 team-move GameTests: frozen and flying vexes, foes and attribute setters. */
@@ -88,5 +91,17 @@ final class TeamMoveTestSupport {
             throw new IllegalStateException(entity.getType() + " has no attribute " + attribute.getRegisteredName());
         }
         instance.setBaseValue(value);
+    }
+
+    /** Fails unless {@code vex} holds a conjured main-hand item, a conjured shield and three conjured armor pieces. */
+    static void assertRaidGear(GameTestHelper helper, BoundVex vex) {
+        helper.assertTrue(vex.isConjured(EquipmentSlot.MAINHAND), "a conjured weapon");
+        helper.assertTrue(
+                vex.isConjured(EquipmentSlot.OFFHAND) && vex.getOffhandItem().is(Items.SHIELD), "a shield");
+        for (EquipmentSlot slot : List.of(EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS)) {
+            helper.assertTrue(
+                    vex.isConjured(slot) && VexGear.kindOf(vex.getItemBySlot(slot)) == VexGear.Kind.ARMOR,
+                    slot + " armor");
+        }
     }
 }

@@ -16,6 +16,10 @@
   "message.spellcraft.peaceful_vexes": "Vexes cannot be summoned on Peaceful",
   "message.spellcraft.too_many_vexes": "You have too many vexes",
   "message.spellcraft.vex_busy": "That vex is busy",
+  "message.spellcraft.team_move_shield": "Your vexes form a Shield!",
+  "message.spellcraft.team_move_multishot": "Your vexes ready a Multishot!",
+  "message.spellcraft.team_move_evader": "Your vexes form an Evader guard!",
+  "message.spellcraft.team_move_raid": "Your vexes Raid!",
 
   "spellcraft.configuration.title": "Spellcraft Configs",
   "spellcraft.configuration.section.spellcraft.server.toml": "Spellcraft Server Configs",
