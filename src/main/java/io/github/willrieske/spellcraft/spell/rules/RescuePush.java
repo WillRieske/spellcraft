@@ -2,7 +2,8 @@ package io.github.willrieske.spellcraft.spell.rules;
 
 /**
  * The velocities a rescuing Bound Vex gives (Parts 4–5 spec §6.2, §6.3). Every push adds to what the player is
- * already doing, so they keep steering; none ever lowers the upward speed.
+ * already doing (slowed by the fluid's drag, as the client's own move would), so they keep steering; none lowers the
+ * upward speed below its floor.
  */
 public final class RescuePush {
     /** Sideways speed added toward the shore each tick of a lava pull. */
@@ -16,6 +17,19 @@ public final class RescuePush {
 
     /** The least upward speed during a drowning push, and a lava pull with no shore. */
     public static final double LIFT = 0.4;
+
+    /**
+     * The factor vanilla multiplies a player's velocity by each tick in lava ({@code LivingEntity.travelInLava},
+     * {@code LivingEntity.java:2650}; in shallow lava the sideways factor is the same, {@code :2646}).
+     */
+    public static final double LAVA_DRAG = 0.5;
+
+    /**
+     * The factor vanilla multiplies a player's velocity by each tick in water (the default of
+     * {@code LivingEntity.getWaterSlowDown}, {@code LivingEntity.java:2501-2503}, used by {@code travelInWater},
+     * {@code :2609-2635}). Sprint-swimming (0.9) and Depth Strider differ and are not modeled.
+     */
+    public static final double WATER_DRAG = 0.8;
 
     /** A length in blocks at or under which a direction is too short to use, so it counts as zero. */
     private static final double TINY = 1.0e-6;
@@ -32,51 +46,52 @@ public final class RescuePush {
     private RescuePush() {}
 
     /**
-     * One tick of the lava pull toward a shore: adds {@link #PULL} sideways toward the spot, keeps the sideways speed
-     * at or under the larger of {@link #PULL_CAP} and what it already was, and raises the upward speed to at least
-     * {@link #PULL_UP}. A spot straight above or below adds nothing sideways. A player already faster than the cap keeps
-     * that speed (the size of the sideways velocity), so the part of it that crosses the pull gives a little to the pull.
+     * One tick of the lava pull toward a shore: the velocity the player had, slowed by the lava's drag (the pushed
+     * velocity replaces the client's own result, so the drag must be applied here), plus {@link #PULL} sideways toward
+     * the spot, with the sideways speed held at or under {@link #PULL_CAP} always, and the upward speed raised to at
+     * least {@link #PULL_UP}. A spot straight above or below adds nothing sideways.
      *
-     * @param v the player's velocity
+     * @param v the velocity the player had (the client's last reported movement)
      * @param toSpotX blocks east from the player to the spot
      * @param toSpotZ blocks south from the player to the spot
      * @return the pushed velocity
      */
     public static Vector lavaPull(Vector v, double toSpotX, double toSpotZ) {
         double distance = Math.hypot(toSpotX, toSpotZ);
-        double x = v.x();
-        double z = v.z();
+        double x = v.x() * LAVA_DRAG;
+        double z = v.z() * LAVA_DRAG;
         if (distance > TINY) {
             x += PULL * toSpotX / distance;
             z += PULL * toSpotZ / distance;
-            double limit = Math.max(PULL_CAP, Math.hypot(v.x(), v.z()));
-            double speed = Math.hypot(x, z);
-            if (speed > limit) {
-                x *= limit / speed;
-                z *= limit / speed;
-            }
         }
-        return new Vector(x, Math.max(v.y(), PULL_UP), z);
+        double speed = Math.hypot(x, z);
+        if (speed > PULL_CAP) {
+            x *= PULL_CAP / speed;
+            z *= PULL_CAP / speed;
+        }
+        return new Vector(x, Math.max(v.y() * LAVA_DRAG, PULL_UP), z);
     }
 
     /**
-     * One tick of the lava pull with no shore in reach: only the upward speed, raised to at least {@link #LIFT}.
+     * One tick of the lava pull with no shore in reach: the velocity slowed by the lava's drag, the upward speed raised
+     * to at least {@link #LIFT}.
      *
-     * @param v the player's velocity
+     * @param v the velocity the player had
      * @return the pushed velocity
      */
     public static Vector lavaLift(Vector v) {
-        return new Vector(v.x(), Math.max(v.y(), LIFT), v.z());
+        return new Vector(v.x() * LAVA_DRAG, Math.max(v.y() * LAVA_DRAG, LIFT), v.z() * LAVA_DRAG);
     }
 
     /**
-     * One tick of the drowning push: the upward speed raised to at least {@link #LIFT}, the rest kept.
+     * One tick of the drowning push: the velocity slowed by the water's drag, the upward speed raised to at least
+     * {@link #LIFT}.
      *
-     * @param v the player's velocity
+     * @param v the velocity the player had
      * @return the pushed velocity
      */
     public static Vector drowningPush(Vector v) {
-        return new Vector(v.x(), Math.max(v.y(), LIFT), v.z());
+        return new Vector(v.x() * WATER_DRAG, Math.max(v.y() * WATER_DRAG, LIFT), v.z() * WATER_DRAG);
     }
 
     /**

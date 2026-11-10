@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
@@ -23,6 +24,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
@@ -149,13 +151,16 @@ public final class VexRescues {
      * @param player the player
      */
     public static void tick(ServerPlayer player) {
+        if (player instanceof FakePlayer) {
+            return;
+        }
         UUID id = player.getUUID();
         if (!player.isAlive() || player.isSpectator()) {
             drop(id);
             return;
         }
         ServerLevel level = player.level();
-        if (player.onGround() && StandableSpots.standable(level, player.blockPosition())) {
+        if (player.onGround() && StandableSpots.standable(level, player.blockPosition()) && moved(id, player)) {
             LAST_GROUND.put(id, new Ground(level.dimension(), player.position()));
         }
         Rescue rescue = RUNNING.get(id);
@@ -237,19 +242,36 @@ public final class VexRescues {
         }
     }
 
+    /** Whether the stored last ground of {@code id} is on another block or in another dimension than {@code player}. */
+    private static boolean moved(UUID id, ServerPlayer player) {
+        Ground stored = LAST_GROUND.get(id);
+        return stored == null
+                || !stored.dimension().equals(player.level().dimension())
+                || !BlockPos.containing(stored.position()).equals(player.blockPosition());
+    }
+
     /** Whether {@code player} is in lava and no rule keeps a vex from pulling them out. */
     private static boolean needsLavaPull(ServerPlayer player) {
-        ResourceKey<Level> dimension = player.level().dimension();
         long now = player.level().getGameTime();
-        return (dimension.equals(Level.OVERWORLD) || dimension.equals(Level.NETHER))
-                && player.isInLava()
-                && !player.isCreative()
-                && !player.isPassenger()
-                && !player.hasEffect(MobEffects.FIRE_RESISTANCE)
+        return player.isInLava()
+                && wantsLavaPull(player)
                 && now >= LAVA_PAUSED_UNTIL.getOrDefault(player.getUUID(), 0L);
     }
 
-    /** Starts a rescue of {@code kind} when a rescuer is within {@code range}; it goes to the player's side. */
+    /** Whether {@code player} is the kind of player a lava pull is for: not immune, not creative, not riding. */
+    private static boolean wantsLavaPull(ServerPlayer player) {
+        ResourceKey<Level> dimension = player.level().dimension();
+        return (dimension.equals(Level.OVERWORLD) || dimension.equals(Level.NETHER))
+                && !player.isCreative()
+                && !player.isPassenger()
+                && !player.hasEffect(MobEffects.FIRE_RESISTANCE);
+    }
+
+    /**
+     * Starts a rescue of {@code kind} when a rescuer is within {@code range}; it goes to the player's side. The
+     * move can take the rescuer away from the target it was fighting: it keeps that target only if the target is
+     * still within the vex's reach from the player's side, otherwise the vex's own rules drop it.
+     */
     private static Optional<Rescue> start(ServerPlayer player, Kind kind, double range) {
         UUID id = player.getUUID();
         Optional<BoundVex> rescuer = player
@@ -295,6 +317,10 @@ public final class VexRescues {
 
     /** One tick of a lava pull: counts the ticks out of lava, ends the pull, or pushes. */
     private static void lava(ServerPlayer player, Rescue rescue, long now) {
+        if (!wantsLavaPull(player)) {
+            drop(player.getUUID());
+            return;
+        }
         if (player.isInLava()) {
             rescue.outOfLava = 0;
         } else {
@@ -394,7 +420,8 @@ public final class VexRescues {
     }
 
     /**
-     * Puts {@code vex} at the player's side, still. Vexes pass through blocks, so any point works.
+     * Puts {@code vex} at the player's side, still. Vexes pass through blocks, so any point works. A target out of
+     * the vex's reach from there is dropped by the vex's own rules, not here.
      *
      * @param vex the rescuer
      * @param player the player

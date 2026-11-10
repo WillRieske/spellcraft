@@ -1,8 +1,6 @@
 package io.github.willrieske.spellcraft.evoking;
 
-import java.util.Comparator;
 import java.util.Optional;
-import java.util.stream.StreamSupport;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -44,12 +42,24 @@ final class StandableSpots {
     static Optional<BlockPos> shore(ServerLevel level, Vec3 from) {
         BlockPos feet = BlockPos.containing(from);
         int reach = (int) Math.ceil(SHORE_RANGE);
-        Iterable<BlockPos> box = BlockPos.betweenClosed(feet.offset(-reach, -1, -reach), feet.offset(reach, 2, reach));
-        return StreamSupport.stream(box.spliterator(), false)
-                .map(BlockPos::immutable)
-                .filter(pos -> sideways(from, pos) <= SHORE_RANGE && standable(level, pos))
-                .min(Comparator.comparingDouble(
-                        pos -> Vec3.atBottomCenterOf(pos).distanceToSqr(from)));
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        BlockPos best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (int dx = -reach; dx <= reach; dx++) {
+            for (int dz = -reach; dz <= reach; dz++) {
+                for (int dy = -1; dy <= 2; dy++) {
+                    pos.set(feet.getX() + dx, feet.getY() + dy, feet.getZ() + dz);
+                    if (sideways(from, pos) <= SHORE_RANGE && standable(level, pos)) {
+                        double distance = Vec3.atBottomCenterOf(pos).distanceToSqr(from);
+                        if (distance < bestDistance) {
+                            bestDistance = distance;
+                            best = pos.immutable();
+                        }
+                    }
+                }
+            }
+        }
+        return Optional.ofNullable(best);
     }
 
     /** The distance from {@code from} to the center of {@code pos}, ignoring height. */
