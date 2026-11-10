@@ -75,7 +75,8 @@ public final class FangGameTests {
     /** The caster's block (relative): the middle of the 3×3×3 structure, one above its floor layer. */
     static final BlockPos FEET = new BlockPos(1, 1, 1);
 
-    private static final Vec3 STAND = new Vec3(1.5, 1, 1.5);
+    /** Where the caster stands (relative): the middle of the {@link #FEET} block; tests send a player back here. */
+    static final Vec3 STAND = new Vec3(1.5, 1, 1.5);
 
     /** The yaw a caster faces to look north; the vex GameTests share it. */
     static final float NORTH = 180.0F;
@@ -146,6 +147,19 @@ public final class FangGameTests {
      */
     static void addPadded(String environment, String name, Consumer<GameTestHelper> body) {
         SpellcraftGameTests.add(environment, name, PADDED_MAX_TICKS, PADDING, padded(body));
+    }
+
+    /**
+     * Like {@link #addPadded(String, String, Consumer)} for a body that runs longer than {@link #LONG} ticks.
+     *
+     * @param environment the test environment
+     * @param name the test's name
+     * @param bodyTicks how many ticks the body itself may take, after the wait of {@link #padded}
+     * @param body the test body
+     */
+    static void addPadded(String environment, String name, int bodyTicks, Consumer<GameTestHelper> body) {
+        int polls = (int) (PADDING_DEADLINE_MILLIS / POLL_MILLIS);
+        SpellcraftGameTests.add(environment, name, bodyTicks + polls, PADDING, padded(body));
     }
 
     /**

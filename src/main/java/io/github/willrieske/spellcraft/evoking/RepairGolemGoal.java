@@ -69,7 +69,7 @@ final class RepairGolemGoal extends Goal {
         // (and its level) reachable. Done before any early return, so it does not wait for an idle scan. Such a claim
         // already counts as free in Jobs.Claims.heldByAnother.
         CLAIMS.prune();
-        if (!vex.scanDue(BoundVex.SCAN_INTERVAL) || vex.getTarget() != null) {
+        if (!vex.scanDue(vex.scanInterval()) || vex.getTarget() != null) {
             return false;
         }
         ServerPlayer owner = vex.summoner().orElse(null);

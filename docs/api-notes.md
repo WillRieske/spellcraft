@@ -1082,3 +1082,117 @@ Where the sources differ from the plan or the spec (the sources win):
   no cure mark (as the spec assumes) and the old mob is readable inside `Post` (it is discarded after).
 - A frozen zombie villager still burns in sunlight and can despawn while not converting; the spec covers the sunlight
   (playtest item), the despawn is new and harmless (the 300-tick release rule never runs on a removed mob).
+
+## 24. Evoking II Part 5 (world helpers) (Evoking II Part 5, Task 1)
+
+Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-src`; paths are under
+`net/minecraft/` and `net/neoforged/neoforge/` respectively.
+
+- **Velocity sync.** `Entity.syncVelocity` is a public boolean field (`world/entity/Entity.java:284`); `hurtMarked` does
+  not exist. `ServerEntity.sendChanges` sends `ClientboundSetEntityMotionPacket` to tracking players *and the entity's
+  own client* and clears the flag (`server/level/ServerEntity.java:209-212`). Setting the velocity alone sends nothing.
+- **What a player is doing.** A `ServerPlayer`'s `getDeltaMovement()` is not the client's velocity: the client moves
+  itself. `ServerPlayer.getKnownMovement()` (`server/level/ServerPlayer.java:2382`) is the last movement the client
+  reported (`ServerGamePacketListenerImpl.handleMovePlayer` → `setKnownMovement`,
+  `ServerGamePacketListenerImpl.java:2315`). A push reads the known movement, adds to it, and sends the sum.
+- **Fluids on a mock player.** `Entity.isInLava()` is `!firstTick && fluidInteraction.isInFluid(LAVA_TYPE)`
+  (`Entity.java:1782-1783`); `isUnderWater()` is `wasEyeInWater && isInWater()` (`Entity.java:1656-1657`).
+  `baseTick()` (public, `Entity.java:538`) fills the fluid state through `updateFluidInteraction()` (protected,
+  `:559`, `:1688`), sets `wasEyeInWater` from the state *before* that update (`:558`) and clears `firstTick` last
+  (`:588`). So `soak` calls `baseTick()` twice, and both `isInLava` and `isUnderWater` need the second call. A GameTest
+  mock player is never ticked. `LivingEntity.baseTick` also burns and drowns: tests call
+  `setPermanentlyInvulnerable(true)` first (`Entity.setInvulnerable` does not exist; `Entity.java:3158`). Verified in
+  `bound_vex_world_setup_fluids`: lava, water and air each give exactly the expected answer after `soak`.
+- **`ProjectileImpactEvent`** (`event/entity/ProjectileImpactEvent.java`, cancellable; `getProjectile()`,
+  `getRayTraceResult()`). Vanilla posts it from
+  `AbstractHurtingProjectile.tick()` (the cancel behavior below is that class's; arrows, throwables and shulker bullets
+  also post it, each with its own handling) through
+  `EventHooks.onProjectileImpact(Projectile, HitResult)` (`event/EventHooks.java:704`; call in
+  `AbstractHurtingProjectile.java:74`; true = canceled). Canceled: the projectile is not discarded, moves by its
+  velocity this tick and tests again next tick.
+- **`Projectile.deflect`** (`world/entity/projectile/Projectile.java:301-318`): two overloads,
+  `deflect(ProjectileDeflection, @Nullable Entity deflector, @Nullable EntityReference<Entity> newOwner,
+  boolean byAttack, Vec3 power)` and the same with `double power` (which builds `new Vec3(p, p, p)`). It runs the
+  deflection, sets the owner, calls `onDeflection(byAttack)`; always true. `ProjectileDeflection` is a functional
+  interface `(projectile, entity, random, Vec3 power)`. `AbstractHurtingProjectile.onDeflection(true)` sets
+  `accelerationPower = 0.1` (`:183-189`). `REVERSE` halves the speed; `AIM_DEFLECT` aims along the deflector's look
+  (`ProjectileDeflection.java:11-21`).
+- **Ghast one-hit rule.** `monster/Ghast.isReflectedFireball` (`Ghast.java:76-78`): the direct entity is a
+  `LargeFireball` and the causing entity a `Player`; then `hurtServer` deals 1000 (`:100-104`). (The class is
+  `world/entity/monster/Ghast`, not in a `ghast` package.)
+- **`ExplosionKnockbackEvent`** (`event/level/ExplosionKnockbackEvent.java`, not cancellable): `getAffectedEntity()`,
+  `getKnockbackVelocity()`, `setKnockbackVelocity(Vec3)`, `getAffectedBlocks()`, and `getExplosion()` from
+  `ExplosionEvent` (a `ServerExplosion` in `world/level/ServerExplosion.java`: `getDirectSourceEntity()`,
+  `getIndirectSourceEntity()`, `getDamageSource()`). Posted by `EventHooks.getExplosionKnockback`
+  (`EventHooks.java:630`) after the damage, before `pushFromExplosion` (`ServerExplosion.java:207-208`).
+- **`EndCrystal.hurtServer`** (`world/entity/boss/enderdragon/EndCrystal.java:89-109`): returns false when
+  `isInvulnerableToBase(source)` (so invulnerable crystals ignore it) or when the attacker is an `EnderDragon`;
+  otherwise removes the crystal and, unless the source is itself an explosion (`IS_EXPLOSION`), explodes with power 6,
+  the crystal as the explosion's source, interaction `BLOCK`, and `damageSources().explosion(crystal, attacker)` as the
+  damage source (direct entity = the crystal, causing entity = the attacker).
+- **`EnderDragonFight`** (not `EndDragonFight`; `world/level/dimension/end/EnderDragonFight.java`):
+  `ServerLevel.getDragonFight()` (`ServerLevel.java:1824`, null outside the End),
+  `EnderDragonFight.dragonUUID()` (`EnderDragonFight.java:595`, nullable), then `level.getEntity(UUID)`.
+- **`Consumable.onConsume(Level, LivingEntity, ItemStack)`** (`world/item/component/Consumable.java:77-90`): sound and
+  particles, the item-used statistic and the consume-item trigger for a `ServerPlayer`, the `ConsumableListener`
+  components, the consume effects (server side), a game event, then `stack.consume(1, user)`. The enchanted golden
+  apple (`Consumables.ENCHANTED_GOLDEN_APPLE`, `Consumables.java:26-37`): Regeneration amplifier 1 for 400 ticks,
+  Resistance 6000, Fire Resistance 6000, Absorption amplifier 3 (IV) for 2400.
+- **Height map.** `Level.getHeight(Heightmap.Types, x, z)` (`world/level/Level.java:349-357`) is the chunk's height
+  plus one, the first free Y above the top block; an unloaded column gives `getMinY()`. An empty loaded column gives
+  `getMinY()` too.
+- **`Level.isDarkOutside()`** (`Level.java:389-395`): `!hasFixedTime() && !isBrightOutside()`, with
+  `isBrightOutside()` = `!hasFixedTime() && skyDarken < 4`. So false in a fixed-time dimension (Nether, End).
+- **Goal priorities.** A negative priority is legal. A goal starts only if every current holder of its flags is
+  interruptable and has a strictly higher priority number; the holders are stopped (`GoalSelector.java:66-94`).
+- **Clip.** `new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, entity)`
+  (`world/level/ClipContext.java:28`); a miss has `HitResult.Type.MISS`.
+- **The day and night pins.** `GameTestServer` turns off `SPAWN_MOBS` and `ADVANCE_WEATHER` only
+  (`gametest/framework/GameTestServer.java:96-97`), so the clock keeps running during a test.
+  `TestEnvironmentDefinition.ClockTime(Holder<WorldClock>, int)` needs the clock's holder when it is built, but
+  `RegisterGameTestsEvent.registerEnvironment(Identifier, TestEnvironmentDefinition<?>)` runs before any registry is
+  at hand and `ServerClockManager.getInstance` rejects any holder but the registry's own
+  (`world/clock/ServerClockManager.java:75-82`). So `gametest/OverworldTime(int time)` implements
+  `TestEnvironmentDefinition<Long>` (`setup(ServerLevel)`, `teardown(ServerLevel, Long)`, `codec()`), looks the holder
+  up with `level.registryAccess().lookupOrThrow(Registries.WORLD_CLOCK).getOrThrow(WorldClocks.OVERWORLD)` at setup,
+  and calls `server.clockManager().setTotalTicks(clock, time)` as `ClockTime.setup` does. Its codec is
+  `MapCodec.unit` (only data packs use it). Every environment gets one: 18000 for `NIGHT`, 6000 for the rest. Proven by
+  `bound_vex_world_setup_night` and `bound_vex_world_setup_day`.
+- **The GameTest world is flat.** Every dimension of the GameTest server's "Test Level" has a solid floor at
+  `y = 0..3` (bedrock, then three layers of stone of the dimension), even far from the origin in the End. So "the End
+  with nothing to land on" needs the floor removed: `BoundVexWorldTestSupport.endVoid` clears every block below the
+  slot's Y in its forced chunks (found through the height map), with `Block.UPDATE_CLIENTS` only, and puts them back.
+  Without that, `getHeight` in the End void gives 4, not `getMinY()`.
+- **Private slots.** A slot is a grid point 200 blocks from its neighbors; End slots are 450..850 blocks from the
+  origin at `y = 80`, Nether slots start at `x = 1000` at `y = 100`. A forced chunk in a slot is entity-ticking within
+  the setup test (a Bound Vex there has `tickCount > 0` five ticks after the helper returned), so `room`/`endVoid`
+  need no extra wait.
+- **Cleanup is tested and always completes.** `Place.clean()` runs every step (entities, block restores, unforce,
+  slot release, active-set removal) even if one throws, rethrows the first failure, and is a no-op the second time;
+  `Place.finish()` adds the player's return to `FangGameTests.STAND`. `whenDone` runs it at the end of the test.
+  `bound_vex_world_setup_cleanup_end_void` and `..._cleanup_room` call it by hand and check the slot, blocks, forced
+  chunks (`ServerLevel.getForceLoadedChunks()`), entities and player; a second call changes nothing. They wait until
+  an entity in the place has ticked first: in a busy full run, a cleanup three ticks after the spawn once missed the
+  vex, so a place that ends within a few ticks of its first entity may leave it behind.
+- **Helper rule.** Every block a test changes in a slot goes through `BoundVexWorldTestSupport.platform` or
+  `BoundVexWorldTestSupport.set(helper, level, pos, state)`; both record the block's first state in the place and
+  restore it at cleanup. Blocks an explosion destroys are restored only if they were placed through them.
+- **`ServerPlayer.teleportTo` and the void catch.** `ServerPlayer.teleportTo` (`ServerPlayer.java:1824`) calls
+  `Entity.teleportTo` (`Entity.java:3466`), which builds a `TeleportTransition` with `Vec3.ZERO` as its movement and
+  calls `ServerPlayer.teleport` (`ServerPlayer.java:1176`). That method returns null (so `teleportTo` returns false)
+  when the NeoForge travel event is canceled (`CommonHooks.onTravelToDimension`) or the player is removed. It dismounts the
+  player (`removeVehicle`, line 1190), and the position packet carries the transition's zero movement
+  (`PositionMoveRotation.of`, lines 1194 and 1217), also on the client: no `setDeltaMovement`, `stopRiding` or
+  `syncVelocity` is needed. It does **not** reset the fall distance: `resetFallDistance()` is still the caller's job.
+- **Which reads load a chunk.** `Level.getBlockState` (`Level.java:370`) calls `getChunk(x, z)`, which loads or
+  generates the chunk on the server thread. `Level.getHeight` (`Level.java:349-352`) does not: it asks `hasChunk` first
+  and reports `getMinY()` for an unloaded column. The non-loading test is `LevelReader.hasChunk(chunkX, chunkZ)`
+  (`ServerChunkCache.hasChunk`, `ServerChunkCache.java:263`); `hasChunkAt(BlockPos)` calls it but is deprecated. The
+  void catch uses `hasChunk(SectionPos.blockToSectionCoord(x), …)` and trusts a last ground in an unloaded chunk.
+- **`LivingDamageEvent.Post` and the crit's show.** `LivingEntity.hurtServer` posts it (`CommonHooks.onLivingDamagePost`,
+  `LivingEntity.java:1355`) after `actuallyHurt`, whenever the hit was not dropped earlier. A hit canceled in
+  `LivingIncomingDamageEvent`, or one the invulnerability frames refuse (`damage <= lastHurt`, `LivingEntity.java:1273`),
+  returns before it. It is **not** a proof that health was lost: a source the victim is invulnerable to, or a fully blocked
+  hit, still posts it with `getInflictedDamage()` 0. A harder hit inside the frames posts it with
+  `shouldCauseSideEffects()` false (the hurt sound is skipped the same way). The crit's particles and sound require a
+  Bound Vex's End melee source, `shouldCauseSideEffects()` and `getInflictedDamage() > 0`.
