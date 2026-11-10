@@ -30,6 +30,7 @@ import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.item.Items;
@@ -408,7 +409,9 @@ public final class BoundVexLavaGameTests {
 
     /**
      * When a full-AI rescuer is fighting a husk that is within the vex reach (7.25) of the player side point, should
-     * it still have that target four ticks into the rescue.
+     * it still have that target four ticks into the rescue. The vex hangs where it spawned (its follow goal is paused)
+     * until it holds the husk: its scan can come up to 9 ticks after it spawns, and by then the follow flight would
+     * have sunk it into the stone, where it cannot see the husk.
      *
      * <p>Method under test: {@code RescueGoal} and {@code VexRescues.start}: the move keeps a target in reach
      */
@@ -417,11 +420,13 @@ public final class BoundVexLavaGameTests {
         ServerPlayer player = lavaPool(helper, 0);
         BoundVex vex = BoundVexTestSupport.boundVex(helper, FEET.offset(0, 3, 4), player);
         Husk husk = sturdyHusk(helper, FEET.offset(0, 4, 3));
+        Goal follow = BoundVexTestSupport.pauseFollowing(vex);
 
         // Act & Assert
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(husk.equals(vex.getTarget()), "setup: the vex fights the husk"))
                 .thenExecute(() -> {
+                    BoundVexTestSupport.resumeFollowing(vex, follow);
                     step(player);
                     assertLavaRunning(helper, player, "setup: the rescue started");
                     helper.assertTrue(
@@ -434,7 +439,8 @@ public final class BoundVexLavaGameTests {
 
     /**
      * When a full-AI rescuer is fighting a husk 14 blocks from the player, should it have dropped that target four
-     * ticks into the rescue: from the player side the husk is out of its reach, and the vex own rules drop it.
+     * ticks into the rescue: from the player side the husk is out of its reach, and the vex own rules drop it. The
+     * follow goal is paused until the vex holds the husk, as in {@link #lavaRescuerKeepsItsTarget}.
      *
      * <p>Method under test: {@code VexRescues.start}: the move does not carry a far target along
      */
@@ -443,11 +449,13 @@ public final class BoundVexLavaGameTests {
         ServerPlayer player = lavaPool(helper, 0);
         Husk husk = sturdyHusk(helper, FEET.offset(10, 3, 10));
         BoundVex vex = BoundVexTestSupport.boundVex(helper, FEET.offset(8, 3, 8), player);
+        Goal follow = BoundVexTestSupport.pauseFollowing(vex);
 
         // Act & Assert
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(husk.equals(vex.getTarget()), "setup: the vex fights the husk"))
                 .thenExecute(() -> {
+                    BoundVexTestSupport.resumeFollowing(vex, follow);
                     helper.assertTrue(husk.distanceTo(player) > 13.0, "setup: the husk is 14 blocks off");
                     step(player);
                     assertLavaRunning(helper, player, "setup: the rescue started");
