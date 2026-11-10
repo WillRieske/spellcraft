@@ -182,8 +182,8 @@ public final class BoundVexEvents {
     }
 
     /**
-     * Drops every note and every repair claim when the server stops (single-player loads one server per world in the
-     * same JVM, so neither may outlive its world).
+     * Drops every note, every repair claim, every cure claim, every bribe claim and every scripted bribe die when the
+     * server stops (single-player loads one server per world in the same JVM, so none may outlive its world).
      *
      * @param event the server-stopped event
      */

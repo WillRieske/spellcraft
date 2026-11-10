@@ -70,9 +70,6 @@ public final class BoundVexCureGameTests {
      */
     private static final String ALONE = "bound_vex_bribe_alone";
 
-    /** The environment of the one test that clears the static claim map, which no other cure test may run beside. */
-    private static final String CLAIMS = "bound_vex_cure_claims";
-
     /** Ticks a Bound Vex may still hold a target that became courted: the target goals re-check every second tick. */
     private static final int COURTED_TARGET_LAG = 4;
 
@@ -153,9 +150,13 @@ public final class BoundVexCureGameTests {
                 "bound_vex_cure_a_vex_dying_in_the_apple_step_leaves_no_item_and_the_freeze_ends",
                 BoundVexCureGameTests::aVexDyingInTheAppleStepLeavesNoItemAndTheFreezeEnds);
         FangGameTests.addPadded(
-                CLAIMS,
-                "bound_vex_cure_clearing_the_claims_frees_a_subject",
-                BoundVexCureGameTests::clearingTheClaimsFreesASubject);
+                SHARED,
+                "bound_vex_cure_a_vex_that_wakes_after_the_release_drops_the_job",
+                BoundVexCureGameTests::aVexThatWakesAfterTheReleaseDropsTheJob);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_cure_a_claim_lives_only_while_the_mark_does",
+                BoundVexCureGameTests::aClaimLivesOnlyWhileTheMarkDoes);
         FangGameTests.addPadded(
                 SHARED, "bound_vex_bribe_a_bribe_that_succeeds", BoundVexCureGameTests::aBribeThatSucceeds);
         FangGameTests.addPadded(
@@ -257,7 +258,8 @@ public final class BoundVexCureGameTests {
      * When a vanilla vex carries the bribed mark, should {@link BoundVex#isPrey} answer false for it; without the
      * mark, or with only the bribe-tried mark, it is prey.
      *
-     * <p>Method under test: {@link BoundVex#isPrey(ServerLevel, java.util.UUID, net.minecraft.world.entity.LivingEntity)}
+     * <p>Method under test: {@link BoundVex#isPrey(ServerLevel, java.util.UUID,
+     * net.minecraft.world.entity.LivingEntity)}
      */
     static void aBribedVexIsNotPrey(GameTestHelper helper) {
         // Arrange
@@ -603,9 +605,9 @@ public final class BoundVexCureGameTests {
     }
 
     /**
-     * When a hissing creeper comes within flee range of a staying vex in the apple step, should the cure be aborted (the
-     * zombie villager unfrozen and unmarked, the vex's sword back) and, when the creeper is gone, start again and reach
-     * {@code isConverting()}.
+     * When a hissing creeper comes within flee range of a staying vex in the apple step, should the cure be aborted
+     * (the zombie villager unfrozen and unmarked, the vex's sword back) and, when the creeper is gone, start again and
+     * reach {@code isConverting()}.
      *
      * <p>Method under test: {@link CureZombieVillagerGoal#stop} as the abort, through {@link FleeCreeperGoal} taking
      * the move flag
@@ -814,8 +816,8 @@ public final class BoundVexCureGameTests {
      * 3000 ticks), should the vex's step 4 leave vanilla's conversion as it is: still converting with the other
      * starter and about 3000 ticks left.
      *
-     * <p>Method under test: {@link CureZombieVillagerGoal}: step 4 skips {@code startConverting} for a converting zombie
-     * villager
+     * <p>Method under test: {@link CureZombieVillagerGoal}: step 4 skips {@code startConverting} for a converting
+     * zombie villager
      */
     static void aHandFedZombieVillagerKeepsItsConversion(GameTestHelper helper) {
         // Arrange
@@ -1001,13 +1003,54 @@ public final class BoundVexCureGameTests {
     }
 
     /**
-     * When one vex holds a claim (its AI off, so its goal neither ends nor releases) on a zombie villager that has been
-     * unfrozen and unmarked by hand, should a second vex leave it alone for sixty ticks; after {@code clearClaims()}
-     * should the second vex claim it.
+     * When a vex is mid-cure (the apple step) and stops ticking, and the 300-tick rule then releases the zombie villager
+     * (the mark removed, its AI back), should the vex, once it ticks again, drop the job within a few ticks: its hand is
+     * back to the sword, and the zombie villager stays unmarked and unfrozen (the stop undoes nothing it no longer owns).
      *
-     * <p>Method under test: {@link CureZombieVillagerGoal#clearClaims}
+     * <p>Method under test: {@link CureZombieVillagerGoal#canContinueToUse}: the cure mark must still be present
      */
-    static void clearingTheClaimsFreesASubject(GameTestHelper helper) {
+    static void aVexThatWakesAfterTheReleaseDropsTheJob(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+        Vec3 post = vex.position();
+        ZombieVillager zombieVillager = cureSubject(helper, post, 3.0, 0.0);
+        discardCureLeftovers(helper, post);
+
+        // Act & Assert: the vex wakes at a tick far from its next scan, so it cannot take the zombie villager again
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        vex.getMainHandItem().is(Items.GOLDEN_APPLE), "setup: the vex is in the apple step"))
+                .thenExecute(() -> vex.setNoAi(true))
+                .thenExecute(() -> {
+                    zombieVillager.setNoAi(false);
+                    zombieVillager.removeData(AllyAttachments.CURE);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(
+                        (vex.tickCount + vex.getId()) % 10 == 2, "setup: wait for a tick far from the next scan"))
+                .thenExecute(() -> vex.setNoAi(false))
+                .thenExecuteFor(
+                        5,
+                        () -> helper.assertTrue(
+                                free(zombieVillager), "the zombie villager stays unmarked and unfrozen"))
+                .thenExecute(() -> {
+                    helper.assertTrue(swordBack(vex), "the vex dropped the job: its sword is back");
+                    helper.assertTrue(free(zombieVillager), "and the zombie villager is still free");
+                    helper.assertFalse(
+                            CureZombieVillagerGoal.isClaimed(zombieVillager), "and the vex holds no claim on it");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When one vex stops ticking mid-cure (holding its claim) and the 300-tick rule releases the zombie villager,
+     * should a second vex claim it at once, though the first vex lives and never released its claim; and when the first
+     * vex ticks again, should it drop the job without unfreezing or unmarking what the second vex now cures.
+     *
+     * <p>Method under test: {@link CureZombieVillagerGoal}: a claim counts only while the cure mark is present, and the
+     * job continues only while the vex still holds the claim
+     */
+    static void aClaimLivesOnlyWhileTheMarkDoes(GameTestHelper helper) {
         // Arrange: the second vex waits (no AI) until the first has the claim
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
         BoundVex first = stayingVex(helper, player, ItemStack.EMPTY);
@@ -1019,23 +1062,32 @@ public final class BoundVexCureGameTests {
 
         // Act & Assert
         helper.startSequence()
-                .thenWaitUntil(() -> helper.assertTrue(claimed(zombieVillager), "setup: the first vex claims it"))
+                .thenWaitUntil(() -> helper.assertTrue(
+                        first.getMainHandItem().is(Items.GOLDEN_APPLE), "setup: the first vex is in the apple step"))
                 .thenExecute(() -> {
+                    helper.assertTrue(CureZombieVillagerGoal.isClaimed(zombieVillager), "setup: the first vex's claim");
                     first.setNoAi(true);
                     zombieVillager.setNoAi(false);
                     zombieVillager.removeData(AllyAttachments.CURE);
+                    helper.assertFalse(
+                            CureZombieVillagerGoal.isClaimed(zombieVillager), "a claim on an unmarked zombie villager");
                     second.setNoAi(false);
                 })
+                .thenWaitUntil(() -> helper.assertTrue(
+                        claimed(zombieVillager) && second.getMainHandItem().is(Items.GOLDEN_APPLE),
+                        "the second vex takes the released zombie villager"))
+                .thenExecute(() -> first.setNoAi(false))
                 .thenExecuteFor(
-                        60,
-                        () -> helper.assertTrue(free(zombieVillager), "the second vex respects the first vex's claim"))
-                .thenExecute(CureZombieVillagerGoal::clearClaims)
-                .thenWaitUntil(() ->
-                        helper.assertTrue(claimed(zombieVillager), "with the claims cleared the second vex takes it"))
+                        6,
+                        () -> helper.assertTrue(
+                                claimed(zombieVillager), "the first vex leaves what the second vex cures alone"))
+                .thenExecute(() -> helper.assertTrue(swordBack(first), "and has its sword back"))
                 .thenSucceed();
     }
 
-    /** Scripts every roll of {@code vex} to {@code side} (0 and 1 accept the bribe, 2 refuses it) until the test ends. */
+    /**
+     * Scripts every roll of {@code vex} to {@code side} (0 and 1 accept the bribe, 2 refuses it) until the test ends.
+     */
     private static void rolling(GameTestHelper helper, BoundVex vex, int side) {
         BribeGoal.scriptDice(vex, bound -> side);
         whenDone(helper, () -> BribeGoal.unscriptDice(vex));
@@ -1076,7 +1128,10 @@ public final class BoundVexCureGameTests {
         return vex;
     }
 
-    /** A vanilla vex with its AI on and no gravity at {@code relative} (a structure-relative point), discarded at the end. */
+    /**
+     * A vanilla vex with its AI on and no gravity at {@code relative} (a structure-relative point), discarded at the
+     * end.
+     */
     private static Vex livelyVex(GameTestHelper helper, Vec3 relative) {
         Vex vex = helper.spawn(EntityTypes.VEX, FEET);
         vex.setNoGravity(true);
@@ -1119,9 +1174,9 @@ public final class BoundVexCureGameTests {
     }
 
     /**
-     * When a staying Bound Vex finds an enemy vex that targets its summoner and the roll accepts, should hold a conjured
-     * emerald while the other vex is courted, then leave the other vex bribed (no target, only the flee goal), hold its
-     * sword again, and take the bribed vex as a target never.
+     * When a staying Bound Vex finds an enemy vex that targets its summoner and the roll accepts, should hold a
+     * conjured emerald while the other vex is courted, then leave the other vex bribed (no target, only the flee goal),
+     * hold its sword again, and take the bribed vex as a target never.
      *
      * <p>Method under test: {@link BribeGoal}, through the vex's goal selector: spec §3.1, an accepted roll
      */
@@ -1386,9 +1441,9 @@ public final class BoundVexCureGameTests {
     }
 
     /**
-     * When the vanilla vex is moved out of the stay area mid-offer, then (offered again) a swelling creeper comes beside
-     * the Bound Vex mid-offer, should each time end with no mark, the sword in hand and the claim free; and the vanilla
-     * vex is prey again.
+     * When the vanilla vex is moved out of the stay area mid-offer, then (offered again) a swelling creeper comes
+     * beside the Bound Vex mid-offer, should each time end with no mark, the sword in hand and the claim free; and the
+     * vanilla vex is prey again.
      *
      * <p>Method under test: {@link BribeGoal}: the leaves-the-area clause, and {@code stop} as the abort through
      * {@link FleeCreeperGoal} taking the move flag
@@ -1434,8 +1489,8 @@ public final class BoundVexCureGameTests {
     }
 
     /**
-     * When a vex that carries the bribed mark is saved and loaded into a fresh entity and added to the level, should the
-     * copy keep the mark and have the flee goal as its only goal and no target goals.
+     * When a vex that carries the bribed mark is saved and loaded into a fresh entity and added to the level, should
+     * the copy keep the mark and have the flee goal as its only goal and no target goals.
      *
      * <p>Method under test: {@code BoundVexEvents.onJoin}: the reinstall on join, keyed on the mark
      */
@@ -1490,8 +1545,8 @@ public final class BoundVexCureGameTests {
      * their rolls and refuse, make their offers, should every dice be rolled exactly once, every enemy vex carry the
      * bribe-tried mark only, and none be bribed.
      *
-     * <p>Method under test: {@link BribeGoal#tick} and its roll: the roll happens once, though vanilla ticks a goal that
-     * requires an update every tick on ticks {@code canContinueToUse} is not asked
+     * <p>Method under test: {@link BribeGoal#tick} and its roll: the roll happens once, though vanilla ticks a goal
+     * that requires an update every tick on ticks {@code canContinueToUse} is not asked
      */
     static void aRefusedVexIsRolledForExactlyOnce(GameTestHelper helper) {
         // Arrange

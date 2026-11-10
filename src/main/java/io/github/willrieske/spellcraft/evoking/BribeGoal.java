@@ -23,11 +23,11 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * A Bound Vex offers an enemy vex an emerald before it fights it (Evoking II Parts 4-5 spec §3.1). On each scan
- * ({@code BoundVex.scanDue}), when the vex's summoner is here, the nearest vanilla vex (exactly {@code EntityTypes.VEX}:
- * never a Bound Vex) whose feet are in the guard area, that is alive, carries neither the bribed nor the bribe-tried
+ * ({@code BoundVex.scanDue}), when the vex's summoner is here, the nearest vanilla vex (exactly
+ * {@code EntityTypes.VEX}: never a Bound Vex) whose feet are in the guard area, that is alive, carries neither the bribed nor the bribe-tried
  * mark, is not courted by another living Bound Vex and whose target is the summoner or an ally of the summoner is
- * taken; whether this vex has a target of its own does not matter. The vex flies to within {@link #REACH} of it (at
- * most {@link #APPROACH_LIMIT} ticks), holds a conjured emerald out for {@link #OFFER_TICKS} ticks (the villager
+ * taken; whether this vex has a target of its own does not matter. The vex flies to within {@link Jobs#REACH} of it (at
+ * most {@link Jobs#APPROACH_LIMIT} ticks), holds a conjured emerald out for {@link #OFFER_TICKS} ticks (the villager
  * "hmm" once at the start, the head turned to the other vex) and rolls {@link BribeRule}: two in three the other vex
  * is bribed ({@link AllyAttachments#BRIBED}, its target cleared, {@link FleeFromViewGoal} its only goal), one in three
  * it refuses ({@link AllyAttachments#BRIBE_TRIED}) and is prey as before.
@@ -42,26 +42,22 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>The goal does not re-check the enemy vex's target mid-offer: a vex that retargets (or loses its target) after the
  * claim still gets the emerald and the roll. The roll happens exactly once: vanilla ticks a running goal with
- * {@code requiresUpdateEveryTick} on ticks its {@code canContinueToUse} is not asked, so {@link #tick} and
- * {@link #roll} both return at once once {@code finished} is set. A vanilla vex carries at most one of the two marks.
+ * {@code requiresUpdateEveryTick} on ticks its {@code canContinueToUse} is not asked, so {@link #tick} returns at
+ * once when {@code finished} is set, and the roll is reached only from {@link #tick}. A vanilla vex carries at most one
+ * of the two marks.
  */
 public final class BribeGoal extends Goal {
-    /** How near the other vex the Bound Vex works from. */
-    public static final double REACH = 1.5;
-
-    /** The most ticks the approach may take before the goal gives up. */
-    public static final int APPROACH_LIMIT = 100;
+    /** The most ticks the approach may take before the goal gives up ({@link Jobs#APPROACH_LIMIT}). */
+    public static final int APPROACH_LIMIT = Jobs.APPROACH_LIMIT;
 
     /** Ticks the emerald is held out before the roll. */
     public static final int OFFER_TICKS = 20;
 
     /**
-     * Ticks after giving up an approach during which this vex starts no bribe. The abort and the next scan can fall
-     * on the same goal-selector pass, so without it the vex would claim the same unreachable vex again at once, and
-     * it would never be free (the spec says "it may try again"; this is when). Like
-     * {@link CureZombieVillagerGoal#RETRY_DELAY}.
+     * Ticks after giving up an approach during which this vex starts no bribe ({@link Jobs#RETRY_DELAY}; the spec says
+     * "it may try again", and this is when).
      */
-    public static final int RETRY_DELAY = 200;
+    public static final int RETRY_DELAY = Jobs.RETRY_DELAY;
 
     /**
      * Ticks past the longest honest courtship ({@link #APPROACH_LIMIT} plus {@link #OFFER_TICKS}) after which a claim
@@ -69,8 +65,6 @@ public final class BribeGoal extends Goal {
      * ticks or unloads.
      */
     private static final int STALE_SLACK = 20;
-
-    private static final double SPEED = 1.0;
 
     /** The two steps before the roll (the roll itself takes no time). */
     private enum Step {
@@ -81,30 +75,17 @@ public final class BribeGoal extends Goal {
     /**
      * Vexes being courted: the vanilla vex's UUID to the claiming Bound Vex, so two Bound Vexes never court one and
      * {@link #isCourted} can answer. A claim whose Bound Vex is dead or removed, or that is older than
-     * {@link #APPROACH_LIMIT} + {@link #OFFER_TICKS} + {@value #STALE_SLACK} ticks, is free, because a vex that dies,
-     * despawns or is unloaded never runs {@code stop()} and one in a chunk that stopped ticking never finishes.
+     * {@link Jobs#APPROACH_LIMIT} + {@link #OFFER_TICKS} + {@value #STALE_SLACK} ticks, is free, because a vex that
+     * dies, despawns or is unloaded never runs {@code stop()} and one in a chunk that stopped ticking never finishes.
      * Cleared when the server stops.
      */
-    private static final Map<UUID, Claim> CLAIMED = new HashMap<>();
+    private static final Jobs.Claims CLAIMS = new Jobs.Claims(Jobs.APPROACH_LIMIT + OFFER_TICKS + STALE_SLACK);
 
     /**
      * The dice a GameTest scripted for one Bound Vex (its UUID); transient, never saved, empty in play. Cleared with
      * the claims.
      */
     private static final Map<UUID, ScrollDraw.Dice> SCRIPTED = new HashMap<>();
-
-    /**
-     * A claim on a vanilla vex.
-     *
-     * @param holder the Bound Vex that claimed it
-     * @param time the game time of the claim
-     */
-    private record Claim(BoundVex holder, long time) {
-        /** Whether the claim still holds at game time {@code now}: its holder lives and it is not stale. */
-        boolean live(long now) {
-            return holder.isAlive() && !holder.isRemoved() && now - time <= APPROACH_LIMIT + OFFER_TICKS + STALE_SLACK;
-        }
-    }
 
     private final BoundVex vex;
 
@@ -126,7 +107,7 @@ public final class BribeGoal extends Goal {
 
     /** Forgets every claim and every scripted die (single-player loads one server per world in the same JVM). */
     static void clearClaims() {
-        CLAIMED.clear();
+        CLAIMS.clear();
         SCRIPTED.clear();
     }
 
@@ -138,8 +119,7 @@ public final class BribeGoal extends Goal {
      * @return true while a Bound Vex that is alive and in the world holds a claim that is not stale
      */
     public static boolean isCourted(Entity target) {
-        Claim claim = CLAIMED.get(target.getUUID());
-        return claim != null && claim.live(target.level().getGameTime());
+        return CLAIMS.held(target);
     }
 
     /**
@@ -150,7 +130,7 @@ public final class BribeGoal extends Goal {
      * @param ticks how much older the claim becomes
      */
     public static void ageClaim(Entity target, long ticks) {
-        CLAIMED.computeIfPresent(target.getUUID(), (id, claim) -> new Claim(claim.holder(), claim.time() - ticks));
+        CLAIMS.age(target, ticks);
     }
 
     /**
@@ -177,8 +157,7 @@ public final class BribeGoal extends Goal {
     public boolean canUse() {
         // A vex that died, was discarded or unloaded never ran stop(); drop its claim so the map does not keep it
         // (and its level) reachable. Such a claim already counts as free everywhere it is read.
-        long now = vex.level().getGameTime();
-        CLAIMED.values().removeIf(claim -> !claim.live(now));
+        CLAIMS.prune();
         if (!vex.scanDue(BoundVex.SCAN_INTERVAL) || vex.level().getGameTime() < blockedUntil) {
             return false;
         }
@@ -205,22 +184,13 @@ public final class BribeGoal extends Goal {
     private boolean offerable(ServerPlayer owner, Vex candidate) {
         if (!EntityTypes.VEX.equals(candidate.getType())
                 || !candidate.isAlive()
-                || candidate.isRemoved()
                 || AllyAttachments.isBribed(candidate)
                 || AllyAttachments.wasOfferedBribe(candidate)
-                || courtedByAnother(candidate)) {
+                || CLAIMS.heldByAnother(candidate, vex)) {
             return false;
         }
         LivingEntity theirs = candidate.getTarget();
-        return theirs != null && (theirs.getUUID().equals(owner.getUUID()) || Allies.isAllyOf(owner, theirs));
-    }
-
-    /** Whether a living Bound Vex other than this one holds the claim on {@code candidate}. */
-    private boolean courtedByAnother(Vex candidate) {
-        Claim claim = CLAIMED.get(candidate.getUUID());
-        return claim != null
-                && claim.live(vex.level().getGameTime())
-                && !claim.holder().getUUID().equals(vex.getUUID());
+        return theirs != null && Allies.isAllyOf(owner, theirs);
     }
 
     @Override
@@ -233,7 +203,7 @@ public final class BribeGoal extends Goal {
         if (other == null) {
             return;
         }
-        CLAIMED.put(other.getUUID(), new Claim(vex, vex.level().getGameTime()));
+        CLAIMS.claim(other, vex);
         step = Step.APPROACH;
         stepTicks = 0;
         approachTicks = 0;
@@ -241,14 +211,13 @@ public final class BribeGoal extends Goal {
     }
 
     /**
-     * Continues while the other vex is alive and in the guard area, the summoner is here, the roll has not been made and
-     * the approach has not timed out.
+     * Continues while the other vex is alive and in the guard area, the summoner is here, the roll has not been made
+     * and the approach has not timed out.
      */
     @Override
     public boolean canContinueToUse() {
         return other != null
                 && other.isAlive()
-                && !other.isRemoved()
                 && vex.inGuardArea(other)
                 && vex.summoner().isPresent()
                 && !finished
@@ -260,10 +229,10 @@ public final class BribeGoal extends Goal {
         if (other == null || finished) {
             return;
         }
-        boolean near = vex.position().distanceTo(other.position()) <= REACH;
+        boolean near = vex.position().distanceTo(other.position()) <= Jobs.REACH;
         if (!near) {
             // The approach flies there; the offer flies back if the other vex drifted off.
-            vex.getMoveControl().setWantedPosition(other.getX(), other.getY(), other.getZ(), SPEED);
+            vex.getMoveControl().setWantedPosition(other.getX(), other.getY(), other.getZ(), Jobs.SPEED);
         }
         vex.getLookControl().setLookAt(other);
         if (step == Step.APPROACH) {
@@ -297,15 +266,12 @@ public final class BribeGoal extends Goal {
      */
     private void roll() {
         Vex target = other;
-        if (target == null || finished) {
+        if (target == null) {
             return;
         }
         vex.dismiss(EquipmentSlot.MAINHAND);
         release();
-        if (!target.isAlive()
-                || target.isRemoved()
-                || AllyAttachments.isBribed(target)
-                || AllyAttachments.wasOfferedBribe(target)) {
+        if (!target.isAlive() || AllyAttachments.isBribed(target) || AllyAttachments.wasOfferedBribe(target)) {
             // Gone, or already decided: no roll, no mark. A vanilla vex never carries both marks.
             finished = true;
             return;
@@ -324,9 +290,7 @@ public final class BribeGoal extends Goal {
     /** Frees this vex's claim on the other vex; never another vex's. */
     private void release() {
         if (other != null) {
-            UUID self = vex.getUUID();
-            CLAIMED.computeIfPresent(
-                    other.getUUID(), (id, claim) -> claim.holder().getUUID().equals(self) ? null : claim);
+            CLAIMS.release(other, vex);
         }
     }
 

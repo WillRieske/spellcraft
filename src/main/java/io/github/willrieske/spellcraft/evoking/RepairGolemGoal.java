@@ -3,9 +3,6 @@ package io.github.willrieske.spellcraft.evoking;
 import io.github.willrieske.spellcraft.spell.Allies;
 import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.InteractionHand;
@@ -22,7 +19,7 @@ import org.jspecify.annotations.Nullable;
  * A Bound Vex repairs a hurt ally golem (Evoking II spec §3.7): on each scan ({@code BoundVex.scanDue}), when the vex
  * is idle (no target) and its summoner is here, the nearest iron golem whose feet are in the guard area, that is an
  * ally (so: not mad), under full health and not claimed by another living Bound Vex is taken. The vex flies to within
- * {@link #REACH} of the golem's chest, conjures an iron ingot there, and every {@link #TAP_INTERVAL} ticks swings,
+ * {@link Jobs#REACH} of the golem's chest, conjures an iron ingot there, and every {@link #TAP_INTERVAL} ticks swings,
  * plays the repair sound and heals {@link #HEAL} (vanilla's ingot amount). When the golem is full, or the repair
  * stops for any reason (a target, the summoner gone, the golem out of the area or mad, flee or dodge taking over),
  * the ingot goes and the item the vex held comes back. The item the vex held waits in its stash
@@ -38,20 +35,16 @@ final class RepairGolemGoal extends Goal {
     /** Ticks between taps. */
     static final int TAP_INTERVAL = 30;
 
-    /** How near the golem's chest the vex taps from. */
-    static final double REACH = 1.5;
-
     private static final double CHEST_HEIGHT = 1.4;
-    private static final double SPEED = 1.0;
 
     /**
      * Golems under repair: golem UUID to the claiming vex, so two vexes never share one (spec §3.7). A claim whose vex
      * is dead or removed is free, because a vex that dies, despawns or is unloaded never runs {@code stop()}. Cleared
-     * when the server stops. The prune in {@code canUse} only frees memory, and the by-UUID condition in {@code stop}
-     * (a stop never removes another vex's claim) can only matter if a claim were taken over: both are defensive and
-     * untested, since no test can tell a claim map without them apart.
+     * when the server stops. The prune in {@code canUse} only frees memory, and {@code Claims.release} (a stop never
+     * removes another vex's claim) can only matter if a claim were taken over: both are defensive and untested, since
+     * no test can tell a claim map without them apart.
      */
-    private static final Map<UUID, BoundVex> CLAIMED = new HashMap<>();
+    private static final Jobs.Claims CLAIMS = new Jobs.Claims();
 
     private final BoundVex vex;
 
@@ -67,7 +60,7 @@ final class RepairGolemGoal extends Goal {
 
     /** Forgets every claim (single-player loads one server per world in the same JVM). */
     static void clearClaims() {
-        CLAIMED.clear();
+        CLAIMS.clear();
     }
 
     @Override
@@ -75,7 +68,7 @@ final class RepairGolemGoal extends Goal {
         // A vex that died, was discarded or unloaded never ran stop(); drop its claim so the map does not keep it
         // (and its level) reachable. Done before any early return, so it does not wait for an idle scan. Such a claim
         // already counts as free in claimedByAnother.
-        CLAIMED.values().removeIf(holder -> holder.isRemoved() || !holder.isAlive());
+        CLAIMS.prune();
         if (!vex.scanDue(BoundVex.SCAN_INTERVAL) || vex.getTarget() != null) {
             return false;
         }
@@ -90,7 +83,7 @@ final class RepairGolemGoal extends Goal {
                         vex.guardArea(),
                         candidate -> vex.inGuardArea(candidate)
                                 && needsRepair(owner, candidate)
-                                && !claimedByAnother(candidate))
+                                && !CLAIMS.heldByAnother(candidate, vex))
                 .stream()
                 .min(Comparator.comparingDouble(vex::distanceToSqr))
                 .orElse(null);
@@ -103,15 +96,6 @@ final class RepairGolemGoal extends Goal {
                 && Allies.isAllyOf(owner, candidate);
     }
 
-    /** Whether a living Bound Vex other than this one holds the claim on {@code candidate}. */
-    private boolean claimedByAnother(IronGolem candidate) {
-        BoundVex holder = CLAIMED.get(candidate.getUUID());
-        return holder != null
-                && holder.isAlive()
-                && !holder.isRemoved()
-                && !holder.getUUID().equals(vex.getUUID());
-    }
-
     @Override
     public boolean requiresUpdateEveryTick() {
         return true;
@@ -122,7 +106,7 @@ final class RepairGolemGoal extends Goal {
         if (golem == null) {
             return;
         }
-        CLAIMED.put(golem.getUUID(), vex);
+        CLAIMS.claim(golem, vex);
         ticksSinceTap = 0;
     }
 
@@ -142,8 +126,8 @@ final class RepairGolemGoal extends Goal {
             return;
         }
         Vec3 chest = golem.position().add(0.0, CHEST_HEIGHT, 0.0);
-        if (vex.position().distanceTo(chest) > REACH) {
-            vex.getMoveControl().setWantedPosition(chest.x, chest.y, chest.z, SPEED);
+        if (vex.position().distanceTo(chest) > Jobs.REACH) {
+            vex.getMoveControl().setWantedPosition(chest.x, chest.y, chest.z, Jobs.SPEED);
             return;
         }
         if (!vex.isConjured(EquipmentSlot.MAINHAND)) {
@@ -169,9 +153,7 @@ final class RepairGolemGoal extends Goal {
     @Override
     public void stop() {
         if (golem != null) {
-            UUID self = vex.getUUID();
-            CLAIMED.computeIfPresent(
-                    golem.getUUID(), (id, holder) -> holder.getUUID().equals(self) ? null : holder);
+            CLAIMS.release(golem, vex);
         }
         vex.dismiss(EquipmentSlot.MAINHAND);
         golem = null;

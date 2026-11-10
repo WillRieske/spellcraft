@@ -4,7 +4,6 @@ import io.github.willrieske.spellcraft.spell.Allies;
 import java.util.Comparator;
 import java.util.EnumSet;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 
@@ -14,10 +13,9 @@ import net.minecraft.world.entity.ai.goal.Goal;
  * {@link #RANGE} blocks, in sight and below half health, gets a copy of the potion thrown at it. Friends that healing
  * would hurt ({@code isInvertedHealAndHarm}: the undead) are skipped. A friend is the summoner or an ally of the
  * summoner ({@code Allies.isAllyOf}, which counts the summoner's other Bound Vexes), the vex itself excepted. The goal
- * has no flags and never moves the vex, so the follow and post goals keep running beside it. A conjured item is never
- * thrown: it is not the vex's to use, so the goal does not run while the main hand is conjured. (The cure potion, Parts
- * 4-5 spec §2.2, is not support gear anyway: it has no effects, and {@code VexGear.kindOf} gives an effect-free potion
- * {@code NONE}.)
+ * has no flags and never moves the vex, so the follow and post goals keep running beside it.
+ * (The cure potion a vex conjures, Parts 4-5 spec §2.2, is not support gear: it has no effects, and
+ * {@code VexGear.kindOf} gives an effect-free potion {@code NONE}.)
  */
 final class SupportGearGoal extends Goal {
     /** How far a friend may be (spec §4.3). */
@@ -36,9 +34,7 @@ final class SupportGearGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        return VexGear.isSupport(vex.getMainHandItem())
-                && !vex.isConjured(EquipmentSlot.MAINHAND)
-                && vex.summoner().isPresent();
+        return VexGear.isSupport(vex.getMainHandItem()) && vex.summoner().isPresent();
     }
 
     @Override

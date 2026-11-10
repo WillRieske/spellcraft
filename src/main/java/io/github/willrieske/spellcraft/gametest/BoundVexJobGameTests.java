@@ -121,9 +121,10 @@ public final class BoundVexJobGameTests {
     }
 
     /**
-     * A {@link BoundVexTestSupport#patientCreeper} that floats, for a test whose creeper must live on: the barrier shell at the box's edge
-     * ({@code FEET.north(2)} and nearer) hurts a creeper standing in it, so a creeper there dies in the end (the same
-     * "inWall" damage as {@link #GOLEM_SPOT}'s note), and without gravity it needs no floor in the padded box.
+     * A {@link BoundVexTestSupport#patientCreeper} that floats, for a test whose creeper must live on: the barrier
+     * shell at the box's edge ({@code FEET.north(2)} and nearer) hurts a creeper standing in it, so a creeper there
+     * dies in the end (the same "inWall" damage as {@link #GOLEM_SPOT}'s note), and without gravity it needs no floor
+     * in the padded box.
      */
     private static Creeper floatingCreeper(GameTestHelper helper, BlockPos relative) {
         Creeper creeper = patientCreeper(helper, relative);

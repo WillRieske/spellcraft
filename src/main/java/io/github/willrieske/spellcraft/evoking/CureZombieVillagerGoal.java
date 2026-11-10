@@ -4,9 +4,7 @@ import io.github.willrieske.spellcraft.spell.Allies;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.component.DataComponents;
@@ -17,6 +15,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -32,12 +31,13 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * A Bound Vex cures a zombie villager (Evoking II Parts 4-5 spec §2.2): on each scan ({@code BoundVex.scanDue}), when
- * the vex's summoner is here, the nearest zombie villager whose feet are in the guard area, that is alive, not
- * converting, not already {@code NoAI} (a map-made statue is left alone), carries no cure mark and is not claimed by
- * another living Bound Vex is taken, provided the vex has no target or the zombie villager's own target is the summoner
- * or an ally (an attacker is stopped even mid-fight). It is claimed, frozen ({@code setNoAi(true)}) and given the cure
- * mark ({@link AllyAttachments#CURE}). The vex then flies to within {@link #REACH} of the zombie villager's head (at
- * most {@link #APPROACH_LIMIT} ticks), feeds it a golden apple for {@link #APPLE_TICKS} ticks (the eat sound and
+ * the vex's summoner is here, the nearest zombie villager whose feet are in the guard area and that can be taken is
+ * taken. It can be taken if it is alive, not converting, not already {@code NoAI} (a map-made statue is left alone),
+ * carries no cure mark and is not claimed by another living Bound Vex. It must also meet one more condition: either the
+ * vex has no target, or the zombie villager's own target is the summoner or an ally (an attacker is stopped even
+ * mid-fight). The vex claims it, freezes it ({@code setNoAi(true)}) and gives it the cure mark
+ * ({@link AllyAttachments#CURE}). The vex then flies to within {@link Jobs#REACH} of the zombie villager's head (at
+ * most {@link Jobs#APPROACH_LIMIT} ticks), feeds it a golden apple for {@link #APPLE_TICKS} ticks (the eat sound and
  * crumbs), turns its head away and throws the cure potion at its feet for {@link #POTION_TICKS} ticks, and then begins
  * vanilla's conversion for {@link #CONVERSION_TICKS} ticks in the summoner's name, so the cured villager gives the
  * summoner vanilla's discount. The smoke, the freeze and its release belong to {@link CureEvents}, because the
@@ -53,11 +53,8 @@ import org.jspecify.annotations.Nullable;
  * the particle options) are docs/api-notes.md §23.
  */
 public final class CureZombieVillagerGoal extends Goal {
-    /** How near the zombie villager's head the vex works from. */
-    public static final double REACH = 1.5;
-
-    /** The most ticks the approach may take before the goal gives up. */
-    public static final int APPROACH_LIMIT = 100;
+    /** The most ticks the approach may take before the goal gives up ({@link Jobs#APPROACH_LIMIT}). */
+    public static final int APPROACH_LIMIT = Jobs.APPROACH_LIMIT;
 
     /** Ticks of the apple step. */
     public static final int APPLE_TICKS = 30;
@@ -71,12 +68,8 @@ public final class CureZombieVillagerGoal extends Goal {
     /** Ticks vanilla's conversion takes once begun (20 seconds). */
     public static final int CONVERSION_TICKS = 400;
 
-    /**
-     * Ticks after giving up an approach during which this vex starts no cure. The abort and the next scan can fall on
-     * the same goal-selector pass, so without it the vex would claim the same unreachable zombie villager again at
-     * once and it would never be released.
-     */
-    public static final int RETRY_DELAY = 200;
+    /** Ticks after giving up an approach during which this vex starts no cure ({@link Jobs#RETRY_DELAY}). */
+    public static final int RETRY_DELAY = Jobs.RETRY_DELAY;
 
     /** Ticks between the eat sound and crumbs in the apple step. */
     private static final int CRUMB_INTERVAL = 4;
@@ -86,9 +79,6 @@ public final class CureZombieVillagerGoal extends Goal {
 
     /** How far the vex turns its head away from the zombie villager before the throw, in degrees. */
     private static final double TURN_DEGREES = 60.0;
-
-    /** The move speed the vex is ordered to fly at. */
-    private static final double SPEED = 1.0;
 
     /** The speed the potion leaves the vex's hand at. */
     private static final float POTION_SPEED = 0.45F;
@@ -105,7 +95,7 @@ public final class CureZombieVillagerGoal extends Goal {
      */
     private static final double GOLEM_CALM_RADIUS = 24.0;
 
-    /** The four steps of spec §2.2. */
+    /** The first three steps of spec §2.2; step 4 is {@link #begin}. */
     private enum Step {
         APPROACH,
         APPLE,
@@ -115,10 +105,12 @@ public final class CureZombieVillagerGoal extends Goal {
     /**
      * Zombie villagers under a cure: zombie villager UUID to the claiming vex, so two vexes never share one (spec §4).
      * A claim whose vex is dead or removed is free, because a vex that dies, despawns or is unloaded never runs
-     * {@code stop()}. Cleared when the server stops. Like {@code RepairGolemGoal}'s map, the prune in {@code canUse}
-     * only frees memory.
+     * {@code stop()}. So is a claim whose zombie villager no longer carries the cure mark (the 300-tick rule in
+     * {@link CureEvents} released it): a vex that stops ticking mid-job holds nothing, and {@link #canContinueToUse}
+     * drops its job when it wakes. Cleared when the server stops. Like {@code RepairGolemGoal}'s map, the prune in
+     * {@code canUse} only frees memory.
      */
-    private static final Map<UUID, BoundVex> CLAIMED = new HashMap<>();
+    private static final Jobs.Claims CLAIMS = new Jobs.Claims();
 
     private final BoundVex vex;
 
@@ -138,9 +130,20 @@ public final class CureZombieVillagerGoal extends Goal {
         setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK));
     }
 
-    /** Forgets every claim (single-player loads one server per world in the same JVM); public for the GameTests. */
-    public static void clearClaims() {
-        CLAIMED.clear();
+    /** Forgets every claim (single-player loads one server per world in the same JVM). */
+    static void clearClaims() {
+        CLAIMS.clear();
+    }
+
+    /**
+     * Whether a live Bound Vex holds a claim on {@code subject} right now: its holder lives and the zombie villager
+     * still carries the cure mark. Exists for the GameTests, which read the claim map through it.
+     *
+     * @param subject any entity
+     * @return true while the claim counts
+     */
+    public static boolean isClaimed(Entity subject) {
+        return AllyAttachments.isBeingCured(subject) && CLAIMS.held(subject);
     }
 
     /**
@@ -167,7 +170,7 @@ public final class CureZombieVillagerGoal extends Goal {
     public boolean canUse() {
         // A vex that died, was discarded or unloaded never ran stop(); drop its claim so the map does not keep it
         // (and its level) reachable. Such a claim already counts as free in claimedByAnother.
-        CLAIMED.values().removeIf(holder -> holder.isRemoved() || !holder.isAlive());
+        CLAIMS.prune();
         if (!vex.scanDue(BoundVex.SCAN_INTERVAL) || vex.level().getGameTime() < blockedUntil) {
             return false;
         }
@@ -193,7 +196,6 @@ public final class CureZombieVillagerGoal extends Goal {
      */
     private boolean curable(ServerPlayer owner, ZombieVillager candidate) {
         if (!candidate.isAlive()
-                || candidate.isRemoved()
                 || candidate.isConverting()
                 || candidate.isNoAi()
                 || AllyAttachments.isBeingCured(candidate)
@@ -204,16 +206,12 @@ public final class CureZombieVillagerGoal extends Goal {
             return true;
         }
         LivingEntity theirs = candidate.getTarget();
-        return theirs != null && (theirs.getUUID().equals(owner.getUUID()) || Allies.isAllyOf(owner, theirs));
+        return theirs != null && Allies.isAllyOf(owner, theirs);
     }
 
-    /** Whether a living Bound Vex other than this one holds the claim on {@code candidate}. */
+    /** Whether a living Bound Vex other than this one holds a live claim on {@code candidate}. */
     private boolean claimedByAnother(ZombieVillager candidate) {
-        BoundVex holder = CLAIMED.get(candidate.getUUID());
-        return holder != null
-                && holder.isAlive()
-                && !holder.isRemoved()
-                && !holder.getUUID().equals(vex.getUUID());
+        return AllyAttachments.isBeingCured(candidate) && CLAIMS.heldByAnother(candidate, vex);
     }
 
     @Override
@@ -226,9 +224,9 @@ public final class CureZombieVillagerGoal extends Goal {
         if (subject == null) {
             return;
         }
-        CLAIMED.put(subject.getUUID(), vex);
         subject.setNoAi(true);
         subject.setData(AllyAttachments.CURE, subject.level().getGameTime());
+        CLAIMS.claim(subject, vex);
         calmGolems(subject);
         step = Step.APPROACH;
         stepTicks = 0;
@@ -253,14 +251,17 @@ public final class CureZombieVillagerGoal extends Goal {
     }
 
     /**
-     * Continues while the subject is alive and here, the summoner is here, the steps are not finished and the approach
-     * has not timed out. Deliberately not the vex's target (spec §2.2).
+     * Continues while the subject is alive, still carries the cure mark and is still this vex's claim, the summoner is
+     * here, the steps are not finished and the approach has not timed out. Deliberately not the vex's target (spec
+     * §2.2). A subject that lost its mark was released by {@link CureEvents} (and another vex may have claimed it
+     * since): a vex that wakes after that drops the job.
      */
     @Override
     public boolean canContinueToUse() {
         return subject != null
                 && subject.isAlive()
-                && !subject.isRemoved()
+                && AllyAttachments.isBeingCured(subject)
+                && CLAIMS.heldBy(subject, vex)
                 && vex.summoner().isPresent()
                 && !finished
                 && !(step == Step.APPROACH && approachTicks >= APPROACH_LIMIT);
@@ -272,7 +273,7 @@ public final class CureZombieVillagerGoal extends Goal {
             return;
         }
         Vec3 head = new Vec3(subject.getX(), subject.getEyeY(), subject.getZ());
-        boolean near = vex.position().distanceTo(head) <= REACH;
+        boolean near = vex.position().distanceTo(head) <= Jobs.REACH;
         if (near) {
             // Vanilla's vex move control flies to within about half a block of its wanted point, so a vex left
             // flying would end inside the head (the head turn would degenerate and the throw go straight down):
@@ -281,7 +282,7 @@ public final class CureZombieVillagerGoal extends Goal {
             vex.setDeltaMovement(Vec3.ZERO);
         } else {
             // Step 1 flies there; the later steps fly back if the vex drifted off.
-            vex.getMoveControl().setWantedPosition(head.x, head.y, head.z, SPEED);
+            vex.getMoveControl().setWantedPosition(head.x, head.y, head.z, Jobs.SPEED);
         }
         vex.getLookControl().setLookAt(head.x, head.y, head.z);
         if (step == Step.APPROACH) {
@@ -394,10 +395,11 @@ public final class CureZombieVillagerGoal extends Goal {
         }
         vex.dismiss(EquipmentSlot.MAINHAND);
         if (subject != null) {
-            UUID self = vex.getUUID();
-            CLAIMED.computeIfPresent(
-                    subject.getUUID(), (id, holder) -> holder.getUUID().equals(self) ? null : holder);
-            if (!finished && !subject.isRemoved() && !subject.isConverting()) {
+            // A subject that lost its mark was released by CureEvents, and one claimed since is another vex's job:
+            // either way nothing here is this vex's to undo.
+            boolean mine = AllyAttachments.isBeingCured(subject) && CLAIMS.heldBy(subject, vex);
+            CLAIMS.release(subject, vex);
+            if (mine && !finished && !subject.isRemoved() && !subject.isConverting()) {
                 subject.setNoAi(false);
                 subject.removeData(AllyAttachments.CURE);
             }
