@@ -25,9 +25,9 @@ import org.jspecify.annotations.Nullable;
  * {@link #REACH} of the golem's chest, conjures an iron ingot there, and every {@link #TAP_INTERVAL} ticks swings,
  * plays the repair sound and heals {@link #HEAL} (vanilla's ingot amount). When the golem is full, or the repair
  * stops for any reason (a target, the summoner gone, the golem out of the area or mad, flee or dodge taking over),
- * the ingot goes and the item the vex held comes back. The held item lives in this goal until Part 3's stash: a vex
- * unloaded, saved and reloaded, or carried through a portal while repairing keeps the ingot (a known gap, on the
- * playtest checklist). Repair outranks follow, so a summoner who walks off waits until the golem is full: at most four
+ * the ingot goes and the item the vex held comes back. The item the vex held waits in its stash
+ * ({@code BoundVex.conjure}, Part 3 spec §5.1), which is saved: a vex unloaded and reloaded, or carried through a
+ * portal while repairing, gets its item back on load. Repair outranks follow, so a summoner who walks off waits until the golem is full: at most four
  * taps (a golem under 25 health needs them all), which is 4.5 seconds (90 ticks) after the vex reaches the golem, plus
  * the flight there.
  */
@@ -58,8 +58,6 @@ final class RepairGolemGoal extends Goal {
     @Nullable
     private IronGolem golem;
 
-    private ItemStack held = ItemStack.EMPTY;
-    private boolean conjured;
     private int ticksSinceTap;
 
     RepairGolemGoal(BoundVex vex) {
@@ -125,7 +123,6 @@ final class RepairGolemGoal extends Goal {
             return;
         }
         CLAIMED.put(golem.getUUID(), vex);
-        conjured = false;
         ticksSinceTap = 0;
     }
 
@@ -149,10 +146,8 @@ final class RepairGolemGoal extends Goal {
             vex.getMoveControl().setWantedPosition(chest.x, chest.y, chest.z, SPEED);
             return;
         }
-        if (!conjured) {
-            held = vex.getMainHandItem().copy();
-            vex.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_INGOT));
-            conjured = true;
+        if (!vex.isConjured(EquipmentSlot.MAINHAND)) {
+            vex.conjure(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_INGOT));
         }
         if (ticksSinceTap == 0) {
             tap(golem);
@@ -178,11 +173,7 @@ final class RepairGolemGoal extends Goal {
             CLAIMED.computeIfPresent(
                     golem.getUUID(), (id, holder) -> holder.getUUID().equals(self) ? null : holder);
         }
-        if (conjured) {
-            vex.setItemSlot(EquipmentSlot.MAINHAND, held);
-        }
-        held = ItemStack.EMPTY;
-        conjured = false;
+        vex.dismiss(EquipmentSlot.MAINHAND);
         golem = null;
     }
 }

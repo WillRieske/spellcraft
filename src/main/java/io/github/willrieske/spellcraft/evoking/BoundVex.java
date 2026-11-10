@@ -3,9 +3,12 @@ package io.github.willrieske.spellcraft.evoking;
 import io.github.willrieske.spellcraft.spell.Allies;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.rules.GuardArea;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
@@ -16,12 +19,15 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.SpawnGroupData;
@@ -36,6 +42,7 @@ import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.storage.ValueInput;
@@ -61,6 +68,13 @@ public class BoundVex extends Vex {
 
     private static final String STAYING_TAG = "staying";
 
+    /** The slots a Bound Vex can hold gear in (Part 3 spec §4.1, §5.1). */
+    public static final List<EquipmentSlot> GEAR_SLOTS = List.of(
+            EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND, EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS);
+
+    private static final String STASH_TAG_PREFIX = "stash_";
+    private static final String CONJURED_TAG_PREFIX = "conjured_";
+
     /** Ticks between the target goals' scans (spec §3.4 "every 10 ticks"); read through {@link #scanDue}. */
     static final int SCAN_INTERVAL = 10;
 
@@ -77,6 +91,12 @@ public class BoundVex extends Vex {
     private List<Mob> alliesCache = List.of();
 
     private int alliesTick = -1;
+
+    /** Given items set aside while a conjured item sits in their slot (Part 3 spec §5.1). */
+    private final Map<EquipmentSlot, ItemStack> stash = new EnumMap<>(EquipmentSlot.class);
+
+    /** The slots that hold a conjured item right now: never dropped, never taken (Part 3 spec §5.1). */
+    private final Set<EquipmentSlot> conjured = EnumSet.noneOf(EquipmentSlot.class);
 
     public BoundVex(EntityType<? extends BoundVex> type, Level level) {
         super(type, level);
@@ -128,6 +148,15 @@ public class BoundVex extends Vex {
     protected void addAdditionalSaveData(ValueOutput output) {
         super.addAdditionalSaveData(output);
         output.putBoolean(STAYING_TAG, isStaying());
+        for (EquipmentSlot slot : GEAR_SLOTS) {
+            // ItemStack.CODEC rejects an empty stack, so only a real stash is written.
+            if (!stashed(slot).isEmpty()) {
+                output.store(STASH_TAG_PREFIX + slot.getName(), ItemStack.CODEC, stashed(slot));
+            }
+            if (isConjured(slot)) {
+                output.putBoolean(CONJURED_TAG_PREFIX + slot.getName(), true);
+            }
+        }
     }
 
     @Override
@@ -140,6 +169,16 @@ public class BoundVex extends Vex {
         if (range != null) {
             range.setBaseValue(GuardArea.FOLLOW_RANGE);
         }
+        stash.clear();
+        conjured.clear();
+        for (EquipmentSlot slot : GEAR_SLOTS) {
+            input.read(STASH_TAG_PREFIX + slot.getName(), ItemStack.CODEC).ifPresent(stack -> stash.put(slot, stack));
+            if (input.getBooleanOr(CONJURED_TAG_PREFIX + slot.getName(), false)) {
+                conjured.add(slot);
+            }
+        }
+        // The goal that conjured the item is not running after a load or a cross-dimension copy (Part 3 spec §5.1).
+        GEAR_SLOTS.forEach(this::dismiss);
     }
 
     /**
@@ -192,6 +231,102 @@ public class BoundVex extends Vex {
             range.removeModifier(RANDOM_SPAWN_BONUS_ID);
         }
         return data;
+    }
+
+    /**
+     * Puts a conjured item in {@code slot} (Part 3 spec §5.1). If the slot is not conjured yet, what it holds moves to
+     * the stash first; conjuring over a conjured item just replaces it.
+     *
+     * @param slot a gear slot
+     * @param stack the conjured item
+     */
+    public void conjure(EquipmentSlot slot, ItemStack stack) {
+        if (conjured.add(slot)) {
+            stash.put(slot, getItemBySlot(slot).copy());
+        }
+        setItemSlot(slot, stack);
+    }
+
+    /**
+     * Ends the conjure in {@code slot}: the conjured item goes and the stashed item returns (Part 3 spec §5.1). Does
+     * nothing for a slot that is not conjured.
+     *
+     * @param slot a gear slot
+     */
+    public void dismiss(EquipmentSlot slot) {
+        if (conjured.remove(slot)) {
+            ItemStack back = stash.remove(slot);
+            setItemSlot(slot, back != null ? back : ItemStack.EMPTY);
+        }
+    }
+
+    /**
+     * Whether {@code slot} holds a conjured item right now.
+     *
+     * @param slot a gear slot
+     * @return true while a conjure is in effect
+     */
+    public boolean isConjured(EquipmentSlot slot) {
+        return conjured.contains(slot);
+    }
+
+    /**
+     * The item set aside for {@code slot} while a conjured item sits there.
+     *
+     * @param slot a gear slot
+     * @return the stashed stack, or {@link ItemStack#EMPTY}
+     */
+    public ItemStack stashed(EquipmentSlot slot) {
+        return stash.getOrDefault(slot, ItemStack.EMPTY);
+    }
+
+    /**
+     * Puts a gift in the stash of a conjured slot, to come back when the conjure ends (Part 3 spec §5.1). Public
+     * for the give click (Part 3 plan Task 5) and the GameTests in another package.
+     *
+     * @param slot a conjured gear slot
+     * @param gift the item given
+     * @return what the stash held before, or {@link ItemStack#EMPTY}
+     */
+    public ItemStack stashGift(EquipmentSlot slot, ItemStack gift) {
+        ItemStack before = stash.put(slot, gift);
+        return before != null ? before : ItemStack.EMPTY;
+    }
+
+    /**
+     * Drops everything the vex was given (Part 3 spec §5.2): conjured items vanish and their stashed items return to
+     * their slots, then every gear slot is marked a guaranteed drop, which vanilla drops undamaged whoever the killer
+     * was (docs/api-notes.md §22). The marks are set here, not at spawn: vanilla zeroes the main hand's chance at
+     * spawn and saves the chances.
+     */
+    @Override
+    protected void dropCustomDeathLoot(ServerLevel level, DamageSource source, boolean killedByPlayer) {
+        for (EquipmentSlot slot : GEAR_SLOTS) {
+            dismiss(slot);
+            setGuaranteedDrop(slot);
+        }
+        super.dropCustomDeathLoot(level, source, killedByPlayer);
+    }
+
+    /**
+     * On Peaceful, vanilla discards the vex with no death and no drops (docs/api-notes.md §22), so its gear is dropped
+     * here first (Part 3 spec §5.2).
+     */
+    @Override
+    public void checkDespawn() {
+        if (level() instanceof ServerLevel level
+                && level.getDifficulty() == Difficulty.PEACEFUL
+                && !getType().isAllowedInPeaceful()) {
+            for (EquipmentSlot slot : GEAR_SLOTS) {
+                dismiss(slot);
+                ItemStack stack = getItemBySlot(slot);
+                if (!stack.isEmpty()) {
+                    spawnAtLocation(level, stack);
+                    setItemSlot(slot, ItemStack.EMPTY);
+                }
+            }
+        }
+        super.checkDespawn();
     }
 
     /** Whether the vex holds its post instead of following. */
