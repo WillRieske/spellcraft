@@ -2521,7 +2521,7 @@ git commit -m "feat(evoking): starting a team move picks the roster and conjures
   - `TeamMoveGoal` (public final, package-private constructor): priority 1, flags `MOVE` and `LOOK`; `canUse` while `TeamMoves.membership(vex)` is present; `start` and `tick` put the kit back (`TeamMoveKits.restore`); `stop` dismisses the kit only when the record no longer lists the vex.
   - `TeamMoveTestSupport.stepEveryTick(GameTestHelper, ServerPlayer)`, `TeamMoveTestSupport.goalOf(BoundVex)` → `TeamMoveGoal`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `TeamMoveTestSupport`:
 
@@ -3039,12 +3039,12 @@ static void serverStopClearsRecords(GameTestHelper helper) {
 }
 ```
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_end_*"`
 Expected: compilation fails (`TeamMoves.tick`, `cooling`, `age`, `onLogout`, `TeamMoveGoal` do not exist).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `TeamMoves` gets (the class gains `@EventBusSubscriber(modid = Spellcraft.MODID)`):
 
@@ -3313,12 +3313,12 @@ public final class TeamMoveGoal extends Goal {
 
 Give `shouldEnd`, `releaseRoster`, `Membership`, the goal's constructor and its `vex` field Javadoc too (the snippets above show them; every member has Javadoc, private ones included).
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_end_*"` then `"-PgameTests=spellcraft:team_move_goal_*"`.
 Expected: all pass. If `goalRunsInTheSelector` fails at priority, `BoundVex.registerGoals` has the wrong number or the goal is added in the wrong place. If `enemyBeyond48` fails at 47, read the husk's horizontal offset: the test places it 3 blocks from the hang point and the summoner stands under it, so 47 up is about 47.1 away; move the husk to the summoner's x and z if a different structure position changed that.
 
-- [ ] **Step 5: Full gates, then commit**
+- [x] **Step 5: Full gates, then commit**
 
 Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (expect `All M required tests passed`, M = the previous task's reported total plus the 21 tests this task registers; write M in the commit's as-built note).
 
@@ -3326,6 +3326,8 @@ Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (
 git add src/main/java/io/github/willrieske/spellcraft
 git commit -m "feat(evoking): team moves run, end by the spec's rules and keep the kit on"
 ```
+
+> **As built (`2d4c6e9`):** diverged — `start` reads the record with `get` and creates it only once the move begins, so a refusal leaves no empty record; `tick` never creates one; `clear()` unscripts `Dice.RAID_KIT`; reason: Task 4 review.
 
 ---
 
@@ -6925,6 +6927,7 @@ git commit -m "docs(evoking): Part 6 in the README, playtest items, mutation tes
 | 2 | `c19b658` | `@SuppressWarnings("EnumOrdinal")` with a why-comment on `TeamMove.arg()`, `next()` and the test's `Arg.roundTrips`; reason: Error Prone -Werror flags ordinal use, and the ordinal is the packet arg by design. |
 | 3 | `a24543f` | `frozenVexes` uses `Math.floorDiv(i, 4)` (Error Prone `NarrowCalculation`); the Bribe job test finds the worker by its conjured emerald because `BribeGoal.holds` is package-private; reason: compile rules, same behavior. |
 | 4 | `e37f437` | `DiceTest` is the GameTest `team_move_dice_script_rules` in `team_move_dice` (the brief's fallback: `RandomSource` is not on the unit-test classpath), so 14 tests (528); the Multishot test reads `ItemStack.getEnchantmentLevel(Holder)` (the helper is deprecated under -Werror); reason: classpath and compile rules. |
+| 5 | `2d4c6e9` | `start` reads the record with `get` and creates it only once the move begins, so a refusal leaves no empty record; `tick` never creates one; `clear()` unscripts `Dice.RAID_KIT`; reason: Task 4 review. |
 
 ## Resume State
 

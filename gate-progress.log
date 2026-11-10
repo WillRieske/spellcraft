@@ -111,3 +111,4 @@ Part 5 flaky-test fix (rescuer-target tests pause the follow goal until the vex 
 c19b658 Task 2 unit tests green (TeamMove*), build green
 a24543f Task 3 GameTests 514 passed x2
 e37f437 Task 4 GameTests 528 passed x2
+2d4c6e9 Task 5 GameTests 549 passed x2
