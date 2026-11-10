@@ -79,3 +79,5 @@ fa7ad8a Task 5: build green; All 275 required tests passed
 11b533c Task 6: build green; All 287 required tests passed twice
 d3b4c43 fix round (ranged keep range): build green; All 290 required tests passed x3
 1e3e3d2 Task 7: build green; runData exit 0 (does not construct renderers); All 290 required tests passed
+c63cf8f Task 6 fix round 1: build green; All 294 required tests passed twice
+644a2c2 Task 8: markdownlint clean (hook); pitest 271/275 killed (99%), line coverage 271/285; build green

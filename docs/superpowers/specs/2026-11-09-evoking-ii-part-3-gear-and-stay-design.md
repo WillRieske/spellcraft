@@ -1,7 +1,7 @@
 # Spellcraft: Evoking II Part 3, gear and the new stay (design)
 
 **Date:** 2026-11-09
-**Status:** plan written (`2026-11-09-evoking-ii-part-3.md`)
+**Status:** implemented 2026-11-09 via `2026-11-09-evoking-ii-part-3.md`
 **Written by:** `/one-shot`, unattended, on 2026-11-09, from Will's playtest report; §9 lists the
 decisions Will did not state.
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
@@ -247,8 +247,11 @@ unchanged). While the main hand holds a conjured item nothing is taken (§3).
 
 ### 4.5 Nothing is used up
 
-- Melee: `BoundVex.doHurtTarget` copies the main-hand stack before `super.doHurtTarget` and puts
-  the copy back after (durability and count restored).
+- Melee: nothing wears the weapon. In 26.3 the durability cost of a hit is in
+  `ItemStack.postHurtEnemy`, which only the player's attack path calls; `Mob.doHurtTarget` never
+  reaches it (found in the build; api-notes §22). `BoundVex.doHurtTarget` still copies the
+  main-hand stack before `super` and puts the copy back if it changed, as a guard against an
+  enchantment or a later version that does.
 - Armor: nothing to do. A mob's worn armor is never damaged in 26.3: `LivingEntity.hurtArmor` and
   `hurtHelmet` are empty (`LivingEntity.java:1957-1961`) and only `Player`, `Wolf` and `Horse`
   override them.

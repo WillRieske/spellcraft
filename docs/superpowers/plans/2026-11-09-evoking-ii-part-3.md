@@ -1097,7 +1097,7 @@ git commit -m "feat(evoking): draw a Bound Vex's helmet, chestplate and leggings
 
 - Modify: `README.md`, `docs/playtest-checklist.md`, `docs/mutation-testing.md`, `src/main/templates/META-INF/neoforge.mods.toml` (only if its description mentions vex clicks)
 
-- [ ] **Step 1: README.** In the Evoking paragraph (the sentences from "Click a vex with an empty hand to make it stay" on), replace the stay sentence and add gear, in the README's plain second-person voice:
+- [x] **Step 1: README.** In the Evoking paragraph (the sentences from "Click a vex with an empty hand to make it stay" on), replace the stay sentence and add gear, in the README's plain second-person voice:
 
 ```markdown
   Sneak and right-click a vex with an empty hand to make it stay: it hovers on that spot and guards a
@@ -1110,7 +1110,7 @@ git commit -m "feat(evoking): draw a Bound Vex's helmet, chestplate and leggings
   gave drops when it dies.
 ```
 
-- [ ] **Step 2: Playtest checklist.** In "Evoking II (Part 2)", rewrite the three click items (the lines beginning "Right-click a vex with an empty hand (not sneaking)", "Hold an ender pearl", and the portal line's "(a click still toggles stay)") for the sneak click, the hover ("it hangs still on that spot; it does not drift") and remove the repair item's known-gap note about the ingot if present. Then add after that section:
+- [x] **Step 2: Playtest checklist.** In "Evoking II (Part 2)", rewrite the three click items (the lines beginning "Right-click a vex with an empty hand (not sneaking)", "Hold an ender pearl", and the portal line's "(a click still toggles stay)") for the sneak click, the hover ("it hangs still on that spot; it does not drift") and remove the repair item's known-gap note about the ingot if present. Then add after that section:
 
 ```markdown
 ## Evoking II (Part 3)
@@ -1130,9 +1130,9 @@ git commit -m "feat(evoking): draw a Bound Vex's helmet, chestplate and leggings
 - [ ] Hold an ender pearl in your off hand, empty main hand, and click your vex (sneaking and not): no pearl is thrown.
 ```
 
-- [ ] **Step 3: Mutation testing.** `./gradlew pitest --console=plain > build/pitest.log 2>&1; echo "exit=$?"; grep -n "Generated\|mutations\|Line Coverage\|Mutation score\|killed" build/pitest.log | tail -10`. Add a row to the first table of `docs/mutation-testing.md` in the existing rows' form: `| 2026-11-09 (Evoking II Part 3) | <score> (<killed>/<total>; from 99%, 264/268, on 2026-11-08) | <line coverage> | <what survived in GuardArea.containsStaying, or "None new in spell.rules"> |`. If a `containsStaying` mutant survives, add the test row that kills it (a boundary value) and re-run.
+- [x] **Step 3: Mutation testing.** `./gradlew pitest --console=plain > build/pitest.log 2>&1; echo "exit=$?"; grep -n "Generated\|mutations\|Line Coverage\|Mutation score\|killed" build/pitest.log | tail -10`. Add a row to the first table of `docs/mutation-testing.md` in the existing rows' form: `| 2026-11-09 (Evoking II Part 3) | <score> (<killed>/<total>; from 99%, 264/268, on 2026-11-08) | <line coverage> | <what survived in GuardArea.containsStaying, or "None new in spell.rules"> |`. If a `containsStaying` mutant survives, add the test row that kills it (a boundary value) and re-run.
 
-- [ ] **Step 4: Verify and commit.** `./gradlew build` (recipe), then:
+- [x] **Step 4: Verify and commit.** `./gradlew build` (recipe), then:
 
 ```bash
 git add README.md docs src/main/templates
@@ -1141,6 +1141,8 @@ git add README.md docs src/main/templates
 ```bash
 git commit -m "docs: describe Bound Vex gear and the new stay; playtest items; mutation run"
 ```
+
+> **As built (`644a2c2`):** diverged — the Status-line step was done at plan review; a fix round for Task 6's review came first (`c63cf8f`: a ranged vex holds its fire near friends and its damage to its summoner or non-prey is cancelled; support gear is potions only; a blocked hit records its attacker; four tests added), which found that `Mob.doHurtTarget` never wears a weapon in 26.3 (the wear is in `ItemStack.postHurtEnemy`, player path only), so the restore in `BoundVex.doHurtTarget` is only a guard; reason: Task 6 review and the 26.3 sources.
 
 ---
 
@@ -1167,7 +1169,12 @@ git commit -m "docs: describe Bound Vex gear and the new stay; playtest items; m
 | 5 | `fa7ad8a` | `give` plays no armor sound of its own (`LivingEntity.onEquipItem` plays the equip sound for armor and an offhand shield) and plays `VEX_AMBIENT` for the main hand and for a gift that waits in the stash; the overflow drop is `Player.drop(back, false, Prediction.SERVER_ONLY)`; reason: api-notes §22 (Task 1). Task 3 also got a review fix round first (`36bfed5`: the return flight needs the vex nearly still and approaches at 0.25 inside 3 blocks; a staying vex loaded without a post gets one; two tests added). |
 | 6 | `11b533c` | `RangedGearGoal` and its constants are public (tests read them); `VexShots` aims potions from the projectile's own height (a vex's eyes are low) with the witch's speeds; `doHurtTarget` restores the weapon silently (`setItemSlot(…, true)`); the shield test's no-position damage is `generic()` (the vex is fire immune) and tests reset `damageCooldownTime`; the bow, potion and healing tests use a staying vex so the stay area bounds its targets; reason: implementer, 26.3 names and test stability. Task 4 also got a review fix round first (`8389c81`: `stashGift` guards and copies, conjure/dismiss are silent, the Peaceful drop honors `mob_drops` and Curse of Vanishing, three tests added). |
 | 7 | `1e3e3d2` | `BoundVexRenderer` is final (Error Prone `this-escape`); the fit is one `Fit` record per slot (a scale per axis and a downward shift) instead of one `SCALE`, because the vex body is 3×6×2 against a humanoid 8×12×4; sleeves and legs of the armor models are hidden; `runData` does NOT construct entity renderers, so the layer is proven by compilation only until the playtest; reason: implementer, from the 26.3 client code. A fix round came first (`d3b4c43`: a following vex with ranged gear keeps its target out to 12 blocks, since the 6–10 band is beyond the 7.25 reach; identical-piece swaps are audible; three tests added). |
+| 8 | `644a2c2` | the Status-line step was done at plan review; a fix round for Task 6's review came first (`c63cf8f`: a ranged vex holds its fire near friends and its damage to its summoner or non-prey is cancelled; support gear is potions only; a blocked hit records its attacker; four tests added), which found that `Mob.doHurtTarget` never wears a weapon in 26.3 (the wear is in `ItemStack.postHurtEnemy`, player path only), so the restore in `BoundVex.doHurtTarget` is only a guard; reason: Task 6 review and the 26.3 sources. |
 
 ## Resume State
 
-Not started. Baseline GameTests: 249 (measured 2026-11-09 at `667c882`, before Task 1; Task 1 Step 2 is already done).
+- Last completed task: Task 7: Seeing the armor (client)
+- Commit SHA: 644a2c2
+- Checkboxes: 37/50 ticked
+- Next task: none (plan complete)
+- Known-failing tests / caveats: All 8 tasks done; count_boxes says 37/50 because it counts the 13 unticked example boxes inside Task 8's fenced playtest block (organize_docs.checkbox_counts sees the plan as complete). GameTests: All 294 required tests passed twice at c63cf8f. The armor layer is proven by compilation only (runData does not build entity renderers): first playtest item. Not released: version 1.2.2 and tag follow the branch review.
