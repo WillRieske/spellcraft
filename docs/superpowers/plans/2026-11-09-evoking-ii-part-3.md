@@ -515,7 +515,7 @@ git commit -m "feat(evoking): stay on the sneak click; a staying vex hovers and 
 
 - Produces (all on `BoundVex`, public for the GameTests): `static final List<EquipmentSlot> GEAR_SLOTS` (`MAINHAND, OFFHAND, HEAD, CHEST, LEGS`); `void conjure(EquipmentSlot slot, ItemStack stack)`; `void dismiss(EquipmentSlot slot)`; `boolean isConjured(EquipmentSlot slot)`; `ItemStack stashed(EquipmentSlot slot)` (the stashed stack or `ItemStack.EMPTY`); package-private `ItemStack stashGift(EquipmentSlot slot, ItemStack gift)` (puts `gift` in the stash of a conjured slot and returns what was stashed, or `EMPTY`), used by Task 5.
 
-- [ ] **Step 1: `BoundVex`: the stash.** Add fields and methods (with Javadoc citing Part 3 spec §5.1):
+- [x] **Step 1: `BoundVex`: the stash.** Add fields and methods (with Javadoc citing Part 3 spec §5.1):
 
 ```java
     /** The slots a Bound Vex can hold gear in (Part 3 spec §4.1, §5.1). */
@@ -561,9 +561,9 @@ git commit -m "feat(evoking): stay on the sneak click; a staying vex hovers and 
 
 `stashGift` has no reader until Task 5: to satisfy "every method needs a reader", it is package-private (Error Prone's `UnusedMethod` only flags private members) and Step 5's test `giftDuringAConjureWaitsInTheStash` calls it.
 
-- [ ] **Step 2: Saving.** In `addAdditionalSaveData`, for each slot in `GEAR_SLOTS`: if `stashed(slot)` is not empty, `output.store(STASH_TAG_PREFIX + slot.getName(), ItemStack.CODEC, stashed(slot))`; if `isConjured(slot)`, `output.putBoolean(CONJURED_TAG_PREFIX + slot.getName(), true)`. In `readAdditionalSaveData` (after `super`, which has loaded the equipment): clear both collections; for each slot, `input.read(STASH_TAG_PREFIX + slot.getName(), ItemStack.CODEC).ifPresent(stack -> stash.put(slot, stack))`, and if `input.getBooleanOr(CONJURED_TAG_PREFIX + slot.getName(), false)` add the slot to `conjured`; then `GEAR_SLOTS.forEach(this::dismiss)` with the comment "the goal that conjured the item is not running after a load or a cross-dimension copy (Part 3 spec §5.1)". **Confirm** `output.store(String, Codec, T)` and `input.read(String, Codec)` against `Mob.java:388-389, 417` and that an empty `ItemStack` is never passed to `ItemStack.CODEC` (it rejects empty stacks; the "not empty" guard above is why). A conjured slot whose stash was empty has no stash entry: `dismiss` then empties the slot.
+- [x] **Step 2: Saving.** In `addAdditionalSaveData`, for each slot in `GEAR_SLOTS`: if `stashed(slot)` is not empty, `output.store(STASH_TAG_PREFIX + slot.getName(), ItemStack.CODEC, stashed(slot))`; if `isConjured(slot)`, `output.putBoolean(CONJURED_TAG_PREFIX + slot.getName(), true)`. In `readAdditionalSaveData` (after `super`, which has loaded the equipment): clear both collections; for each slot, `input.read(STASH_TAG_PREFIX + slot.getName(), ItemStack.CODEC).ifPresent(stack -> stash.put(slot, stack))`, and if `input.getBooleanOr(CONJURED_TAG_PREFIX + slot.getName(), false)` add the slot to `conjured`; then `GEAR_SLOTS.forEach(this::dismiss)` with the comment "the goal that conjured the item is not running after a load or a cross-dimension copy (Part 3 spec §5.1)". **Confirm** `output.store(String, Codec, T)` and `input.read(String, Codec)` against `Mob.java:388-389, 417` and that an empty `ItemStack` is never passed to `ItemStack.CODEC` (it rejects empty stacks; the "not empty" guard above is why). A conjured slot whose stash was empty has no stash entry: `dismiss` then empties the slot.
 
-- [ ] **Step 3: Drops.**
+- [x] **Step 3: Drops.**
 
 ```java
     /**
@@ -603,7 +603,7 @@ git commit -m "feat(evoking): stay on the sneak click; a staying vex hovers and 
     }
 ```
 
-- [ ] **Step 4: `RepairGolemGoal` onto the stash.** Remove the `held` and `conjured` fields. In `tick`: replace the `if (!conjured) {…}` block with
+- [x] **Step 4: `RepairGolemGoal` onto the stash.** Remove the `held` and `conjured` fields. In `tick`: replace the `if (!conjured) {…}` block with
 
 ```java
         if (!vex.isConjured(EquipmentSlot.MAINHAND)) {
@@ -613,7 +613,7 @@ git commit -m "feat(evoking): stay on the sneak click; a staying vex hovers and 
 
 In `start` drop the `conjured = false;` line. In `stop` replace the `if (conjured) {…}`, `held = …` and `conjured = false` lines with `vex.dismiss(EquipmentSlot.MAINHAND);`. Rewrite the class Javadoc's "The held item lives in this goal until Part 3's stash … (a known gap, on the playtest checklist)" sentence: the given item waits in the vex's stash (`BoundVex.conjure`), which is saved, and a vex loaded mid-repair gets its item back. Run the existing repair GameTests' greps (`grep -n "IRON_INGOT\|getMainHandItem" src/main/java/io/github/willrieske/spellcraft/gametest/BoundVexJobGameTests.java`) and keep them green; a test that pinned the known gap (ingot kept after a reload) must now assert the sword is back.
 
-- [ ] **Step 5: GameTests.** Create `BoundVexGearGameTests` (class Javadoc: "Bound Vex GameTests (Evoking II Part 3 spec §3–§5, §8): the stash, drops, saving, giving, taking back, fighting with gear."), `registerAll()` with names `bound_vex_gear_<name>`; these fit the shared box (`SpellcraftGameTests.add`) unless noted. Use `summoner(helper)` and `parked(helper, VEX_SPOT, player)`.
+- [x] **Step 5: GameTests.** Create `BoundVexGearGameTests` (class Javadoc: "Bound Vex GameTests (Evoking II Part 3 spec §3–§5, §8): the stash, drops, saving, giving, taking back, fighting with gear."), `registerAll()` with names `bound_vex_gear_<name>`; these fit the shared box (`SpellcraftGameTests.add`) unless noted. Use `summoner(helper)` and `parked(helper, VEX_SPOT, player)`.
 
 | Method | Arrange → Act → Assert |
 |---|---|
@@ -625,7 +625,7 @@ In `start` drop the `conjured = false;` line. In `stop` replace the `if (conjure
 
 Delta: 5 tests.
 
-- [ ] **Step 6: Verify** (`spotlessApply`, `build`, `runGameTestServer`; total = previous + 5) and **commit**:
+- [x] **Step 6: Verify** (`spotlessApply`, `build`, `runGameTestServer`; total = previous + 5) and **commit**:
 
 ```bash
 git add src/main/java/io/github/willrieske/spellcraft/evoking src/main/java/io/github/willrieske/spellcraft/gametest
@@ -634,6 +634,8 @@ git add src/main/java/io/github/willrieske/spellcraft/evoking src/main/java/io/g
 ```bash
 git commit -m "feat(evoking): a gear stash for Bound Vexes; given gear drops on death and on Peaceful"
 ```
+
+> **As built (`53e2f9f`):** diverged — `stashGift` is public (the GameTests are in another package); the Peaceful drop test runs in its own environment `peaceful_gear` (two tests in one `peaceful` batch run side by side and the difficulty change broke the other); reason: implementer, both needed to compile and pass.
 
 ---
 
@@ -1155,6 +1157,7 @@ git commit -m "docs: describe Bound Vex gear and the new stay; playtest items; m
 |---|---|---|
 | 1 | `8854374` | the sources corrected the plan in four places later tasks use: `Player.drop` takes three arguments (`drop(ItemStack, boolean thrownFromHand, Prediction)`); `SoundEvents.ARMOR_EQUIP_GENERIC` and `SHIELD_BLOCK` are holders (`.value()`); `LivingEntity.onEquipItem` already plays the equip sound for armor and an offhand shield set with `setItemSlot`, so Task 5 plays no armor sound of its own; mobs launch projectiles with `Projectile.spawnProjectileUsingShoot` (signatures in api-notes §22); reason: api-notes §22 records what `build/mc-src` says. |
 | 3 | `222c588` | `POST_TOLERANCE` is public (the GameTests are in another package); the stay tests hang the vex at `FEET.above(4)` (the barrier shell at `FEET.above(2)` blocks line of sight) and place husks with no gravity by absolute `setPos` from the post point instead of on stone at structure coordinates (rotated tests put those a block off); the two "drops the target" tests wait with `thenWaitUntil` instead of a 30-tick window; reason: implementer, to make the tests correct under rotation and Error Prone. |
+| 4 | `53e2f9f` | `stashGift` is public (the GameTests are in another package); the Peaceful drop test runs in its own environment `peaceful_gear` (two tests in one `peaceful` batch run side by side and the difficulty change broke the other); reason: implementer, both needed to compile and pass. |
 
 ## Resume State
 
