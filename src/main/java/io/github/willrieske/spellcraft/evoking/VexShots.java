@@ -174,11 +174,13 @@ final class VexShots {
                     if (friend.equals(vex) || friend.equals(target) || !friend.isAlive()) {
                         return false;
                     }
+                    // checked first: Allies.isAllyOf counts every Bound Vex of the summoner, which would hide this
+                    if (friend instanceof BoundVex other && ignoring.contains(other.getUUID())) {
+                        return false;
+                    }
                     boolean isFriend = friend.getUUID().equals(owner.getUUID())
                             || Allies.isAllyOf(owner, friend)
-                            || (friend instanceof BoundVex other
-                                    && other.isSummonedBy(owner.getUUID())
-                                    && !ignoring.contains(other.getUUID()));
+                            || (friend instanceof BoundVex other && other.isSummonedBy(owner.getUUID()));
                     if (!isFriend) {
                         return false;
                     }

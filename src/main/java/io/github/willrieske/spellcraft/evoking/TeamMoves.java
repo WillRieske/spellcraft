@@ -362,8 +362,9 @@ public final class TeamMoves {
     private static void advance(ServerPlayer owner, Move record, long now) {
         switch (record.move) {
             case EVADER -> EvaderMove.guard(owner, record, now);
-            default -> {
-                // the other moves have nothing at record level, or get it with the task that builds them
+            case RAID -> RaidMove.advance(record, now);
+            case SHIELD, MULTISHOT, NONE -> {
+                // nothing at record level
             }
         }
     }
