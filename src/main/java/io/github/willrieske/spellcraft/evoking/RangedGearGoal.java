@@ -20,6 +20,15 @@ public final class RangedGearGoal extends Goal {
     /** Farther than this and the vex flies in (spec §4.3). */
     public static final double MAX_DISTANCE = 10.0;
 
+    /**
+     * How far past {@link #MAX_DISTANCE} a following vex still keeps its target ({@code BoundVex.keepsTarget}, Part 3
+     * spec §4.3). The vex flies to the middle of the band and coasts on after the goal's last order, and the goal turns
+     * it back only once it is beyond {@link #MAX_DISTANCE}: with the limit exactly there, the coast alone carried it a
+     * hair past and the target was dropped for good (the guard box does not take it again from that far). The margin
+     * lets the goal turn the vex back before the target goes.
+     */
+    public static final double KEEP_MARGIN = 2.0;
+
     /** Ticks between shots (spec §4.3). */
     public static final int SHOT_INTERVAL = 40;
 

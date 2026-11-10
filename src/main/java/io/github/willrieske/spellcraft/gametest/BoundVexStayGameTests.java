@@ -10,6 +10,8 @@ import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARE
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.spell.rules.GuardArea;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -126,8 +128,9 @@ public final class BoundVexStayGameTests {
 
     /**
      * When a staying Bound Vex is moved ten blocks off its post, should fly back to within the post tolerance and then
-     * settle: over the next hundred ticks it stays within the tolerance plus half a block, so a long flight's coast
-     * does not make it overshoot and wobble.
+     * settle: over the next hundred ticks it stays within the tolerance plus half a block, and at the end it is
+     * nearly still ({@code BoundVex.STILL_SPEED_SQR}) and within a quarter block of where it was forty ticks earlier,
+     * so a long flight's coast does not make it overshoot and wobble by up to half a block unnoticed.
      *
      * <p>Method under test: {@code BoundVex.HoldPostGoal}, through the goal selector
      */
@@ -138,17 +141,32 @@ public final class BoundVexStayGameTests {
         vex.setStaying(true);
         Vec3 post = postOf(helper, vex);
         vex.setPos(post.add(10.0, 0.0, 0.0));
+        AtomicInteger ticks = new AtomicInteger();
+        AtomicReference<Vec3> earlier = new AtomicReference<>();
 
         // Act & Assert
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(
                         vex.position().distanceTo(post) <= BoundVex.POST_TOLERANCE,
                         "back at the post, got " + vex.position().distanceTo(post)))
-                .thenExecuteFor(
-                        100,
-                        () -> helper.assertTrue(
-                                vex.position().distanceTo(post) <= BoundVex.POST_TOLERANCE + 0.5,
-                                "settles at the post, got " + vex.position().distanceTo(post)))
+                .thenExecuteFor(100, () -> {
+                    helper.assertTrue(
+                            vex.position().distanceTo(post) <= BoundVex.POST_TOLERANCE + 0.5,
+                            "settles at the post, got " + vex.position().distanceTo(post));
+                    if (ticks.incrementAndGet() == 60) {
+                        earlier.set(vex.position());
+                    }
+                })
+                .thenExecute(() -> {
+                    helper.assertTrue(
+                            vex.getDeltaMovement().lengthSqr() < BoundVex.STILL_SPEED_SQR,
+                            "nearly still, speed squared "
+                                    + vex.getDeltaMovement().lengthSqr());
+                    helper.assertTrue(
+                            vex.position().distanceTo(earlier.get()) <= 0.25,
+                            "hangs where it was forty ticks ago, moved "
+                                    + vex.position().distanceTo(earlier.get()));
+                })
                 .thenSucceed();
     }
 

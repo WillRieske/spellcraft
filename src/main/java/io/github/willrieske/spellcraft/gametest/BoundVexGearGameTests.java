@@ -28,6 +28,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.InteractionHand;
@@ -131,6 +132,14 @@ public final class BoundVexGearGameTests {
                 SHARED, "bound_vex_gear_stranger_cannot_give_or_take", BoundVexGearGameTests::strangerCannotGiveOrTake);
         SpellcraftGameTests.add(
                 SHARED, "bound_vex_gear_sneak_with_gear_still_gives", BoundVexGearGameTests::sneakWithGearStillGives);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_gear_a_full_inventory_drops_the_returned_item",
+                BoundVexGearGameTests::aFullInventoryDropsTheReturnedItem);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_gear_an_identical_helmet_swap_is_audible",
+                BoundVexGearGameTests::identicalHelmetSwapIsAudible);
     }
 
     /** The item entities within three blocks of {@code center}. */
@@ -544,6 +553,38 @@ public final class BoundVexGearGameTests {
         // Assert
         helper.assertTrue(player.getMainHandItem().is(Items.DIAMOND_SWORD), "the creative hand keeps its sword");
         helper.assertTrue(vex.getMainHandItem().is(Items.DIAMOND_SWORD), "the vex holds a diamond sword too");
+        // The iron sword the vex held is returned like any other: it fits the inventory, so nothing is dropped.
+        helper.assertValueEqual(inventoryCount(player, Items.IRON_SWORD), 1, "iron swords handed back");
+        helper.assertValueEqual(
+                countOf(itemsNear(helper, player.position()), Items.IRON_SWORD), 0L, "iron swords dropped");
+        helper.succeed();
+    }
+
+    /**
+     * When the summoner's inventory is full and the summoner gives a diamond sword to a vex holding its iron sword,
+     * should leave the diamond sword in the vex's main hand and drop exactly one iron sword near the player.
+     *
+     * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     */
+    static void aFullInventoryDropsTheReturnedItem(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        Vec3 where = player.position();
+        whenDone(helper, () -> itemsNear(helper, where).forEach(ItemEntity::discard));
+        for (int slot = 0; slot < player.getInventory().getNonEquipmentItems().size(); slot++) {
+            player.getInventory().setItem(slot, new ItemStack(Items.DIRT, 64));
+        }
+        // A sword stacks to one; a count of two leaves one in the hand, so the hand's slot does not free up.
+        ItemStack swords = new ItemStack(Items.DIAMOND_SWORD, 2);
+
+        // Act
+        click(vex, player, swords);
+
+        // Assert
+        helper.assertTrue(vex.getMainHandItem().is(Items.DIAMOND_SWORD), "the vex holds the diamond sword");
+        helper.assertValueEqual(inventoryCount(player, Items.IRON_SWORD), 0, "iron swords in the inventory");
+        helper.assertValueEqual(countOf(itemsNear(helper, where), Items.IRON_SWORD), 1L, "iron swords dropped");
         helper.succeed();
     }
 
@@ -677,6 +718,31 @@ public final class BoundVexGearGameTests {
         // Assert
         helper.assertTrue(vex.getItemBySlot(EquipmentSlot.HEAD).is(Items.IRON_HELMET), "the helmet is worn");
         helper.assertFalse(vex.isStaying(), "the vex does not stay");
+        helper.assertTrue(player.getMainHandItem().isEmpty(), "the helmet left the hand");
+        helper.succeed();
+    }
+
+    /**
+     * When a vex wears an iron helmet and the summoner gives it a second, identical iron helmet, should play the vex's
+     * own ambient sound (vanilla's equip sound stays silent for an identical piece) and hand the first helmet back.
+     *
+     * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     */
+    static void identicalHelmetSwapIsAudible(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = summoner(helper);
+        BoundVex vex = parked(helper, VEX_SPOT, player);
+        vex.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
+        GameTestSupport.drainSounds(player);
+
+        // Act
+        click(vex, player, new ItemStack(Items.IRON_HELMET));
+
+        // Assert
+        helper.assertTrue(
+                GameTestSupport.drainSounds(player).contains(SoundEvents.VEX_AMBIENT),
+                "the vex's ambient sound played");
+        helper.assertValueEqual(inventoryCount(player, Items.IRON_HELMET), 1, "helmets handed back");
         helper.succeed();
     }
 
@@ -690,6 +756,10 @@ public final class BoundVexGearGameTests {
                 SHARED,
                 "bound_vex_gear_a_bow_vex_shoots_and_keeps_its_distance",
                 BoundVexGearGameTests::aBowVexShootsAndKeepsItsDistance);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_gear_a_following_bow_vex_keeps_its_target_at_range",
+                BoundVexGearGameTests::aFollowingBowVexKeepsItsTargetAtRange);
         FangGameTests.addPadded(
                 SHARED,
                 "bound_vex_gear_a_harming_potion_vex_throws_at_its_target",
@@ -885,6 +955,39 @@ public final class BoundVexGearGameTests {
                     helper.assertTrue(vex.getMainHandItem().is(Items.SPLASH_POTION), "the vex still holds a potion");
                     helper.assertValueEqual(vex.getMainHandItem().getCount(), 1, "potions held");
                 })
+                .thenSucceed();
+    }
+
+    /**
+     * When a vex that follows (it does not stay) holds a bow and has a husk three blocks away, should back off to at
+     * least {@code MIN_DISTANCE - 1.5} blocks and shoot an arrow it owns within two hundred ticks, with the husk still
+     * its target at that moment and forty ticks later: the band (6 to 10 blocks) lies beyond the following reach, and
+     * the vex must not lose a target it stands off from.
+     *
+     * <p>Method under test: {@code BoundVex#keepsTarget} (package-private), through {@code RangedGearGoal} and the goal
+     * selector
+     */
+    static void aFollowingBowVexKeepsItsTargetAtRange(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = boundVex(helper, AIR_SPOT, player);
+        vex.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
+        Husk husk = huskAt(helper, vex.position(), 3.0, 0.0);
+        discardShotsWhenDone(helper, vex);
+        helper.assertFalse(vex.isStaying(), "setup: the vex follows");
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    helper.assertTrue(
+                            vex.distanceTo(husk) >= RangedGearGoal.MIN_DISTANCE - 1.5,
+                            "backed off, got " + vex.distanceTo(husk));
+                    helper.assertFalse(arrowsOf(helper, vex).isEmpty(), "an arrow of the vex flew");
+                })
+                .thenExecute(() -> helper.assertTrue(husk.equals(vex.getTarget()), "the husk is still the target"))
+                .thenIdle(40)
+                .thenExecute(() ->
+                        helper.assertTrue(husk.equals(vex.getTarget()), "the husk is still the target 40 ticks on"))
                 .thenSucceed();
     }
 

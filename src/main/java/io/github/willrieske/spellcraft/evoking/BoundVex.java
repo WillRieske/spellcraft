@@ -456,7 +456,7 @@ public class BoundVex extends Vex {
      * Whether a target is worth taking or keeping (spec §3.4): in this vex's level (a summoner's memory can name a
      * mob it left behind in another dimension, whose raw coordinates may line up), alive, attackable by this vex
      * ({@code Mob.canAttack}: false for a creative or spectator player, an invulnerable mob or a ghast, the targets
-     * {@code setTarget} would not hold), still prey, and, following, within {@link GuardArea#REACH}, or, staying, inside the stay area
+     * {@code setTarget} would not hold), still prey, and, following, within {@link GuardArea#REACH} ({@link #withinKeepRange}: wider for ranged gear), or, staying, inside the stay area
      * ({@link #inGuardArea}, Part 3 spec §2.3). The alive clause is a cheap
      * guard: {@code canAttack} already implies it for a living target ({@code LivingEntity.canBeSeenByAnyone}). Every
      * target goal's {@code canContinueToUse}, which replaces {@code TargetGoal}'s and never calls {@code super}
@@ -468,7 +468,22 @@ public class BoundVex extends Vex {
                 && target.isAlive()
                 && canAttack(target)
                 && isPrey(target)
-                && (isStaying() ? inGuardArea(target) : withinReach(target));
+                && (isStaying() ? inGuardArea(target) : withinKeepRange(target));
+    }
+
+    /**
+     * Whether a following vex still holds {@code target}: within {@link GuardArea#REACH}, except that a vex holding
+     * ranged gear keeps a target within {@link RangedGearGoal#MAX_DISTANCE} plus {@link RangedGearGoal#KEEP_MARGIN}
+     * (Part 3 spec §4.3). {@link RangedGearGoal} holds such a vex 6 to 10 blocks from its target, beyond the reach;
+     * with the reach as the limit it would back off, lose the target, return, take it again and never settle. Only the
+     * keeping widens: taking a target stays with the guard box.
+     */
+    private boolean withinKeepRange(Entity target) {
+        if (VexGear.isRanged(getMainHandItem())) {
+            double limit = RangedGearGoal.MAX_DISTANCE + RangedGearGoal.KEEP_MARGIN;
+            return distanceToSqr(target) <= limit * limit;
+        }
+        return withinReach(target);
     }
 
     /** Whether {@code other} is within {@link GuardArea#REACH} of this vex, feet to feet. */
@@ -525,8 +540,11 @@ public class BoundVex extends Vex {
     /** The distance from the post point inside which the return flight uses {@link #POST_APPROACH_SPEED}. */
     private static final double POST_NEAR = 3.0;
 
-    /** Squared speed (blocks per tick) below which a vex counts as still, so the return flight waits out a coast. */
-    private static final double STILL_SPEED_SQR = 0.01;
+    /**
+     * Squared speed (blocks per tick) below which a vex counts as still, so the return flight waits out a coast.
+     * Public for the GameTests, which live in another package.
+     */
+    public static final double STILL_SPEED_SQR = 0.01;
 
     /**
      * The point a staying vex hovers at and its stay area is centered on: the middle of the post block's floor
@@ -669,7 +687,8 @@ public class BoundVex extends Vex {
      * the slot holds a conjured item the gift waits in the stash and the previously stashed item comes back instead.
      * What does not fit the player's inventory is dropped at the player. {@code setItemSlot} plays the equip sound of
      * armor and of a shield in the off hand itself ({@code LivingEntity.onEquipItem}, docs/api-notes.md §22), so only
-     * the silent cases get the vex's own sound: the main hand, and a gift that goes to the stash.
+     * the silent cases get the vex's own sound: the main hand, a gift that goes to the stash, and a gift identical to
+     * the piece it replaces (vanilla plays no sound when the item and its components do not change).
      */
     private void give(Player player, ItemStack held, EquipmentSlot slot) {
         ItemStack gift = held.consumeAndReturn(1, player);
@@ -681,6 +700,8 @@ public class BoundVex extends Vex {
         } else {
             back = getItemBySlot(slot).copy();
             setItemSlot(slot, gift);
+            // Vanilla's onEquipItem plays nothing when the new piece is the same item with the same components.
+            silent |= ItemStack.isSameItemSameComponents(back, gift);
         }
         if (!back.isEmpty() && !player.getInventory().add(back)) {
             player.drop(back, false, Prediction.SERVER_ONLY);
