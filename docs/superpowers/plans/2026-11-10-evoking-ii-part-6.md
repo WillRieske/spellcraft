@@ -81,8 +81,6 @@ Run `./gradlew build` then `./gradlew runGameTestServer` once, both in the backg
 Check each line below in the sources (`Grep` the quoted names in `build/mc-src` and `build/nf-src`; keep or correct the cited line). They were read once while writing this plan; confirm them. If a line is wrong, write what the sources say and tell the coordinator which later task is affected.
 
 ```markdown
-
-> **As built (`4f42510`):** matches plan.
 ## 25. Evoking II, Part 6: team moves (Evoking II Part 6, Task 1)
 
 Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-src`; paths are under
@@ -167,12 +165,14 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
 
 Add to §25 anything else you had to look up for later steps.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/api-notes.md
 git commit -m "docs(evoking): api-notes 25, the vanilla facts behind Part 6"
 ```
+
+> **As built (`4f42510`):** matches plan.
 
 ---
 
@@ -6868,15 +6868,15 @@ git commit -m "feat(evoking): the Raid team move gathers in a grid, charges and 
 - Modify: `docs/superpowers/specs/2026-11-10-evoking-ii-parts-6-7-design.md` (only the as-built sentences listed below)
 - Modify: `src/test/java/…/spell/rules/TeamMoveRulesTest.java` and its siblings (the tests Step 4 adds to kill surviving mutants; the commit stages `src/test`)
 
-- [ ] **Step 1: README**
+- [x] **Step 1: README**
 
 In the Bound Vex paragraph (after Part 5's crit sentence, before "Fangs spare you and your allies"), add, in the README's own voice: your vexes act as a team. When something big comes close they grab conjured shields and take turns bashing it back (**Shield**); when a strong monster goes after one of them, that vex and two friends pull out crossbows that fire three arrows at once (**Multishot**); when you or an ally of yours drops below half health, up to three vexes circle the hurt one, shove away anything that comes close and knock arrows back (**Evader**); and when a giant (a Ravager, a Warden, the Wither, the Dragon) shows up and all twelve vexes are out, they gear up in netherite and diamond, line up in a 3 × 4 block and charge together while the crossbow vexes fire rockets (**Raid**). The conjured gear vanishes when the move ends and your own gear comes back; a vex in a move answers a click with "That vex is busy". Set `teamMoves` in the server config (section `evoking`) to `MANUAL` to turn the automatic triggers off; then **J** picks a move and **K** starts it. The keys rebind in Controls (they sit with the Evoking keys).
 
-- [ ] **Step 2: Mod description**
+- [x] **Step 2: Mod description**
 
 Read `src/main/templates/META-INF/neoforge.mods.toml`. It lists spells, not vex behaviors, and Part 6 adds no spell; add only this clause to the description line: `…and Strength of Evoking (whose Bound Vexes fight as a team).`
 
-- [ ] **Step 3: Playtest checklist**
+- [x] **Step 3: Playtest checklist**
 
 Add a section "Evoking II (Part 6)" to `docs/playtest-checklist.md`, after "Evoking II (Part 5)". The file's sections start with one intro sentence and use `- [ ]` bullets: start this section with one line of setup (survival world, Strength of Evoking on, twelve Bound Vexes out, Resistance for the fights) and write the items below as `- [ ]` bullets, not numbers (each is Will's to check; none is claimed). The numbers here are only for reference:
 
@@ -6891,12 +6891,12 @@ Add a section "Evoking II (Part 6)" to `docs/playtest-checklist.md`, after "Evok
 9. The moves with the Evoking effect gone: the vexes finish the move.
 10. The setting in the in-game config screen: "Team moves" under "Evoking".
 
-- [ ] **Step 4: Mutation testing**
+- [x] **Step 4: Mutation testing**
 
 Run: `./gradlew pitest` (background it if it takes over two minutes; read the summary from its report).
 Add a row to `docs/mutation-testing.md` for this part in the file's format: date 2026-11-10, the new classes `TeamMove` and `TeamMoveRules`, killed/total, and each surviving mutant with either the test added to kill it or one line on why it is equivalent. Add the tests that kill non-equivalent survivors, then rerun until only equivalents remain.
 
-- [ ] **Step 5: API notes and spec sentences that the code settled**
+- [x] **Step 5: API notes and spec sentences that the code settled**
 
 Re-read §25 against what Tasks 3–12 found; correct any line the sources contradicted, and add the facts the tasks needed that §25 did not have. In the Parts 6–7 spec, bring these sentences in line with the code as built (and with any divergence the earlier tasks' as-built notes record):
 
@@ -6910,7 +6910,7 @@ Re-read §25 against what Tasks 3–12 found; correct any line the sources contr
 - §4.4: the rocketeers ignore fellow members of the same Raid in the line-of-fire test (`VexShots.friendInTheWay` with the roster); the summoner, allies and Bound Vexes outside the roster still hold fire. Record both this and the Multishot arc slots in this step's as-built notes.
 - §5: the Raid's dice tests run in their own environment (`team_move_dice`) because the script is global; the 32-block free range is tested by `rangeIsThirtyTwo` (the player, not the vex, is moved).
 
-- [ ] **Step 6: Whole-plan checks**
+- [x] **Step 6: Whole-plan checks**
 
 Run:
 
@@ -6921,7 +6921,7 @@ git grep -n "message.spellcraft.team_move\|message.spellcraft.team_moves\|messag
 
 Expected: the first prints nothing (no Mixin, no access-transformer line); the second lists the keys this plan added: `vex_busy`, `team_move_shield`, `team_move_multishot`, `team_move_evader`, `team_move_raid`, `team_moves_automatic`, `team_move_running`, `team_move_cooling`, `team_move_unavailable`, `team_move_selected`, `key.spellcraft.team_move_cycle`, `key.spellcraft.team_move_go`, `team_move.spellcraft.shield|multishot|evader|raid`, `spellcraft.configuration.evoking`, `spellcraft.configuration.teamMoves`. Check each against the code that uses it (`Grep` the key in `src/main/java`), except the two `spellcraft.configuration.*` keys (looked up by config path, as `spellcraft.configuration.upsideDown` is) and the keys built by concatenation, which are checked by their prefix (`message.spellcraft.team_move_` in `TeamMoves.MESSAGE_PREFIX`, `team_move.spellcraft.` in `EvokingKeys`): none missing, none unused.
 
-- [ ] **Step 7: Gates and commit**
+- [x] **Step 7: Gates and commit**
 
 Run: `./gradlew spotlessApply build`, `./gradlew runData` (the client-dist boot: it loads the two new key mappings), `./gradlew runGameTestServer` twice.
 
@@ -6929,6 +6929,8 @@ Run: `./gradlew spotlessApply build`, `./gradlew runData` (the client-dist boot:
 git add README.md CLAUDE.md docs src/main/templates src/test
 git commit -m "docs(evoking): Part 6 in the README, playtest items, mutation testing, as-built spec notes"
 ```
+
+> **As built (`eef3d4c`):** diverged — controller additions: extra playtest items (J/K, Evader orbit, rocket height, in-band Multishot), spec reconciliation of §2.1/§2.3/§2.5/§4.1–§4.4/§14, one unit test killing the TeamMoveRules:189 mutant; GameTests 630 passed in 2 of 3 full runs (`team_move_multishot_all_three_fire_from_their_arc_slots` failed once on timing); reason: review rulings and the as-built record.
 
 ---
 
@@ -6947,11 +6949,12 @@ git commit -m "docs(evoking): Part 6 in the README, playtest items, mutation tes
 | 8 | `28bebae` | `EvokingRequest.cast` carries `@SuppressWarnings("EnumOrdinal")` with a reason; reason: Error Prone -Werror. |
 | 11 | `9210bea` | the orbit steers with a position/velocity push plus feed-forward (named constants) instead of a plain fly-to, which settled at ~3.1 blocks (the vex move control only adds 0.05 x speed per tick); test mobs sit at player + (2.5, 3, 0), clear of the barrier shell; `advance` merged into Task 6's `tick` shape; reason: the brief's snippet could not hold radius 2, and the controller's merge instruction. |
 | 12 | `0efd173` | fixed Task 10's `VexShots.friendInTheWay(…, ignoring)` (it returned early only after `Allies.isAllyOf`, which already matched roster vexes; now an ignored `BoundVex` is skipped first; the two-argument form is unchanged); melee members steer with a spring plus damping inside 3 blocks of the enemy (using the enemy's real step) to keep the 20-tick hit cadence; reason: the ignore overload did nothing, and a plain fly-to hit every ~22 ticks. |
+| 13 | `eef3d4c` | controller additions: extra playtest items (J/K, Evader orbit, rocket height, in-band Multishot), spec reconciliation of §2.1/§2.3/§2.5/§4.1–§4.4/§14, one unit test killing the TeamMoveRules:189 mutant; GameTests 630 passed in 2 of 3 full runs (`team_move_multishot_all_three_fire_from_their_arc_slots` failed once on timing); reason: review rulings and the as-built record. |
 
 ## Resume State
 
-- Last completed task: none
-- Commit SHA: none yet
-- Checkboxes: 0/65 ticked
-- Next task: Task 1: API notes §25
-- Known-failing tests / caveats: none
+- Last completed task: Task 13: Docs, playtest items, mutation testing
+- Commit SHA: eef3d4c
+- Checkboxes: 65/65 ticked
+- Next task: none (plan complete)
+- Known-failing tests / caveats: GameTest team_move_multishot_all_three_fire_from_their_arc_slots failed once in 3 full runs (timing); de-flake in the /review-will fix wave. Branch review (/review-will) not yet run.
