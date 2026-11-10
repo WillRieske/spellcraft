@@ -74,7 +74,7 @@ All Java paths are under `src/main/java/io/github/willrieske/spellcraft/`; unit 
 
 **Private slots.** Concurrent tests must not share ground, chunks, crystals or cleanup in the other dimensions, so a room is not built at the player's own coordinates. Each dimension has a pool of slots: grid points 200 blocks apart; in the End only those whose sideways distance from the origin is between 450 and 850 (the main island ends near 200 and the outer islands start near 1000, so a slot is in empty void), at `y = 80`; in the Nether any grid points from `x = 1000` on, at `y = 100` (the stone shell keeps lava out). `room` and `endVoid` take a free slot and give it back when the test ends; with none free the test fails with "setup: no free slot". Everything a helper does stays inside its slot: it forces and loads (`level.getChunk`, as `toNether` does, so height-map reads are real) only the chunks within the room or `reach`, unforces exactly those, restores exactly the blocks it replaced, discards every `Vex`, `EndCrystal`, `ItemEntity`, `Projectile` and other non-player entity within `reach + 8` (rooms: `halfWidth + 8`) of the slot, and moves the player back to `FangGameTests.STAND`. No test may use a `reach` over 90.
 
-- [ ] **Step 1: Verify the facts and write `docs/api-notes.md` §24**
+- [x] **Step 1: Verify the facts and write `docs/api-notes.md` §24**
 
 Check each line below in the sources (cite `file:line` in the note). These were read once already; confirm them.
 
@@ -129,7 +129,7 @@ Check each line below in the sources (cite `file:line` in the note). These were 
 
 Add to §24 anything else you had to look up for Step 2 (the environment classes, how the GameTest server treats the daylight cycle).
 
-- [ ] **Step 2: Pin the time of day per environment**
+- [x] **Step 2: Pin the time of day per environment**
 
 A night test must not change the time under the other tests, and today's follow tests must never run at night. In `SpellcraftGameTests`:
 
@@ -151,14 +151,14 @@ BY_ENVIRONMENT.forEach((environment, registered) -> {
 
 Add one test to prove both pins: `bound_vex_world_setup_night` (environment `NIGHT`) asserts `helper.getLevel().isDarkOutside()` after 2 ticks, and `bound_vex_world_setup_day` (`SHARED`) asserts it is false. If the clock cannot be set this way, report what the sources allow before trying anything else (a Mixin or a game-rule change is not acceptable).
 
-- [ ] **Step 3: Write the support class and three setup tests (they fail to compile first)**
+- [x] **Step 3: Write the support class and three setup tests (they fail to compile first)**
 
 `BoundVexWorldGameTests.registerAll()` (added to the static block in `SpellcraftGameTests`, after `BoundVexCureGameTests`) registers, through `FangGameTests.addPadded(SpellcraftGameTests.SHARED, …)`:
 
 - `bound_vex_world_setup_end_room`: `caster(helper, 0)`; `ServerLevel end = room(helper, player, Level.END, 3, 4)`. Assert: `player.level() == end`, `end.dimension() == Level.END`, the block under the player's feet is stone, the two blocks at the feet are air, `player.isAlive()`; a `vexIn(helper, end, player.position().add(1, 1, 0), player)` is alive after 5 ticks and `vex.summoner().isPresent()`.
 - `bound_vex_world_setup_end_void`: `endVoid(helper, player, 48)`; assert that every chunk within 32 blocks is loaded (`end.hasChunk`) and that `end.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x + dx, z + dz) == end.getMinY()` for every `dx, dz` in `-32..32` step 8 (nothing to land on); after `platform(helper, end, player.blockPosition().offset(5, -3, 0), 1)` the height at that column is the platform's top + 1; the player is alive after 5 ticks (a mock player does not fall).
 - `bound_vex_world_setup_slots_are_private`: two `endVoid` calls for two players in one test give places at least 200 blocks apart.
-- `bound_vex_world_setup_fluids`: in the test level, lava at `FEET` and `FEET.above()` with stone on all four sides of both blocks (lava spreads into air within 30 ticks) → after `player.setInvulnerable(true)` and `soak(player)`: `player.isInLava()`. Then water in both blocks (replace the lava), `soak(player)` → `player.isUnderWater()`. Then air, `soak(player)` → neither.
+- `bound_vex_world_setup_fluids`: in the test level, lava at `FEET` and `FEET.above()` with stone on all four sides of both blocks (lava spreads into air within 30 ticks) → after `player.setPermanentlyInvulnerable(true)` and `soak(player)`: `player.isInLava()`. Then water in both blocks (replace the lava), `soak(player)` → `player.isUnderWater()`. Then air, `soak(player)` → neither.
 
 `room` is `FangGameTests.toNether` generalized (read it, lines 243–304): same recording of replaced blocks, same forcing and loading, same `whenDone` restore, at a private slot instead of the player's coordinates. `endVoid` takes a slot and builds nothing. Make `FangGameTests.STAND` package-private for the move back.
 
@@ -174,12 +174,12 @@ static void soak(ServerPlayer player) {
 }
 ```
 
-- [ ] **Step 4: Run the three tests**
+- [x] **Step 4: Run the three tests**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:bound_vex_world_setup_*"`
 Expected: `All 6 required tests passed`. If `soak` does not make `isInLava()` true, read `Entity.baseTick` and `EntityFluidInteraction` and fix `soak` (public calls only); record what worked in §24.
 
-- [ ] **Step 5: Full gates, then commit**
+- [x] **Step 5: Full gates, then commit**
 
 Run: `./gradlew build`, then `./gradlew runGameTestServer` twice. Expected: build green; all tests pass both times (baseline + 6).
 
@@ -187,6 +187,8 @@ Run: `./gradlew build`, then `./gradlew runGameTestServer` twice. Expected: buil
 git add docs/api-notes.md src/main/java/io/github/willrieske/spellcraft/gametest
 git commit -m "test(evoking): End and Nether rooms, fluid stepping and pinned time for Part 5; api-notes 24"
 ```
+
+> **As built (`2c484b4`):** diverged — the GameTest world is flat in every dimension (a floor at y 0..3 even in the End), so `endVoid` clears the blocks below its slot in the forced chunks and restores them; `setInvulnerable` does not exist (`setPermanentlyInvulnerable(true)`); `isInLava` also needs the second `baseTick`; `Ghast` is in `monster`; the night setup test is registered unpadded. Baseline 349, now 355; reason: the sources and the server as they are.
 
 ---
 
@@ -674,7 +676,7 @@ git commit -m "feat(evoking): Bound Vexes close in overhead and scan faster at n
 
 - [ ] **Step 1: Write the failing GameTests**
 
-Shared arrangement (a private helper `lavaPool(helper)` in the test class): `caster(helper, 0)`; `player.setInvulnerable(true)`. Lava spreads into any air beside it (every 30 ticks in the Overworld, every 10 in the Nether), so **no air may touch a lava block**: the player's block and the block above are lava, with stone under them and stone on all four sides of both lava blocks; the shore is **two** blocks east of the player: a stone block at the player's feet level − 1 with two air blocks above it (the shore search ignores the stone between); no other standable spot within 6 blocks (fill or roof whatever the padded box offers). A helper `step(player)` does `soak(player)` then `VexRescues.tick(player)`; every step is on its own server tick (Global Constraints).
+Shared arrangement (a private helper `lavaPool(helper)` in the test class): `caster(helper, 0)`; `player.setPermanentlyInvulnerable(true)`. Lava spreads into any air beside it (every 30 ticks in the Overworld, every 10 in the Nether), so **no air may touch a lava block**: the player's block and the block above are lava, with stone under them and stone on all four sides of both lava blocks; the shore is **two** blocks east of the player: a stone block at the player's feet level − 1 with two air blocks above it (the shore search ignores the stone between); no other standable spot within 6 blocks (fill or roof whatever the padded box offers). A helper `step(player)` does `soak(player)` then `VexRescues.tick(player)`; every step is on its own server tick (Global Constraints).
 
 - `bound_vex_world_lava_pull`: a following vex (`followOnly`) 5 blocks from the player. After one `step`: `VexRescues.running(player)` is `LAVA`; `player.getDeltaMovement()` is `(0.1, 0.3, 0)` within `1e-6` (east is +x); the vex is within `0.1` of the player's side point; `player.syncVelocity` was set (assert it is `true` right after the tick, before the server's next entity tick).
 - `bound_vex_world_lava_pull_keeps_your_steering`: `player.setKnownMovement(new Vec3(0, 0, 0.2))` before the step → velocity `(0.1, 0.3, 0.2)`.
@@ -1487,7 +1489,7 @@ All in the End through `endVoid(helper, player, 48)` (a mock player does not fal
 - `bound_vex_world_crystal_removed_on_the_way`: two crystals, A 30 blocks east and B 30 blocks west; the vex heads for the nearer (make A nearer by a block); A is discarded after 10 ticks → the vex's goal ended and started again for B: `thenWaitUntil(() -> crystalB.isRemoved())`.
 - `bound_vex_world_crystal_needs_a_dragon`: `scriptDragon(vex, false)` → after 60 ticks the crystal exists. And unscripted: `AttackCrystalGoal.livingDragon(helper.getLevel())` is false (the Overworld has no fight).
 - `bound_vex_world_crystal_one_each`: two vexes, two crystals 6 blocks apart and 15 away → both removed, and at the tick the first is removed the two vexes were heading for different crystals (assert through the claims: expose a package-private `claimedBy(EndCrystal)` only if nothing public can show it; otherwise assert both are gone within 100 ticks and both vexes are alive).
-- `bound_vex_world_crystal_not_while_fighting`: the vex has a target (a no-AI husk 3 blocks away, held alive with `setInvulnerable(true)`) → the crystal 10 blocks away exists after 60 ticks.
+- `bound_vex_world_crystal_not_while_fighting`: the vex has a target (a no-AI husk 3 blocks away, held alive with `setPermanentlyInvulnerable(true)`) → the crystal 10 blocks away exists after 60 ticks.
 - `bound_vex_world_crystal_staying_vex_only_in_its_area`: a staying vex; a crystal 5 blocks from its post is broken; one 12 blocks away is not (after 100 ticks).
 - `bound_vex_world_crystal_gives_up_after_200_ticks`: the vex is held away from the crystal (`holdAt`) → after its 200 ticks its claim is free and stays free for the retry delay: a second vex of the same player, added at tick 205, breaks the crystal (register this test with a tick budget that covers it).
 - `bound_vex_world_crystal_blast_by_a_player`: no scripted dragon; the test calls `crystal.hurtServer(end, end.damageSources().playerAttack(player), 1)` with a vex 2 blocks away and the player 2 blocks away (invulnerable off, health noted) → the vex is unhurt and its velocity zero; the **player's velocity is not zero** (vanilla throws them) and their health dropped.
@@ -1743,4 +1745,6 @@ git commit -m "docs(evoking): Part 5 in the README, playtest items, mutation tes
 
 <!-- generated by plan_map.py --write-index; do not edit -->
 
-*No divergences recorded.*
+| Task | SHA | Divergence |
+|---|---|---|
+| 1 | `2c484b4` | the GameTest world is flat in every dimension (a floor at y 0..3 even in the End), so `endVoid` clears the blocks below its slot in the forced chunks and restores them; `setInvulnerable` does not exist (`setPermanentlyInvulnerable(true)`); `isInLava` also needs the second `baseTick`; `Ghast` is in `monster`; the night setup test is registered unpadded. Baseline 349, now 355; reason: the sources and the server as they are. |

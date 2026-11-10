@@ -93,3 +93,4 @@ ed57523 Part 4 cure fix round: build green; All 337 required tests passed twice
 37e1415 Part 4 bribe fix round: build green; All 340 required tests passed twice; counting-dice test shown red without the guard
 a322e68 Part 4 branch review (a322e68..HEAD): build green; All 348 required tests passed twice; new tests shown red without their guards
 Part 4 stale-cure fix round: build green; All 349 required tests passed twice; stale-cure test shown red without the guard
+2c484b4 Part 5 Task 1: build green; All 355 required tests passed twice (baseline 349)
