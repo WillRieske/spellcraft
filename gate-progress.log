@@ -95,3 +95,4 @@ a322e68 Part 4 branch review (a322e68..HEAD): build green; All 348 required test
 Part 4 stale-cure fix round: build green; All 349 required tests passed twice; stale-cure test shown red without the guard
 2c484b4 Part 5 Task 1: build green; All 355 required tests passed twice (baseline 349)
 deed037 Part 5 Task 2: build green (unit tests, ArchUnit); pitest 398/407 module-wide
+Part 5 Task 1 fix round: build green; All 358 required tests passed twice (baseline 355); cleanup tests shown red per piece

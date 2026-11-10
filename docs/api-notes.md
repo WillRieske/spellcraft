@@ -1093,8 +1093,8 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   own client* and clears the flag (`server/level/ServerEntity.java:209-212`). Setting the velocity alone sends nothing.
 - **What a player is doing.** A `ServerPlayer`'s `getDeltaMovement()` is not the client's velocity: the client moves
   itself. `ServerPlayer.getKnownMovement()` (`server/level/ServerPlayer.java:2382`) is the last movement the client
-  reported (`ServerGamePacketListenerImpl.handleMovePlayer` → `setKnownMovement`, `ServerGamePacketListenerImpl.java:2315`).
-  A push reads the known movement, adds to it, and sends the sum.
+  reported (`ServerGamePacketListenerImpl.handleMovePlayer` → `setKnownMovement`,
+  `ServerGamePacketListenerImpl.java:2315`). A push reads the known movement, adds to it, and sends the sum.
 - **Fluids on a mock player.** `Entity.isInLava()` is `!firstTick && fluidInteraction.isInFluid(LAVA_TYPE)`
   (`Entity.java:1782-1783`); `isUnderWater()` is `wasEyeInWater && isInWater()` (`Entity.java:1656-1657`).
   `baseTick()` (public, `Entity.java:538`) fills the fluid state through `updateFluidInteraction()` (protected,
@@ -1104,7 +1104,9 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   `setPermanentlyInvulnerable(true)` first (`Entity.setInvulnerable` does not exist; `Entity.java:3158`). Verified in
   `bound_vex_world_setup_fluids`: lava, water and air each give exactly the expected answer after `soak`.
 - **`ProjectileImpactEvent`** (`event/entity/ProjectileImpactEvent.java`, cancellable; `getProjectile()`,
-  `getRayTraceResult()`). Vanilla posts it from `AbstractHurtingProjectile.tick()` through
+  `getRayTraceResult()`). Vanilla posts it from
+  `AbstractHurtingProjectile.tick()` (the cancel behavior below is that class's; arrows, throwables and shulker bullets
+  also post it, each with its own handling) through
   `EventHooks.onProjectileImpact(Projectile, HitResult)` (`event/EventHooks.java:704`; call in
   `AbstractHurtingProjectile.java:74`; true = cancelled). Cancelled: the projectile is not discarded, moves by its
   velocity this tick and tests again next tick.
@@ -1129,8 +1131,8 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   the crystal as the explosion's source, interaction `BLOCK`, and `damageSources().explosion(crystal, attacker)` as the
   damage source (direct entity = the crystal, causing entity = the attacker).
 - **`EnderDragonFight`** (not `EndDragonFight`; `world/level/dimension/end/EnderDragonFight.java`):
-  `ServerLevel.getDragonFight()` (`ServerLevel.java:1824`, null outside the End), `dragonUUID()` (`:595`, nullable),
-  then `level.getEntity(UUID)`.
+  `ServerLevel.getDragonFight()` (`ServerLevel.java:1824`, null outside the End),
+  `EnderDragonFight.dragonUUID()` (`EnderDragonFight.java:595`, nullable), then `level.getEntity(UUID)`.
 - **`Consumable.onConsume(Level, LivingEntity, ItemStack)`** (`world/item/component/Consumable.java:77-90`): sound and
   particles, the item-used statistic and the consume-item trigger for a `ServerPlayer`, the `ConsumableListener`
   components, the consume effects (server side), a game event, then `stack.consume(1, user)`. The enchanted golden
@@ -1165,3 +1167,13 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   origin at `y = 80`, Nether slots start at `x = 1000` at `y = 100`. A forced chunk in a slot is entity-ticking within
   the setup test (a Bound Vex there has `tickCount > 0` five ticks after the helper returned), so `room`/`endVoid`
   need no extra wait.
+- **Cleanup is tested and always completes.** `Place.clean()` runs every step (entities, block restores, unforce,
+  slot release, active-set removal) even if one throws, rethrows the first failure, and is a no-op the second time;
+  `Place.finish()` adds the player's return to `FangGameTests.STAND`. `whenDone` runs it at the end of the test.
+  `bound_vex_world_setup_cleanup_end_void` and `..._cleanup_room` call it by hand and check the slot, blocks, forced
+  chunks (`ServerLevel.getForceLoadedChunks()`), entities and player; a second call changes nothing. They wait until
+  an entity in the place has ticked first: in a busy full run, a cleanup three ticks after the spawn once missed the
+  vex, so a place that ends within a few ticks of its first entity may leave it behind.
+- **Helper rule.** Every block a test changes in a slot goes through `BoundVexWorldTestSupport.platform` or
+  `BoundVexWorldTestSupport.set(helper, level, pos, state)`; both record the block's first state in the place and
+  restore it at cleanup. Blocks an explosion destroys are restored only if they were placed through them.
