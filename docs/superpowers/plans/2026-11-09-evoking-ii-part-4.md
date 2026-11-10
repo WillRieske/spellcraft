@@ -21,7 +21,7 @@
 - Error Prone runs with `-Werror`; suppress only with `@SuppressWarnings("<Check>")` plus a comment why. Every new private member needs a reader in the same task. Compare entities by UUID (`ReferenceEquality`). `-Xlint:all`: never assign `getMoveControl()` to a local.
 - **Doc comments:** Javadoc on every new class, method and constant, in the style of `RepairGolemGoal.java` (what, why, the spec section, the api-notes section for vanilla facts).
 - **Unit test style:** `~/.claude/development-methodology.md`, *Unit test style* (Javadoc "When …, should …" + `<p>Method under test: {@link …}`; one `@Nested` per method; Arrange/Act/Assert). GameTests keep their files' style.
-- **GameTests:** helpers in `gametest/BoundVexTestSupport.java` (`boundVex`, `parked`, `followOnly`, `noTargets`, `husk`, `huskAt`, `stayingVex`, `summoner`, `AIR_SPOT`), `GameTestSupport.java` (`hold`, `whenDone`, `saved`, `reloaded`, `drainSounds`), `MockPlayers.java`, `FangGameTests.addPadded` / `caster`. Patterns that hold in this repo: in padded tests hang a vex at `AIR_SPOT` (the barrier shell blocks sight lower down) and place mobs by absolute `setPos` with `setNoGravity(true)` from a known point (rotated structures shift relative coordinates); every spawned mob gets `setNoAi(true)` unless its AI is the subject and is discarded through `whenDone`; a mob's `canUse` runs only on ticks where `(tickCount + id)` is even and scans run every 10 ticks, so a test waiting on a scan allows at least 20 ticks; prefer `thenWaitUntil` over fixed tick counts; a test that changes global state gets its own environment name.
+- **GameTests:** helpers in `gametest/BoundVexTestSupport.java` (`boundVex`, `parked`, `followOnly`, `noTargets`, `husk`, `huskAt`, `stayingVex`, `summoner`, `AIR_SPOT`), `GameTestSupport.java` (`hold`, `whenDone`, `saved`, `reloaded`, `drainSounds`), `MockPlayers.java`, `FangGameTests.addPadded` / `caster`. Patterns that hold in this repo: in padded tests hang a vex at `AIR_SPOT` (the barrier shell blocks sight lower down) and place mobs by absolute `setPos` with `setNoGravity(true)` from a known point (rotated structures shift relative coordinates); every spawned mob gets `setNoAi(true)` unless its AI is the subject (except cure subjects, Task 4) and is discarded through `whenDone`; a mob's `canUse` runs only on ticks where `(tickCount + id)` is even and scans run every 10 ticks, so a test waiting on a scan allows at least 20 ticks; prefer `thenWaitUntil` over fixed tick counts; a test that changes global state gets its own environment name.
 - **No red run for GameTest tasks (3–5):** their tests compile only with the production change. Red-then-green is for Task 2.
 - **Verification recipe:** `./gradlew <task> --console=plain > build/<task>.log 2>&1; echo "exit=$?"; tail -40 build/<task>.log` (never pipe Gradle itself through `tail`). `runGameTestServer` takes about a minute: run it in the background, then `grep -a -n "FAILED\|required tests\|   - spellcraft" build/runGameTestServer.log | tail -8`. Expected `All N required tests passed`, N = the previous total plus the tests the task registers (Task 1 records the baseline). While writing a test, `./gradlew runGameTestServer "-PgameTests=spellcraft:bound_vex_cure_*"` runs only the matching tests; the task's final verification is always the full run, **twice**.
 - **Format before you build:** `./gradlew spotlessApply --console=plain`; stage what it changed. A formatter hook strips unused imports after each edit: add an import in the same edit as its use.
@@ -35,7 +35,7 @@
 ```text
 src/main/java/io/github/willrieske/spellcraft/
 ├── spell/rules/BribeRule.java            PURE, new: accepts(roll), SIDES                          (Task 2)
-├── evoking/VexMarks.java                 new: the cure, bribed and bribe_tried attachments        (Task 3)
+├── spell/AllyAttachments.java            + the cure, bribed and bribe_tried attachments, helpers  (Task 3)
 ├── evoking/BoundVex.java                 isPrey: zombie villagers, bribed, courted; two new goals (Tasks 3–5)
 ├── spell/Allies.java                     a zombie villager with the cure mark is an ally          (Task 3)
 ├── spell/GolemMercy.java                 golems may not target a marked zombie villager           (Task 3)
@@ -109,26 +109,25 @@ git commit -m "feat(evoking): add the pure bribe odds rule"
 
 **Files:**
 
-- Create: `src/main/java/io/github/willrieske/spellcraft/evoking/VexMarks.java`
-- Modify: `evoking/BoundVex.java` (`isPrey`), `spell/Allies.java`, `spell/GolemMercy.java`, `Spellcraft.java` (register the attachments if they need their own register)
+- Modify: `spell/AllyAttachments.java` (the three marks and their helpers), `evoking/BoundVex.java` (`isPrey`), `spell/Allies.java`, `spell/GolemMercy.java`
 - Create: `gametest/BoundVexCureGameTests.java`; modify `gametest/SpellcraftGameTests.java` (+ `BoundVexCureGameTests.registerAll();`)
 
 **Interfaces:**
 
-- Produces (`VexMarks`, public): `CURE` (a saved attachment holding the game time the cure began, a `Long`), `BRIBED` and `BRIBE_TRIED` (saved boolean marks); helpers `static boolean isBeingCured(Entity)`, `static boolean isBribed(Entity)`, `static boolean wasOfferedBribe(Entity)`. Declare them where `AllyAttachments` declares `SUMMONER` if that file's register is the natural home; otherwise in `VexMarks` with its own `DeferredRegister` wired in `Spellcraft` exactly as the existing one is. `Allies` is in `spell` and `VexMarks` in `evoking`: check the direction of existing imports between those packages (ArchUnit) and, if `spell` must not import `evoking`, put the `CURE` attachment and `isBeingCured` in `spell/AllyAttachments` instead.
+- Produces (`AllyAttachments`, public): `CURE` (a saved attachment holding the game time the cure began, a `Long`), `BRIBED` and `BRIBE_TRIED` (saved boolean marks); helpers `static boolean isBeingCured(Entity)`, `static boolean isBribed(Entity)`, `static boolean wasOfferedBribe(Entity)`, written with `hasData`/`getExistingData`, never `getData` (which would create the attachment). They are declared in the existing `spell/AllyAttachments.java`, on its existing register (so `Spellcraft.java` is not touched). Reason: `spell` imports nothing from `evoking`, and `Allies` (in `spell`) needs the cure mark.
 
-- [ ] **Step 1: Marks.** Add the three attachments and helpers.
+- [ ] **Step 1: Marks.** Add the three attachments and helpers to `AllyAttachments`, declared as `SUMMONER` is.
 - [ ] **Step 2: Prey and allies** (spec §2.1, §3.2).
   - `BoundVex.isPrey(ServerLevel, UUID, LivingEntity)`: after the `attackable` check, answer false for a `ZombieVillager` and for a mob that `isBribed`. (Task 5 adds the courted case.)
-  - `Allies.isAllyOf(owner, other)`: true when `other` is being cured, for every owner. Check `Allies.mayHaveAllies` (Trailing's fast path) and add zombie villagers there if the fast path would otherwise skip the check.
+  - `Allies.isAllyOf(owner, other)`: true when `other` is being cured, for every owner. `Allies.mayHaveAllies(other)` gets `|| other.hasData(AllyAttachments.CURE)` (Trailing's fast path would otherwise skip the check; do not add all zombie villagers to the fast path).
   - `GolemMercy`'s `LivingChangeTargetEvent` handler: also cancel when an `IronGolem` picks a mob that is being cured.
-- [ ] **Step 3: GameTests** (new class; class Javadoc: "Bound Vex GameTests (Evoking II Parts 4–5 spec §2–§3, §9): the cure and the bribe."). Register each with the name prefix `bound_vex_cure_` or `bound_vex_bribe_`.
+- [ ] **Step 3: GameTests** (new class; class Javadoc: "Bound Vex GameTests (Evoking II Parts 4–5 spec §2–§3, §9): the cure and the bribe."). Register each with the name prefix `bound_vex_cure_` or `bound_vex_bribe_`. Give every zombie villager a test leaves alive for more than about 60 ticks a helmet against sunburn (`setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.LEATHER_HELMET))`). The mark-only rows use `setNoAi(true)` zombie villagers.
 
 | Method | Arrange → Act → Assert |
 |---|---|
 | `aZombieVillagerIsNeverPrey` | A staying vex at `AIR_SPOT` with full target AI (job goals removed so nothing else acts); a no-AI zombie villager 3 blocks away and a husk 3 blocks the other way → the husk becomes the target; `vex.isPrey(zombieVillager)` is false; after `player.setLastHurtByMob(zombieVillager)` (as the grudge tests set it) and 30 ticks the target is still not the zombie villager. |
 | `aBribedVexIsNotPrey` | A vanilla vex with `BRIBED` set → `BoundVex.isPrey(level, summonerUuid, it)` false; without the mark true. |
-| `aZombieVillagerBeingCuredIsAnAlly` | A zombie villager with `CURE` set: `Allies.isAllyOf(player, it)` true; without the mark false. The summoner's fangs spare it: follow how `FangGameTests` casts and asserts a spared ally (a fang snapshot or a bite on a marked versus an unmarked zombie villager). |
+| `aZombieVillagerBeingCuredIsAnAlly` | A zombie villager with `CURE` set: `Allies.isAllyOf(player, it)` true; without the mark false. The summoner's fangs spare it: the model is `FangGameTests.e6SpareSummons` (how a spared ally is asserted): a marked versus an unmarked zombie villager. |
 | `aGolemLeavesAZombieVillagerBeingCured` (padded; golem on stone, full AI) | A marked no-AI zombie villager 3 blocks from an iron golem for 60 ticks → `golem.getTarget()` is never it; an unmarked one beside a second golem (or after the mark is removed) is targeted. |
 | `marksSurviveASave` | `GameTestSupport.reloaded` of a zombie villager with `CURE` and of a vex with `BRIBED` and `BRIBE_TRIED` keeps them. |
 
@@ -152,12 +151,12 @@ git commit -m "feat(evoking): cure and bribe marks; zombie villagers are never p
 
 - Create: `evoking/CureZombieVillagerGoal.java`, `evoking/CureEvents.java`
 - Modify: `evoking/BoundVex.java` (`registerGoals`: priority 2, beside `RepairGolemGoal`), `evoking/BoundVexEvents.java` (`onServerStopped` also clears the cure claims)
-- Modify: `gametest/BoundVexCureGameTests.java`
+- Modify: `gametest/BoundVexCureGameTests.java`, `gametest/BoundVexTestSupport.java` (`holdAt`, `patientCreeper`), `gametest/BoundVexJobGameTests.java` (uses the moved `patientCreeper`)
 
 **Interfaces:**
 
-- Consumes: `VexMarks.CURE`, `isBeingCured` (Task 3); `BoundVex.conjure/dismiss/isConjured`, `scanDue`, `summoner()`, `inGuardArea`, `guardArea()`; `ZombieVillager.startConverting` (Task 1).
-- Produces: `CureZombieVillagerGoal` (package-private class; constants `REACH` 1.5, `APPROACH_LIMIT` 100, `APPLE_TICKS` 30, `POTION_TICKS` 20, `THROW_TICK` 10, `CONVERSION_TICKS` 400, visible to the tests as needed; `static void clearClaims()`); `CureEvents.RELEASE_AFTER` (300); `static ItemStack CureZombieVillagerGoal.curePotion()` (the effect-free, weakness-colored splash potion).
+- Consumes: `AllyAttachments.CURE`, `isBeingCured` (Task 3); `BoundVex.conjure/dismiss/isConjured`, `scanDue`, `summoner()`, `inGuardArea`, `guardArea()`; `ZombieVillager.startConverting` (Task 1).
+- Produces: `CureZombieVillagerGoal` (constants `REACH` 1.5, `APPROACH_LIMIT` 100, `APPLE_TICKS` 30, `POTION_TICKS` 20, `THROW_TICK` 10, `CONVERSION_TICKS` 400; `static void clearClaims()`); `CureEvents.RELEASE_AFTER` (300); `static ItemStack CureZombieVillagerGoal.curePotion()` (the effect-free, weakness-colored splash potion). `CureZombieVillagerGoal`, `CureEvents`, `BribeGoal` (Task 5) and `FleeFromViewGoal` (Task 5) are `public` classes with public constants and public static helpers where the GameTests (package `gametest`) read them, each with Javadoc; the goals' constructors may stay package-private except `FleeFromViewGoal`'s. Also produces `BoundVexTestSupport.holdAt(GameTestHelper, Entity, Vec3)` (re-sets the position and zeroes the velocity every tick until the test ends, through the helper's per-tick hook; read how other tests run something each tick) and moves `patientCreeper` from `BoundVexJobGameTests` (where it is private) to `BoundVexTestSupport`, used by both classes. The existing `placeBeside` sets a position only once.
 
 - [ ] **Step 1: The goal** (spec §2.2, every sentence). Flags `MOVE` and `LOOK`; `requiresUpdateEveryTick`. Shape:
   - `canUse`: prune dead claim holders first (as `RepairGolemGoal`); gate on `vex.scanDue(BoundVex.SCAN_INTERVAL)` and a present summoner; candidates are `ZombieVillager`s in `vex.guardArea()` filtered by `vex.inGuardArea`, alive, `!isConverting()`, `!isNoAi()`, no cure mark, not claimed by another living vex; and (`vex.getTarget() == null` or the candidate's target is the summoner or `Allies.isAllyOf(summoner, target)`). Nearest wins.
@@ -170,16 +169,17 @@ git commit -m "feat(evoking): cure and bribe marks; zombie villagers are never p
   - `EntityTickEvent.Post`, server side, a `ZombieVillager` with `CURE`: converting → 4 `HAPPY_VILLAGER` and 4 `CLOUD` particles spread over its bounding box; not converting and `gameTime − mark > RELEASE_AFTER` → `setNoAi(false)`, remove the mark; otherwise nothing.
   - `LivingConversionEvent.Post`: when the old mob carried `CURE`, `setNoAi(false)` on the new mob (use what Task 1 recorded about reading the old mob's attachment there; if it is not readable in `Post`, do it in `Pre`/the tick handler and say how).
 - [ ] **Step 3: Wire.** `BoundVex.registerGoals`: `goalSelector.addGoal(2, new CureZombieVillagerGoal(this));` next to the repair goal, and update the method's Javadoc. `BoundVexEvents.onServerStopped`: `CureZombieVillagerGoal.clearClaims()`.
-- [ ] **Step 4: GameTests** (spec §9 "GameTests, Part 4", the cure bullets; padded; a staying vex at `AIR_SPOT` via `stayingVex`, zombie villagers placed by absolute position with no gravity; a zombie villager burns in daylight, so give each a helmet (`setItemSlot(HEAD, new ItemStack(Items.LEATHER_HELMET))`) or check how existing tests keep undead from burning; remove the vex's other job goals where they could interfere):
+- [ ] **Step 4: GameTests** (spec §9 "GameTests, Part 4", the cure bullets; padded; a staying vex at `AIR_SPOT` via `stayingVex`, zombie villagers placed by absolute position with no gravity; remove the vex's other job goals where they could interfere). **Cure subjects:** the goal skips `isNoAi()` zombie villagers, so the Global Constraints' "every spawned mob gets `setNoAi(true)`" does not apply to them. Spawn cure subjects with AI on, then call `goalSelector.removeAllGoals(g -> true)` and `targetSelector.removeAllGoals(g -> true)` so they neither walk nor pick targets, and set a target explicitly with `setTarget(...)` where a row needs one; only the statue row, the stale-freeze row and Task 3's mark-only rows use `setNoAi(true)`. A zombie villager burns in daylight: give every one a test leaves alive for more than about 60 ticks a helmet (`setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.LEATHER_HELMET))`). Thrown potions and the villager a conversion creates are discarded through `whenDone`. **Abort rows** (every row that expects "unfrozen and unmarked" after an abort) assert with `thenWaitUntil(() -> !isBeingCured && !isNoAi)`, not after a fixed delay, because the next scan may claim the zombie villager again within about 10 ticks.
 
 | Method | Asserts |
 |---|---|
-| `cureRunsItsTimeline` | Claimed at once: `isNoAi()` and `isBeingCured`. Then, in order (`thenWaitUntil` each): the vex holds a golden apple; the vex holds a splash potion equal to `curePotion()`; a `ThrownSplashPotion` exists near; `zombieVillager.isConverting()`; then the vex's main hand is its iron sword again and nothing is conjured. A second player standing 2 blocks from the zombie villager has no `WEAKNESS` at the end. |
+| `cureRunsItsTimeline` | Claimed at once: `isNoAi()` and `isBeingCured`. Then, in order (`thenWaitUntil` each): the vex holds a golden apple; the vex holds a splash potion (compare with `ItemStack.matches(held, CureZombieVillagerGoal.curePotion())`; stacks have no value `equals`); a `ThrownSplashPotion` exists near (poll for it with `thenWaitUntil`); `zombieVillager.isConverting()`; then the vex's main hand is its iron sword again and nothing is conjured. After step 4 the vex takes a husk placed beside it as its target (it is free again). A second player standing 2 blocks from the zombie villager has no `WEAKNESS` at the end. |
 | `cureEndsInAVillagerWithAiAndTheDiscount` | After `isConverting()`, the test calls `setVillagerConversionTime(1)` → within 20 ticks a `Villager` stands there, `!isNoAi()`, and its gossip for the summoner is positive (read how vanilla exposes it: `villager.getGossips()` and `GossipType.MAJOR_POSITIVE`, or `getPlayerReputation(player) > 0`); no zombie villager remains. |
 | `aNewTargetDoesNotStopTheCure` | Mid-apple, a husk appears beside the vex and is set as its target → the cure still reaches `isConverting()`. |
 | `anAttackerIsClaimedByABusyVex` | The vex has a target (a husk, no AI); a zombie villager whose `setTarget(summoner)` is set is claimed (frozen, marked) within 30 ticks; another with no target is not claimed while the vex still has its target. |
-| `aCreeperInterruptsAndTheCureRestarts` | In the apple step a swelling creeper is placed within flee range (see how `BoundVexJobGameTests` makes one swell) → the zombie villager is unfrozen and unmarked and the vex's hand is its sword; the creeper is discarded → the cure starts again and reaches `isConverting()`. |
-| `approachTimeoutAborts` | The vex is parked with its movement blocked (remove nothing; instead place the zombie villager in the guard area and hold the vex in place each tick with `setPos`) → after `APPROACH_LIMIT` ticks the zombie villager is unfrozen, unmarked, unclaimed. |
+| `aCreeperInterruptsAndTheCureRestarts` | A **staying** vex (`stayingVex`; the stay box is ±6.5 around the post, so the zombie villager is still in the guard area after the vex fled 8 blocks). In the apple step a swelling creeper from `patientCreeper` is placed within flee range → `thenWaitUntil(() -> !isBeingCured && !isNoAi)` and the vex's hand is its sword; the creeper is discarded → the cure starts again and reaches `isConverting()`. |
+| `approachTimeoutAborts` | The vex is parked with its movement blocked (remove nothing; instead place the zombie villager in the guard area and hold the vex in place each tick with `BoundVexTestSupport.holdAt`) → after `APPROACH_LIMIT` ticks, `thenWaitUntil(() -> !isBeingCured && !isNoAi)`, and the zombie villager is unclaimed. |
+| `theSummonerLeavingAbortsTheCure` | Mid-apple the summoner is made absent (read how existing tests make `vex.summoner()` empty, e.g. switching the player to spectator as `followIgnoresASpectatingSummoner` does) → `thenWaitUntil(() -> !isBeingCured && !isNoAi)` and the vex's hand is restored. |
 | `theSubjectDyingRestoresTheHand` | Kill the zombie villager in the apple step → the vex holds its sword, nothing conjured. |
 | `twoVexesOneSubject` and `twoVexesTwoSubjects` | One zombie villager: exactly one vex ever holds the apple. Two: each vex works one (both end converting). |
 | `aStaleFreezeIsReleased` | A zombie villager with `setNoAi(true)` and `CURE` set to `gameTime − 301` → on its next tick it has AI and no mark. With `CURE` set to `gameTime − 10`: still frozen and marked after 5 ticks. A converting one with an old mark stays frozen and marked. |
@@ -187,9 +187,9 @@ git commit -m "feat(evoking): cure and bribe marks; zombie villagers are never p
 | `aNoAiStatueIsNeverClaimed` | A zombie villager with `setNoAi(true)` and no mark stays unmarked for 40 ticks. |
 | `aStayingVexCuresOnlyInItsArea` | One zombie villager 5 blocks from the post is claimed; one 9 blocks away is not. |
 
-Delta: 13 tests.
+Delta: 14 tests.
 
-- [ ] **Step 5: Verify** (`spotlessApply`, `build`, `runGameTestServer` twice; total = previous + 13) and **commit**:
+- [ ] **Step 5: Verify** (`spotlessApply`, `build`, `runGameTestServer` twice; total = previous + 14) and **commit**:
 
 ```bash
 git add src/main/java
@@ -211,14 +211,14 @@ git commit -m "feat(evoking): Bound Vexes cure zombie villagers"
 
 **Interfaces:**
 
-- Consumes: `BribeRule` (Task 2); `VexMarks.BRIBED`, `BRIBE_TRIED` (Task 3).
-- Produces: `BribeGoal` (constants `REACH` 1.5, `APPROACH_LIMIT` 100, `OFFER_TICKS` 20; `static boolean isCourted(Entity)`: claimed by a living Bound Vex; `static void clearClaims()`; `static void setDice(...)` / `resetDice()` for tests, public because the tests are in another package, with Javadoc saying they exist for tests); `FleeFromViewGoal` (public constructor taking the `Vex`; constants `CLEAR_DISTANCE` 12, `PLAYER_RANGE` 64, `LIMIT` 200); `static void FleeFromViewGoal.install(Vex)` (clears target, removes every goal and target goal, adds the flee goal).
+- Consumes: `BribeRule` (Task 2); `AllyAttachments.BRIBED`, `BRIBE_TRIED` (Task 3); `BoundVexTestSupport.holdAt` (Task 4).
+- Produces: `BribeGoal` (public, see Task 4's Produces on public classes; constants `REACH` 1.5, `APPROACH_LIMIT` 100, `OFFER_TICKS` 20; `static boolean isCourted(Entity)`: claimed by a living Bound Vex; `static void clearClaims()`, which also clears the dice scripts; `public static void scriptDice(BoundVex vex, ScrollDraw.Dice dice)` and `public static void unscriptDice(BoundVex vex)`, a transient map keyed by the Bound Vex's UUID, with Javadoc saying they exist for tests); `FleeFromViewGoal` (public class, public constructor taking the `Vex`; constants `CLEAR_DISTANCE` 12, `PLAYER_RANGE` 64, `LIMIT` 200); `static void FleeFromViewGoal.install(Vex)` (clears target, removes every goal and target goal, adds the flee goal).
 
-- [ ] **Step 1: `FleeFromViewGoal`** (spec §3.2): flags `MOVE` and `LOOK`; always usable; each tick: find players within `PLAYER_RANGE` (not spectators); with none, or when the vex is at least `CLEAR_DISTANCE` from each and none `hasLineOfSight(vex)` → `vex.discard()`; else fly directly away from the nearest (`setWantedPosition` 8 blocks farther along the line from that player through the vex, charge speed); after `LIMIT` ticks `discard()`.
-- [ ] **Step 2: `BribeGoal`** (spec §3.1, every sentence): flags `MOVE` and `LOOK`, priority 2. `canUse` on the scan tick with a present summoner: a `Vex` whose type is exactly `EntityTypes.VEX` (not a `BoundVex`), in the guard area, alive, neither mark, not courted by another living vex, whose `getTarget()` is the summoner or an ally of the summoner. Steps: approach (≤ 100 ticks; timeout ends with no mark); offer (conjure an emerald, `VILLAGER_AMBIENT` once, look at it, 20 ticks); roll (`BribeRule` through the goal's dice: by default the vex's `RandomSource`): accepted → `setData(BRIBED)` and `FleeFromViewGoal.install(other)`; refused → `setData(BRIBE_TRIED)`. `stop`: dismiss the hand, release the claim. Interruptable.
+- [ ] **Step 1: `FleeFromViewGoal`** (spec §3.2): flags `MOVE` and `LOOK`; always usable; each tick: find players within `PLAYER_RANGE` (not spectators); with none, or when the vex is at least `CLEAR_DISTANCE` from each and none `hasLineOfSight(vex)` → `vex.discard()`; else fly directly away from the nearest (`setWantedPosition` 8 blocks farther along the line from that player through the vex, charge speed; when the vex and the nearest player are at the same point, flee straight up); after `LIMIT` ticks `discard()`. It also returns true from `requiresUpdateEveryTick()` (a running goal is otherwise ticked every other tick, which would double its tick counts), as `RepairGolemGoal` and the cure goal do.
+- [ ] **Step 2: `BribeGoal`** (spec §3.1, every sentence): flags `MOVE` and `LOOK`, priority 2. `canUse` on the scan tick with a present summoner: a `Vex` whose type is exactly `EntityTypes.VEX` (not a `BoundVex`), in the guard area, alive, neither mark, not courted by another living vex, whose `getTarget()` is the summoner or an ally of the summoner. Steps: approach (≤ 100 ticks; timeout ends with no mark); offer (conjure an emerald, `VILLAGER_AMBIENT` once, look at it, 20 ticks); roll (`BribeRule` through the dice scripted for this Bound Vex by `scriptDice`; a vex with no script rolls with its own `RandomSource`): accepted → `setData(BRIBED)` and `FleeFromViewGoal.install(other)`; refused → `setData(BRIBE_TRIED)`. `stop`: dismiss the hand, release the claim. Interruptable. Like the cure goal it returns true from `requiresUpdateEveryTick()`, so its tick counts (approach limit, offer) are not doubled.
 - [ ] **Step 3: Courted is not prey.** `BoundVex.isPrey` (static): false when `BribeGoal.isCourted(target)`. Because every keep-target test goes through `isPrey`, the other vexes drop a courted vex within a scan, and the Part 3 backstop cancels their hits on it. Update the Javadoc.
 - [ ] **Step 4: Wire.** `registerGoals`: `goalSelector.addGoal(2, new BribeGoal(this));`. `BoundVexEvents`: `onServerStopped` → `BribeGoal.clearClaims()`; a new `EntityJoinLevelEvent` handler (server side): a `Vex` that `isBribed` gets `FleeFromViewGoal.install`.
-- [ ] **Step 5: GameTests** (spec §9, the bribe bullets; padded; the vanilla vex is spawned with `setNoAi(false)` only where its flight matters, with `setTarget(player)` set by the test; scripted dice through `BribeGoal.setDice`, reset in `whenDone`; in its own environment name if the dice are static state shared across parallel tests: they are, so register every bribe test that sets the dice in an environment of its own, e.g. `"bribe_dice"`, so they do not run beside each other, or make the dice per-vex and avoid the problem; say which):
+- [ ] **Step 5: GameTests** (spec §9, the bribe bullets; padded; the vanilla vex is spawned with `setNoAi(false)` only where its flight matters, with `setTarget(player)` set by the test; tests call `BribeGoal.scriptDice` for their own vex and `BribeGoal.unscriptDice` in `whenDone`; the dice are per-vex, so tests running side by side cannot affect each other and all bribe tests run in the shared environment). Hold a Bound Vex or vanilla vex in place with `BoundVexTestSupport.holdAt`:
 
 | Method | Asserts |
 |---|---|
@@ -228,12 +228,13 @@ git commit -m "feat(evoking): Bound Vexes cure zombie villagers"
 | `aCourtedVexIsNotPrey` | Two Bound Vexes, one vanilla vex: while one offers, the other's target is never the vanilla vex, and `vanillaVex.hurtServer(level, damageSources().mobAttack(otherBoundVex), 4)` leaves its health unchanged; after a scripted refusal the same hit hurts it. |
 | `noOfferToAVexThatIsNotAttackingYourSide` | A vanilla vex with no target, and one targeting a pig → no emerald in 60 ticks. A `BoundVex` of another player targeting the summoner → no offer. |
 | `theOfferEndsIfTheVexDies` and `anApproachTimeoutLeavesNoMark` | Kill the vanilla vex mid-offer → hand restored, claim free. Hold the Bound Vex in place → after 100 ticks no mark on the vanilla vex, hand restored. |
+| `theOfferEndsIfTheVexLeavesOrTheBriberFlees` | The vanilla vex is moved out of the guard area mid-offer → no mark, hand restored, claim free. A swelling creeper (`patientCreeper`) beside the Bound Vex mid-offer → the same, and the vanilla vex is prey again (`isCourted` false). |
 | `aBribedVexLoadedFromASaveOnlyFlees` | `reloaded` copy added to the level → `BRIBED` kept; its goal selector holds only the flee goal. |
 | `aStayingVexBribesOnlyInItsArea` | A vanilla vex targeting the summoner 9 blocks from the post gets no offer; one 5 blocks away does. |
 
-Delta: 9 tests.
+Delta: 10 tests.
 
-- [ ] **Step 6: Verify** (`spotlessApply`, `build`, `runGameTestServer` twice; total = previous + 9) and **commit**:
+- [ ] **Step 6: Verify** (`spotlessApply`, `build`, `runGameTestServer` twice; total = previous + 10) and **commit**:
 
 ```bash
 git add src/main/java
@@ -270,7 +271,7 @@ git commit -m "docs: describe the cure and the bribe; playtest items; mutation r
 ## Self-review
 
 - **Spec coverage:** §2.1 → Task 3; §2.2 → Task 4 Step 1; §2.3 → Task 4 Step 2; §3.1 → Task 5 Steps 2–3; §3.2 → Task 5 Steps 1, 4 and Task 3 (`isPrey`); §4 → the tests of Tasks 3–5 (the daylight item is a playtest item); §9 Part 4 tests → Tasks 3–5 tables; §9 docs → Tasks 1 and 6. Part 5 (§5–§8) is the next plan.
-- **Names** used across tasks: `VexMarks.CURE` / `BRIBED` / `BRIBE_TRIED`, `isBeingCured`, `isBribed`, `wasOfferedBribe`, `BribeRule.accepts` / `roll` / `SIDES`, `CureZombieVillagerGoal.curePotion` / `clearClaims`, `CureEvents.RELEASE_AFTER`, `BribeGoal.isCourted` / `clearClaims` / `setDice` / `resetDice`, `FleeFromViewGoal.install`.
+- **Names** used across tasks: `AllyAttachments.CURE` / `BRIBED` / `BRIBE_TRIED`, `AllyAttachments.isBeingCured` / `isBribed` / `wasOfferedBribe`, `BribeRule.accepts` / `roll` / `SIDES`, `CureZombieVillagerGoal.curePotion` / `clearClaims`, `CureEvents.RELEASE_AFTER`, `BribeGoal.isCourted` / `clearClaims` / `scriptDice` / `unscriptDice`, `FleeFromViewGoal.install`, `BoundVexTestSupport.holdAt` / `patientCreeper`.
 
 ## Resume State
 

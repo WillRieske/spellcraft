@@ -173,7 +173,7 @@ target does not matter.
 |---|---|---|
 | 1 Approach | until within 1.5 blocks, at most 100 ticks | Fly to it. A timeout ends the goal with no mark (it may try again). |
 | 2 Offer | 20 ticks | `conjure(MAINHAND, emerald)`; `SoundEvents.VILLAGER_AMBIENT` once at the start; the vex looks at the other vex. |
-| 3 Roll | | One roll from the pure rule `BribeRule` (§9): **2 in 3** it is bribed, **1 in 3** it refuses. `dismiss(MAINHAND)`; the claim is released. The roll comes from `BribeGoal`'s `Dice` (the small interface `ScrollDraw` already uses), which is the vex's random source in play and which a GameTest replaces through a package-level setter, restored when the test ends. |
+| 3 Roll | | One roll from the pure rule `BribeRule` (§9): **2 in 3** it is bribed, **1 in 3** it refuses. `dismiss(MAINHAND)`; the claim is released. The roll comes from `BribeGoal`'s `Dice` (the small interface `ScrollDraw` already uses), which is the vex's random source in play and which a GameTest replaces for one vex through a public test hook (`BribeGoal.scriptDice`), removed when the test ends. |
 
 **Bribed:** the vex gets the `bribed` mark, its target is cleared, every goal and target goal
 it has is removed, and `FleeFromViewGoal` is added (§3.2). **Refused:** it gets the
