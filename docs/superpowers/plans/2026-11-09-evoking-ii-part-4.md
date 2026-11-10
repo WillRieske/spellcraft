@@ -63,10 +63,10 @@ docs/api-notes.md (§23), docs/playtest-checklist.md, docs/mutation-testing.md, 
 
 - Produces: `docs/api-notes.md` §23; `ZombieVillager.startConverting(UUID, int)` callable from mod code.
 
-- [ ] **Step 1: Verify and record.** Open each item in `build/mc-src` / `build/nf-src` and write §23 ("Evoking II, Part 4: cure and bribes") in the file's existing style, each fact with `file:line`: `ZombieVillager` (`startConverting` signature and what it does, including that it removes weakness; `isConverting`; `tick`'s countdown and that it is not gated by `NoAI`; `finishConversion` and the starter-must-be-in-the-level rule for the reputation event; `setVillagerConversionTime`; `mobInteract` with a golden apple); the conversion copying `NoAI` (`ConversionType`) and NeoForge's `LivingConversionEvent.Post` (its accessors for the old and the new mob, and whether the old mob's attachments are still readable there); `EntityTickEvent.Post`; how `Mob.setNoAi` gates movement and attacks; vanilla `Vex` (`getOwner`, its goals, `setTarget(null)`, `GoalSelector.removeAllGoals(Predicate)`); `PotionContents` (the constructor or factory that builds contents with a custom color and no effects; weakness's color constant or how to read it from `MobEffects.WEAKNESS`) and how a splash potion entity with such a stack is spawned (cite §22's projectile bullets rather than repeating them); `ItemParticleOption` (its constructor in 26.3) and `ServerLevel.sendParticles`; the declared types of `SoundEvents.GENERIC_EAT` and `VILLAGER_AMBIENT`; `EntityJoinLevelEvent`; `Entity.hasLineOfSight` for a player looking at a mob; data attachments (`AttachmentType.builder(...).serialize(...)`, `setData`/`getExistingData`/`hasData`/`removeData`, and that they are saved with the entity and copied or not on conversion).
-- [ ] **Step 2: The access transformer.** Add the line `public net.minecraft.world.entity.monster.zombie.ZombieVillager startConverting(Ljava/util/UUID;I)V` to `accesstransformer.cfg` (confirm the class's package and the descriptor against the source). Run `./gradlew build` (recipe): a cold re-decompile may take several minutes; run it in the background. Prove the transformer took: `grep -n "void startConverting" build/moddev/artifacts/*sources*/**/ZombieVillager.java` if the patched sources are regenerated there, or note in §23 how it was proven (a one-line scratch call that compiled, then removed).
-- [ ] **Step 3: Baseline.** `runGameTestServer` (recipe). Record `All N required tests passed` in this plan's "Resume State" as `Baseline GameTests: N`.
-- [ ] **Step 4: Commit**
+- [x] **Step 1: Verify and record.** Open each item in `build/mc-src` / `build/nf-src` and write §23 ("Evoking II, Part 4: cure and bribes") in the file's existing style, each fact with `file:line`: `ZombieVillager` (`startConverting` signature and what it does, including that it removes weakness; `isConverting`; `tick`'s countdown and that it is not gated by `NoAI`; `finishConversion` and the starter-must-be-in-the-level rule for the reputation event; `setVillagerConversionTime`; `mobInteract` with a golden apple); the conversion copying `NoAI` (`ConversionType`) and NeoForge's `LivingConversionEvent.Post` (its accessors for the old and the new mob, and whether the old mob's attachments are still readable there); `EntityTickEvent.Post`; how `Mob.setNoAi` gates movement and attacks; vanilla `Vex` (`getOwner`, its goals, `setTarget(null)`, `GoalSelector.removeAllGoals(Predicate)`); `PotionContents` (the constructor or factory that builds contents with a custom color and no effects; weakness's color constant or how to read it from `MobEffects.WEAKNESS`) and how a splash potion entity with such a stack is spawned (cite §22's projectile bullets rather than repeating them); `ItemParticleOption` (its constructor in 26.3) and `ServerLevel.sendParticles`; the declared types of `SoundEvents.GENERIC_EAT` and `VILLAGER_AMBIENT`; `EntityJoinLevelEvent`; `Entity.hasLineOfSight` for a player looking at a mob; data attachments (`AttachmentType.builder(...).serialize(...)`, `setData`/`getExistingData`/`hasData`/`removeData`, and that they are saved with the entity and copied or not on conversion).
+- [x] **Step 2: The access transformer.** Add the line `public net.minecraft.world.entity.monster.zombie.ZombieVillager startConverting(Ljava/util/UUID;I)V` to `accesstransformer.cfg` (confirm the class's package and the descriptor against the source). Run `./gradlew build` (recipe): a cold re-decompile may take several minutes; run it in the background. Prove the transformer took: `grep -n "void startConverting" build/moddev/artifacts/*sources*/**/ZombieVillager.java` if the patched sources are regenerated there, or note in §23 how it was proven (a one-line scratch call that compiled, then removed).
+- [x] **Step 3: Baseline.** `runGameTestServer` (recipe). Record `All N required tests passed` in this plan's "Resume State" as `Baseline GameTests: N`.
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/api-notes.md src/main/resources/META-INF/accesstransformer.cfg docs/superpowers/plans/2026-11-09-evoking-ii-part-4.md
@@ -75,6 +75,8 @@ git add docs/api-notes.md src/main/resources/META-INF/accesstransformer.cfg docs
 ```bash
 git commit -m "build: open ZombieVillager.startConverting; record the 26.3 facts for Part 4"
 ```
+
+> **As built (`010163f`):** diverged — api-notes §23 corrects several assumptions later tasks use: `ItemParticleOption` takes an `Item` or `ItemStackTemplate`, never an `ItemStack`; `hasLineOfSight` is on `LivingEntity`; `SoundEvents.GENERIC_EAT` is a holder; the cure potion is `new PotionContents(Optional.empty(), Optional.of(color), List.of(), Optional.empty())` with color `MobEffects.WEAKNESS.value().getColor()`; on the tick a conversion finishes the old mob is already removed when `EntityTickEvent.Post` fires (check `isRemoved()`); `LivingConversionEvent.Post` gives the old mob (`getEntity()`, attachments readable) and the new one (`getOutcome()`), and attachments are not copied; `EntityJoinLevelEvent.loadedFromDisk()` is false for a cross-dimension arrival, so the bribed-vex handler keys on the mark; reason: the 26.3 sources.
 
 ---
 
@@ -89,11 +91,11 @@ git commit -m "build: open ZombieVillager.startConverting; record the 26.3 facts
 
 - Produces: `BribeRule.SIDES` (`int`, 3); `static boolean BribeRule.accepts(int roll)` (true for 0 and 1, false for 2; `IllegalArgumentException` outside `0..2`); `static boolean BribeRule.roll(ScrollDraw.Dice dice)` if `ScrollDraw.Dice` fits (read `spell/rules/ScrollDraw.java` and `src/test/.../ScriptedDice.java` first: use the interface's existing method to draw a number in `0..SIDES-1`; if its shape does not fit a 3-sided roll, declare a one-method `BribeRule.Dice` instead and say so).
 
-- [ ] **Step 1: Failing tests.** `BribeRuleTest`: `accepts(0)` and `accepts(1)` true, `accepts(2)` false; `accepts(-1)` and `accepts(3)` throw; `roll` with a scripted dice returning each side. `BribeRulePropertiesTest` (match `GuardAreaPropertiesTest`'s `@Group` style): over the three sides exactly two accept; `roll` never throws for a dice that stays in range.
-- [ ] **Step 2: See them fail.** `./gradlew test --tests "*BribeRule*" --console=plain > build/test.log 2>&1; echo "exit=$?"; tail -20 build/test.log` → compile errors naming `BribeRule`.
-- [ ] **Step 3: Implement** (spec §3.1, §9), with Javadoc saying the odds are Will's "1/1.5".
-- [ ] **Step 4: See them pass** (same command, `exit=0`).
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Failing tests.** `BribeRuleTest`: `accepts(0)` and `accepts(1)` true, `accepts(2)` false; `accepts(-1)` and `accepts(3)` throw; `roll` with a scripted dice returning each side. `BribeRulePropertiesTest` (match `GuardAreaPropertiesTest`'s `@Group` style): over the three sides exactly two accept; `roll` never throws for a dice that stays in range.
+- [x] **Step 2: See them fail.** `./gradlew test --tests "*BribeRule*" --console=plain > build/test.log 2>&1; echo "exit=$?"; tail -20 build/test.log` → compile errors naming `BribeRule`.
+- [x] **Step 3: Implement** (spec §3.1, §9), with Javadoc saying the odds are Will's "1/1.5".
+- [x] **Step 4: See them pass** (same command, `exit=0`).
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/io/github/willrieske/spellcraft/spell/rules/BribeRule.java src/test/java/io/github/willrieske/spellcraft/spell/rules
@@ -102,6 +104,8 @@ git add src/main/java/io/github/willrieske/spellcraft/spell/rules/BribeRule.java
 ```bash
 git commit -m "feat(evoking): add the pure bribe odds rule"
 ```
+
+> **As built (`d10cea4`):** matches plan.
 
 ---
 
@@ -272,6 +276,14 @@ git commit -m "docs: describe the cure and the bribe; playtest items; mutation r
 
 - **Spec coverage:** §2.1 → Task 3; §2.2 → Task 4 Step 1; §2.3 → Task 4 Step 2; §3.1 → Task 5 Steps 2–3; §3.2 → Task 5 Steps 1, 4 and Task 3 (`isPrey`); §4 → the tests of Tasks 3–5 (the daylight item is a playtest item); §9 Part 4 tests → Tasks 3–5 tables; §9 docs → Tasks 1 and 6. Part 5 (§5–§8) is the next plan.
 - **Names** used across tasks: `AllyAttachments.CURE` / `BRIBED` / `BRIBE_TRIED`, `AllyAttachments.isBeingCured` / `isBribed` / `wasOfferedBribe`, `BribeRule.accepts` / `roll` / `SIDES`, `CureZombieVillagerGoal.curePotion` / `clearClaims`, `CureEvents.RELEASE_AFTER`, `BribeGoal.isCourted` / `clearClaims` / `scriptDice` / `unscriptDice`, `FleeFromViewGoal.install`, `BoundVexTestSupport.holdAt` / `patientCreeper`.
+
+## Divergence index
+
+<!-- generated by plan_map.py --write-index; do not edit -->
+
+| Task | SHA | Divergence |
+|---|---|---|
+| 1 | `010163f` | api-notes §23 corrects several assumptions later tasks use: `ItemParticleOption` takes an `Item` or `ItemStackTemplate`, never an `ItemStack`; `hasLineOfSight` is on `LivingEntity`; `SoundEvents.GENERIC_EAT` is a holder; the cure potion is `new PotionContents(Optional.empty(), Optional.of(color), List.of(), Optional.empty())` with color `MobEffects.WEAKNESS.value().getColor()`; on the tick a conversion finishes the old mob is already removed when `EntityTickEvent.Post` fires (check `isRemoved()`); `LivingConversionEvent.Post` gives the old mob (`getEntity()`, attachments readable) and the new one (`getOutcome()`), and attachments are not copied; `EntityJoinLevelEvent.loadedFromDisk()` is false for a cross-dimension arrival, so the bribed-vex handler keys on the mark; reason: the 26.3 sources. |
 
 ## Resume State
 
