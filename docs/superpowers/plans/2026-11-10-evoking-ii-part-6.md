@@ -4171,7 +4171,7 @@ git commit -m "feat(evoking): the teamMoves setting and the automatic team-move 
 - Consumes: `ServerConfig.teamMoveMode()`, `TeamMoves.start/wardFor/attackDamage`, `TeamMoveRules.fits`.
 - Produces: `TeamMoves.request(ServerPlayer, TeamMove)` → `TeamMoves.Answer { IGNORED, AUTOMATIC, RUNNING, COOLING, UNAVAILABLE, STARTED }` (public); the key constants `AUTOMATIC_KEY`, `RUNNING_KEY`, `COOLING_KEY`, `UNAVAILABLE_KEY` and `REQUEST_RANGE = 16.0`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `BoundVexTeamMoveRequestGameTests` (class Javadoc `/** GameTests of the manual team-move request (Parts 6-7 spec §3.4) and, from Task 8, of the packet's dispatch. */`; imports as the Trigger class, plus `AtomicReference`, `Supplier`, `ModEffects`, `GameType`, `Comparator`) registers `FangGameTests.addPadded(…)`: the first test in `SHARED`, the rest in `config_mutation` (each sets the setting to `MANUAL` for one synchronous call through a helper `manual(Supplier)`). Registration, in the Task 3 shape, e.g. `FangGameTests.addPadded(SHARED, "team_move_request_automatic_answers", BoundVexTeamMoveRequestGameTests::automaticAnswers);` and `FangGameTests.addPadded("config_mutation", "team_move_request_no_enemy_is_unavailable", BoundVexTeamMoveRequestGameTests::noEnemyIsUnavailable);`; likewise for the rest (name = `team_move_request_` plus the snake-case method name). In the static block of `SpellcraftGameTests` add `BoundVexTeamMoveRequestGameTests.registerAll();` after the trigger class.
 
@@ -4597,12 +4597,12 @@ static void runningBeatsCooling(GameTestHelper helper) {
 
 Names: `team_move_request_automatic_answers` (`SHARED`), then in `config_mutation`: `team_move_request_no_enemy_is_unavailable`, `…_too_few_vexes_is_unavailable`, `…_far_enemy_is_unavailable`, `…_running_move_answers_running`, `…_cooling_kind_answers_cooling`, `…_shield_starts`, `…_multishot_needs_no_hunted_vex`, `…_multishot_with_two_is_unavailable`, `…_evader_needs_no_enemy`, `…_raid_starts`, `…_needs_no_evoking`, `…_dead_sender_is_ignored`, `…_spectating_sender_is_ignored`, `…_evader_without_a_ward_is_unavailable`, `…_raid_with_eleven_is_unavailable`, `…_ally_giant_is_not_a_subject`, `…_automatic_beats_running`, `…_running_beats_cooling`. That is 19 tests. (`automaticBeatsRunning` leaves the setting alone, so it could run in `SHARED`; it is in `config_mutation` with the rest because it reads the global setting.)
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_request_*"`
 Expected: compilation fails (`TeamMoves.request`, `Answer` and the keys do not exist).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to `TeamMoves`:
 
@@ -4698,12 +4698,12 @@ private static @Nullable LivingEntity subjectFor(ServerPlayer owner, TeamMove mo
 
 Lang: `"message.spellcraft.team_moves_automatic": "Team moves are automatic"`, `"message.spellcraft.team_move_running": "Your vexes are already in a team move"`, `"message.spellcraft.team_move_cooling": "That team move is not ready yet"`, `"message.spellcraft.team_move_unavailable": "Not enough vexes, or no enemy for that move"`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_request_*"`
 Expected: all pass.
 
-- [ ] **Step 5: Full gates, then commit**
+- [x] **Step 5: Full gates, then commit**
 
 Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (expect `All M required tests passed`, M = the previous task's reported total plus the 19 tests this task registers; write M in the commit's as-built note).
 
@@ -4711,6 +4711,8 @@ Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (
 git add src/main/java/io/github/willrieske/spellcraft src/main/resources/assets/spellcraft/lang/en_us.json
 git commit -m "feat(evoking): the manual team-move request answers in the spec's order"
 ```
+
+> **As built (`d00be34`):** diverged — `request` reads the record with `get` (a refusal creates no record), matching `start` and `tick`; reason: Task 5's no-empty-record rule.
 
 ---
 
@@ -6931,6 +6933,7 @@ git commit -m "docs(evoking): Part 6 in the README, playtest items, mutation tes
 | 4 | `e37f437` | `DiceTest` is the GameTest `team_move_dice_script_rules` in `team_move_dice` (the brief's fallback: `RandomSource` is not on the unit-test classpath), so 14 tests (528); the Multishot test reads `ItemStack.getEnchantmentLevel(Holder)` (the helper is deprecated under -Werror); reason: classpath and compile rules. |
 | 5 | `2d4c6e9` | `start` reads the record with `get` and creates it only once the move begins, so a refusal leaves no empty record; `tick` never creates one; `clear()` unscripts `Dice.RAID_KIT`; reason: Task 4 review. |
 | 6 | `7d431bf` | `TeamMoves.tick` reads the record with `get` and creates one only when a scan is due (AUTOMATIC, summoner present, no move running), not `computeIfAbsent` every tick; Task 11's `tick` snippet must merge into this shape (its `advance` branch sits inside the `record != null && record.active()` block); reason: keeps Task 5's no-empty-record rule. |
+| 7 | `d00be34` | `request` reads the record with `get` (a refusal creates no record), matching `start` and `tick`; reason: Task 5's no-empty-record rule. |
 
 ## Resume State
 
