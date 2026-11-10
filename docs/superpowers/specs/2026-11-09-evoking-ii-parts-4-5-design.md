@@ -399,11 +399,13 @@ chunk is loaded, is still a standable spot (a spot in an unloaded chunk is trust
 checking it would load the chunk on the server thread, and the teleport loads it anyway). With
 neither, there is no catch, and the column search is not repeated for 20 ticks. Otherwise the
 player is teleported there (vanilla's teleport dismounts a rider and zeroes the velocity, on the
-client too); if the teleport is refused, nothing more happens; their fall distance is zeroed;
-the rescuer is brought to their side; and the vex
+client too); if the teleport is refused (an event cancelled it), nothing more happens except that
+the landing search is paused for 20 ticks, like an empty one, so the search is not repeated every
+tick; their fall distance is zeroed; the rescuer is brought to their side; and the vex
 feeds them an **enchanted golden apple**: the apple's own consume effects are applied through
 vanilla's `Consumable.onConsume` on a throwaway stack, with its eating sound, and the vex shows
-the apple in its hand (conjured) for the 20-tick tail. No item is spent.
+the apple in its hand (conjured) for the 20-tick tail. The apple also feeds: `onConsume` applies
+its food value as well as its effects. No item is spent.
 
 **No cooldown** (Will's choice, kept knowingly): stepping off the island with a vex near is a
 repeatable source of the apple's effects. Vanilla also counts the apple as eaten for statistics
@@ -422,8 +424,9 @@ that is not invulnerable, within **32 blocks** of a following vex or inside the 
 staying one, is not claimed. The nearest is claimed. The vex flies to within 2 blocks and calls
 `crystal.hurtServer(level, damageSources().mobAttack(vex), 1)`, which vanilla turns into the
 crystal's explosion. The goal ends then, and also when the crystal is removed by anything else
-(a neighbor's blast), when the vex gets a target, or after 200 ticks; a vex that flew far is
-brought back by the follow goal's teleport.
+(a neighbor's blast), when the vex gets a target, when its summoner is no longer present, when
+the dragon dies, or after 200 ticks; a vex that gave a crystal up after 200 ticks claims none for
+another 200 ticks. A vex that flew far is brought back by the follow goal's teleport.
 
 **The explosion and your side.** A crystal explodes with power 6: lethal near it, and its
 knockback reaches 12 blocks. Players stand on towers to reach caged crystals, and their vexes
@@ -438,7 +441,10 @@ get there first.
   `BoundVexEvents` handles NeoForge's `ExplosionKnockbackEvent`: when the explosion was caused
   by a Bound Vex, the knockback is set to zero for every entity the backstop spares (the
   summoner, allies, the summoner's vexes); and for an explosion whose direct source is an
-  `EndCrystal`, for every Bound Vex. So a vex breaking the crystal beside you neither hurts you
+  `EndCrystal`, for every Bound Vex. When the causing vex's summoner is absent (offline, dead or
+  in another level) the backstop has its other rule (indirect damage only, for anyone who is no
+  `Enemy` and anyone carrying the same summoner mark), and the knockback is zeroed for exactly
+  those victims, by the same test. So a vex breaking the crystal beside you neither hurts you
   nor throws you off the tower. A crystal *you* break still throws you, as in vanilla.
 
 ### 7.2 Critical hits
@@ -446,7 +452,7 @@ get there first.
 In the End, every **melee** hit by a Bound Vex does **3×** damage: in `BoundVexEvents`'s
 `LivingIncomingDamageEvent` handler, after the backstop's test and only when the hit was not
 cancelled, when the damage's direct entity is a Bound Vex (its own body, so arrows and potions
-are excluded) in the End, the amount is tripled, 6 `CRIT` particles appear on the victim and
+are excluded) in the End, whether or not its summoner is present, the amount is tripled, 6 `CRIT` particles appear on the victim and
 `SoundEvents.PLAYER_ATTACK_CRIT` plays. This holds for any victim the vex may fight, a player
 under the PvP rule included, and with any weapon it was given. The golem mercy clamp runs later
 in the damage pipeline (`LivingDamageEvent.Pre`) and still holds.
@@ -501,8 +507,10 @@ in the damage pipeline (`LivingDamageEvent.Pre`) and still holds.
   never raises the sideways speed; `y` is never under its floor; no component is NaN for any
   finite input; and fed its own output plus a constant steering input, tick after tick, the
   sideways speed stays bounded (no ratchet).
-- `VoidRule.needsCatch(y, minY, onGround, movingDown, groundWithin64, flying)`: the conditions
-  of §6.4.
+- `VoidRule.needsCatch(y, minY, onGround, movingDown, flying, groundWithin64)`: the conditions
+  of §6.4; the ground check is a `BooleanSupplier` asked last, only when everything else holds.
+  `VoidRule.lastGroundUsable(chunkLoaded, standable)`: a last ground in an unloaded chunk is
+  trusted without asking `standable`; in a loaded chunk it is used only if still standable.
 
 `./gradlew pitest` after each part, with a row in `docs/mutation-testing.md`.
 
@@ -542,11 +550,14 @@ in the damage pipeline (`LivingDamageEvent.Pre`) and still holds.
   player gets none.
 - A bribed vex loaded from a save has only the flee goal.
 
-**GameTests, Part 5** (new class `BoundVexWorldGameTests`; Nether and End pockets as the
-existing `toNether` helper builds them, with a new `toEnd` twin that carves and clears a fixed
-region, so "ground within 32 blocks" is what the test built and nothing else). A mock player is
-never moved by the server, so push tests assert the velocity the tick set and then move the
-player by hand to reach the next state.
+**GameTests, Part 5** (new class `BoundVexWorldGameTests`; the Nether and End places are built by
+`BoundVexWorldTestSupport`, so "ground within 32 blocks" is what the test built and nothing
+else). The GameTest world is flat in every dimension (a floor at y 0 to 3, the End included), so
+`endVoid` clears the floor inside its place and restores it. Tests in a batch run at the same
+time, so each End or Nether test works in a private slot of a pool, 200 blocks apart, and undoes
+all of it at the end. A mock player is never ticked or moved by the server, so push tests assert
+the velocity the tick set and then move the player by hand to reach the next state, and a mock
+player reports a fluid only after two `baseTick` calls (`soak`).
 
 - Posture: for each row of §6.1 (Overworld day, forced night, Nether, End) a following vex
   settles in place; in the three close rows its feet are at least 1.7 above the summoner's feet
@@ -583,9 +594,9 @@ player by hand to reach the next state.
   arrow does not; a hit the backstop cancels stays cancelled; a hit on a mercy-protected golem
   still stops at 25.
 
-Tests that need the End's dragon fight build the smallest thing vanilla accepts; if a living
-dragon fight cannot be made on the GameTest server, the dragon-alive test is put behind a small
-package-private seam in `AttackCrystalGoal` and the plan says so.
+A living dragon fight cannot be made on the GameTest server, so the dragon-alive test is behind
+`AttackCrystalGoal.scriptDragon(vex, alive)`: a public per-vex scripted answer, empty in play,
+that replaces `livingDragon` for that vex until `unscriptDragon`.
 
 **Playtest items** (Will; `docs/playtest-checklist.md`, sections "Evoking II (Part 4)" and
 "(Part 5)"): the cure's look (apple crumbs, head turn, gray splash, smoke for 20 seconds, the

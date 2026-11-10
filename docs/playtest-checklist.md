@@ -231,6 +231,25 @@ Survival world, open ground, Strength of Evoking on, a few Bound Vexes out. Wher
 - [ ] A bribed vex flies away from you through walls and is gone without sound or drop (it vanishes at once when out of sight, or after ten seconds at most).
 - [ ] A refused bribe (one time in three) is followed by a normal fight, and the same vex is not offered a second emerald.
 
+## Evoking II (Part 5)
+
+Survival world, Strength of Evoking on, a dozen Bound Vexes out. Where a mob can hurt you, give yourself Resistance (`/effect give @s resistance 600 4`) and a way to heal.
+
+- [ ] Twelve vexes overhead at night, in the Nether and in the End: are they out of the way of your clicks (draw a bow, place a block, hit a mob)? Is "above your head" the right place?
+- [ ] A vex stopping dead above your head when it arrives: does the stop look abrupt?
+- [ ] The change of posture at dusk and dawn, and in a thunderstorm: do the vexes move up and in, and back out, without a visible jump?
+- [ ] The lava pull on a real client: do you reach the shore, can you still steer, does it feel like a pull and not a teleport? A lake with no shore within 6 blocks: are you held at the surface?
+- [ ] The Nether's water bucket: the bucket in the vex's hand, the two sounds, the splash, the fire out.
+- [ ] The drowning push: under open water you rise; under a ceiling you are left alone.
+- [ ] The drowning push lifts at 0.4 blocks per tick (about 8 blocks a second, more than twice a natural swim-up): is that too fast?
+- [ ] The void catch: step off the End island; where you land; the apple in the vex's hand; the eating sound; the four effects. Riding a strider or a boat off the edge. With an elytra open: no catch.
+- [ ] The fireball return: the sound, the fireball's path back to the ghast, the one-hit kill and its advancement.
+- [ ] A returned fireball passing through your other vexes: it flies on without hurting them or stopping.
+- [ ] Two summoners' vexes bouncing one fireball (LAN, two players with vexes near a ghast): does it bounce between them as the spec says, and does it end?
+- [ ] Crystals: vexes break them (caged ones too) while you stand on a tower beside one: no damage, no throw. A crystal you shoot yourself still throws you.
+- [ ] Critical hits in the End: the particles and sound on every vex hit.
+- [ ] A rescuer that was mid-cure or fleeing a creeper: does it come, and does the cure restart afterwards?
+
 ## Real profile
 
 - [ ] Will installs the new jar. From the repo root, in a normal PowerShell window (the Claude app's shells cannot write under `%APPDATA%`), he runs the command below. It builds, then copies the jar whose name carries `mod_version` into `%APPDATA%\.minecraft\mods` and removes every other `spellcraft-*.jar` there; the old `1.0.0` jar goes away and the `1.2.0` jar is replaced. He then launches the NeoForge 26.3 profile and casts each scroll once.

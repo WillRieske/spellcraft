@@ -38,7 +38,15 @@ A NeoForge mod for Minecraft that adds spells cast from scrolls. It has four:
   and the cured villager gives you the cure discount. It costs you nothing, and your fangs and village
   golems leave the zombie villager alone while it is cured. When an enemy vex attacks you or your
   allies, one of your vexes holds out an emerald to it first: two times in three it takes it and flies
-  off for good, and otherwise the fight goes on as usual. Fangs spare you and your allies (your team, your pets, your own vexes,
+  off for good, and otherwise the fight goes on as usual. At night, in the Nether and in the End
+  your vexes close in and hover just over your head (about three blocks up, and they stop dead when
+  they arrive), and they look around more often. One of them pulls you out of lava toward the nearest
+  shore (in the Nether it then douses you with a bucket of water), pushes you up when you are
+  drowning under open water, and if you fall off the End's island it catches you, puts you back on
+  solid ground and feeds you an enchanted golden apple. A ghast's fireball that is about to hit you
+  is batted back at the ghast, and the fireball is yours, so it can kill the ghast in one hit. In the
+  End they break the end crystals while the dragon lives (the blast does not hurt or throw you, your
+  pets or your vexes), and every melee hit they land there does three times the damage. Fangs spare you and your allies (your team, your pets, your own vexes,
   villagers, wandering traders, and iron golems that are not mad at you) and hurt everything else;
   vexes spare them too and fight only what the list above says. You, your pets, your fangs and your
   vexes cannot take an iron golem below 25 health; when it gets that low, it calms down and stops
