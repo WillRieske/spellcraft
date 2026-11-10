@@ -36,11 +36,13 @@ public final class VexFireballs {
      * Handles the impact of a large fireball on the server (a client level is ignored).
      *
      * <p>First, a fireball whose owner is a player passes through that player's own Bound Vexes: a hit on one of them
-     * is cancelled and nothing else happens. A returned fireball would otherwise strike a sibling vex on its way to the
-     * ghast, and its owner being the player hides it from the friendly-fire backstop. Vanilla then moves the fireball
-     * on, and next tick its ray starts inside the vex's box and does not hit it ({@code AABB.clip} counts only the
-     * faces a ray enters through, at a positive distance along it, and {@code ProjectileUtil.getEntityHitResult}
-     * takes the nearest such hit).
+     * is canceled and nothing else happens. A returned fireball would otherwise strike a sibling vex on its way to the
+     * ghast, and its owner being the player hides it from the friendly-fire backstop. A canceled impact does not stop
+     * the fireball: {@code AbstractHurtingProjectile.tick} moves it on by its full velocity instead of to the hit
+     * point. Next tick its ray starts either inside the vex's box or already beyond it, and either way it cannot enter
+     * the box through a face ({@code AABB.clip} counts only the faces a ray enters through, at a positive distance
+     * along it, and {@code ProjectileUtil.getEntityHitResult} takes the nearest such hit), so the same vex is not
+     * struck again. This holds in every dimension; only the return below is Nether only.
      *
      * <p>Then, in the Nether only: cancels the impact of a fireball that is about to hit a player, or land within
      * {@link #NEAR_PLAYER} blocks of the player's body (the distance from the hit to their bounding box, not to their

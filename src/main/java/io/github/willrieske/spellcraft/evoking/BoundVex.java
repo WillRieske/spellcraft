@@ -87,7 +87,7 @@ public class BoundVex extends Vex {
      * The wide posture's scan interval (spec §3.4 "every 10 ticks") and the fixed cadence of {@link SupportGearGoal}.
      * Every other scanning goal reads {@link #scanInterval()}; all of them go through {@link #scanDue}.
      */
-    static final int SCAN_INTERVAL = 10;
+    static final int SCAN_INTERVAL = GuardPosture.WIDE.scanInterval();
 
     /** How far the summoner's wolves hear the call to a fight (spec §3.4), feet to feet. */
     static final double WOLF_CALL_RANGE = 16.0;
@@ -664,10 +664,10 @@ public class BoundVex extends Vex {
 
     /**
      * The goal clock (spec §3.4): true once every {@code interval} ticks, the posture's ({@link #scanInterval()}).
-     * {@code Mob.serverAiStep}
-     * asks a goal's {@code canUse} only when {@code tickCount + getId()} is even (docs/api-notes.md §21, "The goal
-     * clock"), so a plain {@code tickCount % 10} gate never opens for an odd id; keyed the same way, an even interval
-     * always lands on a tick where {@code canUse} runs. Every scanning goal reads its cadence here.
+     * {@code Mob.serverAiStep} asks a goal's {@code canUse} only when {@code tickCount + getId()} is even
+     * (docs/api-notes.md §21, "The goal clock"), so a plain {@code tickCount % 10} gate never opens for an odd id;
+     * keyed the same way, an even interval always lands on a tick where {@code canUse} runs. Every scanning goal reads
+     * its cadence here.
      *
      * @param interval ticks between scans; even
      * @return whether this tick is a scan tick

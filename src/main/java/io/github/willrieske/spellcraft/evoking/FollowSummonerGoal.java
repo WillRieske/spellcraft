@@ -27,7 +27,7 @@ public final class FollowSummonerGoal extends Goal {
     public static final double ORBIT_MIN = GuardPosture.WIDE.sideMin();
 
     /** The wide posture's limit (feet to feet): beyond it a wide-posture vex moves. */
-    public static final double ORBIT_MAX = 4.0;
+    public static final double ORBIT_MAX = GuardPosture.WIDE_LIMIT;
 
     /** Farther than this (feet to feet), the vex teleports instead of flying. */
     public static final double TELEPORT_DISTANCE = 12.0;

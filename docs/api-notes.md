@@ -1108,7 +1108,7 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   `AbstractHurtingProjectile.tick()` (the cancel behavior below is that class's; arrows, throwables and shulker bullets
   also post it, each with its own handling) through
   `EventHooks.onProjectileImpact(Projectile, HitResult)` (`event/EventHooks.java:704`; call in
-  `AbstractHurtingProjectile.java:74`; true = cancelled). Cancelled: the projectile is not discarded, moves by its
+  `AbstractHurtingProjectile.java:74`; true = canceled). Canceled: the projectile is not discarded, moves by its
   velocity this tick and tests again next tick.
 - **`Projectile.deflect`** (`world/entity/projectile/Projectile.java:301-318`): two overloads,
   `deflect(ProjectileDeflection, @Nullable Entity deflector, @Nullable EntityReference<Entity> newOwner,
@@ -1189,3 +1189,10 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   and reports `getMinY()` for an unloaded column. The non-loading test is `LevelReader.hasChunk(chunkX, chunkZ)`
   (`ServerChunkCache.hasChunk`, `ServerChunkCache.java:263`); `hasChunkAt(BlockPos)` calls it but is deprecated. The
   void catch uses `hasChunk(SectionPos.blockToSectionCoord(x), …)` and trusts a last ground in an unloaded chunk.
+- **`LivingDamageEvent.Post` and the crit's show.** `LivingEntity.hurtServer` posts it (`CommonHooks.onLivingDamagePost`,
+  `LivingEntity.java:1355`) after `actuallyHurt`, whenever the hit was not dropped earlier. A hit canceled in
+  `LivingIncomingDamageEvent`, or one the invulnerability frames refuse (`damage <= lastHurt`, `LivingEntity.java:1278`),
+  returns before it. It is **not** a proof that health was lost: a source the victim is invulnerable to, or a fully blocked
+  hit, still posts it with `getInflictedDamage()` 0. A harder hit inside the frames posts it with
+  `shouldCauseSideEffects()` false (the hurt sound is skipped the same way). The crit's particles and sound require a
+  Bound Vex's End melee source, `shouldCauseSideEffects()` and `getInflictedDamage() > 0`.

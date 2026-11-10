@@ -15,6 +15,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
@@ -29,6 +30,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
+import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerRespawnPositionEvent;
@@ -148,7 +150,7 @@ public final class BoundVexEvents {
 
     /**
      * The friendly-fire backstop (Part 3 spec §4.3): damage whose attacker is a Bound Vex that has a summoner present
-     * is cancelled when the victim is that summoner or a living thing the vex may not fight ({@link BoundVex#isPrey}:
+     * is canceled when the victim is that summoner or a living thing the vex may not fight ({@link BoundVex#isPrey}:
      * allies, the summoner's other vexes, a calm golem, a player the summoner cannot harm). The summoner case is
      * explicit: {@code isPrey} already refuses it (the player is its own ally), but the rule must not rest on that. A
      * vex's legitimate hits are prey by the same test, so they stand: hostiles, a provoked creeper, a golem that is mad
@@ -168,7 +170,7 @@ public final class BoundVexEvents {
      * <p>After the backstop, in the End, a hit not canceled whose direct entity is the vex itself (its melee, not an
      * arrow or a potion) does {@link #END_CRIT} times its damage (spec §7.2), whether or not its summoner is present.
      * That is before armor and before golem mercy's clamp ({@code LivingDamageEvent.Pre}, later in the pipeline), so
-     * mercy still stops a golem at 25.
+     * mercy still stops a golem at 25. What the crit shows waits for the hit to land ({@link #onDamagePost}).
      *
      * @param event the incoming-damage event, before armor and reductions
      */
@@ -182,10 +184,8 @@ public final class BoundVexEvents {
             return;
         }
         backstop(event, vex);
-        if (!event.isCanceled()
-                && vex.equals(event.getSource().getDirectEntity())
-                && vex.level().dimension().equals(Level.END)) {
-            crit(event, event.getEntity());
+        if (!event.isCanceled() && isEndMelee(event.getSource())) {
+            event.setAmount(event.getAmount() * END_CRIT);
         }
     }
 
@@ -214,30 +214,46 @@ public final class BoundVexEvents {
                         || victim.getExistingData(AllyAttachments.SUMMONER).equals(vex.summonerId()));
     }
 
-    /** Triples the hit and shows it: vanilla's critical-hit particles and sound at the victim. */
-    private static void crit(LivingIncomingDamageEvent event, LivingEntity victim) {
-        event.setAmount(event.getAmount() * END_CRIT);
-        if (victim.level() instanceof ServerLevel level) {
-            level.sendParticles(
-                    ParticleTypes.CRIT,
-                    victim.getX(),
-                    victim.getY(0.5),
-                    victim.getZ(),
-                    CRIT_PARTICLES,
-                    0.3,
-                    0.3,
-                    0.3,
-                    0.1);
-            level.playSound(
-                    null,
-                    victim.getX(),
-                    victim.getY(),
-                    victim.getZ(),
-                    SoundEvents.PLAYER_ATTACK_CRIT,
-                    SoundSource.NEUTRAL,
-                    1.0F,
-                    1.0F);
+    /**
+     * Whether {@code source} is a Bound Vex's own melee hit in the End: the vex is the causing entity and the direct
+     * entity (not an arrow or a potion), and stands in the End. The test both crit handlers share: the tripling
+     * ({@link #onIncomingDamage}) and the show ({@link #onDamagePost}).
+     */
+    static boolean isEndMelee(DamageSource source) {
+        return source.getEntity() instanceof BoundVex vex
+                && vex.equals(source.getDirectEntity())
+                && vex.level().dimension().equals(Level.END);
+    }
+
+    /**
+     * Shows a crit once the hit has landed: vanilla's critical-hit particles and sound at the victim, for a Bound
+     * Vex's End melee hit ({@link #isEndMelee}) that did damage and caused its side effects. A hit that
+     * invulnerability frames absorbed ends before this event, a hit a shield blocked fully inflicted nothing, and a
+     * canceled hit never gets here, so none of them shows anything. (A harder hit inside the frames inflicts only the
+     * difference and, like vanilla's hurt sound, shows nothing.)
+     *
+     * @param event the post-damage event, after the health changed
+     */
+    @SubscribeEvent
+    public static void onDamagePost(LivingDamageEvent.Post event) {
+        if (!isEndMelee(event.getSource())
+                || !event.shouldCauseSideEffects()
+                || event.getInflictedDamage() <= 0.0F
+                || !(event.getEntity().level() instanceof ServerLevel level)) {
+            return;
         }
+        LivingEntity victim = event.getEntity();
+        level.sendParticles(
+                ParticleTypes.CRIT, victim.getX(), victim.getY(0.5), victim.getZ(), CRIT_PARTICLES, 0.3, 0.3, 0.3, 0.1);
+        level.playSound(
+                null,
+                victim.getX(),
+                victim.getY(),
+                victim.getZ(),
+                SoundEvents.PLAYER_ATTACK_CRIT,
+                SoundSource.NEUTRAL,
+                1.0F,
+                1.0F);
     }
 
     /**

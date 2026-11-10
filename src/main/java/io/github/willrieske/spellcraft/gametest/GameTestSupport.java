@@ -9,6 +9,7 @@ import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.UUIDUtil;
+import net.minecraft.core.particles.ParticleType;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.gametest.framework.GameTestInfo;
 import net.minecraft.gametest.framework.GameTestListener;
@@ -16,6 +17,7 @@ import net.minecraft.gametest.framework.GameTestRunner;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
 import net.minecraft.server.level.ServerLevel;
@@ -102,6 +104,33 @@ public final class GameTestSupport {
             }
         }
         return sounds;
+    }
+
+    /**
+     * What a mock player was sent, as {@link #drainShown} reports it.
+     *
+     * @param sounds the sounds, in order
+     * @param particles the types of the particle packets, in order
+     */
+    public record Shown(List<SoundEvent> sounds, List<ParticleType<?>> particles) {}
+
+    /**
+     * Empties the mock player's outbound packet buffer, as {@link #drainActionBar} does, and returns the sounds and the
+     * particle types it was sent ({@code ClientboundSoundPacket}s and {@code ClientboundLevelParticlesPacket}s: what
+     * {@code ServerLevel.playSound} and {@code ServerLevel.sendParticles} broadcast to nearby players). Draining drops
+     * every other packet too.
+     */
+    public static Shown drainShown(ServerPlayer player) {
+        List<SoundEvent> sounds = new ArrayList<>();
+        List<ParticleType<?>> particles = new ArrayList<>();
+        for (Object packet : drainOutbound(player)) {
+            if (packet instanceof ClientboundSoundPacket sound) {
+                sounds.add(sound.getSound().value());
+            } else if (packet instanceof ClientboundLevelParticlesPacket particle) {
+                particles.add(particle.particle().getType());
+            }
+        }
+        return new Shown(sounds, particles);
     }
 
     /**

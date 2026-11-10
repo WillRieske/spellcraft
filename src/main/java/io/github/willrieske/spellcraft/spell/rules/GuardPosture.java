@@ -43,7 +43,7 @@ public record GuardPosture(
     private static final GuardPosture NEAREST = new GuardPosture(0.5, 1.5, 2.5, 3.0, 0.35, 2, true);
 
     /** In the wide posture a vex farther than this from the summoner's feet moves (feet to feet, as before Part 5). */
-    private static final double WIDE_LIMIT = 4.0;
+    public static final double WIDE_LIMIT = 4.0;
 
     /** How far outside a close band a vex may hang before it moves. */
     private static final double SLACK = 0.5;

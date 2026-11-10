@@ -2,18 +2,14 @@ package io.github.willrieske.spellcraft.evoking;
 
 import io.github.willrieske.spellcraft.Spellcraft;
 import io.github.willrieske.spellcraft.spell.rules.RescuePush;
-import io.github.willrieske.spellcraft.spell.rules.VoidRule;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.SectionPos;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
@@ -26,15 +22,11 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.component.Consumable;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
@@ -82,15 +74,6 @@ public final class VexRescues {
     /** The open water above the player head may reach up at most this far to the air. */
     public static final int WAY_UP = 32;
 
-    /** How far down a falling player is checked for ground. */
-    private static final double GROUND_CHECK = 64.0;
-
-    /**
-     * After a void catch found no landing and no last ground, or its teleport was refused, the landing search pauses
-     * this long.
-     */
-    private static final int NO_LANDING_PAUSE = 20;
-
     /** How far to the right of the way the player faces the rescuer hangs. */
     private static final double SIDE = 0.6;
 
@@ -101,8 +84,8 @@ public final class VexRescues {
     private static final int SPLASHES = 12;
 
     /**
-     * One running rescue. {@code tailUntil} is 0 until the work is done; {@code conjured} says the tail owns the
-     * hand.
+     * One running rescue. {@code tailUntil} is 0 until the work is done; {@code tailItem} is what the tail shows and
+     * {@code conjured} says the tail owns the hand.
      */
     private static final class Rescue {
         /** What the rescue is for. */
@@ -120,7 +103,10 @@ public final class VexRescues {
         /** The game time the tail ends, or 0 while the rescue's work goes on. */
         long tailUntil;
 
-        /** Whether the tail put an item in the rescuer's hand, which the end of the rescue must take away. */
+        /** What the tail shows in the rescuer's hand, or null while the rescue's work goes on. */
+        ItemStack tailItem;
+
+        /** Whether the tail put {@link #tailItem} in the rescuer's hand, which the end of the rescue must take away. */
         boolean conjured;
 
         /** Starts a rescue of {@code kind} by {@code rescuer} at game time {@code start}. */
@@ -131,28 +117,11 @@ public final class VexRescues {
         }
     }
 
-    /**
-     * Where a player last stood on a standable spot.
-     *
-     * @param dimension the dimension of the spot
-     * @param position the player's position there
-     */
-    record Ground(ResourceKey<Level> dimension, Vec3 position) {}
-
     /** The running rescue of each player. */
     private static final Map<UUID, Rescue> RUNNING = new HashMap<>();
 
-    /** The last standable ground of each player. */
-    private static final Map<UUID, Ground> LAST_GROUND = new HashMap<>();
-
     /** The game time before which no lava pull starts for each player. */
     private static final Map<UUID, Long> LAVA_PAUSED_UNTIL = new HashMap<>();
-
-    /**
-     * The game time before which the landing search is skipped for each player (the last one found nothing, or its
-     * teleport was refused).
-     */
-    private static final Map<UUID, Long> NO_LANDING_UNTIL = new HashMap<>();
 
     private VexRescues() {}
 
@@ -177,9 +146,8 @@ public final class VexRescues {
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         UUID id = event.getEntity().getUUID();
         drop(id);
-        LAST_GROUND.remove(id);
+        VoidCatch.forget(id);
         LAVA_PAUSED_UNTIL.remove(id);
-        NO_LANDING_UNTIL.remove(id);
     }
 
     /**
@@ -189,18 +157,12 @@ public final class VexRescues {
      * @param player the player
      */
     public static void tick(ServerPlayer player) {
-        if (player instanceof FakePlayer) {
-            return;
-        }
         UUID id = player.getUUID();
         if (!player.isAlive() || player.isSpectator()) {
             drop(id);
             return;
         }
-        ServerLevel level = player.level();
-        if (player.onGround() && StandableSpots.standable(level, player.blockPosition()) && moved(id, player)) {
-            LAST_GROUND.put(id, new Ground(level.dimension(), player.position()));
-        }
+        VoidCatch.recordGround(player);
         Rescue rescue = RUNNING.get(id);
         if (rescue != null) {
             if (!holds(rescue.rescuer, player)) {
@@ -253,31 +215,20 @@ public final class VexRescues {
         return Optional.empty();
     }
 
-    /**
-     * Where {@code player} last stood on a standable spot (read by the void catch).
-     *
-     * @param player the player's id
-     * @return the ground, or empty when they never did
-     */
-    static Optional<Ground> lastGround(UUID player) {
-        return Optional.ofNullable(LAST_GROUND.get(player));
-    }
-
     /** Drops every rescue (giving hands back) and forgets every player; called when the server stops. */
     static void clear() {
         for (UUID id : List.copyOf(RUNNING.keySet())) {
             drop(id);
         }
         RUNNING.clear();
-        LAST_GROUND.clear();
+        VoidCatch.clear();
         LAVA_PAUSED_UNTIL.clear();
-        NO_LANDING_UNTIL.clear();
     }
 
     /** Starts the first rescue {@code player} needs and has a rescuer for; the void is tested first. */
     private static void startFirstNeeded(ServerPlayer player) {
-        if (needsVoidCatch(player)) {
-            catchFromVoid(player);
+        if (VoidCatch.needsCatch(player)) {
+            VoidCatch.catchFromVoid(player);
         } else if (needsLavaPull(player)) {
             start(player, Kind.LAVA, RESCUER_RANGE);
         } else if (needsDrowningPush(player)) {
@@ -285,106 +236,15 @@ public final class VexRescues {
         }
     }
 
-    /** Whether {@code player} is in the End and {@link VoidRule} says the void is about to take them. */
-    private static boolean needsVoidCatch(ServerPlayer player) {
-        ServerLevel level = player.level();
-        return level.dimension().equals(Level.END)
-                && VoidRule.needsCatch(
-                        player.getY(),
-                        level.getMinY(),
-                        player.onGround(),
-                        player.getKnownMovement().y < 0,
-                        player.isFallFlying() || player.getAbilities().flying,
-                        () -> groundBelow(player));
-    }
-
-    /** Whether a ray straight down from the player's feet hits a block within {@link #GROUND_CHECK} blocks. */
-    private static boolean groundBelow(ServerPlayer player) {
-        Vec3 feet = player.position();
-        return player.level()
-                        .clip(new ClipContext(
-                                feet,
-                                feet.subtract(0, GROUND_CHECK, 0),
-                                ClipContext.Block.COLLIDER,
-                                ClipContext.Fluid.NONE,
-                                player))
-                        .getType()
-                != HitResult.Type.MISS;
-    }
-
     /**
-     * The void catch: when a rescuer is within {@link #VOID_RESCUER_RANGE} and there is somewhere to land, the player
-     * is dismounted, stilled and teleported there, fed the enchanted golden apple's effects, and the rescuer shows
-     * the apple as the tail. No cooldown.
+     * Starts a rescue that begins as a tail (the void catch): {@code vex} is placed at the player's side and shows
+     * {@code item} for {@link #TAIL} ticks.
      */
-    private static void catchFromVoid(ServerPlayer player) {
-        Optional<BoundVex> found = nearestRescuer(player, VOID_RESCUER_RANGE);
-        if (found.isEmpty()) {
-            return;
-        }
-        ServerLevel level = player.level();
-        long now = level.getGameTime();
-        Optional<Vec3> landing = voidLanding(player, now);
-        if (landing.isEmpty()) {
-            return;
-        }
-        Vec3 at = landing.get();
-        // The teleport dismounts the player and sends the position with zero velocity (docs/api-notes.md §24), but
-        // it does not reset the fall distance, so the next landing would still count the fall into the void.
-        player.resetFallDistance();
-        if (!player.teleportTo(level, at.x, at.y, at.z, Set.of(), player.getYRot(), player.getXRot(), false)) {
-            // Refused (an event cancelled it): no rescue, no apple, and no new search or attempt for a while.
-            NO_LANDING_UNTIL.put(player.getUUID(), now + NO_LANDING_PAUSE);
-            return;
-        }
-        Rescue rescue = new Rescue(Kind.VOID, found.get(), now);
+    static void startTail(ServerPlayer player, BoundVex vex, Kind kind, ItemStack item, long now) {
+        Rescue rescue = new Rescue(kind, vex, now);
         RUNNING.put(player.getUUID(), rescue);
-        placeBeside(rescue.rescuer, player);
-        ItemStack apple = new ItemStack(Items.ENCHANTED_GOLDEN_APPLE);
-        Consumable consumable = apple.get(DataComponents.CONSUMABLE);
-        if (consumable != null) {
-            consumable.onConsume(level, player, apple);
-        }
-        showInHand(rescue, new ItemStack(Items.ENCHANTED_GOLDEN_APPLE), now);
-    }
-
-    /**
-     * Where the void catch puts {@code player}: the bottom center of the nearest standable column within the landing
-     * range, else the spot they last stood on if it is in the End and still standable (a broken bridge is not a
-     * landing). A search that finds neither is not repeated for {@link #NO_LANDING_PAUSE} ticks.
-     */
-    private static Optional<Vec3> voidLanding(ServerPlayer player, long now) {
-        UUID id = player.getUUID();
-        ServerLevel level = player.level();
-        boolean search = now >= NO_LANDING_UNTIL.getOrDefault(id, 0L);
-        if (search) {
-            Optional<Vec3> landing =
-                    StandableSpots.landing(level, player.position()).map(Vec3::atBottomCenterOf);
-            if (landing.isPresent()) {
-                return landing;
-            }
-        }
-        Optional<Vec3> ground = lastGround(id)
-                .filter(last -> last.dimension().equals(Level.END) && groundUsable(level, last.position()))
-                .map(Ground::position);
-        if (search && ground.isEmpty()) {
-            NO_LANDING_UNTIL.put(id, now + NO_LANDING_PAUSE);
-        }
-        return ground;
-    }
-
-    /**
-     * Whether the last ground at {@code position} can still be used. A ground whose chunk is not loaded is trusted as
-     * recorded: reading its blocks would load or generate the chunk on the server thread, and a failing check would
-     * repeat that every {@link #NO_LANDING_PAUSE} ticks, while the teleport loads the chunk anyway. A loaded chunk is
-     * read, so a broken bridge is not a landing.
-     */
-    private static boolean groundUsable(ServerLevel level, Vec3 position) {
-        BlockPos feet = BlockPos.containing(position);
-        return VoidRule.lastGroundUsable(
-                level.hasChunk(
-                        SectionPos.blockToSectionCoord(feet.getX()), SectionPos.blockToSectionCoord(feet.getZ())),
-                () -> StandableSpots.standable(level, feet));
+        placeBeside(vex, player);
+        showInHand(rescue, item, now);
     }
 
     /** Whether {@code player} is under water, low on air, and open water leads up to air. */
@@ -395,11 +255,10 @@ public final class VexRescues {
                 && hasWayUp(player);
     }
 
-    /** Whether {@code player} is the kind of player a drowning push is for: Overworld, not immune, not creative. */
+    /** Whether {@code player} is the kind of player a drowning push is for: Overworld, not immune, pushable. */
     private static boolean wantsDrowningPush(ServerPlayer player) {
         return player.level().dimension().equals(Level.OVERWORLD)
-                && !player.isCreative()
-                && !player.isPassenger()
+                && canBePushed(player)
                 && !player.hasEffect(MobEffects.WATER_BREATHING)
                 && !player.hasEffect(MobEffects.CONDUIT_POWER);
     }
@@ -426,12 +285,9 @@ public final class VexRescues {
         return false;
     }
 
-    /** Whether the stored last ground of {@code id} is on another block or in another dimension than {@code player}. */
-    private static boolean moved(UUID id, ServerPlayer player) {
-        Ground stored = LAST_GROUND.get(id);
-        return stored == null
-                || !stored.dimension().equals(player.level().dimension())
-                || !BlockPos.containing(stored.position()).equals(player.blockPosition());
+    /** Whether {@code player} may be pushed by a rescue at all: not creative and not riding. */
+    private static boolean canBePushed(ServerPlayer player) {
+        return !player.isCreative() && !player.isPassenger();
     }
 
     /** Whether {@code player} is in lava and no rule keeps a vex from pulling them out. */
@@ -442,12 +298,11 @@ public final class VexRescues {
                 && now >= LAVA_PAUSED_UNTIL.getOrDefault(player.getUUID(), 0L);
     }
 
-    /** Whether {@code player} is the kind of player a lava pull is for: not immune, not creative, not riding. */
+    /** Whether {@code player} is the kind of player a lava pull is for: not immune, pushable. */
     private static boolean wantsLavaPull(ServerPlayer player) {
         ResourceKey<Level> dimension = player.level().dimension();
         return (dimension.equals(Level.OVERWORLD) || dimension.equals(Level.NETHER))
-                && !player.isCreative()
-                && !player.isPassenger()
+                && canBePushed(player)
                 && !player.hasEffect(MobEffects.FIRE_RESISTANCE);
     }
 
@@ -456,19 +311,18 @@ public final class VexRescues {
      * move can take the rescuer away from the target it was fighting: it keeps that target only if the target is
      * still within the vex's reach from the player's side, otherwise the vex's own rules drop it.
      */
-    private static Optional<Rescue> start(ServerPlayer player, Kind kind, double range) {
+    private static void start(ServerPlayer player, Kind kind, double range) {
         UUID id = player.getUUID();
-        return nearestRescuer(player, range).map(vex -> {
+        nearestRescuer(player, range).ifPresent(vex -> {
             Rescue rescue = new Rescue(kind, vex, player.level().getGameTime());
             RUNNING.put(id, rescue);
             placeBeside(vex, player);
             carryOn(player, rescue);
-            return rescue;
         });
     }
 
     /** The nearest vex within {@code range} that {@link #holds} {@code player}, if any. */
-    private static Optional<BoundVex> nearestRescuer(ServerPlayer player, double range) {
+    static Optional<BoundVex> nearestRescuer(ServerPlayer player, double range) {
         return player
                 .level()
                 .getEntitiesOfClass(
@@ -500,7 +354,9 @@ public final class VexRescues {
         switch (rescue.kind) {
             case LAVA -> lava(player, rescue, now);
             case DROWNING -> drowning(player, rescue, now);
-            case VOID -> drop(player.getUUID()); // a catch starts as a tail, so this is never reached with work to do
+            case VOID ->
+                throw new IllegalStateException(
+                        "a void catch starts as a tail (startTail) and never has work to carry on: " + rescue.kind);
         }
     }
 
@@ -580,13 +436,44 @@ public final class VexRescues {
         player.clearFire();
     }
 
-    /** Starts the tail: the rescuer shows {@code item} for {@link #TAIL} ticks, unless its hand is already conjured. */
+    /**
+     * Starts the tail: the rescue remembers {@code item} and shows it for {@link #TAIL} ticks. Two paths put it in
+     * the rescuer's hand. If the hand is free now (every vex with no AI, which never runs {@link RescueGoal} and has
+     * no job, and a vex with AI between jobs), the item is conjured here. If the hand is held by a job (a cure potion,
+     * an emerald, an ingot), the job gives it back in its {@code stop}, which runs when {@link RescueGoal} preempts
+     * it, after this call; so the goal conjures the item on its first tick ({@link #conjureTail(BoundVex)}).
+     */
     private static void showInHand(Rescue rescue, ItemStack item, long now) {
+        rescue.tailItem = item;
+        rescue.tailUntil = now + TAIL;
         if (!rescue.rescuer.isConjured(EquipmentSlot.MAINHAND)) {
-            rescue.rescuer.conjure(EquipmentSlot.MAINHAND, item);
+            conjureTail(rescue);
+        }
+    }
+
+    /**
+     * Called by {@link RescueGoal} on each of its ticks: when {@code vex}'s rescue is in its tail, has an item and has
+     * not conjured it yet, puts the item in the vex's main hand. The goal runs only after it has preempted the vex's
+     * job, whose {@code stop} has by then given the hand back, so the item is not dismissed under the tail. Does
+     * nothing in any other state.
+     *
+     * @param vex the vex that may be a rescuer
+     */
+    static void conjureTail(BoundVex vex) {
+        for (Rescue rescue : RUNNING.values()) {
+            if (rescue.rescuer.equals(vex)) {
+                conjureTail(rescue);
+                return;
+            }
+        }
+    }
+
+    /** Conjures the tail's item once, if the rescue is in its tail and has not conjured yet. */
+    private static void conjureTail(Rescue rescue) {
+        if (rescue.tailUntil != 0 && rescue.tailItem != null && !rescue.conjured) {
+            rescue.rescuer.conjure(EquipmentSlot.MAINHAND, rescue.tailItem);
             rescue.conjured = true;
         }
-        rescue.tailUntil = now + TAIL;
     }
 
     /** Gives the player the velocity {@code v} and marks it for sending to their client. */

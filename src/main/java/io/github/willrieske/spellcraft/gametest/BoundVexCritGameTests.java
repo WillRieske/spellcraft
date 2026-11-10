@@ -10,9 +10,11 @@ import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import java.util.Set;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.LivingEntity;
@@ -46,6 +48,11 @@ public final class BoundVexCritGameTests {
                 "bound_vex_world_crit_on_a_player_under_the_pvp_rule",
                 BoundVexCritGameTests::critOnAPlayerUnderThePvpRule);
         padded("bound_vex_world_no_crit_in_the_nether", BoundVexCritGameTests::noCritInTheNether);
+        padded("bound_vex_world_crit_is_shown_on_a_landed_hit", BoundVexCritGameTests::critShownOnALandedHit);
+        padded(
+                "bound_vex_world_crit_is_not_shown_inside_the_invulnerability_frames",
+                BoundVexCritGameTests::critNotShownInsideTheFrames);
+        padded("bound_vex_world_crit_is_not_shown_on_a_spared_ally", BoundVexCritGameTests::critNotShownOnASparedAlly);
     }
 
     /** The health {@code victim} loses to one melee hit by {@code vex}. */
@@ -250,6 +257,98 @@ public final class BoundVexCritGameTests {
 
         // Assert
         helper.assertTrue(Math.abs(loss - plain) < CRIT_TOLERANCE, "the Nether hit costs " + plain + ", not " + loss);
+        helper.succeed();
+    }
+
+    /** Whether a drain of what a player was sent holds the crit's sound or its particles. */
+    private static boolean showsCrit(GameTestSupport.Shown shown) {
+        return shown.sounds().contains(SoundEvents.PLAYER_ATTACK_CRIT)
+                || shown.particles().contains(ParticleTypes.CRIT);
+    }
+
+    /**
+     * When a Bound Vex's End melee hit lands on a husk, should the summoner standing nearby be sent the critical-hit
+     * sound and the critical-hit particles.
+     *
+     * <p>Method under test: {@code BoundVexEvents.onDamagePost}: the show for a hit that landed
+     */
+    static void critShownOnALandedHit(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        ServerLevel end = BoundVexWorldTestSupport.room(helper, player, Level.END, 3, 4);
+        BoundVex vex = critVex(helper, end, player);
+        Husk husk = critHuskBeside(helper, end, player);
+        GameTestSupport.drainShown(player); // discard what arriving sent
+
+        // Act
+        float loss = meleeLoss(vex, husk);
+        GameTestSupport.Shown shown = GameTestSupport.drainShown(player);
+
+        // Assert
+        helper.assertTrue(loss > 0.0F, "setup: the hit landed");
+        helper.assertTrue(shown.sounds().contains(SoundEvents.PLAYER_ATTACK_CRIT), "the crit sound is sent");
+        helper.assertTrue(shown.particles().contains(ParticleTypes.CRIT), "the crit particles are sent");
+        helper.succeed();
+    }
+
+    /**
+     * When a Bound Vex hits a husk in the End twice in a row (the second hit is inside the invulnerability frames and
+     * no harder), should the second hit cost no health and show no crit sound or particles.
+     *
+     * <p>Method under test: {@code BoundVexEvents.onDamagePost}: a hit the frames absorbed shows nothing
+     */
+    static void critNotShownInsideTheFrames(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        ServerLevel end = BoundVexWorldTestSupport.room(helper, player, Level.END, 3, 4);
+        BoundVex vex = critVex(helper, end, player);
+        Husk husk = critHuskBeside(helper, end, player);
+        helper.assertTrue(meleeLoss(vex, husk) > 0.0F, "setup: the first hit landed");
+        GameTestSupport.drainShown(player); // discard what the first hit sent
+
+        // Act
+        float second = meleeLoss(vex, husk);
+        GameTestSupport.Shown shown = GameTestSupport.drainShown(player);
+
+        // Assert
+        helper.assertValueEqual(second, 0.0F, "setup: the frames absorbed the second hit");
+        helper.assertFalse(showsCrit(shown), "the absorbed hit shows no crit");
+        helper.succeed();
+    }
+
+    /**
+     * When a Bound Vex in the End hits its summoner's tamed wolf (the backstop spares it), should no crit sound or
+     * particles be sent.
+     *
+     * <p>Method under test: {@code BoundVexEvents.onDamagePost}: a canceled hit shows nothing
+     */
+    static void critNotShownOnASparedAlly(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        ServerLevel end = BoundVexWorldTestSupport.room(helper, player, Level.END, 3, 4);
+        BoundVex vex = critVex(helper, end, player);
+        Wolf wolf = EntityTypes.WOLF.create(end, EntitySpawnReason.COMMAND);
+        if (wolf == null) {
+            throw helper.assertionException("could not create a wolf");
+        }
+        Vec3 at = player.position().add(-2.0, 0.0, 0.0);
+        wolf.snapTo(at.x, at.y, at.z, 0.0F, 0.0F);
+        wolf.setNoAi(true);
+        wolf.setNoGravity(true);
+        wolf.setPersistenceRequired();
+        wolf.tame(player);
+        end.addFreshEntity(wolf);
+        whenDone(helper, wolf::discard);
+        float health = wolf.getHealth();
+        GameTestSupport.drainShown(player); // discard what arriving sent
+
+        // Act
+        vex.doHurtTarget(end, wolf);
+        GameTestSupport.Shown shown = GameTestSupport.drainShown(player);
+
+        // Assert
+        helper.assertFalse(showsCrit(shown), "the spared hit shows no crit");
+        helper.assertValueEqual(wolf.getHealth(), health, "the wolf is unhurt");
         helper.succeed();
     }
 }

@@ -10,6 +10,7 @@ import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntitySpawnReason;
@@ -99,6 +100,9 @@ public final class BoundVexFireballGameTests {
                 "bound_vex_world_fireball_passes_through_your_vexes",
                 BoundVexFireballGameTests::fireballPassesThroughYourVexes);
         padded(
+                "bound_vex_world_fireball_passes_through_your_vexes_in_the_end",
+                BoundVexFireballGameTests::fireballPassesThroughYourVexesInTheEnd);
+        padded(
                 "bound_vex_world_fireball_hits_another_players_vex",
                 BoundVexFireballGameTests::fireballHitsAnotherPlayersVex);
         padded("bound_vex_world_fireball_of_a_ghast_hits_a_vex", BoundVexFireballGameTests::fireballOfAGhastHitsAVex);
@@ -182,7 +186,7 @@ public final class BoundVexFireballGameTests {
                 .thenSucceed();
     }
 
-    /** Posts the impact of {@code fireball} on {@code hit} as vanilla would; true means a handler cancelled it. */
+    /** Posts the impact of {@code fireball} on {@code hit} as vanilla would; true means a handler canceled it. */
     private static boolean impact(LargeFireball fireball, HitResult hit) {
         return EventHooks.onProjectileImpact(fireball, hit);
     }
@@ -198,7 +202,7 @@ public final class BoundVexFireballGameTests {
 
     /**
      * When a ghast's fireball is about to hit a player who has a Bound Vex 3 blocks from it and the ghast is in
-     * sight, should the impact be cancelled, the summoner own the fireball, its speed stay 1.5, its heading point at
+     * sight, should the impact be canceled, the summoner own the fireball, its speed stay 1.5, its heading point at
      * the ghast's eyes, and the vex hang at the fireball.
      *
      * <p>Method under test: {@code VexFireballs.onImpact}
@@ -217,8 +221,8 @@ public final class BoundVexFireballGameTests {
         afterVexesTick(
                 helper,
                 () -> {
-                    boolean cancelled = impact(fireball, new EntityHitResult(player));
-                    helper.assertTrue(cancelled, "the impact is cancelled");
+                    boolean canceled = impact(fireball, new EntityHitResult(player));
+                    helper.assertTrue(canceled, "the impact is canceled");
                     helper.assertValueEqual(fireball.accelerationPower, 0.1, "returned by an attack: acceleration 0.1");
                     helper.assertTrue(player.equals(fireball.getOwner()), "the summoner owns the fireball");
                     Vec3 velocity = fireball.getDeltaMovement();
@@ -253,7 +257,7 @@ public final class BoundVexFireballGameTests {
         afterVexesTick(
                 helper,
                 () -> {
-                    helper.assertTrue(impact(fireball, new EntityHitResult(player)), "the impact is cancelled");
+                    helper.assertTrue(impact(fireball, new EntityHitResult(player)), "the impact is canceled");
                     assertFireballVelocity(helper, fireball, -0.3, 0.0, -1.2);
                     helper.assertTrue(player.equals(fireball.getOwner()), "the summoner owns the fireball");
                 },
@@ -284,7 +288,7 @@ public final class BoundVexFireballGameTests {
         afterVexesTick(
                 helper,
                 () -> {
-                    helper.assertTrue(impact(fireball, new EntityHitResult(player)), "the impact is cancelled");
+                    helper.assertTrue(impact(fireball, new EntityHitResult(player)), "the impact is canceled");
                     assertFireballVelocity(helper, fireball, 0.0, 0.0, -FIREBALL_SPEED);
                 },
                 vex);
@@ -292,7 +296,7 @@ public final class BoundVexFireballGameTests {
 
     /** What a fireball impact should come to. */
     private enum Outcome {
-        /** The impact is cancelled and the summoner owns the fireball. */
+        /** The impact is canceled and the summoner owns the fireball. */
         RETURNED,
         /** The impact stands: no owner, same velocity. */
         LEFT_ALONE
@@ -358,12 +362,12 @@ public final class BoundVexFireballGameTests {
         afterVexesTick(
                 helper,
                 () -> {
-                    boolean cancelled = impact(fireball, hit);
+                    boolean canceled = impact(fireball, hit);
                     if (outcome == Outcome.RETURNED) {
-                        helper.assertTrue(cancelled, "the impact is cancelled");
+                        helper.assertTrue(canceled, "the impact is canceled");
                         helper.assertTrue(player.equals(fireball.getOwner()), "the summoner owns the fireball");
                     } else {
-                        helper.assertTrue(!cancelled, "the impact is not cancelled");
+                        helper.assertTrue(!canceled, "the impact is not canceled");
                         helper.assertTrue(fireball.getOwner() == null, "the owner is untouched");
                         assertFireballVelocity(helper, fireball, 0.0, 0.0, FIREBALL_SPEED);
                     }
@@ -388,7 +392,7 @@ public final class BoundVexFireballGameTests {
     }
 
     /**
-     * When one of the {@link Alone} cases holds, should the impact on the player not be cancelled and the fireball,
+     * When one of the {@link Alone} cases holds, should the impact on the player not be canceled and the fireball,
      * its owner and the vex stay as they were.
      *
      * <p>Method under test: {@code VexFireballs.onImpact}: the cases it leaves alone
@@ -413,7 +417,7 @@ public final class BoundVexFireballGameTests {
         afterVexesTick(
                 helper,
                 () -> {
-                    helper.assertTrue(!impact(fireball, new EntityHitResult(player)), "the impact is not cancelled");
+                    helper.assertTrue(!impact(fireball, new EntityHitResult(player)), "the impact is not canceled");
                     helper.assertTrue(
                             why == Alone.OWNED_BY_THE_PLAYER
                                     ? player.equals(fireball.getOwner())
@@ -427,7 +431,7 @@ public final class BoundVexFireballGameTests {
 
     /**
      * When the only vex in reach belongs to a second player, or carries no summoner mark, should the impact on the
-     * first player not be cancelled and the vex stay where it is.
+     * first player not be canceled and the vex stay where it is.
      *
      * <p>Method under test: {@code VexFireballs.nearestVexOf}: the vex must be summoned by that player
      *
@@ -450,7 +454,7 @@ public final class BoundVexFireballGameTests {
         afterVexesTick(
                 helper,
                 () -> {
-                    helper.assertTrue(!impact(fireball, new EntityHitResult(player)), "the impact is not cancelled");
+                    helper.assertTrue(!impact(fireball, new EntityHitResult(player)), "the impact is not canceled");
                     helper.assertTrue(fireball.getOwner() == null, "the owner is untouched");
                     helper.assertTrue(vex.position().distanceTo(vexBefore) < 1.0e-6, "the vex did not move");
                 },
@@ -459,25 +463,41 @@ public final class BoundVexFireballGameTests {
 
     /**
      * When a fireball its summoner owns is about to hit one of that summoner's Bound Vexes, should the impact be
-     * cancelled and the fireball keep its owner and velocity (vanilla then flies it on past the vex).
+     * canceled and the fireball keep its owner and velocity (vanilla then flies it on past the vex).
      *
      * <p>Method under test: {@code VexFireballs.strikesOwnersVex}
      */
     static void fireballPassesThroughYourVexes(GameTestHelper helper) {
+        passesThroughYourVexes(helper, Level.NETHER);
+    }
+
+    /**
+     * When a fireball its summoner owns is about to hit one of that summoner's Bound Vexes in an End room, should the
+     * impact be canceled and the fireball keep its owner and velocity: the pass-through is not Nether only.
+     *
+     * <p>Method under test: {@code VexFireballs.onImpact}: the pass-through holds in every dimension
+     */
+    static void fireballPassesThroughYourVexesInTheEnd(GameTestHelper helper) {
+        passesThroughYourVexes(helper, Level.END);
+    }
+
+    /** The body of the pass-through tests: a room in {@code dimension}, a vex of the owner beside the fireball. */
+    private static void passesThroughYourVexes(GameTestHelper helper, ResourceKey<Level> dimension) {
         // Arrange
         ServerPlayer player = fireballPlayer(helper);
-        ServerLevel nether = fireballRoom(helper, player);
+        ServerLevel room = BoundVexWorldTestSupport.room(
+                helper, player, dimension, FIREBALL_ROOM_HALF_WIDTH, FIREBALL_ROOM_HEIGHT);
         Vec3 spot = fireballSpot(player);
-        LargeFireball fireball = fireballFlying(helper, nether, null, spot, new Vec3(0.0, 0.0, FIREBALL_SPEED));
+        LargeFireball fireball = fireballFlying(helper, room, null, spot, new Vec3(0.0, 0.0, FIREBALL_SPEED));
         fireball.setOwner(player);
-        BoundVex vex = fireballVex(helper, nether, spot.add(VEX_NEAR, 0.0, 0.0), player);
+        BoundVex vex = fireballVex(helper, room, spot.add(VEX_NEAR, 0.0, 0.0), player);
         float health = vex.getHealth();
 
         // Act & Assert
         afterVexesTick(
                 helper,
                 () -> {
-                    helper.assertTrue(impact(fireball, new EntityHitResult(vex)), "the impact is cancelled");
+                    helper.assertTrue(impact(fireball, new EntityHitResult(vex)), "the impact is canceled");
                     helper.assertTrue(player.equals(fireball.getOwner()), "the owner is untouched");
                     assertFireballVelocity(helper, fireball, 0.0, 0.0, FIREBALL_SPEED);
                     helper.assertValueEqual(vex.getHealth(), health, "the vex is unhurt");
@@ -544,7 +564,7 @@ public final class BoundVexFireballGameTests {
         afterVexesTick(
                 helper,
                 () -> {
-                    helper.assertTrue(impact(fireball, new EntityHitResult(player)), "the impact is cancelled");
+                    helper.assertTrue(impact(fireball, new EntityHitResult(player)), "the impact is canceled");
                     helper.assertTrue(
                             nearer.position().distanceTo(spot) < 0.1,
                             "the nearer vex hangs at the fireball, not " + nearer.position());
@@ -575,7 +595,7 @@ public final class BoundVexFireballGameTests {
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
                 .thenExecute(() -> {
-                    helper.assertTrue(impact(fireball, new EntityHitResult(player)), "the impact is cancelled");
+                    helper.assertTrue(impact(fireball, new EntityHitResult(player)), "the impact is canceled");
                     helper.assertTrue(
                             vex.position().distanceTo(spot) < 0.1, "the vex hangs at the fireball for the moment");
                 })
