@@ -131,4 +131,64 @@ class GuardAreaTest {
             assertThat(within).isFalse();
         }
     }
+
+    @Nested
+    class ContainsStaying {
+        /**
+         * When the point is on a face of the stay box (6.5 sideways, 3.5 up or down), should be inside.
+         *
+         * <p>Method under test: {@link GuardArea#containsStaying}
+         */
+        @ParameterizedTest
+        @CsvSource({"6.5, 0, 0", "-6.5, 0, 0", "0, 3.5, 0", "0, -3.5, 0", "0, 0, 6.5", "0, 0, -6.5", "6.5, 3.5, -6.5"})
+        void acceptsTheFaces(double dx, double dy, double dz) {
+            // Act & Assert
+            assertThat(GuardArea.containsStaying(dx, dy, dz)).isTrue();
+        }
+
+        /**
+         * When the point is just past a face, should be outside.
+         *
+         * <p>Method under test: {@link GuardArea#containsStaying}
+         */
+        @ParameterizedTest
+        @CsvSource({"6.51, 0, 0", "-6.51, 0, 0", "0, 3.51, 0", "0, -3.51, 0", "0, 0, 6.51", "0, 0, -6.51"})
+        void rejectsJustOutside(double dx, double dy, double dz) {
+            // Act & Assert
+            assertThat(GuardArea.containsStaying(dx, dy, dz)).isFalse();
+        }
+
+        /**
+         * When a coordinate is NaN, should be outside.
+         *
+         * <p>Method under test: {@link GuardArea#containsStaying}
+         */
+        @Test
+        void rejectsNaN() {
+            // Act & Assert
+            assertThat(GuardArea.containsStaying(Double.NaN, 0, 0)).isFalse();
+            assertThat(GuardArea.containsStaying(0, Double.NaN, 0)).isFalse();
+            assertThat(GuardArea.containsStaying(0, 0, Double.NaN)).isFalse();
+        }
+    }
+
+    @Nested
+    class FollowRange {
+        /**
+         * When a staying vex and its target are at opposite corners of the stay box, should still be inside the
+         * follow range, and so should the following reach.
+         *
+         * <p>Method under test: {@link GuardArea#FOLLOW_RANGE}
+         */
+        @Test
+        void coversTheStayBoxDiagonalAndTheReach() {
+            // Arrange
+            double diagonal = 2.0
+                    * Math.sqrt(2.0 * GuardArea.STAY_HALF_WIDTH * GuardArea.STAY_HALF_WIDTH
+                            + GuardArea.HALF_HEIGHT * GuardArea.HALF_HEIGHT);
+
+            // Assert
+            assertThat(GuardArea.FOLLOW_RANGE).isGreaterThanOrEqualTo(diagonal).isGreaterThanOrEqualTo(GuardArea.REACH);
+        }
+    }
 }

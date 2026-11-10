@@ -2,6 +2,7 @@ package io.github.willrieske.spellcraft.spell.rules;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import net.jqwik.api.Assume;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Group;
 import net.jqwik.api.Property;
@@ -100,6 +101,45 @@ class GuardAreaPropertiesTest {
             // Act & Assert
             assertThat(GuardArea.withinReach(cx * in, cy * in, cz * in)).isTrue();
             assertThat(GuardArea.withinReach(cx * out, cy * out, cz * out)).isFalse();
+        }
+    }
+
+    // jqwik refuses static @Group classes, so ClassCanBeStatic cannot apply.
+    @Group
+    @SuppressWarnings("ClassCanBeStatic")
+    class ContainsStaying {
+        /**
+         * When a point is mirrored in any axis, containsStaying should give the same answer.
+         *
+         * <p>Method under test: {@link GuardArea#containsStaying}
+         */
+        @Property
+        void stayBoxIsSymmetric(
+                @ForAll @DoubleRange(min = -20, max = 20) double dx,
+                @ForAll @DoubleRange(min = -20, max = 20) double dy,
+                @ForAll @DoubleRange(min = -20, max = 20) double dz) {
+            // Act
+            boolean inside = GuardArea.containsStaying(dx, dy, dz);
+            // Assert
+            assertThat(GuardArea.containsStaying(-dx, dy, dz)).isEqualTo(inside);
+            assertThat(GuardArea.containsStaying(dx, -dy, dz)).isEqualTo(inside);
+            assertThat(GuardArea.containsStaying(dx, dy, -dz)).isEqualTo(inside);
+        }
+
+        /**
+         * When the following box accepts a point, the stay box should accept it too (it is the wider box).
+         *
+         * <p>Method under test: {@link GuardArea#containsStaying}
+         */
+        @Property
+        void stayBoxContainsTheFollowingBox(
+                @ForAll @DoubleRange(min = -5, max = 5) double dx,
+                @ForAll @DoubleRange(min = -5, max = 5) double dy,
+                @ForAll @DoubleRange(min = -5, max = 5) double dz) {
+            // Arrange
+            Assume.that(GuardArea.contains(dx, dy, dz));
+            // Act & Assert
+            assertThat(GuardArea.containsStaying(dx, dy, dz)).isTrue();
         }
     }
 }
