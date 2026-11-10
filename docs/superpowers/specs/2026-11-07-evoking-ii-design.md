@@ -236,7 +236,9 @@ Goals (goal selector, in priority order; the target selector is §3.4):
    (default 2–4 blocks, §6 tightens it per dimension); when farther than **12 blocks**, teleport to
    a free cell within 2 blocks of the summoner (vexes clip through blocks, so any air cell works).
    Part 5 adds the summoner's **last ground position** (the last block the summoner stood on with
-   `onGround()`), used by the void rescue (§6.3).
+   `onGround()`), used by the void rescue (§6.3). **Amended by the Parts 4–5 spec §6.1:** where a
+   vex hovers and how fast it flies is the posture table there; the close postures are overhead
+   (2.2–3.0 above the feet), not a distance band at eye height.
 5. A copy of vanilla's wander goal (`Vex.VexRandomMoveGoal`, around the bound origin) **only while
    staying**: the bound origin is set to the stay position when stay is toggled on, so a staying vex
    drifts around its post. A staying vex that changes dimension (only a command or a vehicle can do
@@ -317,7 +319,9 @@ The three goals scan every **10 ticks** on one shared clock keyed to the vex's e
 vanilla only calls a goal's `canUse` every second tick, on ticks that depend on the id
 (`Mob.serverAiStep`). Vanilla's own `NearestAttackableTargetGoal` cadence is a random roll, so the
 patrol goal is built with a random interval of 1 and uses the shared clock too. §6's every-tick
-scans will need their own tick hook, since `canUse` runs at most every second tick.
+scans will need their own tick hook, since `canUse` runs at most every second tick. **Amended by
+the Parts 4–5 spec §6.1:** there is no tick hook; the cadences are 4 ticks (night, Nether) and 2
+ticks (End) on the goal clock.
 
 **Wolves join vex fights.** When a Bound Vex takes a new target (`setTarget` override on
 `BoundVex`; a re-set of the same target does not count), every tamed `Wolf` owned by the summoner
@@ -459,6 +463,13 @@ unloaded, the frozen zombie is unfrozen (`setNoAi(false)`) and its conversion co
 vanilla left it. The goal's `stop` never runs in those cases (§3.3), so the freeze is tied to the
 curing vex and released whenever that vex is gone; Part 4's plan says how.
 
+**Amended by the Parts 4–5 spec §2:** the zombie villager carries a saved cure mark, is frozen
+from the claim, is an ally of every player while marked and cannot be a golem's target (§2.1); the
+potion is weakness-colored with no effects (§2.2); the vex is free after the throw, and the smoke
+and the freeze are driven from the zombie villager's own tick (§2.3). Flee, dodge and rescue may
+interrupt the cure and that aborts it cleanly; a stale freeze is released by the mark's age (300
+ticks), not by tracking the vex.
+
 ### 5.2 Bribing an evoker's vex
 
 When a vanilla `Vex` (not a Bound Vex) in the guard area has the summoner or an ally as its target
@@ -477,9 +488,15 @@ it: fly to within 1.5 blocks, conjure an **emerald**, hold it out for 20 ticks w
 A bribed vex that is saved and reloaded keeps `BRIBED` and gets `FleeFromViewGoal` on
 `EntityJoinLevelEvent`.
 
+**Amended by the Parts 4–5 spec §3.1 and §3.2:** a vex claimed for a bribe ("courted") and a
+bribed vex are not prey to any Bound Vex; a bribed vex flees the nearest player, not the briber's
+summoner.
+
 ## 6. Part 5: world helpers
 
-Each helper is a job goal that runs only in its dimension (`level.dimension()`).
+Each helper is a job goal that runs only in its dimension (`level.dimension()`). **Amended by the
+Parts 4–5 spec §5:** only the crystal helper is a job goal; rescues are driven from the player's
+tick (`VexRescues`) and the fireball return from `ProjectileImpactEvent`.
 
 ### 6.1 Overworld
 
@@ -493,6 +510,11 @@ Each helper is a job goal that runs only in its dimension (`level.dimension()`).
 - **Drowning rescue:** when the summoner `isUnderWater()` with `getAirSupply() < 60`, the nearest
   vex pushes them straight up (0.4 per tick) until their eyes are in air.
 
+**Amended by the Parts 4–5 spec §6.1, §5 and §6.2:** the night posture row and its 4-tick cadence
+are in §6.1. `hurtMarked` does not exist in 26.3; the field is `syncVelocity`, and pushes add to
+the player's velocity (§5, §6.2). The lava rescue has an episode, limits and a spot rule (§6.2).
+The drowning push needs open water above and keeps the sideways velocity (§6.2).
+
 ### 6.2 Nether
 
 - **Guard more:** orbit 1–2 blocks always, scan every 5 ticks.
@@ -503,6 +525,11 @@ Each helper is a job goal that runs only in its dimension (`level.dimension()`).
 - **Lava rescue + water bucket:** as 6.1, then the vex conjures a **water bucket**, plays
   `BUCKET_EMPTY` and `FIRE_EXTINGUISH`, shows `SPLASH` particles on the summoner and
   `clearFire()`. No water block is placed (the Nether evaporates water; the splash is visual).
+
+**Amended by the Parts 4–5 spec §6.1, §6.2 and §6.3:** the Nether posture row is in §6.1. The
+fireball is caught at its impact (`ProjectileImpactEvent`), for hits on the player or within 4
+blocks of them, and its new owner is the summoner, not the vex. The bucket plays once and only if
+the player got out of the lava.
 
 ### 6.3 End
 
@@ -523,6 +550,12 @@ Each helper is a job goal that runs only in its dimension (`level.dimension()`).
   zeroed, `fallDistance` zeroed; the vex is snapped beside them. Then the vex conjures an
   **enchanted golden apple** and feeds it: `stack.get(CONSUMABLE).onConsume(level, player,
   copy)` applies the vanilla effects and eating sound, with no item spent. No cooldown (Will).
+
+**Amended by the Parts 4–5 spec §6.1, §7 and §6.4:** the End posture row scans every 2 ticks, not
+every tick (§6.1). The crystal goal has its own start and end rules, and a vex's crystal blast
+neither hurts nor knocks back the summoner's side (`ExplosionKnockbackEvent`, §7.1). Crits are
+melee only, tripled in `LivingIncomingDamageEvent` (§7.2). The void catch does not apply while
+flying, uses a 64-block rescuer range and a height-map search, and dismounts a rider (§6.4).
 
 ## 7. Casting-related plumbing for Part 6
 
@@ -705,11 +738,14 @@ caster at walking speed, faces where the caster faces when idle.
 - **Cure interrupted** (zombie villager dies or is unloaded, or the vex dies, is removed or is
   unloaded): the frozen zombie is unfrozen; a converting one keeps converting (vanilla). The
   goal's `stop` covers only the first two; the freeze is released whenever the curing vex is gone
-  (§5.1).
+  (§5.1). **Amended by the Parts 4–5 spec §2.2 and §2.3:** an interruption aborts the cure
+  cleanly (the zombie villager is unfrozen and unmarked), and a stale freeze is released by the
+  mark's age on the zombie villager's own tick.
 - **Bribe target saved mid-flee:** `BRIBED` is persistent; the flee goal is reinstalled on join.
 - **Portal with staying vexes:** they stay; the summoner's count still includes them (loaded).
 - **Rescue pushes vs. anti-cheat:** server-set velocity on a player uses `hurtMarked` so the
-  client receives it; the void teleport is a server `teleportTo`.
+  client receives it; the void teleport is a server `teleportTo`. **Amended by the Parts 4–5 spec
+  §5:** the flag is `syncVelocity` (`hurtMarked` does not exist in 26.3).
 - **Ghostrail ending inside bedrock or deep stone:** search up to 8 blocks for a free space; if
   none, teleport to the carrier's last ground position (tracked as §3.3 for players with Evoking,
   and by the effect itself for any carrier, each tick they are on ground).
@@ -762,9 +798,11 @@ GameTests per part (the plan names them; the shape):
   shrinks; drops on death include everything given and nothing conjured.
 - **Part 4:** cure timeline (apple, potion entity, `isConverting` with starter = summoner, NoAi on
   then off at finish); bribe success → flee goal, discard out of sight; failure → `BRIBE_TRIED`.
+  **Amended by the Parts 4–5 spec §9:** the full Part 4 test list is there.
 - **Part 5:** per dimension (Nether/End pockets as round one's E16): lava push, drowning push,
   fireball owner swap and reversal, crystal hurt → explosion, no explosion damage to the vex,
-  3× damage in the End, void teleport + apple effects.
+  3× damage in the End, void teleport + apple effects. **Amended by the Parts 4–5 spec §9:** the
+  full Part 5 test list is there.
 - **Part 6:** each trigger starts the right move with the right roster and kit; manual mode: K
   with no enemy → message; move end restores stashes; cooldown.
 - **Part 7:** Caster roll is 1/3 over 300 summons (statistical bound); Mirror spawns 13 images
@@ -818,12 +856,12 @@ list gains the Ghostrail one), `docs/mutation-testing.md`. `mod_version` gets a 
 | Shield from the player | Offhand, blocks from the front | Will chose A+C; shields are handable. |
 | Armor and shield take-back | Not possible | Will: a click takes the weapon; nothing else. (The click is the plain one since the Part 3 spec.) |
 | Cure duration | 400 ticks (vanilla takes 3–5 min) | Will: 20 seconds of smoke. |
-| Cure visuals | Golden apple, real splash potion, green + white particles | Will's choreography. |
+| Cure visuals | Golden apple, real splash potion, green + white particles | Will's choreography. (Since the Parts 4–5 spec: the potion is weakness-colored with no effects, so it weakens nobody.) |
 | Bribe sound | `VILLAGER_AMBIENT` | The villager "hmm". |
 | Bribe odds | 2 in 3 | Will: "1/1.5". |
 | Bribed vex exit | Out of every player's sight, then `discard`, silent | Will's D. |
-| Rescue pushes | Velocity, not teleport | Feels like being pulled; the void catch teleports because there is nothing to push against. |
-| Crystal explosion vs. vexes | No damage to Bound Vexes | Otherwise every crystal hit kills the vex. |
+| Rescue pushes | Velocity, not teleport | Feels like being pulled; the void catch teleports because there is nothing to push against. (Since the Parts 4–5 spec: pushes add to the player's velocity and are sent with `syncVelocity`.) |
+| Crystal explosion vs. vexes | No damage to Bound Vexes | Otherwise every crystal hit kills the vex. (Since the Parts 4–5 spec: a vex's blast also neither hurts nor moves the summoner's side.) |
 | End crits | 3× | "+++" read as "much stronger". |
 | Shield / Raid thresholds | 31 / 99 max health | Will's numbers; vanilla mobs listed in §8. |
 | Multishot trigger | Attacker `ATTACK_DAMAGE ≥ 6` | "Strong melee monster". |
