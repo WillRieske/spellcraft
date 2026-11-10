@@ -43,6 +43,7 @@ import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.Vex;
+import net.minecraft.world.entity.monster.zombie.ZombieVillager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.item.ItemStack;
@@ -152,7 +153,7 @@ public class BoundVex extends Vex {
      * target from and no player hunt. Its three target goals are {@link HurtBySummonerSideGoal} (grudges),
      * {@link AllyFightGoal} (an ally's fight) and {@link NearestHostileGoal} (the patrol). The job goals sit beside
      * them: {@link FleeCreeperGoal} and {@link DodgeGolemGoal} outrank everything on the move flag,
-     * {@link RepairGolemGoal} outranks the charge and the follow.
+     * {@link RepairGolemGoal}, {@link CureZombieVillagerGoal} and {@link BribeGoal} outrank the charge and the follow.
      */
     @Override
     protected void registerGoals() {
@@ -160,6 +161,8 @@ public class BoundVex extends Vex {
         goalSelector.addGoal(0, new DodgeGolemGoal(this));
         goalSelector.addGoal(0, new FloatGoal(this));
         goalSelector.addGoal(2, new RepairGolemGoal(this));
+        goalSelector.addGoal(2, new CureZombieVillagerGoal(this));
+        goalSelector.addGoal(2, new BribeGoal(this));
         goalSelector.addGoal(3, new RangedGearGoal(this));
         goalSelector.addGoal(3, new ChargeGoal());
         goalSelector.addGoal(3, new SupportGearGoal(this));
@@ -429,10 +432,14 @@ public class BoundVex extends Vex {
     /**
      * Whether a Bound Vex of {@code summoner} may fight {@code target} (spec §3.4; round one's rule): anything
      * attackable that is no ally of the summoner, no player the summoner cannot harm ({@code canHarmPlayer}: the
-     * {@code pvp} game rule; teammates are already allies), no mob another player summoned unless the summoner may
+     * {@code pvp} game rule; teammates are already allies), no {@code ZombieVillager} (the cure stops one instead,
+     * Parts 4-5 spec §2.1), no bribed vex (§3.2), no vex a Bound Vex is courting right now
+     * ({@link BribeGoal#isCourted}, §3.1), no mob another player summoned unless the summoner may
      * harm that player (with {@code pvp} off, two players' vexes leave each other alone; an offline summoner's mobs
      * follow the {@code pvp} rule alone), and nothing while the summoner is not in {@code level}
-     * (offline or in another dimension). Public for its GameTests.
+     * (offline or in another dimension). A courted vex is spared by every player's Bound Vexes, not only the
+     * claimant's, for at most the claim's lifetime (a claim older than the longest courtship counts as free). Public
+     * for its GameTests.
      *
      * @param level the level the vex is in
      * @param summoner the UUID in the vex's summoner mark
@@ -440,7 +447,10 @@ public class BoundVex extends Vex {
      * @return whether the vex may take {@code target} as its target
      */
     public static boolean isPrey(ServerLevel level, UUID summoner, LivingEntity target) {
-        if (!target.attackable()) {
+        if (!target.attackable()
+                || target instanceof ZombieVillager
+                || AllyAttachments.isBribed(target)
+                || BribeGoal.isCourted(target)) {
             return false;
         }
         Player owner = level.getPlayerByUUID(summoner);
@@ -620,7 +630,10 @@ public class BoundVex extends Vex {
      * a vex is its own summoner's ally, and counting itself would hand its own target to the ally goal (spec §3.4).
      * The answer is kept for the tick, so the grudge goal and the ally goal, which scan on the same tick, share one
      * entity query. The list is cached for the current tick, so a second call in the same tick returns the first call's
-     * list, and the owner argument is assumed to be this vex's summoner on every call.
+     * list, and the owner argument is assumed to be this vex's summoner on every call. A zombie villager being cured
+     * ({@code AllyAttachments.isBeingCured}) is excluded although {@code Allies.isAllyOf} counts it: it is an ally only
+     * so that fangs and golems spare it, and counting it here would make the grudge and ally goals avenge it on whoever
+     * hurt it (another player with PvP on).
      *
      * @param owner the summoner
      * @return the allies in the area
@@ -631,7 +644,10 @@ public class BoundVex extends Vex {
             alliesCache = level().getEntitiesOfClass(
                             Mob.class,
                             guardArea(),
-                            mob -> !mob.getUUID().equals(self) && inGuardArea(mob) && Allies.isAllyOf(owner, mob));
+                            mob -> !mob.getUUID().equals(self)
+                                    && !AllyAttachments.isBeingCured(mob)
+                                    && inGuardArea(mob)
+                                    && Allies.isAllyOf(owner, mob));
             alliesTick = tickCount;
         }
         return alliesCache;

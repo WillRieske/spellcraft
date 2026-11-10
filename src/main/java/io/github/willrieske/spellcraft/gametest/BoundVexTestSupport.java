@@ -3,28 +3,37 @@ package io.github.willrieske.spellcraft.gametest;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
+import io.github.willrieske.spellcraft.evoking.BribeGoal;
 import io.github.willrieske.spellcraft.evoking.ModEntities;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.monster.zombie.Husk;
+import net.minecraft.world.entity.monster.zombie.ZombieVillager;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.phys.Vec3;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Shared constants and helpers of the Bound Vex GameTests (the cap, follow, target and job classes). Tests whose
@@ -238,5 +247,101 @@ public final class BoundVexTestSupport {
         entity.setPos(vex.position().add(dx, 0, dz));
     }
 
+    /** How many ticks {@link #everyTick} keeps running: longer than any padded test lasts. */
+    private static final int EVERY_TICK_SPAN = 1500;
+
+    /**
+     * Runs {@code action} once per tick until the test ends, in a sequence of its own beside the test's. Not
+     * {@code GameTestHelper.onEachTick}: that registers one entry per remaining tick in the test's tick map (a
+     * Spellcraft test that uses it crashed the server in the map's iterator when a padded test's wait added an
+     * entry), where a sequence adds none.
+     *
+     * @param helper the test helper
+     * @param action what to run each tick; it must not throw
+     */
+    static void everyTick(GameTestHelper helper, Runnable action) {
+        helper.startSequence().thenExecuteFor(EVERY_TICK_SPAN, action);
+    }
+
+    /**
+     * Holds {@code entity} at {@code at} until the test ends: every tick its position is set again and its velocity
+     * zeroed (through {@link #everyTick}). {@link #placeBeside} sets a position only once.
+     *
+     * @param helper the test helper
+     * @param entity the entity to hold
+     * @param at where to hold it, absolute
+     */
+    static void holdAt(GameTestHelper helper, Entity entity, Vec3 at) {
+        everyTick(helper, () -> {
+            entity.setPos(at);
+            entity.setDeltaMovement(Vec3.ZERO);
+        });
+    }
+
+    /**
+     * A {@link #calmCreeper} whose fuse is so long that it hisses without exploding once {@code setSwellDir(1)} is
+     * called: the fuse is the {@code Fuse} short tag, written over the creeper's own save and loaded back.
+     *
+     * @param helper the test helper
+     * @param relative where to spawn it, relative to the structure
+     * @return the creeper
+     */
+    static Creeper patientCreeper(GameTestHelper helper, BlockPos relative) {
+        Creeper creeper = calmCreeper(helper, relative);
+        CompoundTag tag = GameTestSupport.saved(creeper);
+        tag.putShort("Fuse", Short.MAX_VALUE);
+        creeper.load(TagValueInput.create(
+                ProblemReporter.DISCARDING, helper.getLevel().registryAccess(), tag));
+        return creeper;
+    }
+
     private BoundVexTestSupport() {}
+
+    /**
+     * A zombie villager with no AI and no gravity and a leather helmet (against sunburn), {@code dx} blocks east and
+     * {@code dz} blocks south of {@code at} (absolute, same height), discarded when the test ends. It is spawned in the
+     * structure and moved by absolute position: a rotated structure puts relative coordinates a block off.
+     */
+    static ZombieVillager frozenZombieVillager(GameTestHelper helper, Vec3 at, double dx, double dz) {
+        ZombieVillager zombieVillager = helper.spawn(EntityTypes.ZOMBIE_VILLAGER, FEET);
+        zombieVillager.setNoAi(true);
+        zombieVillager.setNoGravity(true);
+        zombieVillager.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.LEATHER_HELMET));
+        zombieVillager.setPos(at.add(dx, 0.0, dz));
+        whenDone(helper, zombieVillager::discard);
+        return zombieVillager;
+    }
+
+    /** Whether {@code vex} holds its own iron sword again, nothing conjured. */
+    static boolean swordBack(BoundVex vex) {
+        return vex.getMainHandItem().is(Items.IRON_SWORD) && !vex.isConjured(EquipmentSlot.MAINHAND);
+    }
+
+    /**
+     * A vanilla vex with no AI and no gravity, {@code dx} blocks east and {@code dz} blocks south of {@code at}
+     * (absolute, same height), targeting {@code target}, discarded when the test ends. It is spawned in the structure
+     * and moved by absolute position: a rotated structure puts relative coordinates a block off.
+     */
+    static Vex enemyVex(GameTestHelper helper, Vec3 at, double dx, double dz, @Nullable LivingEntity target) {
+        Vex vex = helper.spawn(EntityTypes.VEX, FEET);
+        vex.setNoAi(true);
+        vex.setNoGravity(true);
+        vex.setPos(at.add(dx, 0.0, dz));
+        vex.setTarget(target);
+        whenDone(helper, vex::discard);
+        return vex;
+    }
+
+    /**
+     * Scripts every roll of {@code vex} to {@code side} (0 and 1 accept the bribe, 2 refuses it) until the test ends.
+     */
+    static void rolling(GameTestHelper helper, BoundVex vex, int side) {
+        BribeGoal.scriptDice(vex, bound -> side);
+        whenDone(helper, () -> BribeGoal.unscriptDice(vex));
+    }
+
+    /** Whether {@code vex} carries exactly one of the two bribe marks. */
+    static boolean exactlyOneMark(Vex vex) {
+        return AllyAttachments.isBribed(vex) != AllyAttachments.wasOfferedBribe(vex);
+    }
 }

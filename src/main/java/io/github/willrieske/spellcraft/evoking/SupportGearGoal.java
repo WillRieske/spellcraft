@@ -14,6 +14,8 @@ import net.minecraft.world.entity.ai.goal.Goal;
  * would hurt ({@code isInvertedHealAndHarm}: the undead) are skipped. A friend is the summoner or an ally of the
  * summoner ({@code Allies.isAllyOf}, which counts the summoner's other Bound Vexes), the vex itself excepted. The goal
  * has no flags and never moves the vex, so the follow and post goals keep running beside it.
+ * (The cure potion a vex conjures, Parts 4-5 spec §2.2, is not support gear: it has no effects, and
+ * {@code VexGear.kindOf} gives an effect-free potion {@code NONE}.)
  */
 final class SupportGearGoal extends Goal {
     /** How far a friend may be (spec §4.3). */

@@ -2,10 +2,10 @@ package io.github.willrieske.spellcraft.gametest;
 
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.FEET;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.boundVex;
-import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.calmCreeper;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.followOnly;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.husk;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.noTargets;
+import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.patientCreeper;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.placeBeside;
 import static io.github.willrieske.spellcraft.gametest.BoundVexTestSupport.summoner;
 import static io.github.willrieske.spellcraft.gametest.FangGameTests.NORTH;
@@ -21,16 +21,13 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
@@ -124,23 +121,10 @@ public final class BoundVexJobGameTests {
     }
 
     /**
-     * A {@link BoundVexTestSupport#calmCreeper} whose fuse is so long that it hisses without exploding once
-     * {@code setSwellDir(1)} is called: the fuse is the {@code Fuse} short tag, written over the creeper's own save and
-     * loaded back.
-     */
-    private static Creeper patientCreeper(GameTestHelper helper, BlockPos relative) {
-        Creeper creeper = calmCreeper(helper, relative);
-        CompoundTag tag = GameTestSupport.saved(creeper);
-        tag.putShort("Fuse", Short.MAX_VALUE);
-        creeper.load(TagValueInput.create(
-                ProblemReporter.DISCARDING, helper.getLevel().registryAccess(), tag));
-        return creeper;
-    }
-
-    /**
-     * A {@link #patientCreeper} that floats, for a test whose creeper must live on: the barrier shell at the box's edge
-     * ({@code FEET.north(2)} and nearer) hurts a creeper standing in it, so a creeper there dies in the end (the same
-     * "inWall" damage as {@link #GOLEM_SPOT}'s note), and without gravity it needs no floor in the padded box.
+     * A {@link BoundVexTestSupport#patientCreeper} that floats, for a test whose creeper must live on: the barrier
+     * shell at the box's edge ({@code FEET.north(2)} and nearer) hurts a creeper standing in it, so a creeper there
+     * dies in the end (the same "inWall" damage as {@link #GOLEM_SPOT}'s note), and without gravity it needs no floor
+     * in the padded box.
      */
     private static Creeper floatingCreeper(GameTestHelper helper, BlockPos relative) {
         Creeper creeper = patientCreeper(helper, relative);
