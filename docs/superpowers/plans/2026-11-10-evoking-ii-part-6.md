@@ -3346,7 +3346,7 @@ git commit -m "feat(evoking): team moves run, end by the spec's rules and keep t
   - `TeamMoves.SCAN_INTERVAL = 10`; package-private `static double attackDamage(LivingEntity)` (0 when the mob has no `ATTACK_DAMAGE`); package-private `static @Nullable LivingEntity wardFor(ServerPlayer owner)`.
   - `TeamMoves.tick` is replaced whole (see Step 3); `TeamMoveTestSupport.assertRaidGear(GameTestHelper, BoundVex)` was added in Task 4 and is used here.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `BoundVexTeamMoveTriggerGameTests` (class Javadoc `/** GameTests of the automatic triggers (Parts 6-7 spec §2.3). */`; imports as the Task 4 roster class, plus `Ghast`, `Villager`, `ServerConfig`, `TeamMoveMode`, `GameTestSupport`; static imports `TeamMoveTestSupport.{frozenVexes, flyingVexes, foe, bigHusk, hangPoint, beside, setBase}`, `FangGameTests.NORTH`, `SpellcraftGameTests.SHARED`; all `FangGameTests.addPadded(SHARED, …)` except the last, `config_mutation`; each test steps `TeamMoves.tick(player)` once; the foe stands 3 blocks east of the hang point, inside the guard area of at least one frozen vex, since `frozenVexes` puts the vexes at x offsets -1.5 to +1.5 and `GuardArea.HALF_WIDTH` is 4.0):
 
@@ -3945,12 +3945,12 @@ static void manualModeDoesNotScan(GameTestHelper helper) {
 
 Registration (the Task 3 shape; the name is `team_move_trigger_` plus the snake-case method name): e.g. `FangGameTests.addPadded(SHARED, "team_move_trigger_ravager_with_twelve_raids", BoundVexTeamMoveTriggerGameTests::ravagerWithTwelveRaids);` and `FangGameTests.addPadded(SHARED, "team_move_trigger_ravager_with_four_shields", BoundVexTeamMoveTriggerGameTests::ravagerWithFourShields);`; likewise for the rest. Names: `team_move_trigger_ravager_with_twelve_raids`, `…_ravager_with_four_shields`, `…_ravager_with_eleven_shields`, `…_enderman_with_nine_shields`, `…_vindicator_starts_nothing`, `…_strong_hunter_starts_a_multishot`, `…_strong_hunter_of_nobody_starts_nothing`, `…_hurt_summoner_starts_an_evader`, `…_hurt_villager_starts_an_evader`, `…_hurt_vex_is_not_warded`, `…_enemy_moves_come_before_the_evader`, `…_plain_husk_starts_nothing`, `…_enemy_outside_the_guard_area_starts_nothing`, `…_staying_vex_is_not_taken`, `…_cooling_raid_falls_through_to_a_shield`, `…_ghast_hunting_a_vex_starts_nothing`, `…_nearest_candidate_is_the_subject`, `…_raid_candidate_beats_a_nearer_shield_candidate`, `…_lowest_fraction_is_warded`, `…_summoner_wins_ties`, `…_healthy_ally_is_not_warded`, `…_far_ally_is_not_warded`, `…_dead_summoner_scans_nothing`, `…_staying_vexes_guard_area_does_not_count`, `…_hunter_of_a_staying_vex_starts_nothing`, `…_two_free_vexes_start_no_multishot`, `…_scan_clock_is_ten_ticks`, and `team_move_trigger_manual_mode_does_not_scan` registered with `FangGameTests.addPadded("config_mutation", …)` (it changes the global setting for one synchronous call). In the static block of `SpellcraftGameTests` add `BoundVexTeamMoveTriggerGameTests.registerAll();` after the lifecycle class. That is 28 tests.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_trigger_*"`
 Expected: compilation fails (`ServerConfig.TEAM_MOVES`, `TeamMoveMode` do not exist) and, once they do, the positive tests (the Raid, Shield, Multishot and Evader starts, the cooling fall-through, the ranking and nearest-candidate tests, and the end of `scan_clock_is_ten_ticks`) fail because nothing scans yet. The "starts nothing" tests pass trivially now and guard the implementation in Step 4.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```java
 package io.github.willrieske.spellcraft.config;
@@ -4139,12 +4139,12 @@ final class TeamMoveTriggers {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:team_move_trigger_*"`
 Expected: all pass. A trigger test that fails because the foe is "not prey" means it stands outside the summoner's reach rules; read `BoundVex.isPrey` before moving it.
 
-- [ ] **Step 5: Full gates, then commit**
+- [x] **Step 5: Full gates, then commit**
 
 Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (expect `All M required tests passed`, M = the previous task's reported total plus the 28 tests this task registers; write M in the commit's as-built note).
 
@@ -4154,6 +4154,8 @@ The scan now also runs inside `TeamMoves.tick` of the Task 4-5 tests and of `ste
 git add src/main/java/io/github/willrieske/spellcraft src/main/resources/assets/spellcraft/lang/en_us.json
 git commit -m "feat(evoking): the teamMoves setting and the automatic team-move triggers"
 ```
+
+> **As built (`7d431bf`):** diverged — `TeamMoves.tick` reads the record with `get` and creates one only when a scan is due (AUTOMATIC, summoner present, no move running), not `computeIfAbsent` every tick; Task 11's `tick` snippet must merge into this shape (its `advance` branch sits inside the `record != null && record.active()` block); reason: keeps Task 5's no-empty-record rule.
 
 ---
 
@@ -6928,6 +6930,7 @@ git commit -m "docs(evoking): Part 6 in the README, playtest items, mutation tes
 | 3 | `a24543f` | `frozenVexes` uses `Math.floorDiv(i, 4)` (Error Prone `NarrowCalculation`); the Bribe job test finds the worker by its conjured emerald because `BribeGoal.holds` is package-private; reason: compile rules, same behavior. |
 | 4 | `e37f437` | `DiceTest` is the GameTest `team_move_dice_script_rules` in `team_move_dice` (the brief's fallback: `RandomSource` is not on the unit-test classpath), so 14 tests (528); the Multishot test reads `ItemStack.getEnchantmentLevel(Holder)` (the helper is deprecated under -Werror); reason: classpath and compile rules. |
 | 5 | `2d4c6e9` | `start` reads the record with `get` and creates it only once the move begins, so a refusal leaves no empty record; `tick` never creates one; `clear()` unscripts `Dice.RAID_KIT`; reason: Task 4 review. |
+| 6 | `7d431bf` | `TeamMoves.tick` reads the record with `get` and creates one only when a scan is due (AUTOMATIC, summoner present, no move running), not `computeIfAbsent` every tick; Task 11's `tick` snippet must merge into this shape (its `advance` branch sits inside the `record != null && record.active()` block); reason: keeps Task 5's no-empty-record rule. |
 
 ## Resume State
 
