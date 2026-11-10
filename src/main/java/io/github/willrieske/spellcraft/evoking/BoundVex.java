@@ -173,7 +173,8 @@ public class BoundVex extends Vex {
      * beside them: {@link FleeCreeperGoal} and {@link DodgeGolemGoal} outrank everything on the move flag,
      * {@link RepairGolemGoal}, {@link CureZombieVillagerGoal}, {@link BribeGoal} and {@link AttackCrystalGoal} outrank
      * the charge and the follow; {@link RescueGoal} (priority -1) outranks them all while {@link VexRescues} names the
-     * vex a rescuer.
+     * vex a rescuer. {@link TeamMoveGoal} (priority 1) runs a team move's part and keeps its kit on, above the job,
+     * charge, ranged and follow goals and below the flee, dodge and rescue goals.
      */
     @Override
     protected void registerGoals() {
@@ -181,6 +182,7 @@ public class BoundVex extends Vex {
         goalSelector.addGoal(0, new FleeCreeperGoal(this));
         goalSelector.addGoal(0, new DodgeGolemGoal(this));
         goalSelector.addGoal(0, new FloatGoal(this));
+        goalSelector.addGoal(1, new TeamMoveGoal(this));
         goalSelector.addGoal(2, new RepairGolemGoal(this));
         goalSelector.addGoal(2, new CureZombieVillagerGoal(this));
         goalSelector.addGoal(2, new BribeGoal(this));

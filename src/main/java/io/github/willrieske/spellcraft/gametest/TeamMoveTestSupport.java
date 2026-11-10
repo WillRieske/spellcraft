@@ -1,6 +1,8 @@
 package io.github.willrieske.spellcraft.gametest;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
+import io.github.willrieske.spellcraft.evoking.TeamMoveGoal;
+import io.github.willrieske.spellcraft.evoking.TeamMoves;
 import io.github.willrieske.spellcraft.evoking.VexGear;
 import java.util.ArrayList;
 import java.util.List;
@@ -103,5 +105,23 @@ final class TeamMoveTestSupport {
                     vex.isConjured(slot) && VexGear.kindOf(vex.getItemBySlot(slot)) == VexGear.Kind.ARMOR,
                     slot + " armor");
         }
+    }
+
+    /**
+     * Steps {@code TeamMoves.tick(player)} once per tick until the test ends; a mock player gets no player tick. (Used
+     * from Task 9 on; the lifecycle tests call {@code TeamMoves.tick} by hand.)
+     */
+    static void stepEveryTick(GameTestHelper helper, ServerPlayer player) {
+        BoundVexTestSupport.everyTick(helper, () -> TeamMoves.tick(player));
+    }
+
+    /** The vex's team-move goal, found in its goal selector. */
+    static TeamMoveGoal goalOf(BoundVex vex) {
+        return vex.goalSelector.getAvailableGoals().stream()
+                .map(wrapped -> wrapped.getGoal())
+                .filter(TeamMoveGoal.class::isInstance)
+                .map(TeamMoveGoal.class::cast)
+                .findFirst()
+                .orElseThrow();
     }
 }

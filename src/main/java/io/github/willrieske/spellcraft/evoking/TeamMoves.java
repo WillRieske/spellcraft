@@ -1,5 +1,6 @@
 package io.github.willrieske.spellcraft.evoking;
 
+import io.github.willrieske.spellcraft.Spellcraft;
 import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import io.github.willrieske.spellcraft.spell.rules.TeamMoveRules;
 import java.util.ArrayList;
@@ -13,17 +14,23 @@ import java.util.UUID;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Team moves of a summoner's Bound Vexes (Parts 6-7 spec section 2): the free-vex test, the per-summoner record and
- * the start of a move; the tick, the triggers and the request arrive in Tasks 5-7.
+ * Team moves of a summoner's Bound Vexes (Parts 6-7 spec section 2): the free-vex test, the per-summoner record, the
+ * start and tick of a move; the triggers and the request arrive in Tasks 6-7.
  */
+@EventBusSubscriber(modid = Spellcraft.MODID)
 public final class TeamMoves {
     /** A vex farther than this from its summoner is not free (spec section 2.2). */
     public static final double FREE_RANGE = 32.0;
@@ -205,8 +212,8 @@ public final class TeamMoves {
         }
         ServerLevel level = owner.level();
         long now = level.getGameTime();
-        Move record = STATES.computeIfAbsent(owner.getUUID(), id -> new Move());
-        if (record.active() || record.cooling(move, now)) {
+        Move existing = STATES.get(owner.getUUID());
+        if (existing != null && (existing.active() || existing.cooling(move, now))) {
             return false;
         }
         List<BoundVex> roster = chooseRoster(move, freeVexes(owner), subject);
@@ -218,6 +225,8 @@ public final class TeamMoves {
         List<Map<EquipmentSlot, ItemStack>> kits = roster.stream()
                 .map(vex -> TeamMoveKits.kit(move, level, vex.getRandom()))
                 .toList();
+        // A refused start leaves no record behind: it is created only now that the move really starts.
+        Move record = STATES.computeIfAbsent(owner.getUUID(), id -> new Move());
         record.begin(move, subject.getUUID(), now);
         for (int i = 0; i < roster.size(); i++) {
             BoundVex vex = roster.get(i);
@@ -284,6 +293,207 @@ public final class TeamMoves {
     public static Optional<TeamMove> running(ServerPlayer owner) {
         Move record = STATES.get(owner.getUUID());
         return record != null && record.active() ? Optional.of(record.move) : Optional.empty();
+    }
+
+    /** A vex's place in a running move: the record and its own member state. */
+    record Membership(Move record, Member member) {}
+
+    /**
+     * Runs {@link #tick} after each server player's tick (a dead player is still ticked until it respawns).
+     *
+     * @param event the post-tick event
+     */
+    @SubscribeEvent
+    public static void onPlayerTick(PlayerTickEvent.Post event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            tick(player);
+        }
+    }
+
+    /**
+     * One step for {@code owner} (spec section 2.5): drops roster members that are gone or no longer marked, and ends
+     * the move when its roster is empty, the summoner is absent, the enemy or ward is gone or beyond 48 blocks, the
+     * Evader's ward is healed, or the time limit is up. A summoner in another level ends the move without a check of
+     * its own: the members are in the old level (pruned and released) or are new copies marked NONE (pruned), and the
+     * enemy is not found in the summoner's level. Public so GameTests can step a mock player, which gets no player
+     * tick. A summoner with no record is left alone: stepping never creates one.
+     *
+     * <p>Task 6 replaces this body and adds to this Javadoc: "Then, in AUTOMATIC mode with no move running, runs the
+     * trigger scan on its 10-tick clock (spec section 2.3)."
+     *
+     * @param owner the summoner
+     */
+    public static void tick(ServerPlayer owner) {
+        long now = owner.level().getGameTime();
+        Move record = STATES.get(owner.getUUID());
+        if (record != null && record.active()) {
+            prune(owner, record);
+            if (shouldEnd(owner, record, now)) {
+                end(owner, record, now);
+            }
+        }
+    }
+
+    /** Whether the summoner can lead a move: alive and not a spectator (spec section 2.3). */
+    static boolean isPresent(ServerPlayer owner) {
+        return owner.isAlive() && !owner.isSpectator();
+    }
+
+    /**
+     * Drops the members that are dead, removed, in another level or no longer marked with this move. A member found
+     * alive and still marked in another level has its kit put away now.
+     */
+    private static void prune(ServerPlayer owner, Move record) {
+        ServerLevel level = owner.level();
+        record.roster.removeIf(id -> {
+            Entity found = level.getEntityInAnyDimension(id);
+            if (found instanceof BoundVex vex && vex.isAlive() && vex.teamMove() == record.move) {
+                if (vex.level().equals(level)) {
+                    return false;
+                }
+                release(vex);
+            }
+            record.members.remove(id);
+            return true;
+        });
+    }
+
+    /**
+     * The enemy or ward of a running move, found in {@code level}.
+     *
+     * @param level the summoner's level
+     * @param record the summoner's state
+     * @return the living subject, or null when it is gone, not living or in another level
+     */
+    static @Nullable LivingEntity subjectOf(ServerLevel level, Move record) {
+        Entity found = record.subject == null ? null : level.getEntity(record.subject);
+        return found instanceof LivingEntity living ? living : null;
+    }
+
+    /**
+     * Whether the move is over (spec section 2.5): no members, an absent summoner, the time limit, the subject gone,
+     * dead or beyond 48 blocks, or an Evader's ward healed to half health.
+     */
+    private static boolean shouldEnd(ServerPlayer owner, Move record, long now) {
+        if (record.roster.isEmpty() || !isPresent(owner) || now >= TeamMoveRules.endsAt(record.move, record.start)) {
+            return true;
+        }
+        LivingEntity living = subjectOf(owner.level(), record);
+        if (living == null || !living.isAlive() || TeamMoveRules.tooFar(living.distanceToSqr(owner))) {
+            return true;
+        }
+        return record.move == TeamMove.EVADER && !TeamMoveRules.needsGuard(living.getHealth(), living.getMaxHealth());
+    }
+
+    /** Ends the move: every remaining member's kit goes, its mark clears, and the kind's 30-second cooldown starts. */
+    private static void end(ServerPlayer owner, Move record, long now) {
+        releaseRoster(owner.level(), record);
+        record.finish(now + TeamMoveRules.COOLDOWN_TICKS);
+    }
+
+    /** Puts every listed member's kit away and clears its mark, wherever the member is (any level of the server). */
+    private static void releaseRoster(ServerLevel level, Move record) {
+        for (UUID id : record.roster) {
+            if (level.getEntityInAnyDimension(id) instanceof BoundVex vex && vex.teamMove() == record.move) {
+                release(vex);
+            }
+        }
+    }
+
+    /**
+     * Takes a vex out of its move: the kit slots are dismissed (the stash returns) and the mark clears.
+     *
+     * @param vex a Bound Vex
+     */
+    static void release(BoundVex vex) {
+        TeamMoveKits.dismiss(vex, vex.teamMove());
+        vex.setTeamMove(TeamMove.NONE);
+    }
+
+    /**
+     * The vex's place in the record that lists it.
+     *
+     * @param vex a Bound Vex
+     * @return the record and member state, or empty for a vex in no running move
+     */
+    static Optional<Membership> membership(BoundVex vex) {
+        TeamMove mark = vex.teamMove();
+        if (mark == TeamMove.NONE) {
+            return Optional.empty();
+        }
+        return vex.summonerId()
+                .map(STATES::get)
+                .filter(record -> record.move == mark && record.members.containsKey(vex.getUUID()))
+                .map(record -> new Membership(record, record.members.get(vex.getUUID())));
+    }
+
+    /**
+     * Whether a move kind is cooling down for {@code owner}.
+     *
+     * @param owner the summoner
+     * @param move the kind
+     * @return true during the 30 seconds after the kind last ended
+     */
+    public static boolean cooling(ServerPlayer owner, TeamMove move) {
+        Move record = STATES.get(owner.getUUID());
+        return record != null && record.cooling(move, owner.level().getGameTime());
+    }
+
+    /**
+     * Makes the running move and every cooldown {@code ticks} older; for GameTests, never called in play.
+     *
+     * @param owner the summoner
+     * @param ticks how much older the move and the cooldowns become
+     */
+    public static void age(ServerPlayer owner, long ticks) {
+        Move record = STATES.get(owner.getUUID());
+        if (record != null) {
+            record.start -= ticks;
+            record.cooldownEnd.replaceAll((kind, end) -> end - ticks);
+        }
+    }
+
+    /**
+     * A member's Shield clocks, as plain values, for GameTests.
+     *
+     * @param stage the name of the member's Shield stage
+     * @param nextAction the game time of its next bash, shot or attack
+     * @param lungeStart the game time its current lunge began
+     */
+    public record Clocks(String stage, long nextAction, long lungeStart) {}
+
+    /**
+     * The clocks of {@code vex} in its running move; for GameTests, never called in play. It is the public seam over
+     * the package-private {@code Member}, so no test touches the mutable record state.
+     *
+     * @param vex a Bound Vex
+     * @return the clocks, or empty for a vex in no running move
+     */
+    public static Optional<Clocks> clocksOf(BoundVex vex) {
+        return membership(vex)
+                .map(m -> new Clocks(m.member().stage.name(), m.member().nextAction, m.member().lungeStart));
+    }
+
+    /**
+     * Drops a logged-out summoner's record and puts every member's kit away, so no vex stays marked with nobody to end
+     * its move. No cooldown is remembered.
+     *
+     * @param event the logout event
+     */
+    @SubscribeEvent
+    public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer owner) {
+            Move record = STATES.remove(owner.getUUID());
+            if (record != null && record.active()) {
+                releaseRoster(owner.level(), record);
+            }
+        }
+    }
+
+    /** Forgets every record and any scripted Raid dice (single-player loads one server per world in the same JVM). */
+    static void clear() {
+        STATES.clear();
+        Dice.RAID_KIT.unscript();
     }
 
     /**
