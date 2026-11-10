@@ -54,15 +54,18 @@ public final class GolemMercy {
     }
 
     /**
-     * A golem never targets a mob a player summoned (the summoner attachment): vanilla's golem attacks every
-     * {@code Enemy} but creepers, and a summoned vex is one. A cancelled change keeps the golem's old target.
+     * A golem never targets a mob a player summoned (the summoner attachment) nor a zombie villager a Bound Vex
+     * is curing (the cure mark, Parts 4-5 spec §2.1): vanilla's golem attacks every {@code Enemy} but creepers, and a
+     * summoned vex or a zombie villager is one. A cancelled change keeps the golem's old target.
      *
      * @param event the change-target event for any living entity
      */
     @SubscribeEvent
     public static void onChangeTarget(LivingChangeTargetEvent event) {
         LivingEntity target = event.getNewAboutToBeSetTarget();
-        if (event.getEntity() instanceof IronGolem && target != null && target.hasData(AllyAttachments.SUMMONER)) {
+        if (event.getEntity() instanceof IronGolem
+                && target != null
+                && (target.hasData(AllyAttachments.SUMMONER) || AllyAttachments.isBeingCured(target))) {
             event.setCanceled(true);
         }
     }

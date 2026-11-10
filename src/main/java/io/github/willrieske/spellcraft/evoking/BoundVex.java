@@ -43,6 +43,7 @@ import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.Vex;
+import net.minecraft.world.entity.monster.zombie.ZombieVillager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.item.ItemStack;
@@ -429,7 +430,8 @@ public class BoundVex extends Vex {
     /**
      * Whether a Bound Vex of {@code summoner} may fight {@code target} (spec §3.4; round one's rule): anything
      * attackable that is no ally of the summoner, no player the summoner cannot harm ({@code canHarmPlayer}: the
-     * {@code pvp} game rule; teammates are already allies), no mob another player summoned unless the summoner may
+     * {@code pvp} game rule; teammates are already allies), no {@code ZombieVillager} (the cure stops one instead,
+     * Parts 4-5 spec §2.1), no bribed vex (§3.2), no mob another player summoned unless the summoner may
      * harm that player (with {@code pvp} off, two players' vexes leave each other alone; an offline summoner's mobs
      * follow the {@code pvp} rule alone), and nothing while the summoner is not in {@code level}
      * (offline or in another dimension). Public for its GameTests.
@@ -440,7 +442,7 @@ public class BoundVex extends Vex {
      * @return whether the vex may take {@code target} as its target
      */
     public static boolean isPrey(ServerLevel level, UUID summoner, LivingEntity target) {
-        if (!target.attackable()) {
+        if (!target.attackable() || target instanceof ZombieVillager || AllyAttachments.isBribed(target)) {
             return false;
         }
         Player owner = level.getPlayerByUUID(summoner);
