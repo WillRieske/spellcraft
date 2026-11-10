@@ -66,6 +66,7 @@ anything. Exit codes are listed in the script header.
 | `./gradlew build` | Format check, compile, unit tests, jar |
 | `./gradlew test` | Unit tests only |
 | `./gradlew runGameTestServer` | GameTests on a headless server |
+| `./gradlew runGameTestServer "-PgameTests=spellcraft:trail_*"` | Only the GameTests whose ID matches (wildcards allowed) |
 | `./gradlew runClient` | Dev client, without the checks |
 
 The first build downloads and decompiles Minecraft and takes 5-15 minutes.
