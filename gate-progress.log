@@ -69,3 +69,4 @@ b1aefe8 Task 8 done (docs, pitest 98% 247/251, minors closed); plan complete; ba
 7d4f5d7 Task 5: build green; All 197 required tests passed twice at 55be865; All 205 required tests passed twice after fix round 1
 0aeda6f Task 6: build green; All 214 required tests passed twice at c00bca8; All 215 required tests passed x3 after fix round 1 (32+ clean runs on the same production code)
 4754fb1 Task 7: markdownlint 0 errors; pitest 264/268 killed (99%), line coverage 270/284; build green (commit gate)
+8854374 Task 1: api-notes §22 recorded; baseline All 249 required tests passed at 667c882
