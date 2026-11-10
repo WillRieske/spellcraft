@@ -1,7 +1,7 @@
 # Spellcraft: Evoking II Part 3, gear and the new stay (design)
 
 **Date:** 2026-11-09
-**Status:** approved
+**Status:** plan written (`2026-11-09-evoking-ii-part-3.md`)
 **Written by:** `/one-shot`, unattended, on 2026-11-09, from Will's playtest report; §9 lists the
 decisions Will did not state.
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
