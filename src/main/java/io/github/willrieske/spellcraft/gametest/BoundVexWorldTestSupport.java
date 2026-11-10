@@ -1,16 +1,21 @@
 package io.github.willrieske.spellcraft.gametest;
 
+import static io.github.willrieske.spellcraft.gametest.FangGameTests.FEET;
 import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
+import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.ModEntities;
+import io.github.willrieske.spellcraft.evoking.VexRescues;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -19,6 +24,10 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
@@ -502,5 +511,86 @@ final class BoundVexWorldTestSupport {
             throw helper.assertionException("setup: no slots in " + dimension.identifier());
         }
         return slots;
+    }
+
+    /** How close a rescuer must hang to its summoner's side point. */
+    static final double SIDE_TOLERANCE = 0.1;
+
+    /** Registers {@code body} in the shared environment with the padded box and its chunk wait. */
+    static void padded(String name, Consumer<GameTestHelper> body) {
+        FangGameTests.addPadded(SHARED, name, body);
+    }
+
+    /** A persistent husk with no AI and no gravity at {@code at} in {@code level}; the place's cleanup removes it. */
+    static Husk huskIn(ServerLevel level, Vec3 at) {
+        Husk husk = EntityTypes.HUSK.create(level, EntitySpawnReason.COMMAND);
+        husk.setNoAi(true);
+        husk.setNoGravity(true);
+        husk.setPersistenceRequired();
+        husk.setPos(at);
+        level.addFreshEntity(husk);
+        return husk;
+    }
+
+    /** A following vex of {@code player} five blocks from them (three up, four south), above the stone. */
+    static BoundVex followingVex(GameTestHelper helper, ServerPlayer player) {
+        return BoundVexTestSupport.followOnly(helper, FEET.offset(0, 3, 4), player);
+    }
+
+    /** Fails the test unless the player's velocity is {@code (x, y, z)} within 1e-6. */
+    static void assertVelocity(GameTestHelper helper, ServerPlayer player, double x, double y, double z) {
+        Vec3 v = player.getDeltaMovement();
+        helper.assertTrue(
+                Math.abs(v.x - x) < 1.0e-6 && Math.abs(v.y - y) < 1.0e-6 && Math.abs(v.z - z) < 1.0e-6,
+                "the velocity is (" + x + ", " + y + ", " + z + "), not " + v);
+    }
+
+    /** Fails the test unless a lava rescue is running for {@code player}. */
+    static void assertLavaRunning(GameTestHelper helper, ServerPlayer player, String what) {
+        helper.assertValueEqual(VexRescues.running(player), Optional.of(VexRescues.Kind.LAVA), what);
+    }
+
+    /** Fails the test unless no rescue is running for {@code player}. */
+    static void assertNoRescue(GameTestHelper helper, ServerPlayer player, String what) {
+        helper.assertTrue(VexRescues.running(player).isEmpty(), what);
+    }
+
+    /** A survival player made unhurtable, at {@link FangGameTests#STAND}. */
+    static ServerPlayer voidPlayer(GameTestHelper helper) {
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        player.setPermanentlyInvulnerable(true);
+        whenDone(helper, () -> player.setPermanentlyInvulnerable(false));
+        return player;
+    }
+
+    /** The point at height {@code y} in the column of {@code slot}. */
+    static Vec3 column(BlockPos slot, double y) {
+        return new Vec3(slot.getX() + 0.5, y, slot.getZ() + 0.5);
+    }
+
+    /** The health of the crit tests' husks and players, high enough that no tripled hit kills them. */
+    static final float CRIT_HEALTH = 200.0F;
+
+    /** Gives {@code victim} {@link #CRIT_HEALTH} health and no armor, so a loss measures the hit alone. */
+    static void plainVictim(LivingEntity victim) {
+        victim.getAttribute(Attributes.MAX_HEALTH).setBaseValue(CRIT_HEALTH);
+        victim.getAttribute(Attributes.ARMOR).setBaseValue(0.0);
+        victim.setHealth(CRIT_HEALTH);
+    }
+
+    /** A husk with no AI and no gravity, plain (see {@link #plainVictim}), in {@code level} at {@code at}. */
+    static Husk critHusk(GameTestHelper helper, ServerLevel level, Vec3 at) {
+        Husk husk = EntityTypes.HUSK.create(level, EntitySpawnReason.COMMAND);
+        if (husk == null) {
+            throw helper.assertionException("could not create a husk");
+        }
+        husk.snapTo(at.x, at.y, at.z, 0.0F, 0.0F);
+        husk.setNoAi(true);
+        husk.setNoGravity(true);
+        husk.setPersistenceRequired();
+        plainVictim(husk);
+        level.addFreshEntity(husk);
+        whenDone(helper, husk::discard);
+        return husk;
     }
 }
