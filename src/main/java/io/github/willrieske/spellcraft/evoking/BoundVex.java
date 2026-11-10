@@ -153,7 +153,7 @@ public class BoundVex extends Vex {
      * target from and no player hunt. Its three target goals are {@link HurtBySummonerSideGoal} (grudges),
      * {@link AllyFightGoal} (an ally's fight) and {@link NearestHostileGoal} (the patrol). The job goals sit beside
      * them: {@link FleeCreeperGoal} and {@link DodgeGolemGoal} outrank everything on the move flag,
-     * {@link RepairGolemGoal} and {@link CureZombieVillagerGoal} outrank the charge and the follow.
+     * {@link RepairGolemGoal}, {@link CureZombieVillagerGoal} and {@link BribeGoal} outrank the charge and the follow.
      */
     @Override
     protected void registerGoals() {
@@ -162,6 +162,7 @@ public class BoundVex extends Vex {
         goalSelector.addGoal(0, new FloatGoal(this));
         goalSelector.addGoal(2, new RepairGolemGoal(this));
         goalSelector.addGoal(2, new CureZombieVillagerGoal(this));
+        goalSelector.addGoal(2, new BribeGoal(this));
         goalSelector.addGoal(3, new RangedGearGoal(this));
         goalSelector.addGoal(3, new ChargeGoal());
         goalSelector.addGoal(3, new SupportGearGoal(this));
@@ -432,7 +433,8 @@ public class BoundVex extends Vex {
      * Whether a Bound Vex of {@code summoner} may fight {@code target} (spec §3.4; round one's rule): anything
      * attackable that is no ally of the summoner, no player the summoner cannot harm ({@code canHarmPlayer}: the
      * {@code pvp} game rule; teammates are already allies), no {@code ZombieVillager} (the cure stops one instead,
-     * Parts 4-5 spec §2.1), no bribed vex (§3.2), no mob another player summoned unless the summoner may
+     * Parts 4-5 spec §2.1), no bribed vex (§3.2), no vex a Bound Vex is courting right now
+     * ({@link BribeGoal#isCourted}, §3.1), no mob another player summoned unless the summoner may
      * harm that player (with {@code pvp} off, two players' vexes leave each other alone; an offline summoner's mobs
      * follow the {@code pvp} rule alone), and nothing while the summoner is not in {@code level}
      * (offline or in another dimension). Public for its GameTests.
@@ -443,7 +445,10 @@ public class BoundVex extends Vex {
      * @return whether the vex may take {@code target} as its target
      */
     public static boolean isPrey(ServerLevel level, UUID summoner, LivingEntity target) {
-        if (!target.attackable() || target instanceof ZombieVillager || AllyAttachments.isBribed(target)) {
+        if (!target.attackable()
+                || target instanceof ZombieVillager
+                || AllyAttachments.isBribed(target)
+                || BribeGoal.isCourted(target)) {
             return false;
         }
         Player owner = level.getPlayerByUUID(summoner);

@@ -15,12 +15,14 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -190,6 +192,21 @@ public final class BoundVexEvents {
         FOLLOWERS.clear();
         RepairGolemGoal.clearClaims();
         CureZombieVillagerGoal.clearClaims();
+        BribeGoal.clearClaims();
+    }
+
+    /**
+     * A bribed vex that joins a level (loaded from a save, or arrived from another dimension, which reports
+     * {@code loadedFromDisk() == false}, docs/api-notes.md §23) has its goals stripped again and the flee goal put
+     * back (spec §3.2); its 200 ticks start over. Keyed on the saved mark, server side only.
+     *
+     * @param event the join event
+     */
+    @SubscribeEvent
+    public static void onJoin(EntityJoinLevelEvent event) {
+        if (!event.getLevel().isClientSide() && event.getEntity() instanceof Vex vex && AllyAttachments.isBribed(vex)) {
+            FleeFromViewGoal.install(vex);
+        }
     }
 
     /**

@@ -12,14 +12,18 @@ import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
+import io.github.willrieske.spellcraft.evoking.BribeGoal;
 import io.github.willrieske.spellcraft.evoking.CureEvents;
 import io.github.willrieske.spellcraft.evoking.CureZombieVillagerGoal;
 import io.github.willrieske.spellcraft.evoking.FleeCreeperGoal;
+import io.github.willrieske.spellcraft.evoking.FleeFromViewGoal;
 import io.github.willrieske.spellcraft.spell.Allies;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,7 +37,10 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.goal.GoalSelector;
 import net.minecraft.world.entity.animal.golem.IronGolem;
+import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Vex;
@@ -48,6 +55,7 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Bound Vex GameTests (Evoking II Parts 4-5 spec §2-§3, §9): the cure and the bribe. Tests whose vex flies or that
@@ -55,6 +63,12 @@ import net.minecraft.world.phys.Vec3;
  * box. Shared constants and helpers live in {@link BoundVexTestSupport}.
  */
 public final class BoundVexCureGameTests {
+    /**
+     * The environment of the one test that needs the level's players to itself: a bribed vex leaves when no player sees
+     * it, and in {@code SHARED} the other tests' mock players, in range and in the open, would keep it in view.
+     */
+    private static final String ALONE = "bound_vex_bribe_alone";
+
     private BoundVexCureGameTests() {}
 
     static void registerAll() {
@@ -119,6 +133,39 @@ public final class BoundVexCureGameTests {
                 SHARED,
                 "bound_vex_cure_a_staying_vex_cures_only_in_its_area",
                 BoundVexCureGameTests::aStayingVexCuresOnlyInItsArea);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_bribe_a_bribe_that_succeeds", BoundVexCureGameTests::aBribeThatSucceeds);
+        FangGameTests.addPadded(
+                ALONE,
+                "bound_vex_bribe_a_bribed_vex_leaves_out_of_sight",
+                BoundVexCureGameTests::aBribedVexLeavesOutOfSight);
+        FangGameTests.addPadded(SHARED, "bound_vex_bribe_a_bribe_that_fails", BoundVexCureGameTests::aBribeThatFails);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_bribe_a_courted_vex_is_not_prey", BoundVexCureGameTests::aCourtedVexIsNotPrey);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_bribe_no_offer_to_a_vex_that_is_not_attacking_your_side",
+                BoundVexCureGameTests::noOfferToAVexThatIsNotAttackingYourSide);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_bribe_the_offer_ends_if_the_vex_dies",
+                BoundVexCureGameTests::theOfferEndsIfTheVexDies);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_bribe_an_approach_timeout_leaves_no_mark",
+                BoundVexCureGameTests::anApproachTimeoutLeavesNoMark);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_bribe_the_offer_ends_if_the_vex_leaves_or_the_briber_flees",
+                BoundVexCureGameTests::theOfferEndsIfTheVexLeavesOrTheBriberFlees);
+        SpellcraftGameTests.add(
+                SHARED,
+                "bound_vex_bribe_a_bribed_vex_loaded_from_a_save_only_flees",
+                BoundVexCureGameTests::aBribedVexLoadedFromASaveOnlyFlees);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_bribe_a_staying_vex_bribes_only_in_its_area",
+                BoundVexCureGameTests::aStayingVexBribesOnlyInItsArea);
     }
 
     /**
@@ -787,6 +834,436 @@ public final class BoundVexCureGameTests {
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(claimed(near), "the near one is claimed"))
                 .thenExecuteFor(40, () -> helper.assertTrue(free(far), "the far one is left alone"))
+                .thenSucceed();
+    }
+
+    /** Scripts every roll of {@code vex} to {@code side} (0 and 1 accept the bribe, 2 refuses it) until the test ends. */
+    private static void rolling(GameTestHelper helper, BoundVex vex, int side) {
+        BribeGoal.scriptDice(vex, bound -> side);
+        whenDone(helper, () -> BribeGoal.unscriptDice(vex));
+    }
+
+    /**
+     * A vanilla vex with no AI and no gravity, {@code dx} blocks east and {@code dz} blocks south of {@code at}
+     * (absolute, same height), targeting {@code target}, discarded when the test ends. It is spawned in the structure
+     * and moved by absolute position: a rotated structure puts relative coordinates a block off.
+     */
+    private static Vex enemyVex(GameTestHelper helper, Vec3 at, double dx, double dz, @Nullable LivingEntity target) {
+        Vex vex = helper.spawn(EntityTypes.VEX, FEET);
+        vex.setNoAi(true);
+        vex.setNoGravity(true);
+        vex.setPos(at.add(dx, 0.0, dz));
+        vex.setTarget(target);
+        whenDone(helper, vex::discard);
+        return vex;
+    }
+
+    /** A vanilla vex with its AI on and no gravity at {@code relative} (a structure-relative point), discarded at the end. */
+    private static Vex livelyVex(GameTestHelper helper, Vec3 relative) {
+        Vex vex = helper.spawn(EntityTypes.VEX, FEET);
+        vex.setNoGravity(true);
+        vex.setPos(helper.absoluteVec(relative));
+        whenDone(helper, vex::discard);
+        return vex;
+    }
+
+    /**
+     * Makes every player of the level but {@code player} a spectator (which {@link FleeFromViewGoal} does not count)
+     * until the test ends, when each gets its game mode back. For a test in {@link #ALONE}: the players left by
+     * earlier batches would otherwise see the vex.
+     */
+    private static void spectateEveryoneElse(GameTestHelper helper, ServerPlayer player) {
+        Map<ServerPlayer, GameType> modes = new HashMap<>();
+        for (ServerPlayer other : helper.getLevel().players()) {
+            if (!other.getUUID().equals(player.getUUID())) {
+                modes.put(other, other.gameMode());
+                other.setGameMode(GameType.SPECTATOR);
+            }
+        }
+        whenDone(helper, () -> modes.forEach(ServerPlayer::setGameMode));
+    }
+
+    /** Whether {@code vex} holds a conjured emerald. */
+    private static boolean holdsEmerald(BoundVex vex) {
+        return vex.getMainHandItem().is(Items.EMERALD) && vex.isConjured(EquipmentSlot.MAINHAND);
+    }
+
+    /** Whether {@code vex} carries neither bribe mark. */
+    private static boolean unmarked(Vex vex) {
+        return !AllyAttachments.isBribed(vex) && !AllyAttachments.wasOfferedBribe(vex);
+    }
+
+    /** The classes of the goals in {@code selector}, in the selector's order. */
+    private static List<Class<?>> goalClasses(GoalSelector selector) {
+        return selector.getAvailableGoals().stream()
+                .<Class<?>>map(wrapped -> wrapped.getGoal().getClass())
+                .toList();
+    }
+
+    /**
+     * When a staying Bound Vex finds an enemy vex that targets its summoner and the roll accepts, should hold a conjured
+     * emerald while the other vex is courted, then leave the other vex bribed (no target, only the flee goal), hold its
+     * sword again, and take the bribed vex as a target never.
+     *
+     * <p>Method under test: {@link BribeGoal}, through the vex's goal selector: spec §3.1, an accepted roll
+     */
+    static void aBribeThatSucceeds(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+        rolling(helper, vex, 0);
+        Vex other = enemyVex(helper, vex.position(), 3.0, 0.0, player);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(holdsEmerald(vex), "the Bound Vex holds an emerald out"))
+                .thenExecute(() -> helper.assertTrue(BribeGoal.isCourted(other), "and the other vex is courted"))
+                .thenWaitUntil(() -> helper.assertTrue(AllyAttachments.isBribed(other), "the other vex is bribed"))
+                .thenExecute(() -> {
+                    helper.assertTrue(other.getTarget() == null, "its target is cleared");
+                    helper.assertValueEqual(
+                            goalClasses(other.goalSelector), List.of(FleeFromViewGoal.class), "its only goal flees");
+                    helper.assertTrue(other.targetSelector.getAvailableGoals().isEmpty(), "and it has no target goals");
+                    helper.assertFalse(BribeGoal.isCourted(other), "it is no longer courted");
+                    helper.assertTrue(swordBack(vex), "the Bound Vex holds its sword, nothing conjured");
+                })
+                .thenExecuteFor(
+                        40,
+                        () -> helper.assertTrue(
+                                !other.equals(vex.getTarget()), "no Bound Vex takes the bribed vex as a target"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a bribed vex hangs 13 blocks from the only player behind a stone wall, should be discarded within a few
+     * ticks; in plain sight five blocks from the player, with its movement held, should be discarded only after
+     * {@code LIMIT} ticks.
+     *
+     * <p>Method under test: {@link FleeFromViewGoal#tick}: the distance and sight rule, and the tick limit
+     */
+    static void aBribedVexLeavesOutOfSight(GameTestHelper helper) {
+        // Arrange: the player stands inside the box; a wall of stone and the barrier shell are between it and the vex
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        spectateEveryoneElse(helper, player);
+        for (int x = 0; x <= 2; x++) {
+            for (int y = 1; y <= 3; y++) {
+                helper.setBlock(new BlockPos(x, y, -5), Blocks.STONE);
+            }
+        }
+        Vex hidden = livelyVex(helper, new Vec3(1.5, 1.0, -11.5));
+        helper.assertFalse(player.hasLineOfSight(hidden), "setup: the wall hides the vex");
+        helper.assertTrue(player.distanceTo(hidden) >= FleeFromViewGoal.CLEAR_DISTANCE, "setup: it is 12 blocks out");
+        long[] installedAt = {0};
+        Vex[] seen = {null};
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecute(() -> {
+                    FleeFromViewGoal.install(hidden);
+                    installedAt[0] = helper.getTick();
+                })
+                .thenWaitUntil(() -> helper.assertTrue(hidden.isRemoved(), "the hidden vex is discarded"))
+                .thenExecute(() -> {
+                    long took = helper.getTick() - installedAt[0];
+                    helper.assertTrue(took < 20, "it went at once, not at the limit, after " + took);
+                    MockPlayers.moveTo(helper, player, new Vec3(1.5, 1.0, -6.5));
+                    Vex visible = livelyVex(helper, new Vec3(1.5, 1.0, -11.5));
+                    BoundVexTestSupport.holdAt(helper, visible, visible.position());
+                    helper.assertTrue(player.hasLineOfSight(visible), "setup: the second vex is in plain sight");
+                    FleeFromViewGoal.install(visible);
+                    installedAt[0] = helper.getTick();
+                    seen[0] = visible;
+                })
+                .thenExecuteFor(
+                        FleeFromViewGoal.LIMIT - 20,
+                        () -> helper.assertFalse(seen[0].isRemoved(), "a vex in sight and near is not discarded"))
+                .thenWaitUntil(() -> helper.assertTrue(seen[0].isRemoved(), "discarded at the limit"))
+                .thenExecute(() -> {
+                    long took = helper.getTick() - installedAt[0];
+                    helper.assertTrue(
+                            took >= FleeFromViewGoal.LIMIT - 5, "only after the limit, not before it: " + took);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the roll refuses, should the other vex carry only the bribe-tried mark, the Bound Vex then take it as a
+     * target, and no emerald be conjured again in sixty ticks.
+     *
+     * <p>Method under test: {@link BribeGoal}: a refused roll, and the bribe-tried mark
+     */
+    static void aBribeThatFails(GameTestHelper helper) {
+        // Arrange: the other vex soaks up the Bound Vex's blows, so the test can watch the target
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+        rolling(helper, vex, 2);
+        Vex other = enemyVex(helper, vex.position(), 3.0, 0.0, player);
+        other.setAbsorptionAmount(100000.0F);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(AllyAttachments.wasOfferedBribe(other), "the offer was made"))
+                .thenExecute(() -> {
+                    helper.assertFalse(AllyAttachments.isBribed(other), "and refused");
+                    helper.assertFalse(BribeGoal.isCourted(other), "the other vex is prey again");
+                    helper.assertTrue(swordBack(vex), "the Bound Vex holds its sword again");
+                })
+                .thenWaitUntil(() ->
+                        helper.assertTrue(other.equals(vex.getTarget()), "the Bound Vex then targets the other vex"))
+                .thenExecuteFor(60, () -> {
+                    helper.assertFalse(holdsEmerald(vex), "no emerald is conjured again");
+                    helper.assertFalse(BribeGoal.isCourted(other), "and the other vex is not courted again");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When one of two Bound Vexes courts an enemy vex, should neither take it as a target and a hit on it by either
+     * leave its health unchanged; after a refused roll, should the same hit hurt it.
+     *
+     * <p>Method under test: {@link BoundVex#isPrey} (the courted clause), through the target goals and the
+     * friendly-fire backstop {@code BoundVexEvents.onIncomingDamage}
+     */
+    static void aCourtedVexIsNotPrey(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex first = stayingVex(helper, player, ItemStack.EMPTY);
+        BoundVex second = stayingVex(helper, player, ItemStack.EMPTY);
+        rolling(helper, first, 2);
+        rolling(helper, second, 2);
+        Vex other = enemyVex(helper, first.position(), 3.0, 0.0, player);
+        ServerLevel level = helper.getLevel();
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(BribeGoal.isCourted(other), "setup: a Bound Vex courts it"))
+                .thenIdle(3)
+                .thenExecuteFor(10, () -> {
+                    helper.assertTrue(BribeGoal.isCourted(other), "still courted");
+                    helper.assertTrue(
+                            !other.equals(first.getTarget()) && !other.equals(second.getTarget()),
+                            "neither Bound Vex takes the courted vex as a target");
+                })
+                .thenExecute(() -> {
+                    float before = other.getHealth();
+                    other.hurtServer(level, level.damageSources().mobAttack(first), 4.0F);
+                    other.hurtServer(level, level.damageSources().mobAttack(second), 4.0F);
+                    helper.assertValueEqual(
+                            other.getHealth(), before, "a hit by a Bound Vex on a courted vex is cancelled");
+                })
+                .thenWaitUntil(() -> helper.assertTrue(AllyAttachments.wasOfferedBribe(other), "the roll refuses"))
+                .thenExecute(() -> {
+                    float before = other.getHealth();
+                    other.hurtServer(level, level.damageSources().mobAttack(second), 4.0F);
+                    helper.assertTrue(other.getHealth() < before, "after the refusal the same hit hurts it");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a staying Bound Vex has a vanilla vex with no target, a vanilla vex targeting a pig, and another player's
+     * Bound Vex targeting its summoner within its area for sixty ticks, should offer none of them an emerald.
+     *
+     * <p>Method under test: {@link BribeGoal#canUse}: the target clause and the exact vex type
+     */
+    static void noOfferToAVexThatIsNotAttackingYourSide(GameTestHelper helper) {
+        // Arrange: the enemies soak up the Bound Vex's blows, so they live for the whole window
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        ServerPlayer stranger = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+        rolling(helper, vex, 0);
+        Vec3 post = vex.position();
+        Pig pig = helper.spawn(EntityTypes.PIG, FEET);
+        pig.setNoAi(true);
+        pig.setNoGravity(true);
+        pig.setPos(post.add(0.0, 0.0, 3.0));
+        whenDone(helper, pig::discard);
+        Vex idle = enemyVex(helper, post, 3.0, 0.0, null);
+        Vex hunter = enemyVex(helper, post, -3.0, 0.0, pig);
+        idle.setAbsorptionAmount(100000.0F);
+        hunter.setAbsorptionAmount(100000.0F);
+        BoundVex rival = noTargets(BoundVexTestSupport.parked(helper, AIR_SPOT, stranger));
+        rival.setPos(post.add(0.0, 0.0, -3.0));
+        rival.setTarget(player);
+        rival.setAbsorptionAmount(100000.0F);
+        helper.assertTrue(player.equals(rival.getTarget()), "setup: the rival's Bound Vex targets the summoner");
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(60, () -> {
+                    helper.assertFalse(holdsEmerald(vex), "no emerald is held out");
+                    helper.assertTrue(
+                            unmarked(idle) && unmarked(hunter) && unmarked(rival), "nobody was offered a bribe");
+                    helper.assertFalse(BribeGoal.isCourted(idle) || BribeGoal.isCourted(hunter), "nobody is courted");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the vanilla vex dies in the offer step, should the Bound Vex hold its sword again, the claim be free and
+     * the corpse carry no mark.
+     *
+     * <p>Method under test: {@link BribeGoal#canContinueToUse}: the other-vex-alive clause, and {@code stop}
+     */
+    static void theOfferEndsIfTheVexDies(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+        rolling(helper, vex, 0);
+        Vex other = enemyVex(helper, vex.position(), 3.0, 0.0, player);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(holdsEmerald(vex), "setup: in the offer step"))
+                .thenExecute(() -> other.kill(helper.getLevel()))
+                .thenWaitUntil(() -> helper.assertTrue(swordBack(vex), "the Bound Vex holds its sword again"))
+                .thenExecute(() -> {
+                    helper.assertFalse(BribeGoal.isCourted(other), "the claim is free");
+                    helper.assertTrue(unmarked(other), "and the dead vex carries no mark");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the Bound Vex cannot reach the other vex (held in place), should give up after {@code APPROACH_LIMIT} ticks
+     * with no mark on the other vex and its sword in hand, start no new bribe for {@code RETRY_DELAY} ticks, and then
+     * try again.
+     *
+     * <p>Method under test: {@link BribeGoal#canContinueToUse}: the approach timeout, and {@code BribeGoal.RETRY_DELAY}
+     */
+    static void anApproachTimeoutLeavesNoMark(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+        rolling(helper, vex, 2);
+        Vec3 post = vex.position();
+        BoundVexTestSupport.holdAt(helper, vex, post);
+        Vex other = enemyVex(helper, post, 5.0, 0.0, player);
+        long[] at = {0, 0};
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(BribeGoal.isCourted(other), "setup: claimed"))
+                .thenExecute(() -> at[0] = helper.getTick())
+                .thenWaitUntil(() -> helper.assertFalse(BribeGoal.isCourted(other), "released after the timeout"))
+                .thenExecute(() -> {
+                    at[1] = helper.getTick();
+                    long waited = at[1] - at[0];
+                    helper.assertTrue(
+                            waited >= BribeGoal.APPROACH_LIMIT - 10, "it did not give up early, after " + waited);
+                    helper.assertTrue(unmarked(other), "no mark on the other vex");
+                    helper.assertTrue(swordBack(vex), "the hand is untouched");
+                })
+                .thenExecuteFor(
+                        30,
+                        () -> helper.assertFalse(
+                                BribeGoal.isCourted(other), "and not claimed again at once by the same vex"))
+                .thenWaitUntil(() -> helper.assertTrue(BribeGoal.isCourted(other), "it tries again"))
+                .thenExecute(() -> {
+                    long pause = helper.getTick() - at[1];
+                    helper.assertTrue(
+                            pause >= BribeGoal.RETRY_DELAY - 10, "after the retry delay, not before it: " + pause);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the vanilla vex is moved out of the stay area mid-offer, then (offered again) a swelling creeper comes beside
+     * the Bound Vex mid-offer, should each time end with no mark, the sword in hand and the claim free; and the vanilla
+     * vex is prey again.
+     *
+     * <p>Method under test: {@link BribeGoal}: the leaves-the-area clause, and {@code stop} as the abort through
+     * {@link FleeCreeperGoal} taking the move flag
+     */
+    static void theOfferEndsIfTheVexLeavesOrTheBriberFlees(GameTestHelper helper) {
+        // Arrange: no target goals, so the Bound Vex does not wander off to fight; a staying vex keeps its area fixed
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = noTargets(stayingVex(helper, player, ItemStack.EMPTY));
+        rolling(helper, vex, 2);
+        Vec3 post = vex.position();
+        Vex other = enemyVex(helper, post, 3.0, 0.0, player);
+        Creeper creeper = patientCreeper(helper, FEET);
+        creeper.setNoGravity(true);
+        ServerLevel level = helper.getLevel();
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(holdsEmerald(vex), "setup: in the offer step"))
+                .thenExecute(() -> other.setPos(post.add(9.0, 0.0, 0.0)))
+                .thenWaitUntil(() -> {
+                    helper.assertFalse(BribeGoal.isCourted(other), "the claim is free");
+                    helper.assertTrue(swordBack(vex), "the Bound Vex holds its sword again");
+                })
+                .thenExecuteFor(30, () -> {
+                    helper.assertTrue(unmarked(other), "no mark on a vex that left");
+                    helper.assertFalse(BribeGoal.isCourted(other), "and it is not claimed out there");
+                })
+                .thenExecute(() -> other.setPos(post.add(3.0, 0.0, 0.0)))
+                .thenWaitUntil(() -> helper.assertTrue(holdsEmerald(vex), "back in the area it is offered again"))
+                .thenExecute(() -> {
+                    creeper.setPos(post.add(0.0, 0.0, 3.0));
+                    creeper.setSwellDir(1);
+                })
+                .thenWaitUntil(() -> {
+                    helper.assertFalse(BribeGoal.isCourted(other), "the claim is free after the flight began");
+                    helper.assertTrue(swordBack(vex), "the Bound Vex holds its sword again");
+                })
+                .thenExecute(() -> {
+                    helper.assertTrue(unmarked(other), "no mark on the other vex");
+                    helper.assertTrue(BoundVex.isPrey(level, player.getUUID(), other), "the other vex is prey again");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a vex that carries the bribed mark is saved and loaded into a fresh entity and added to the level, should the
+     * copy keep the mark and have the flee goal as its only goal and no target goals.
+     *
+     * <p>Method under test: {@code BoundVexEvents.onJoin}: the reinstall on join, keyed on the mark
+     */
+    static void aBribedVexLoadedFromASaveOnlyFlees(GameTestHelper helper) {
+        // Arrange
+        ServerLevel level = helper.getLevel();
+        Vex vex = helper.spawn(EntityTypes.VEX, FEET);
+        vex.setData(AllyAttachments.BRIBED, true);
+        Vex copy = (Vex) GameTestSupport.reloaded(level, vex);
+        vex.discard();
+        whenDone(helper, copy::discard);
+        helper.assertTrue(AllyAttachments.isBribed(copy), "setup: the mark is kept");
+        helper.assertTrue(copy.goalSelector.getAvailableGoals().size() > 1, "setup: a fresh vex has its vanilla goals");
+
+        // Act
+        level.addFreshEntity(copy);
+
+        // Assert
+        helper.assertValueEqual(goalClasses(copy.goalSelector), List.of(FleeFromViewGoal.class), "only the flee goal");
+        helper.assertTrue(copy.targetSelector.getAvailableGoals().isEmpty(), "and no target goals");
+        helper.succeed();
+    }
+
+    /**
+     * When a staying vex has an enemy vex five blocks from its post and another nine blocks away, should offer the near
+     * one and leave the far one (outside the stay area) alone.
+     *
+     * <p>Method under test: {@link BribeGoal#canUse}: the stay area, through {@code BoundVex.inGuardArea}
+     */
+    static void aStayingVexBribesOnlyInItsArea(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+        rolling(helper, vex, 2);
+        Vec3 post = vex.position();
+        Vex near = enemyVex(helper, post, 5.0, 0.0, player);
+        Vex far = enemyVex(helper, post, -9.0, 0.0, player);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(
+                        () -> helper.assertTrue(AllyAttachments.wasOfferedBribe(near), "the near one is offered"))
+                .thenExecuteFor(40, () -> {
+                    helper.assertTrue(unmarked(far), "the far one is not offered");
+                    helper.assertFalse(BribeGoal.isCourted(far), "and not courted");
+                })
                 .thenSucceed();
     }
 }
