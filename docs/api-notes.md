@@ -1204,3 +1204,87 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   hit, still posts it with `getInflictedDamage()` 0. A harder hit inside the frames posts it with
   `shouldCauseSideEffects()` false (the hurt sound is skipped the same way). The crit's particles and sound require a
   Bound Vex's End melee source, `shouldCauseSideEffects()` and `getInflictedDamage() > 0`.
+
+## 25. Evoking II, Part 6: team moves (Evoking II Part 6, Task 1)
+
+Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-src`; paths are under
+`net/minecraft/` and `net/neoforged/neoforge/` respectively.
+
+- **A crossbow fires only what is loaded.** `CrossbowItem.performShooting(Level, LivingEntity shooter, InteractionHand,
+  ItemStack weapon, float power, float uncertainty, @Nullable LivingEntity targetOverride)` (`world/item/CrossbowItem.java:170`)
+  reads `DataComponents.CHARGED_PROJECTILES` off the weapon, sets it to `EMPTY`, and shoots the stacks it held through
+  `ProjectileWeaponItem.shoot` (`world/item/ProjectileWeaponItem.java:73`). The loading that adds Multishot's two
+  extra projectiles is `draw` (`ProjectileWeaponItem.java:133`; `processProjectileCount` is called at `:138`), run only by
+  `tryLoadProjectiles` (`CrossbowItem.java:91`); `performShooting` never calls it. So a mob that sets
+  `CHARGED_PROJECTILES` by hand (`ChargedProjectiles.ofNonEmpty(List<ItemStack>)`,
+  `world/item/component/ChargedProjectiles.java:44`) gets exactly those projectiles. `performShooting` is an instance
+  method: call it on the stack's `CrossbowItem` (`weapon.getItem() instanceof CrossbowItem crossbow`). `shoot` marks
+  arrows as crits only for a `Player` shooter, and only a `Player` shooter posts `EventHooks.onArrowLoose`. The arrow
+  constructor throws `IllegalArgumentException` if `firedFromWeapon` is empty (`AbstractArrow.java:97-99`), so the
+  weapon stack must be non-empty.
+- **Multishot's spread comes from the stack.** `shoot` calls `EnchantmentHelper.processProjectileSpread`
+  (`world/item/enchantment/EnchantmentHelper.java:311`); the Multishot data file (`data/minecraft/enchantment/multishot.json`)
+  gives `projectile_spread` 10 at level 1 (`linear`, base 10, 10 more per level above the first), so three projectiles
+  leave at 0° and ±10°. The enchantment must be on the
+  weapon stack: `ItemStack.enchant(Holder<Enchantment>, int)` (`world/item/ItemStack.java:1090`), the holder from
+  `level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.MULTISHOT)`
+  (`world/item/enchantment/Enchantments.java:123`; `InfinityDeathGameTests` makes the same lookup).
+- **Durability.** `shoot` calls `weapon.hurtAndBreak(getDurabilityUse(projectile), …)` per projectile
+  (`ProjectileWeaponItem.java:101`; a rocket costs 3, `CrossbowItem.getDurabilityUse`, line 166). `ItemStack.isDamageableItem()`
+  is false while the stack has `DataComponents.UNBREAKABLE` (`ItemStack.java:448-449`), and the private
+  `ItemStack.processDurabilityChange` (`ItemStack.java:492`) then returns 0. `UNBREAKABLE` is a `Unit` component
+  (`core/component/DataComponents.java:126`): `stack.set(DataComponents.UNBREAKABLE, Unit.INSTANCE)`
+  (`net.minecraft.util.Unit` is an enum).
+- **Arrow pickup.** `AbstractArrow.pickup` defaults to `DISALLOWED` (`world/entity/projectile/arrow/AbstractArrow.java:71`).
+  Only a stack carrying `INTANGIBLE_PROJECTILE` (set by `useAmmo`, which a hand-loaded volley skips) makes it
+  `CREATIVE_ONLY` (`AbstractArrow.java:91-93`). A vex's volley arrows are therefore not pickable, with nothing to set.
+  (`AbstractArrow.setOwner`, `AbstractArrow.java:626-634`, flips `DISALLOWED` to `ALLOWED` for a `Player` owner; a vex
+  owner never does.)
+- **Inaccuracy a mob uses.** `RangedAttackMob.rangedAttackUncertainty(Level)` is `14 - level.getDifficulty().getId() * 4`
+  (`world/entity/monster/RangedAttackMob.java:9-10`); a Bound Vex is no `RangedAttackMob`, so `VexShots` repeats the formula.
+- **Rockets.** `CrossbowItem.createProjectile` (`CrossbowItem.java:152`) builds a `FireworkRocketEntity(level, stack,
+  shooter, x, eyeY − 0.15, z, shotAtAngle = true)` (`world/entity/projectile/FireworkRocketEntity.java:88`) for a firework
+  stack; `getShootingPower` (`CrossbowItem.java:81`) is 1.6 for a rocket. `Fireworks(int flightDuration,
+  List<FireworkExplosion>)` (`world/item/component/Fireworks.java:17`), `FireworkExplosion.DEFAULT`
+  (`FireworkExplosion.java:28`). `dealExplosionDamage` (`FireworkRocketEntity.java:227`) deals damage only if the
+  explosion list is non-empty: `5 + 2 × explosions` scaled by `sqrt((5 − distance) / 5)` to every `LivingEntity`
+  within 5 blocks that a ray from the rocket reaches (a ray to the target's feet or 0.5 above), with
+  `damageSources().fireworks(rocket, owner)` (`world/damagesource/DamageSources.java:227`): direct entity the rocket,
+  causing entity the owner (the vex), which is what `BoundVexEvents.onIncomingDamage` reads.
+- **Deflecting.** `Projectile.deflect(ProjectileDeflection, @Nullable Entity, @Nullable EntityReference<Entity> newOwner,
+  boolean byAttack, double power)` (`world/entity/projectile/Projectile.java:313`) builds `Vec3(power, power, power)` and
+  runs the deflection, sets the owner, calls `onDeflection`. `ProjectileDeflection.REVERSE`
+  (`world/entity/projectile/ProjectileDeflection.java:11`) multiplies the velocity by `−power × 0.5` per axis and sets
+  `needsSync`: power 2.0 is a full reversal. `EntityReference.of(entity)` (`world/entity/EntityReference.java:43`).
+- **Knockback direction.** `LivingEntity.knockback(double power, double xd, double zd, DamageSource, float damage)`
+  (`world/entity/LivingEntity.java:1740`, delegating to the six-argument overload at line 1714) moves the victim along
+  `−(xd, zd)`: pass `(attacker − victim)` to push the victim away from the attacker. It scales by
+  `1 − KNOCKBACK_RESISTANCE` (line 1721; a Ravager resists 75 %, `Ravager.java:102`) and posts `LivingKnockBackEvent`
+  (line 1715).
+- **Swing.** `Mob.swingForAttack(InteractionHand)` (`world/entity/Mob.java:1524`) is the public swing (the spec's
+  "`swing(MAIN_HAND)`" does not exist in this form in 26.3; `Mob.swing(InteractionHand, SwingAnimation)` also exists,
+  `Mob.java:1529`, and `swingForAttack(InteractionHand.MAIN_HAND)` needs no animation argument).
+- **Attributes.** `LivingEntity.getAttribute(Holder<Attribute>)` is `@Nullable` (`LivingEntity.java:2287`); `Ghast`,
+  `Shulker` and `EnderDragon` define no `ATTACK_DAMAGE`; `Vindicator` 5, `Ravager` 12 (`monster/illager/Vindicator.java:94`,
+  `monster/Ravager.java:103`). A brain mob's `getTarget()` reads its brain (`Warden.java:474` → `Mob.getTargetFromBrain`, `Mob.java:253`).
+- **Entities across levels.** `ServerLevel.getEntityInAnyDimension(UUID)` (`server/level/ServerLevel.java:1533`) looks in
+  the level, then in every other level of the server; `Level.getEntity(UUID)` (`world/level/Level.java:846`) only in its own.
+- **The server config enum.** `ModConfigSpec.Builder.defineEnum(String, V)` returns `EnumValue<V>`
+  (`neoforge/common/ModConfigSpec.java:642`, class at line 1361); `get()` reads the live value, `set(V)` is what
+  `GameTestSupport.withConfig` uses.
+- **Keys.** `InputConstants.KEY_J = 13`, `KEY_K = 14` (`com/mojang/blaze3d/platform/InputConstants.java:50-51`); no vanilla
+  mapping in `net/minecraft/client` uses either. `LocalPlayer.sendOverlayMessage(Component)`
+  (`client/player/LocalPlayer.java:465`); on the server `ServerPlayer.sendOverlayMessage`
+  (`server/level/ServerPlayer.java:1915`; the base `Player.sendOverlayMessage`, `Player.java:1414`, is empty).
+- **Packet codecs.** `ByteBufCodecs.BYTE` (`network/codec/ByteBufCodecs.java:72`), `NeoForgeStreamCodecs.enumCodec(Class)`
+  (`neoforge/network/codec/NeoForgeStreamCodecs.java:62`), `StreamCodec.composite` with two fields.
+- **Vex flight.** `Vex.VexMoveControl.tick` (`world/entity/monster/Vex.java:299-326`): each tick adds `delta × speed × 0.05 /
+  length` to the velocity, goes to `WAIT` (and halves the velocity) when within the vex's box size of the wanted spot,
+  and turns the vex toward its target when it has one. "Normal speed" is the charge goal's modifier, 1.0.
+- **Unhurtable mobs in tests.** `Entity.setPermanentlyInvulnerable(boolean)` (`world/entity/Entity.java:3158`) is the call;
+  there is no `setInvulnerable`. `Entity.getEyePosition()` is final (`Entity.java:2032`); `getItemEnchantmentLevel(Holder<Enchantment>,
+  ItemInstance)` (`EnchantmentHelper.java:53`) reads Multishot off a stack.
+- **A dead player is still ticked.** (Part 5's `BoundVexRescueLifecycleGameTests.dieAndTick`:) `PlayerTickEvent.Post` fires
+  for a dead player until it respawns, so `TeamMoves.tick` sees `isAlive() == false`.
+- **Baseline.** The first full `./gradlew runGameTestServer` of Part 6 (Task 1) reported `All 497 required tests passed`
+  (measured on 981eae7); every Part 6 gate compares against 497 plus the tests the task added.
