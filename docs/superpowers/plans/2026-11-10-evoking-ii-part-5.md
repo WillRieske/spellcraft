@@ -1215,7 +1215,7 @@ git commit -m "feat(evoking): a Bound Vex pushes its drowning summoner up throug
 - **Action** (all in the starting tick, in this order): `player.stopRiding()`; `player.setDeltaMovement(Vec3.ZERO)` and `resetFallDistance()` **before** the teleport (the teleport packet carries the velocity); teleport with `player.teleportTo(level, x + 0.5, y, z + 0.5, Set.of(), player.getYRot(), player.getXRot(), false)` (the form `MockPlayers.moveTo` uses; check the parameters in the sources); `syncVelocity = true`; the rescuer to the player's side; the apple: a throwaway `new ItemStack(Items.ENCHANTED_GOLDEN_APPLE)`, its `DataComponents.CONSUMABLE` component's `onConsume(level, player, stack)`; then `showInHand(rescue, new ItemStack(Items.ENCHANTED_GOLDEN_APPLE), now)`. No cooldown.
 - The catch needs a rescuer first (within 64 blocks): find the landing only when one exists.
 
-- [ ] **Step 1: Write the failing GameTests**
+- [x] **Step 1: Write the failing GameTests**
 
 Every void test uses `endVoid` (a `room` has a roof, which the height map would see) and builds its ground with `platform`: open stone, nothing above. The End's lowest Y is 0; a slot is at `y = 80`, so "below the floor" means the test moves the player to `y = end.getMinY() − 5` by `setPos`. `reach` covers everything the test places.
 
@@ -1230,12 +1230,12 @@ Every void test uses `endVoid` (a `room` has a roof, which the height map would 
 - `bound_vex_world_void_no_landing_is_not_searched_every_tick`: no platform, no last ground, a rescuer present: after a tick with no catch, a platform is built within 32 blocks; ticks within the next 19 do not catch; the tick after the 20-tick memo does.
 - `bound_vex_world_void_not_in_the_overworld`: in the test level, a player moved to `y = minY − 5` with a vex → no rescue. (Move them back before the test ends.)
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:bound_vex_world_void_*"`
 Expected: the tests fail (no catch).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `StandableSpots`:
 
@@ -1324,7 +1324,7 @@ private static boolean groundBelow(ServerPlayer player) {
 
 `catchFromVoid`: find the rescuer (refactor `start` so the rescuer search is its own method `nearestRescuer(player, range)`, and `start` takes the found vex); none → return. Landing: `StandableSpots.landing(level, player.position()).map(Vec3::atBottomCenterOf)`, else the last ground (`dimension == Level.END` and `standable(level, BlockPos.containing(position))`); neither → return. Then the action in the order of the Design list, register the rescue (`RUNNING.put`), and `showInHand`. `case VOID` in `carryOn` is never reached before the tail is set; keep the `drop` there with a comment.
 
-- [ ] **Step 4: Run the void tests, full gates, commit**
+- [x] **Step 4: Run the void tests, full gates, commit**
 
 Run: the filtered run, then `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice.
 
@@ -1332,6 +1332,8 @@ Run: the filtered run, then `./gradlew spotlessApply build`, `./gradlew runGameT
 git add src/main/java/io/github/willrieske/spellcraft/evoking src/main/java/io/github/willrieske/spellcraft/gametest
 git commit -m "feat(evoking): a Bound Vex catches its summoner over the End's void and feeds them the apple"
 ```
+
+> **As built (`5f3fab6`):** diverged — test vexes are `NoAI` (a following vex teleports to the player before the test drops them); the 20-tick memo guards only the landing search, the last ground is still tried; the glide, ground-below and not-falling cases are separate tests; `teleportTo` already dismounts and zeroes the velocity, so those two lines cannot be seen red. 422 tests; reason: how the GameTest server and vanilla teleport behave.
 
 ---
 
@@ -1760,3 +1762,4 @@ git commit -m "docs(evoking): Part 5 in the README, playtest items, mutation tes
 | 3 | `9fa69ec` | a close-posture flight is one goal use that ends on arrival, where the velocity is zeroed (a coasting vex sank to 1.5 above the feet), and a target mid-flight drops the wanted position; the close bands start at 2.5, not 2.2 (the move control stops up to half a block short). Measured after: min height 1.88, max sideways 2.46, no hops in 60 ticks. Review fixes for Task 2 are in `cce1ddc`. 366 tests; reason: coordinator rulings on the measurements, recorded in spec §6.1 and §10. |
 | 4 | `c8613d0` | the target-keeping test uses a vulnerable husk out of reach (an invulnerable mob cannot be targeted); lava does not ignite a mock player through `baseTick`, so the burning tests set fire ticks; a rescue starts only once the vex has ticked; the Overworld pool is cased in stone so the padded box offers no other shore; "not for the unhurt" is five tests; the tail gives the hand back only to a living rescuer. 384 tests; reason: how the GameTest server and mock players behave. |
 | 5 | `7ba6f2a` | the pushes apply the fluid drag to the reported movement (lava 0.5, water 0.8) and the lava pull has a hard 0.35 cap, so `drowning_push` expects `(0.08, 0.4, 0.04)`; a rescue also ends when the player stops needing it; review fixes for Task 4 are in `7730532`. 408 tests; reason: coordinator ruling after the Task 4 review (sending the undragged movement back each tick would let a steering player speed up without limit), recorded in spec §5, §6.2 and §9. |
+| 6 | `5f3fab6` | test vexes are `NoAI` (a following vex teleports to the player before the test drops them); the 20-tick memo guards only the landing search, the last ground is still tried; the glide, ground-below and not-falling cases are separate tests; `teleportTo` already dismounts and zeroes the velocity, so those two lines cannot be seen red. 422 tests; reason: how the GameTest server and vanilla teleport behave. |

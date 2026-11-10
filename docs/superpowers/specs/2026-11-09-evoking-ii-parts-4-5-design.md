@@ -544,7 +544,7 @@ player by hand to reach the next state.
   rescue; a rescuer that was fleeing a creeper still comes; a rescuer killed mid-rescue is
   replaced. In the Nether, ending out of lava clears the fire and shows the bucket once; ending
   still in lava does neither; in the Overworld the player still burns.
-- Drowning push: air below 60 under open water → `y` raised, `x` and `z` unchanged; under a
+- Drowning push: air below 60 under open water → `y` raised, `x` and `z` scaled by 0.8 (water's drag); under a
   stone ceiling: none; with air at 100: none; with Water Breathing: none; it ends when the
   player's eyes leave the water and after 200 ticks.
 - Fireball: firing `ProjectileImpactEvent` for a `LargeFireball` about to hit the player is
