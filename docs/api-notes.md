@@ -1155,9 +1155,17 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   (`world/clock/ServerClockManager.java:75-82`). So `gametest/OverworldTime(int time)` implements
   `TestEnvironmentDefinition<Long>` (`setup(ServerLevel)`, `teardown(ServerLevel, Long)`, `codec()`), looks the holder
   up with `level.registryAccess().lookupOrThrow(Registries.WORLD_CLOCK).getOrThrow(WorldClocks.OVERWORLD)` at setup,
-  and calls `server.clockManager().setTotalTicks(clock, time)` as `ClockTime.setup` does. Its codec is
-  `MapCodec.unit` (only data packs use it). Every environment gets one: 18000 for `NIGHT`, 6000 for the rest. Proven by
-  `bound_vex_world_setup_night` and `bound_vex_world_setup_day`.
+  and calls `server.clockManager().setTotalTicks(clock, time)` as `ClockTime.setup` does. Every environment gets
+  one: 18000 for `NIGHT`, 6000 for the rest. Proven by `bound_vex_world_setup_night` and `bound_vex_world_setup_day`.
+- **Test environments are sent to every joining client.** `Registries.TEST_ENVIRONMENT` is in
+  `RegistryDataLoader.SYNCHRONIZED_REGISTRIES`, and `SynchronizeRegistriesTask.sendRegistries` encodes each entry
+  with `TestEnvironmentDefinition.DIRECT_CODEC`, which dispatches on the definition's type in
+  `BuiltInRegistries.TEST_ENVIRONMENT_DEFINITION_TYPE`. A definition whose codec is not registered there fails with
+  "Unregistered holder", the server swallows the error, and the client waits on "Loading terrain" forever: every world
+  join broke that way while `OverworldTime` had an unregistered `MapCodec.unit` (2026-11-10). So a custom definition
+  needs a real codec registered as its type (`SpellcraftGameTests.ENVIRONMENT_TYPES`, `spellcraft:overworld_time`).
+  Neither the GameTest server nor `runData` nor a client that only reaches the title screen sends registries; the
+  GameTest `bound_vex_world_setup_registries_reach_a_client` packs and decodes them as a join does.
 - **The GameTest world is flat.** Every dimension of the GameTest server's "Test Level" has a solid floor at
   `y = 0..3` (bedrock, then three layers of stone of the dimension), even far from the origin in the End. So "the End
   with nothing to land on" needs the floor removed: `BoundVexWorldTestSupport.endVoid` clears every block below the

@@ -1,5 +1,6 @@
 package io.github.willrieske.spellcraft.gametest;
 
+import com.mojang.serialization.MapCodec;
 import io.github.willrieske.spellcraft.Spellcraft;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -26,6 +27,17 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 public final class SpellcraftGameTests {
     public static final DeferredRegister<Consumer<GameTestHelper>> TEST_FUNCTIONS =
             DeferredRegister.create(BuiltInRegistries.TEST_FUNCTION, Spellcraft.MODID);
+
+    /**
+     * The types of the test environments this mod defines. A definition whose type is not registered cannot be
+     * encoded, and the test-environment registry is sent to every joining client.
+     */
+    public static final DeferredRegister<MapCodec<? extends TestEnvironmentDefinition<?>>> ENVIRONMENT_TYPES =
+            DeferredRegister.create(BuiltInRegistries.TEST_ENVIRONMENT_DEFINITION_TYPE, Spellcraft.MODID);
+
+    static {
+        ENVIRONMENT_TYPES.register("overworld_time", () -> OverworldTime.CODEC);
+    }
 
     /** Tests that change no global state share this environment (one batch). */
     static final String SHARED = "shared";

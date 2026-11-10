@@ -37,6 +37,7 @@ public final class Spellcraft {
         TrailingAttachments.ATTACHMENT_TYPES.register(modEventBus);
         AllyAttachments.ATTACHMENT_TYPES.register(modEventBus);
         SpellcraftGameTests.TEST_FUNCTIONS.register(modEventBus);
+        SpellcraftGameTests.ENVIRONMENT_TYPES.register(modEventBus);
         modEventBus.addListener(Spellcraft::addToCreativeTabs);
         modContainer.registerConfig(ModConfig.Type.SERVER, ServerConfig.SPEC);
         ScrollDraw.requireCandidates(Scribing.candidates());
