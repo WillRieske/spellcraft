@@ -23,6 +23,7 @@ import io.github.willrieske.spellcraft.gametest.BoundVexWorldTestSupport.Place;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.rules.GuardPosture;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
@@ -41,11 +42,13 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Ghast;
 import net.minecraft.world.entity.monster.zombie.Husk;
+import net.minecraft.world.entity.projectile.arrow.Arrow;
 import net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -313,6 +316,14 @@ public final class BoundVexWorldGameTests {
         padded("bound_vex_world_fireball_nearest_vex_acts", BoundVexWorldGameTests::fireballNearestVexActs);
         padded("bound_vex_world_fireball_staying_vex_acts", BoundVexWorldGameTests::fireballStayingVexActs);
         padded("bound_vex_world_fireball_kills_the_ghast", BoundVexWorldGameTests::fireballKillsTheGhast);
+        padded("bound_vex_world_crit_in_the_end", BoundVexWorldGameTests::critInTheEnd);
+        padded("bound_vex_world_crit_not_for_arrows", BoundVexWorldGameTests::critNotForArrows);
+        padded("bound_vex_world_crit_not_when_spared", BoundVexWorldGameTests::critNotWhenSpared);
+        padded("bound_vex_world_crit_keeps_golem_mercy", BoundVexWorldGameTests::critKeepsGolemMercy);
+        padded(
+                "bound_vex_world_crit_on_a_player_under_the_pvp_rule",
+                BoundVexWorldGameTests::critOnAPlayerUnderThePvpRule);
+        padded("bound_vex_world_no_crit_in_the_nether", BoundVexWorldGameTests::noCritInTheNether);
         FangGameTests.addPadded(
                 SERVER_STOP_RESCUES,
                 "bound_vex_world_rescues_cleared_on_server_stop",
@@ -3845,5 +3856,241 @@ public final class BoundVexWorldGameTests {
                     helper.assertFalse(AttackCrystalGoal.isClaimed(crystal), "the stop handler freed the claim");
                 })
                 .thenSucceed();
+    }
+
+    // ---- Task 9: critical hits in the End ----
+
+    /** The health of the crit tests' husks and players, high enough that no tripled hit kills them. */
+    private static final float CRIT_HEALTH = 200.0F;
+
+    /** How close a measured tripled loss must be to three times the plain one. */
+    private static final float CRIT_TOLERANCE = 0.01F;
+
+    /** Gives {@code victim} {@link #CRIT_HEALTH} health and no armor, so a loss measures the hit alone. */
+    private static void plainVictim(LivingEntity victim) {
+        victim.getAttribute(Attributes.MAX_HEALTH).setBaseValue(CRIT_HEALTH);
+        victim.getAttribute(Attributes.ARMOR).setBaseValue(0.0);
+        victim.setHealth(CRIT_HEALTH);
+    }
+
+    /** A husk with no AI and no gravity, plain (see {@link #plainVictim}), in {@code level} at {@code at}. */
+    private static Husk critHusk(GameTestHelper helper, ServerLevel level, Vec3 at) {
+        Husk husk = EntityTypes.HUSK.create(level, EntitySpawnReason.COMMAND);
+        if (husk == null) {
+            throw helper.assertionException("could not create a husk");
+        }
+        husk.snapTo(at.x, at.y, at.z, 0.0F, 0.0F);
+        husk.setNoAi(true);
+        husk.setNoGravity(true);
+        husk.setPersistenceRequired();
+        plainVictim(husk);
+        level.addFreshEntity(husk);
+        whenDone(helper, husk::discard);
+        return husk;
+    }
+
+    /** The health {@code victim} loses to one melee hit by {@code vex}. */
+    private static float meleeLoss(BoundVex vex, LivingEntity victim) {
+        float before = victim.getHealth();
+        vex.doHurtTarget((ServerLevel) vex.level(), victim);
+        return before - victim.getHealth();
+    }
+
+    /**
+     * What one melee hit by a parked vex of {@code player} costs a plain husk in the Overworld test level, checked
+     * against the vex's attack damage so that a crit leaking into the baseline cannot hide. Call it
+     * while {@code player} is still in that level (a vex whose summoner is in another level has no backstop to pass).
+     */
+    private static float overworldHuskLoss(GameTestHelper helper, ServerPlayer player) {
+        BoundVex vex = BoundVexTestSupport.parked(helper, FEET.offset(0, 3, 4), player);
+        Husk husk =
+                critHusk(helper, helper.getLevel(), helper.absoluteVec(Vec3.atBottomCenterOf(FEET.offset(2, 1, 0))));
+        float loss = meleeLoss(vex, husk);
+        helper.assertTrue(
+                Math.abs(loss - vex.getAttributeValue(Attributes.ATTACK_DAMAGE)) < CRIT_TOLERANCE,
+                "setup: the Overworld hit is the vex's plain attack damage, not " + loss);
+        return loss;
+    }
+
+    /** A vex of {@code player} next to them in {@code level}, with no AI. */
+    private static BoundVex critVex(GameTestHelper helper, ServerLevel level, ServerPlayer player) {
+        BoundVex vex = vexIn(helper, level, player.position().add(1.0, 1.0, 0.0), player);
+        vex.setNoAi(true);
+        return vex;
+    }
+
+    /** A husk 2 blocks west of {@code player} in {@code level}. */
+    private static Husk critHuskBeside(GameTestHelper helper, ServerLevel level, ServerPlayer player) {
+        return critHusk(helper, level, player.position().add(-2.0, 0.0, 0.0));
+    }
+
+    /**
+     * When a Bound Vex hits a husk in the End, should the health lost be three times what the same hit costs a husk
+     * in the Overworld, within 0.01 (the Overworld cost is measured, not assumed).
+     *
+     * <p>Method under test: {@code BoundVexEvents.onIncomingDamage}: the End crit
+     */
+    static void critInTheEnd(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        float plain = overworldHuskLoss(helper, player);
+        ServerLevel end = BoundVexWorldTestSupport.room(helper, player, Level.END, 3, 4);
+        BoundVex vex = critVex(helper, end, player);
+        Husk husk = critHuskBeside(helper, end, player);
+
+        // Act
+        float loss = meleeLoss(vex, husk);
+
+        // Assert
+        helper.assertTrue(
+                Math.abs(loss - 3.0F * plain) < CRIT_TOLERANCE, "the End hit costs 3 x " + plain + ", not " + loss);
+        helper.succeed();
+    }
+
+    /**
+     * When a Bound Vex's arrow (its direct entity is the arrow) deals 4 to a husk in the End, should the husk lose 4.
+     *
+     * <p>Method under test: {@code BoundVexEvents.onIncomingDamage}: only the vex's own melee crits
+     */
+    static void critNotForArrows(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        ServerLevel end = BoundVexWorldTestSupport.room(helper, player, Level.END, 3, 4);
+        BoundVex vex = critVex(helper, end, player);
+        Husk husk = critHuskBeside(helper, end, player);
+        Arrow arrow = new Arrow(end, vex, new ItemStack(Items.ARROW), null);
+
+        // Act
+        husk.hurtServer(end, end.damageSources().arrow(arrow, vex), 4.0F);
+
+        // Assert
+        helper.assertValueEqual(CRIT_HEALTH - husk.getHealth(), 4.0F, "the arrow costs its plain 4");
+        helper.succeed();
+    }
+
+    /**
+     * When a Bound Vex in the End hits its summoner's tamed wolf, should the wolf's health not change (the backstop
+     * spares it, and a spared hit is not tripled). Whether the crit was skipped is not observable here: a canceled
+     * hit does nothing at any size.
+     *
+     * <p>Method under test: {@code BoundVexEvents.onIncomingDamage}: the backstop comes first
+     */
+    static void critNotWhenSpared(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        ServerLevel end = BoundVexWorldTestSupport.room(helper, player, Level.END, 3, 4);
+        BoundVex vex = critVex(helper, end, player);
+        Wolf wolf = EntityTypes.WOLF.create(end, EntitySpawnReason.COMMAND);
+        if (wolf == null) {
+            throw helper.assertionException("could not create a wolf");
+        }
+        Vec3 at = player.position().add(-2.0, 0.0, 0.0);
+        wolf.snapTo(at.x, at.y, at.z, 0.0F, 0.0F);
+        wolf.setNoAi(true);
+        wolf.setNoGravity(true);
+        wolf.setPersistenceRequired();
+        wolf.tame(player);
+        end.addFreshEntity(wolf);
+        whenDone(helper, wolf::discard);
+        float health = wolf.getHealth();
+
+        // Act
+        vex.doHurtTarget(end, wolf);
+
+        // Assert
+        helper.assertValueEqual(wolf.getHealth(), health, "the wolf is unhurt");
+        helper.succeed();
+    }
+
+    /**
+     * When a Bound Vex in the End hits an iron golem that is mad at its summoner and stands at 30 health, should the
+     * golem stop at 25: mercy clamps the tripled hit as it does a plain one.
+     *
+     * <p>Method under test: {@code BoundVexEvents.onIncomingDamage} and {@code GolemMercy.onDamagePre}
+     */
+    static void critKeepsGolemMercy(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        ServerLevel end = BoundVexWorldTestSupport.room(helper, player, Level.END, 3, 4);
+        BoundVex vex = critVex(helper, end, player);
+        IronGolem golem = EntityTypes.IRON_GOLEM.create(end, EntitySpawnReason.COMMAND);
+        if (golem == null) {
+            throw helper.assertionException("could not create a golem");
+        }
+        Vec3 at = player.position().add(-2.0, 0.0, 0.0);
+        golem.snapTo(at.x, at.y, at.z, 0.0F, 0.0F);
+        golem.setNoAi(true);
+        golem.setNoGravity(true);
+        golem.setPersistenceRequired();
+        golem.setHealth(30.0F);
+        end.addFreshEntity(golem);
+        whenDone(helper, golem::discard);
+        GolemGameTests.anger(golem, player);
+        helper.assertTrue(vex.isPrey(golem), "setup: a golem mad at the summoner is prey");
+
+        // Act
+        vex.doHurtTarget(end, golem);
+
+        // Assert
+        helper.assertValueEqual(golem.getHealth(), 25.0F, "the golem stops at 25");
+        helper.succeed();
+    }
+
+    /**
+     * When a Bound Vex hits a second player, who is prey under the server's PvP rule, in the End, should the health
+     * lost be three times what the same hit costs another such player in the Overworld, within 0.01 (both measured,
+     * neither wearing armor).
+     *
+     * <p>Method under test: {@code BoundVexEvents.onIncomingDamage}: the crit on a player victim
+     */
+    static void critOnAPlayerUnderThePvpRule(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        ServerPlayer overworldVictim = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        plainVictim(overworldVictim);
+        BoundVex overworldVex = BoundVexTestSupport.parked(helper, FEET.offset(0, 3, 4), player);
+        helper.assertTrue(helper.getLevel().isPvpAllowed(), "setup: pvp is on");
+        helper.assertTrue(overworldVex.isPrey(overworldVictim), "setup: the Overworld victim is prey");
+        float plain = meleeLoss(overworldVex, overworldVictim);
+        helper.assertTrue(plain > 0.0F, "setup: the Overworld hit hurts (" + plain + ")");
+        ServerLevel end = BoundVexWorldTestSupport.room(helper, player, Level.END, 3, 4);
+        BoundVex vex = critVex(helper, end, player);
+        ServerPlayer victim = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        whenDone(helper, () -> MockPlayers.moveTo(helper, victim, FangGameTests.STAND));
+        Vec3 at = player.position().add(-2.0, 0.0, 0.0);
+        victim.teleportTo(end, at.x, at.y, at.z, Set.of(), 0.0F, 0.0F, false);
+        victim.hasChangedDimension(); // a mock player is never ticked, which would end the dimension change's immunity
+        plainVictim(victim);
+        helper.assertTrue(vex.isPrey(victim), "setup: the End victim is prey");
+
+        // Act
+        float loss = meleeLoss(vex, victim);
+
+        // Assert
+        helper.assertTrue(
+                Math.abs(loss - 3.0F * plain) < CRIT_TOLERANCE, "the End hit costs 3 x " + plain + ", not " + loss);
+        helper.succeed();
+    }
+
+    /**
+     * When a Bound Vex hits a husk in a Nether room, should the health lost equal what the same hit costs a husk in
+     * the Overworld.
+     *
+     * <p>Method under test: {@code BoundVexEvents.onIncomingDamage}: the crit is for the End only
+     */
+    static void noCritInTheNether(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        float plain = overworldHuskLoss(helper, player);
+        ServerLevel nether = BoundVexWorldTestSupport.room(helper, player, Level.NETHER, 3, 4);
+        BoundVex vex = critVex(helper, nether, player);
+        Husk husk = critHuskBeside(helper, nether, player);
+
+        // Act
+        float loss = meleeLoss(vex, husk);
+
+        // Assert
+        helper.assertTrue(Math.abs(loss - plain) < CRIT_TOLERANCE, "the Nether hit costs " + plain + ", not " + loss);
+        helper.succeed();
     }
 }

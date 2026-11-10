@@ -8,9 +8,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -48,6 +51,12 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 public final class BoundVexEvents {
     /** How far from the leaving summoner a following vex comes along. */
     public static final double PORTAL_RANGE = 16.0;
+
+    /** In the End every melee hit by a Bound Vex does this many times its damage (Parts 4–5 spec §7.2). */
+    public static final float END_CRIT = 3.0F;
+
+    /** How many critical-hit particles a crit shows. */
+    private static final int CRIT_PARTICLES = 6;
 
     /** The followers of one move: the level they leave and their ids (the level is not known at arrival). */
     private record Note(ResourceKey<Level> from, List<UUID> vexes) {}
@@ -138,8 +147,8 @@ public final class BoundVexEvents {
     }
 
     /**
-     * The friendly-fire backstop (Part 3 spec §4.3): damage whose attacker is a Bound Vex that has a summoner present is
-     * cancelled when the victim is that summoner or a living thing the vex may not fight ({@link BoundVex#isPrey}:
+     * The friendly-fire backstop (Part 3 spec §4.3): damage whose attacker is a Bound Vex that has a summoner present
+     * is cancelled when the victim is that summoner or a living thing the vex may not fight ({@link BoundVex#isPrey}:
      * allies, the summoner's other vexes, a calm golem, a player the summoner cannot harm). The summoner case is
      * explicit: {@code isPrey} already refuses it (the player is its own ally), but the rule must not rest on that. A
      * vex's legitimate hits are prey by the same test, so they stand: hostiles, a provoked creeper, a golem that is mad
@@ -149,12 +158,17 @@ public final class BoundVexEvents {
      * targets, but an arrow or potion it launched earlier may still be in flight, and {@code isPrey} cannot be asked
      * without the summoner. The rule then is the conservative one: <em>indirect</em> damage (the direct entity is not
      * the vex itself, so a projectile or a splash) is cancelled for any victim that is no {@code Enemy} (the summoner's
-     * pets, villagers, golems and players) and for any victim carrying the same summoner mark (a sibling vex). The vex's
-     * own melee is not touched: it cannot hit while it has no target. A vex with no summoner mark ({@code /summon}) does
-     * nothing here.
+     * pets, villagers, golems and players) and for any victim carrying the same summoner mark (a sibling vex). The
+     * vex's own melee is not touched: it cannot hit while it has no target. A vex with no summoner mark
+     * ({@code /summon}) does nothing here.
      *
      * <p>A blast whose direct entity is an end crystal never hurts a Bound Vex, whoever set it off (spec §7.1); the
      * vex that broke the crystal names itself as the causing entity, so the rules above spare its side.
+     *
+     * <p>After the backstop, in the End, a hit not canceled whose direct entity is the vex itself (its melee, not an
+     * arrow or a potion) does {@link #END_CRIT} times its damage (spec §7.2), whether or not its summoner is present.
+     * That is before armor and before golem mercy's clamp ({@code LivingDamageEvent.Pre}, later in the pipeline), so
+     * mercy still stops a golem at 25.
      *
      * @param event the incoming-damage event, before armor and reductions
      */
@@ -167,6 +181,16 @@ public final class BoundVexEvents {
         if (!(event.getSource().getEntity() instanceof BoundVex vex)) {
             return;
         }
+        backstop(event, vex);
+        if (!event.isCanceled()
+                && vex.equals(event.getSource().getDirectEntity())
+                && vex.level().dimension().equals(Level.END)) {
+            crit(event, event.getEntity());
+        }
+    }
+
+    /** The friendly-fire backstop of {@link #onIncomingDamage}, for damage {@code vex} caused. */
+    private static void backstop(LivingIncomingDamageEvent event, BoundVex vex) {
         ServerPlayer owner = vex.summoner().orElse(null);
         LivingEntity victim = event.getEntity();
         if (owner != null) {
@@ -178,6 +202,32 @@ public final class BoundVexEvents {
                 && (!(victim instanceof Enemy)
                         || victim.getExistingData(AllyAttachments.SUMMONER).equals(vex.summonerId()))) {
             event.setCanceled(true);
+        }
+    }
+
+    /** Triples the hit and shows it: vanilla's critical-hit particles and sound at the victim. */
+    private static void crit(LivingIncomingDamageEvent event, LivingEntity victim) {
+        event.setAmount(event.getAmount() * END_CRIT);
+        if (victim.level() instanceof ServerLevel level) {
+            level.sendParticles(
+                    ParticleTypes.CRIT,
+                    victim.getX(),
+                    victim.getY(0.5),
+                    victim.getZ(),
+                    CRIT_PARTICLES,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.1);
+            level.playSound(
+                    null,
+                    victim.getX(),
+                    victim.getY(),
+                    victim.getZ(),
+                    SoundEvents.PLAYER_ATTACK_CRIT,
+                    SoundSource.NEUTRAL,
+                    1.0F,
+                    1.0F);
         }
     }
 
@@ -223,9 +273,9 @@ public final class BoundVexEvents {
     }
 
     /**
-     * Drops every note, every repair claim, every cure claim, every bribe claim, every crystal claim, every scripted bribe die and every
-     * running rescue ({@link VexRescues#clear}) when the
-     * server stops (single-player loads one server per world in the same JVM, so none may outlive its world).
+     * Drops every note, every repair claim, every cure claim, every bribe claim, every crystal claim, every scripted
+     * bribe die and every running rescue ({@link VexRescues#clear}) when the server stops
+     * (single-player loads one server per world in the same JVM, so none may outlive its world).
      *
      * @param event the server-stopped event
      */
