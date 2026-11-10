@@ -28,6 +28,8 @@
   "spellcraft.configuration.section.spellcraft.client.toml.title": "Spellcraft Client Configs",
   "spellcraft.configuration.upsideDown": "Strength of Upside-Down",
   "spellcraft.configuration.scribing": "Scribing",
+  "spellcraft.configuration.evoking": "Evoking",
+  "spellcraft.configuration.teamMoves": "Team moves",
   "spellcraft.configuration.trailing": "Strength of Trailing",
   "spellcraft.configuration.maxTrailBlocks": "Most flames per trail",
   "spellcraft.configuration.topTierChancePercent": "Extreme-tier chance per option (%)",

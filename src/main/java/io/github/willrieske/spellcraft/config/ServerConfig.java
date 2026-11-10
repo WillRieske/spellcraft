@@ -18,6 +18,9 @@ public final class ServerConfig {
     public static final ModConfigSpec.IntValue TRAILING_DURATION_SECONDS;
     public static final ModConfigSpec.IntValue TRAILING_MAX_FLAMES;
     public static final ModConfigSpec.ConfigValue<List<? extends Integer>> TOP_TIER_CHANCE_PERCENT;
+    /** The {@code evoking.teamMoves} setting: automatic triggers, or the J and K keys only. */
+    public static final ModConfigSpec.EnumValue<TeamMoveMode> TEAM_MOVES;
+
     public static final ModConfigSpec SPEC;
 
     static {
@@ -43,6 +46,12 @@ public final class ServerConfig {
                         ServerConfig::isPercent,
                         ModConfigSpec.Range.of(3, 3));
         builder.pop();
+        builder.push("evoking");
+        TEAM_MOVES = builder.comment(
+                        "AUTOMATIC: Bound Vexes start team moves (Shield, Multishot, Evader, Raid) by themselves. "
+                                + "MANUAL: only the J key (pick) and the K key (start) start them.")
+                .defineEnum("teamMoves", TeamMoveMode.AUTOMATIC);
+        builder.pop();
         SPEC = builder.build();
     }
 
@@ -64,6 +73,11 @@ public final class ServerConfig {
     /** The configured chances, index = option (range-checked by NeoForge: exactly 3, each 0-100). */
     public static List<Integer> scribingTopTierChances() {
         return List.copyOf(TOP_TIER_CHANCE_PERCENT.get());
+    }
+
+    /** Whether the automatic team-move triggers run. */
+    public static TeamMoveMode teamMoveMode() {
+        return TEAM_MOVES.get();
     }
 
     private static boolean isPercent(Object value) {

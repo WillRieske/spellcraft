@@ -1,6 +1,10 @@
 package io.github.willrieske.spellcraft.evoking;
 
 import io.github.willrieske.spellcraft.Spellcraft;
+import io.github.willrieske.spellcraft.config.ServerConfig;
+import io.github.willrieske.spellcraft.config.TeamMoveMode;
+import io.github.willrieske.spellcraft.spell.Allies;
+import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import io.github.willrieske.spellcraft.spell.rules.TeamMoveRules;
 import java.util.ArrayList;
@@ -18,6 +22,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -34,6 +40,12 @@ import org.jspecify.annotations.Nullable;
 public final class TeamMoves {
     /** A vex farther than this from its summoner is not free (spec section 2.2). */
     public static final double FREE_RANGE = 32.0;
+
+    /** The scan for triggers runs once every this many ticks (spec section 2.3). */
+    public static final int SCAN_INTERVAL = 10;
+
+    /** How far from the summoner an ally may be and still be warded (spec section 2.3). */
+    private static final double WARD_RANGE = 16.0;
 
     private TeamMoves() {}
 
@@ -141,7 +153,7 @@ public final class TeamMoves {
         /** Per move kind, the game time its cooldown ends. */
         final EnumMap<TeamMove, Long> cooldownEnd = new EnumMap<>(TeamMove.class);
 
-        /** The game time of the next automatic trigger scan (Task 6). */
+        /** The game time of the next automatic trigger scan (spec section 2.3). */
         long nextScan;
 
         /** Hostiles the Evader has shoved, by UUID, to the game time until which each may not be shoved again. */
@@ -318,8 +330,8 @@ public final class TeamMoves {
      * enemy is not found in the summoner's level. Public so GameTests can step a mock player, which gets no player
      * tick. A summoner with no record is left alone: stepping never creates one.
      *
-     * <p>Task 6 replaces this body and adds to this Javadoc: "Then, in AUTOMATIC mode with no move running, runs the
-     * trigger scan on its 10-tick clock (spec section 2.3)."
+     * <p>Then, in AUTOMATIC mode with no move running, runs the trigger scan on its 10-tick clock (spec section 2.3).
+     * The record is created only when a scan is due, so a manual-mode or absent summoner gets none.
      *
      * @param owner the summoner
      */
@@ -332,6 +344,48 @@ public final class TeamMoves {
                 end(owner, record, now);
             }
         }
+        if ((record == null || !record.active())
+                && ServerConfig.teamMoveMode() == TeamMoveMode.AUTOMATIC
+                && isPresent(owner)) {
+            Move scanning = record != null ? record : STATES.computeIfAbsent(owner.getUUID(), id -> new Move());
+            if (now >= scanning.nextScan) {
+                scanning.nextScan = now + SCAN_INTERVAL;
+                TeamMoveTriggers.scan(owner, scanning, now);
+            }
+        }
+    }
+
+    /** An entity's attack damage, 0 for one with no such attribute (ghasts, shulkers, the dragon). */
+    static double attackDamage(LivingEntity entity) {
+        AttributeInstance damage = entity.getAttribute(Attributes.ATTACK_DAMAGE);
+        return damage == null ? 0.0 : damage.getValue();
+    }
+
+    /**
+     * The one an Evader would protect (spec section 2.3): the summoner, or a living ally within 16 blocks of them,
+     * below half health. Never a mob carrying a summoner mark (a Bound Vex or an image). The lowest health fraction
+     * wins; the summoner wins ties.
+     */
+    static @Nullable LivingEntity wardFor(ServerPlayer owner) {
+        List<LivingEntity> hurt = new ArrayList<>();
+        if (isPresent(owner) && TeamMoveRules.needsGuard(owner.getHealth(), owner.getMaxHealth())) {
+            hurt.add(owner);
+        }
+        hurt.addAll(owner.level()
+                .getEntitiesOfClass(
+                        LivingEntity.class,
+                        owner.getBoundingBox().inflate(WARD_RANGE),
+                        ally -> !ally.equals(owner)
+                                && ally.isAlive()
+                                && ally.distanceTo(owner) <= WARD_RANGE
+                                && ally.getExistingData(AllyAttachments.SUMMONER)
+                                        .isEmpty()
+                                && Allies.isAllyOf(owner, ally)
+                                && TeamMoveRules.needsGuard(ally.getHealth(), ally.getMaxHealth())));
+        return hurt.stream()
+                .min(Comparator.comparingDouble((LivingEntity ally) -> ally.getHealth() / ally.getMaxHealth())
+                        .thenComparingInt(ally -> ally.equals(owner) ? 0 : 1))
+                .orElse(null);
     }
 
     /** Whether the summoner can lead a move: alive and not a spectator (spec section 2.3). */
