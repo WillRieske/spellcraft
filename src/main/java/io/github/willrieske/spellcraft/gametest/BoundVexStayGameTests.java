@@ -12,10 +12,15 @@ import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.spell.rules.GuardArea;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.zombie.Husk;
+import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -35,6 +40,12 @@ public final class BoundVexStayGameTests {
     static void registerAll() {
         FangGameTests.addPadded(
                 SHARED, "bound_vex_stay_returns_to_its_post", BoundVexStayGameTests::returnsToItsPostAndHovers);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_stay_returns_from_far_and_settles", BoundVexStayGameTests::returnsFromFarAndSettles);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_stay_save_without_a_post_gets_one",
+                BoundVexStayGameTests::stayingSaveWithoutAPostGetsOne);
         FangGameTests.addPadded(
                 SHARED,
                 "bound_vex_stay_attacks_a_hostile_inside_the_area",
@@ -114,6 +125,64 @@ public final class BoundVexStayGameTests {
     }
 
     /**
+     * When a staying Bound Vex is moved ten blocks off its post, should fly back to within the post tolerance and then
+     * settle: over the next hundred ticks it stays within the tolerance plus half a block, so a long flight's coast
+     * does not make it overshoot and wobble.
+     *
+     * <p>Method under test: {@code BoundVex.HoldPostGoal}, through the goal selector
+     */
+    static void returnsFromFarAndSettles(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = followOnly(helper, POST_SPOT, player);
+        vex.setStaying(true);
+        Vec3 post = postOf(helper, vex);
+        vex.setPos(post.add(10.0, 0.0, 0.0));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        vex.position().distanceTo(post) <= BoundVex.POST_TOLERANCE,
+                        "back at the post, got " + vex.position().distanceTo(post)))
+                .thenExecuteFor(
+                        100,
+                        () -> helper.assertTrue(
+                                vex.position().distanceTo(post) <= BoundVex.POST_TOLERANCE + 0.5,
+                                "settles at the post, got " + vex.position().distanceTo(post)))
+                .thenSucceed();
+    }
+
+    /**
+     * When a Bound Vex is loaded from a save that says it stays but has no saved post (hand-edited, or summoned with
+     * hand-written data), should take the block it loads in as its post, so the post does not move with the vex.
+     *
+     * <p>Method under test: {@code BoundVex.readAdditionalSaveData} (protected), through
+     * {@link EntityType#create}
+     */
+    static void stayingSaveWithoutAPostGetsOne(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = parked(helper, POST_SPOT, player);
+        vex.setStaying(true);
+        CompoundTag tag = GameTestSupport.saved(vex);
+        tag.remove("bound_pos");
+
+        // Act
+        BoundVex copy = (BoundVex) EntityType.create(
+                        vex.getType(),
+                        TagValueInput.create(
+                                ProblemReporter.DISCARDING, helper.getLevel().registryAccess(), tag),
+                        helper.getLevel(),
+                        EntitySpawnReason.LOAD)
+                .orElseThrow(() -> helper.assertionException("the save did not load"));
+
+        // Assert
+        helper.assertTrue(copy.isStaying(), "the copy still stays");
+        helper.assertValueEqual(copy.getBoundOrigin(), vex.blockPosition(), "the post is the block it loaded in");
+        helper.succeed();
+    }
+
+    /**
      * When a staying Bound Vex hangs at its post and a hostile stands six blocks east of the post at the post's height
      * (outside the following box, inside the stay area), should take it as its target.
      *
@@ -157,9 +226,9 @@ public final class BoundVexStayGameTests {
 
     /**
      * When a staying Bound Vex hangs five blocks west of its post, should measure the stay area from the post and not
-     * from itself: a husk four blocks west of the vex (nine from the post) is outside, one six blocks east of the post
-     * (eleven from the vex) is inside; with stay switched off the area is the following box around the vex, and the two
-     * swap.
+     * from itself: a husk three blocks west of the vex (eight from the post) is outside, one six blocks east of the
+     * post (eleven from the vex) is inside; with stay switched off the area is the following box around the vex, and
+     * the two swap.
      *
      * <p>Method under test: {@link BoundVex#inGuardArea}
      */
@@ -170,16 +239,16 @@ public final class BoundVexStayGameTests {
         vex.setStaying(true);
         Vec3 post = postOf(helper, vex);
         vex.setPos(post.add(-5.0, 0.0, 0.0));
-        Husk westHusk = huskBeside(helper, post, -9, 0);
+        Husk westHusk = huskBeside(helper, post, -8, 0);
         Husk eastHusk = huskBeside(helper, post, 6, 0);
 
         // Act & Assert: staying
-        helper.assertFalse(vex.inGuardArea(westHusk), "staying: nine blocks west of the post is outside");
+        helper.assertFalse(vex.inGuardArea(westHusk), "staying: eight blocks west of the post is outside");
         helper.assertTrue(vex.inGuardArea(eastHusk), "staying: six blocks east of the post is inside");
 
         // Act & Assert: following again, where it hangs
         vex.setStaying(false);
-        helper.assertTrue(vex.inGuardArea(westHusk), "following: four blocks west of the vex is inside");
+        helper.assertTrue(vex.inGuardArea(westHusk), "following: three blocks west of the vex is inside");
         helper.assertFalse(vex.inGuardArea(eastHusk), "following: eleven blocks east of the vex is outside");
         helper.succeed();
     }

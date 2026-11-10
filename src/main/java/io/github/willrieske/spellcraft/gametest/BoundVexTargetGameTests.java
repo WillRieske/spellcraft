@@ -742,9 +742,9 @@ public final class BoundVexTargetGameTests {
 
     /**
      * When a parked Bound Vex's husk target, held by the patrol goal, is moved past the 7.25 reach and out of the guard
-     * box, should drop it within a few ticks and not take it again. The patrol goal is also bound by vanilla's follow
-     * range (the same 7.25), so this test cannot tell {@code keepsTarget}'s reach clause from vanilla's; the grudge and
-     * ally goals, which never call {@code super}, are tested below.
+     * box, should drop it within a few ticks and not take it again. The follow-range attribute is 20 now, wider than the reach,
+     * so vanilla's own range check cannot drop the target and this test isolates {@code keepsTarget}'s reach clause;
+     * the grudge and ally goals, which never call {@code super}, are tested below.
      *
      * <p>Method under test: {@code NearestHostileGoal.canContinueToUse} (package-private), through the target selector
      */

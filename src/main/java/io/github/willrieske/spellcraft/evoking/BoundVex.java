@@ -163,6 +163,11 @@ public class BoundVex extends Vex {
     protected void readAdditionalSaveData(ValueInput input) {
         super.readAdditionalSaveData(input);
         entityData.set(STAYING, input.getBooleanOr(STAYING_TAG, false));
+        // A staying vex with no saved post (hand-edited, or /summon with NBT) would carry a post that moves with it.
+        // The position is read before this method (Entity.load), so the vex's own block is available here.
+        if (isStaying() && getBoundOrigin() == null) {
+            setBoundOrigin(blockPosition());
+        }
         // A vex saved by Part 2 carries the old base value (7.25, the reach), which would cut a staying vex's fights
         // short: TargetGoal.canContinueToUse reads the attribute live (docs/api-notes.md §22).
         AttributeInstance range = getAttribute(Attributes.FOLLOW_RANGE);
@@ -490,8 +495,17 @@ public class BoundVex extends Vex {
      */
     public static final double POST_TOLERANCE = 1.0;
 
-    /** The return flight's speed: the follow goal's coasting speed. */
+    /** The return flight's speed when the vex is farther than {@link #POST_NEAR} from the post point. */
     private static final double POST_SPEED = 0.7;
+
+    /** The return flight's speed within {@link #POST_NEAR} of the post point: slow enough that a pass cannot overshoot. */
+    private static final double POST_APPROACH_SPEED = 0.25;
+
+    /** The distance from the post point inside which the return flight uses {@link #POST_APPROACH_SPEED}. */
+    private static final double POST_NEAR = 3.0;
+
+    /** Squared speed (blocks per tick) below which a vex counts as still, so the return flight waits out a coast. */
+    private static final double STILL_SPEED_SQR = 0.01;
 
     /**
      * The point a staying vex hovers at and its stay area is centered on: the middle of the post block's floor
@@ -722,9 +736,12 @@ public class BoundVex extends Vex {
 
     /**
      * Brings a staying, idle vex back to its post point (Part 3 spec §2.2): one flight per use, started when the vex
-     * hangs farther than {@link #POST_TOLERANCE} from it and the move control is free. The tolerance is wider than
-     * the distance at which vanilla's move control calls a move finished (about 0.53, docs/api-notes.md §22), so the
-     * goal never re-issues a move the control just ended. A vex has no gravity, so once there it hangs still.
+     * hangs farther than {@link #POST_TOLERANCE} from it, the move control is free and the vex is nearly still.
+     * Vanilla's move control only halves the velocity when it comes within about 0.53 of the wanted point
+     * (docs/api-notes.md §22), so after a long flight the vex coasts a couple of blocks past the post; the goal
+     * therefore waits until the coast is over ({@link #STILL_SPEED_SQR}) before it flies again, and flies at the slow
+     * {@link #POST_APPROACH_SPEED} within {@link #POST_NEAR}, so that a second pass cannot overshoot the tolerance. A
+     * vex has no gravity, so once there it hangs still.
      */
     private final class HoldPostGoal extends Goal {
         HoldPostGoal() {
@@ -736,6 +753,7 @@ public class BoundVex extends Vex {
             return BoundVex.this.isStaying()
                     && BoundVex.this.getTarget() == null
                     && !BoundVex.this.getMoveControl().hasWanted()
+                    && BoundVex.this.getDeltaMovement().lengthSqr() < STILL_SPEED_SQR
                     && BoundVex.this.position().distanceToSqr(BoundVex.this.postPoint())
                             > POST_TOLERANCE * POST_TOLERANCE;
         }
@@ -749,7 +767,10 @@ public class BoundVex extends Vex {
         @Override
         public void start() {
             Vec3 post = BoundVex.this.postPoint();
-            BoundVex.this.getMoveControl().setWantedPosition(post.x, post.y, post.z, POST_SPEED);
+            double speed = BoundVex.this.position().distanceToSqr(post) > POST_NEAR * POST_NEAR
+                    ? POST_SPEED
+                    : POST_APPROACH_SPEED;
+            BoundVex.this.getMoveControl().setWantedPosition(post.x, post.y, post.z, speed);
         }
     }
 }
