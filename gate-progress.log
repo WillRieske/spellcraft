@@ -97,3 +97,4 @@ Part 4 stale-cure fix round: build green; All 349 required tests passed twice; s
 deed037 Part 5 Task 2: build green (unit tests, ArchUnit); pitest 398/407 module-wide
 Part 5 Task 1 fix round: build green; All 358 required tests passed twice (baseline 355); cleanup tests shown red per piece
 9fa69ec Part 5 Task 3: build green; All 366 required tests passed twice
+c8613d0 Part 5 Task 4: build green; All 384 required tests passed twice

@@ -679,7 +679,7 @@ git commit -m "feat(evoking): Bound Vexes close in overhead and scan faster at n
 - **Shore:** the nearest standable spot (by distance from the player to the spot's bottom center) whose center is within 6 blocks sideways of the player and whose Y is between the player's feet block −1 and +2.
 - All maps are transient: a player's entries go on logout; everything on server stop (`BoundVexEvents.onServerStopped` calls `VexRescues.clear()`).
 
-- [ ] **Step 1: Write the failing GameTests**
+- [x] **Step 1: Write the failing GameTests**
 
 Shared arrangement (a private helper `lavaPool(helper)` in the test class): `caster(helper, 0)`; `player.setPermanentlyInvulnerable(true)`. Lava spreads into any air beside it (every 30 ticks in the Overworld, every 10 in the Nether), so **no air may touch a lava block**: the player's block and the block above are lava, with stone under them and stone on all four sides of both lava blocks; the shore is **two** blocks east of the player: a stone block at the player's feet level − 1 with two air blocks above it (the shore search ignores the stone between); no other standable spot within 6 blocks (fill or roof whatever the padded box offers). A helper `step(player)` does `soak(player)` then `VexRescues.tick(player)`; every step is on its own server tick (Global Constraints).
 
@@ -698,12 +698,12 @@ Shared arrangement (a private helper `lavaPool(helper)` in the test class): `cas
 - `bound_vex_world_lava_nether_no_bucket_while_in_lava`: held in lava in the Nether for 61 steps → the rescuer never held a bucket and the player still burns.
 - `bound_vex_world_rescues_cleared_on_server_stop`, in an environment of its own (a new constant beside the existing `SERVER_STOP*` ones; read how `BoundVexJobGameTests` registers its server-stop test): a running rescue, then `BoundVexEvents.onServerStopped(new ServerStoppedEvent(server))` → `running(player)` is empty.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:bound_vex_world_lava_*"`
 Expected: compilation fails (`VexRescues` does not exist).
 
-- [ ] **Step 3: `StandableSpots`**
+- [x] **Step 3: `StandableSpots`**
 
 ```java
 package io.github.willrieske.spellcraft.evoking;
@@ -765,7 +765,7 @@ final class StandableSpots {
 }
 ```
 
-- [ ] **Step 4: `VexRescues` (lava only; the other kinds come in Tasks 5 and 6)**
+- [x] **Step 4: `VexRescues` (lava only; the other kinds come in Tasks 5 and 6)**
 
 ```java
 package io.github.willrieske.spellcraft.evoking;
@@ -1028,7 +1028,7 @@ Finish the class:
 - A dismissed tail when the rescuer died: `dismiss` on a dead or removed vex must be harmless; read `BoundVex.dismiss` and guard with `isAlive()` if it is not.
 - Javadoc everything; complete the imports; `LAST_GROUND` is read in Task 6 (add a package-private `lastGround(UUID)` accessor now so Error Prone does not flag an unused field).
 
-- [ ] **Step 5: `RescueGoal` and its registration**
+- [x] **Step 5: `RescueGoal` and its registration**
 
 ```java
 package io.github.willrieske.spellcraft.evoking;
@@ -1082,12 +1082,12 @@ final class RescueGoal extends Goal {
 
 In `BoundVex.registerGoals`, first line: `goalSelector.addGoal(-1, new RescueGoal(this));`. Check in the sources that `setWait()` exists on the vex's move control (as `FollowSummonerGoal.teleportBeside` uses it) and which `setLookAt` overload takes an entity. In `BoundVexEvents.onServerStopped` add `VexRescues.clear();` and name it in the Javadoc.
 
-- [ ] **Step 6: Run the lava tests**
+- [x] **Step 6: Run the lava tests**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:bound_vex_world_lava_*"` and `"…bound_vex_world_rescues_*"`
 Expected: all pass.
 
-- [ ] **Step 7: Full gates, then commit**
+- [x] **Step 7: Full gates, then commit**
 
 Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice.
 
@@ -1095,6 +1095,8 @@ Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice.
 git add src/main/java/io/github/willrieske/spellcraft/evoking src/main/java/io/github/willrieske/spellcraft/gametest
 git commit -m "feat(evoking): a Bound Vex pulls its summoner out of lava; in the Nether it douses them"
 ```
+
+> **As built (`c8613d0`):** diverged — the target-keeping test uses a vulnerable husk out of reach (an invulnerable mob cannot be targeted); lava does not ignite a mock player through `baseTick`, so the burning tests set fire ticks; a rescue starts only once the vex has ticked; the Overworld pool is cased in stone so the padded box offers no other shore; "not for the unhurt" is five tests; the tail gives the hand back only to a living rescuer. 384 tests; reason: how the GameTest server and mock players behave.
 
 ---
 
@@ -1754,3 +1756,4 @@ git commit -m "docs(evoking): Part 5 in the README, playtest items, mutation tes
 |---|---|---|
 | 1 | `2c484b4` | the GameTest world is flat in every dimension (a floor at y 0..3 even in the End), so `endVoid` clears the blocks below its slot in the forced chunks and restores them; `setInvulnerable` does not exist (`setPermanentlyInvulnerable(true)`); `isInLava` also needs the second `baseTick`; `Ghast` is in `monster`; the night setup test is registered unpadded. Baseline 349, now 355; reason: the sources and the server as they are. |
 | 3 | `9fa69ec` | a close-posture flight is one goal use that ends on arrival, where the velocity is zeroed (a coasting vex sank to 1.5 above the feet), and a target mid-flight drops the wanted position; the close bands start at 2.5, not 2.2 (the move control stops up to half a block short). Measured after: min height 1.88, max sideways 2.46, no hops in 60 ticks. Review fixes for Task 2 are in `cce1ddc`. 366 tests; reason: coordinator rulings on the measurements, recorded in spec §6.1 and §10. |
+| 4 | `c8613d0` | the target-keeping test uses a vulnerable husk out of reach (an invulnerable mob cannot be targeted); lava does not ignite a mock player through `baseTick`, so the burning tests set fire ticks; a rescue starts only once the vex has ticked; the Overworld pool is cased in stone so the padded box offers no other shore; "not for the unhurt" is five tests; the tail gives the hand back only to a living rescuer. 384 tests; reason: how the GameTest server and mock players behave. |
