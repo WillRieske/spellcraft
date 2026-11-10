@@ -1,7 +1,7 @@
 # Spellcraft: Evoking II Parts 6 and 7, team moves, Casters, Mirror, Ghostrail, villager ghosts (design)
 
 **Date:** 2026-11-10
-**Status:** design; plans not yet written
+**Status:** approved
 **Written by:** `/one-shot`, unattended, on 2026-11-10; §14 lists the decisions Will did not state.
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
 **Builds on:** [`2026-11-07-evoking-ii-design.md`](2026-11-07-evoking-ii-design.md) ("the parent
@@ -66,6 +66,7 @@ through a wall. Each is resolved below.
 | **Roster** | The vexes taking part in a move. |
 | **Free vex** | A Bound Vex that may join a move: §2.2. |
 | **Move enemy** | The hostile a move is fought against (Shield, Multishot, Raid). Evader has a **ward** instead. |
+| **Carrier** | Whoever has a Mirror or Ghostrail effect (§7). Not the same as a Caster. |
 | **Ward** | The one an Evader protects: the summoner or an ally below half health. |
 | **Kit** | The conjured gear of a move. |
 | **Caster** | A Bound Vex rolled at summon (1 in 3) to cast scrolls instead of fighting. |
@@ -108,7 +109,9 @@ models beyond the robe texture and the ghost's tint.
 A **free vex** is a Bound Vex of the summoner that is alive, in the summoner's level, within
 32 blocks of the summoner, following (not staying), not a Caster (Part 7; a Caster is free only
 for a Raid), with `teamMove == NONE`, not holding any job claim (repair, cure, bribe, crystal: a
-vex mid-job finishes it), and not the current rescuer.
+vex mid-job finishes it), and not the current rescuer. The job test is a new `Jobs.busy(vex)`
+that asks each of the four job goals' claim maps whether any live claim is held by that vex (a new
+`Claims.heldBy(BoundVex)`; the maps are keyed by subject, so it scans their values).
 
 Roster size and choice (the pure `TeamMoveRules`, §5):
 
@@ -121,7 +124,7 @@ Roster size and choice (the pure `TeamMoveRules`, §5):
 
 ### 2.3 Triggers (automatic mode)
 
-Each summoner is checked every **10 ticks** (`PlayerTickEvent.Post`, on the summoner's
+Each summoner is checked every **10 ticks** (from `TeamMoves.tick`, §2.5, on the summoner's
 `tickCount`), only when no move is running and the summoner is present (online, alive, not a
 spectator). Candidates are hostiles that are `isPrey` and `huntable` for the summoner (an
 `Enemy`, not a creeper, no other player's mark) and whose feet are inside the guard area of at
@@ -160,7 +163,9 @@ conjured (`BoundVex.conjure`, which stashes given gear). The summoner gets the o
 
 ### 2.5 Running and ending a move
 
-`TeamMoves` checks each record every tick from the summoner's `PlayerTickEvent.Post`. Roster
+`TeamMoves.tick(ServerPlayer)` (public, so GameTests can step it: a mock player is never ticked
+by the server and fires no `PlayerTickEvent`) runs every tick from the summoner's
+`PlayerTickEvent.Post`; it runs the §2.3 trigger scan on its 10-tick clock and checks the record. Roster
 members that are dead, removed, in another level or no longer marked with this move are dropped
 from the roster (their kits were dismissed by whatever removed them, or are dismissed now). The
 move **ends** when any of these holds:
@@ -179,7 +184,11 @@ at the end. A move member that dies drops no kit (conjured slots never drop, Par
 **Goal.** `TeamMoveGoal` at goal priority **1** (between the flee/dodge goals at 0 and the job
 goals at 2; `RescueGoal` at −1 still outranks it), flags `MOVE` and `LOOK`, `canUse` while
 `teamMove != NONE` and the vex's record lists it. It runs the move's behavior (§4) every tick. A
-fleeing or rescuing member pauses its part and resumes; the move does not end for it.
+fleeing or rescuing member pauses its part and resumes; the move does not end for it. Its `stop`
+dismisses the kit **only when the record no longer lists the vex** (a pause keeps the kit), and
+its `start` and `tick` re-conjure any kit slot that is not conjured or holds something else (a
+rescue's conjured bucket or apple dismisses back to the given gear, Part 5, so the kit is put back
+when the vex returns to the move).
 
 ### 2.6 What a member refuses
 
@@ -217,9 +226,10 @@ Two key mappings in the Spellcraft category, registered beside the casting keys 
 - **K**, `key.spellcraft.team_move_go` ("Evoking: Team Move!", `KEY_K` = 14): sends
   `TEAM_MOVE(selected)`.
 
-**Amends the parent §7.3:** the client cannot read the server's setting (a dedicated server's
-config never reaches it), so J always cycles, and "Team moves are automatic" is the server's
-answer to K. Neither key needs the swap-offhand swallow (neither defaults to F).
+**Amends the parent §7.3:** J always cycles, and "Team moves are automatic" is the server's
+answer to K. NeoForge does sync server configs to clients, but the server is the one that decides
+whether a move starts, so it is the one that answers: one source of truth, and a key that works
+the same before and after a config reload. Neither key needs the swap-offhand swallow (neither defaults to F).
 
 ### 3.4 The manual request
 
@@ -273,7 +283,8 @@ Kit: a **crossbow** (`MAINHAND`) enchanted with Multishot (looked up from the le
 registry by `Enchantments.MULTISHOT`) and `Unbreakable`. Each member keeps **6–8 blocks** from the
 enemy (closer than 6: back off; farther than 8: close in; between: hold, looking at it) and every
 **40 ticks**, with line of sight and no friend in the way (the Part 3 hold-fire rule,
-`VexShots.aimPoint` and the 1-block segment test), loads the crossbow by hand
+`VexShots.aimPoint` and the 1-block segment test; the private `RangedGearGoal.friendInTheWay`
+moves to `VexShots` so the move can share it), loads the crossbow by hand
 (`CHARGED_PROJECTILES` = three plain arrows; vanilla's `draw` that would add Multishot's extra two
 is not reachable) and fires it with `CrossbowItem.performShooting(level, vex, MAIN_HAND, crossbow,
 1.6F, 14 − difficulty × 4, enemy)`, as a pillager does. The enchantment on the stack gives the
@@ -302,27 +313,30 @@ The ward may be the summoner or an ally; the Evader follows it if it moves.
 
 ### 4.4 Raid
 
-Kit, rolled per member when the Raid starts (the dice interface the bribe uses, so a test can
-script it): **main hand** one of seven, even odds: netherite sword, diamond sword, netherite axe,
+Kit, rolled per member when the Raid starts (the Raid's kit dice, §5): **main hand** one of seven, even odds: netherite sword, diamond sword, netherite axe,
 diamond axe, mace, trident, or a **rocket crossbow** (a crossbow, `Unbreakable`, no enchantment);
 **offhand** a shield; **head, chest, legs** all netherite or all diamond (one roll per member).
-Every kit item is `Unbreakable`.
+Every kit item is `Unbreakable`. A **Caster** (Part 7) rolls only the armor and gets the
+offhand shield; its main hand holds the conjured Mirror scroll during the gather and is conjured
+**empty** during the charge (so its given gear stays stashed).
 
 Phases (the record's phase):
 
 1. **Gather** (40 ticks): the grid is 3 rows × 4 columns, 1.5 blocks apart, centered on the point
    8 blocks from the enemy toward the summoner, its rows facing the enemy, at the enemy's eye
    height. Each member takes a cell (in roster order), flies there at normal speed and faces the
-   enemy. Casters (Part 7) cast Mirror on the summoner here (§6.3).
+   enemy. Casters (Part 7) cast Mirror on the summoner here (§6.2).
 2. **Charge** (to the end): melee members fly at the enemy at normal speed and attack it with
-   `doHurtTarget` when in reach (the charge goal's reach rule and its 20-tick attack cooldown);
+   `doHurtTarget` when their box intersects the enemy's (the charge goal's reach rule), each on its
+   own **20-tick attack clock** (the charge goal has no cooldown; without one a member pressed
+   against the enemy would hit every tick);
    rocket members keep 8 blocks (hold between 7 and 9), and every 40 ticks with line of sight and
    no friend in the way fire a **rocket**: the crossbow is loaded with one `FIREWORK_ROCKET`
    carrying `FIREWORKS` = flight 1, one `FireworkExplosion.DEFAULT` (a rocket with no explosion
    deals no damage) and fired with `performShooting(…, 1.6F, 1.0F, enemy)`. The blast hurts every
    living thing within 5 blocks in sight; its damage source's entity is the vex, so the Part 3
    backstop cancels it for the summoner and everything the vex may not fight. Casters hold their
-   grid cell during the charge.
+   grid cell during the charge and do not attack.
 
 A Raid whose roster falls below 12 continues (parent §10).
 
@@ -340,11 +354,17 @@ Multishot when a Shield could start; no move is picked while its own readiness i
 move ends when its roster is empty. An enemy that portals away ends the move. A summoner who logs
 out mid-move: the record is dropped on logout, and each member's goal ends because its record is
 gone; the goal's `stop` dismisses the kit. `/summon`ed vexes have no summoner and never join. A
-server stop drops all records (members are saved with their kits already dismissed by save-time
-rules: the conjured flags are saved but `readAdditionalSaveData` dismisses them on load).
+server stop drops all records; a member saved mid-move loads with its kit dismissed
+(`readAdditionalSaveData` dismisses every conjured slot) and `teamMove` `NONE`.
 
-**GameTests** (new class `BoundVexTeamMoveGameTests`; `TeamMoves` gets a public `startForTest`
-seam only if a trigger cannot be reached; prefer real triggers):
+**Dice.** The Raid's kit roll goes through a static, test-scriptable dice source (`script(int...)`
+/ `unscript()`, empty in play), the same shape the bribe's per-vex dice use but global, since the
+vexes it rolls for are chosen at the start. Part 7 adds one each for the Caster roll, scroll mobs
+and the Mirror confusion.
+
+**GameTests** (new class `BoundVexTeamMoveGameTests`; the tests step `TeamMoves.tick(player)` by
+hand; `TeamMoves` gets a public `startForTest` seam only if a trigger cannot be reached; prefer
+real triggers):
 
 - Each automatic trigger starts the right move with the right roster and kit: a ravager
   (`maxHealth` 100) beside 12 free vexes → Raid with 12, each with a main-hand kit item, an offhand
@@ -358,11 +378,12 @@ seam only if a trigger cannot be reached; prefer real triggers):
 - A member's given gear is stashed while the kit is out and back in its hands at the end; the kit
   never drops when a member dies.
 - End rules: enemy dead; enemy 49 blocks from the summoner; time limit (with a test-shortened
-  clock seam if 2400 ticks is too long for the batch); Evader ward healed; summoner logs out. Each
-  starts the 30-second cooldown: the same trigger right after does not start that move, another
+  clock seam if 2400 ticks is too long for the batch); Evader ward healed. Each starts the
+  30-second cooldown: the same trigger right after does not start that move, another
   kind still can.
-- Shield: a member bashes for 4 with knockback away from it and backs off to about 6; a hit from
-  the front is blocked.
+- A summoner who logs out mid-move: every member's kit is dismissed and its `teamMove` is `NONE`.
+- Shield (the enderman scene: a ravager resists 75 % of knockback): a member bashes for 4 with
+  knockback away from it and backs off to about 6; a hit from the front is blocked.
 - Multishot: one shot spawns three arrows owned by the vex, the crossbow keeps no durability loss
   and is empty after.
 - Evader: a zombie walked within 3 blocks is shoved away; an arrow shot at the ward by a skeleton
@@ -374,8 +395,9 @@ seam only if a trigger cannot be reached; prefer real triggers):
   K with a running move → `team_move_running`; K during a cooldown → `team_move_cooling`; K in
   automatic mode → `team_moves_automatic`; K with a fitting enemy and roster starts the move; the
   automatic triggers do not run in manual mode.
-- The packet: a `TEAM_MOVE` with an out-of-range byte is ignored; `CAST` still casts (the existing
-  Evoking tests pass unchanged).
+- The packet: `FangGameTests.requestCodecRoundTrip` and `EvokingKeys` build `new
+  EvokingRequest(spell)` today and change to the new shape; the round-trip test gains a
+  `TEAM_MOVE` case, and a `TEAM_MOVE` with an out-of-range byte is ignored; `CAST` still casts.
 
 `runData` proves the two new key mappings load. `./gradlew pitest` with a `docs/mutation-testing.md`
 row.
@@ -393,8 +415,8 @@ playtest checklist, mutation testing, the parent's inline notes, `CLAUDE.md` (pa
 
 ### 6.1 The roll and the mark
 
-`VexSummons.summon` rolls each new Bound Vex **1 in 3** for Caster through the dice interface
-(scriptable in tests). `BoundVex.CASTER` is a synced boolean (the client draws the robe) and saved
+`VexSummons.summon` rolls each new Bound Vex **1 in 3** for Caster through the Caster dice (§5's
+scriptable global dice). `BoundVex.CASTER` is a synced boolean (the client draws the robe) and saved
 in `addAdditionalSaveData` (a portal copy keeps it). A `/summon`ed vex is not a Caster.
 
 ### 6.2 What a Caster does
@@ -411,7 +433,8 @@ in `addAdditionalSaveData` (a portal copy keeps it). A `/summon`ed vex is not a 
     area, the summoner is within 16 blocks and has no Mirror effect, and this Caster's Mirror
     cooldown (6 minutes, 7200 ticks, saved as a game time) is over.
   - **Ghostrail** on the summoner, or on a Bound Vex of the same summoner, within 16 blocks, that
-    is below a quarter of its max health or `isInWall()`, has no Ghostrail effect, and this
+    is below a quarter of its max health or (the summoner only) `isInWall()`, has no Ghostrail
+    effect (a vex clips through blocks all the time, so being in a wall is no emergency for one), and this
     Caster's Ghostrail cooldown (4 minutes, 4800 ticks) is over. The summoner first.
   - The cast takes **20 ticks**: the Caster holds a conjured scroll of the spell in its main hand
     (stashing the given item), carries the casting effect (§6.4), and plays
@@ -419,17 +442,18 @@ in `addAdditionalSaveData` (a portal copy keeps it). A `/summon`ed vex is not a 
     subject still qualifies (alive, in range, without the effect), the spell is applied to it
     (§7.1) and the cooldown starts; either way the scroll is dismissed. A Caster interrupted
     (flee, rescue) dismisses the scroll and spends no cooldown.
-- **Team moves:** a Caster joins only a Raid. In the Raid's gather it casts Mirror on the summoner
-  at once (no 20-tick wind-up, the scroll conjured for the gather and dismissed at the charge) if
-  the summoner has no Mirror; this ignores and then sets its Mirror cooldown. It holds its grid
-  cell during the charge.
+- **Team moves:** a Caster joins only a Raid (kit: §4.4). In the Raid's gather it casts Mirror on
+  the summoner at once (no 20-tick wind-up; the scroll is its gather kit) if the summoner has no
+  Mirror; this ignores and then sets its Mirror cooldown. It holds its grid cell during the charge
+  with an empty conjured main hand.
 
 ### 6.3 The robe
 
 `BoundVexRobeLayer` (`client.evoking`), added to `BoundVexRenderer`, draws the vex model again
 with `textures/entity/bound_vex_robe.png` for a Caster (`BoundVexRenderState.caster`), scaled up
 slightly (about 1.06 around the body, the plan's number and Will's eye) so it never z-fights the
-body, with `RenderTypes.entityCutoutNoCull`. The texture uses the vex texture's UV layout (its size
+body, with `RenderTypes.entityCutout` (26.3 has no `entityCutoutNoCull`; `entityCutout` is the
+no-cull variant beside `entityCutoutCull`). The texture uses the vex texture's UV layout (its size
 read from `VexModel.createBodyLayer`), painted only on the body and arm faces: purple
 (`#5B2A86`) with magenta (`#C03FA8`) trim, a ragged transparent lower edge; head and wings
 transparent. It is this mod's own art, generated by `scripts/robe_texture.py` (with a unit test
@@ -439,7 +463,10 @@ like the icon script's: size, transparency where the head is), committed as a PN
 
 A new marker effect **`spellcraft:casting_scroll`** (hidden from the HUD like the other casting
 effects, with a new particle type the client maps to a purple `#B24CFF`) is put on any non-player
-caster for its wind-up (Casters, villager ghosts). `CastingState.of(entity)` learns it.
+caster for its wind-up (Casters, villager ghosts). `CastingState.of(entity)` returns
+`Optional<EvokerSpell>` today, and `EvokerSpell`'s ordinals are the packet's `CAST` argument, so it
+is not extended: `CastingState.of` returns a new client-side `CastLook` enum (`FANGS`, `VEXES`,
+`SCROLL`) instead, and its callers map from it.
 `CastingParticles` then draws the two hand particles for **every living entity in render range**
 whose `CastingState` is present, not only players (hand offsets from `EvokerPose`, scaled by the
 entity's size). The arms-up pose is drawn for Bound Vexes only: a `BoundVexModel extends VexModel`
@@ -463,8 +490,11 @@ Ghostrail 4800 for players): no new config (parent §1).
 
 **Casting by others.** `Spells.cast(LivingEntity target, Spell spell, int ticks)` (extracted from
 `SpellScrollItem.apply`) applies the effect (`MobEffectInstance(effect, ticks, 0, false, false,
-true)`) and runs the spell's on-apply action; the scroll's own path calls it with the spell's
-duration. Casters, mobs and ghosts call it directly; the cast rules (creative refusal, recast) are
+true)`); the scroll's own path calls it with the spell's duration. There is no separate on-apply
+action: what a spell does when it starts lives in its effect (`MirrorEffect.onEffectAdded` spawns
+the images, `MobEffect.java:108`; Ghostrail's per-tick sync grants flight), so a scroll, a Caster,
+a mob, a ghost and `/effect give` all behave the same. The plan verifies when vanilla calls
+`onEffectAdded` (a fresh add, not a reload from a save). Casters, mobs and ghosts call it directly; the cast rules (creative refusal, recast) are
 the scroll's, and other casters check "no effect yet" themselves.
 
 **Tests that change:** `SpellDeclarationsTest`, `CastRulesTest.decidesEveryCase` (rows for both),
@@ -474,16 +504,22 @@ edit.
 
 ### 7.2 Mirror
 
-- **On apply** (to any `LivingEntity` caster): spawn **13** Mirror images on the ring cells
-  (`VexRing`, Chebyshev 2–3, standable ones first, any free cell else) around the caster.
-- **The effect ends with its images.** Each image watches its caster: when the caster is loaded
+In this section the **carrier** is whoever has the Mirror effect (a player, a Caster's summoner,
+an evoker), not the Caster vex.
+
+- **On apply** (`MirrorEffect.onEffectAdded`, any `LivingEntity` carrier): spawn **13** Mirror images on the ring cells
+  (`VexRing`, Chebyshev 2–3, standable ones first, any free cell else) around the carrier. Each
+  image is given copies of the carrier's main-hand and offhand items at spawn (`setItemSlot`,
+  which vanilla syncs), so the renderer needs nothing from the carrier.
+- **The effect ends with its images.** Each image watches its carrier: when the carrier is loaded
   in the image's level and no longer has the Mirror effect (expiry, dispel, milk, `/effect
   clear`), the image **poofs** (`POOF` particles, no sound, `discard`). When the last live image of
   a caster dies, the caster's Mirror effect is removed. So "no images alive" and "no Mirror
   effect" are the same thing, and the Caster's and ghost's "no images" test reads the effect.
 - **Images** (`MirrorImage extends LivingEntity`, `spellcraft:mirror_image`, `MobCategory.MISC`,
-  sized like the caster at spawn, synced `copiedType` (the caster's type id) and an optional
-  `ResolvableProfile` (players), saved `caster` UUID and `lifeTicks`):
+  sized like the caster at spawn, synced `copiedType` (the carrier's type id) and an optional
+  `ResolvableProfile` (players), saved `caster` UUID (the carrier) and `lifeTicks`; attributes
+  `MAX_HEALTH` 10 and `MOVEMENT_SPEED` 0.25 registered in `EntityAttributeCreationEvent`):
   - health 10, no armor, no attack, not pushable by the caster's images (they overlap freely);
   - **6-minute life** of its own (`lifeTicks` 7200 counted down and saved), then poofs, so an
     image whose caster is unloaded or gone still ends;
@@ -504,13 +540,17 @@ edit.
   hidden; the skin loads asynchronously, so the first frames may show the default skin); for a
   mob image, `copiedType.create(clientLevel, …)`, also never added to the level. Each frame
   `extractRenderState` copies the image's position, rotations (and their previous values), hurt
-  and death time, walk animation, pose and the caster's held items into the stand-in, asks the
+  and death time, walk animation, pose and the image's own (synced) held items into the stand-in, asks the
   dispatcher's renderer for the stand-in's state, and `submit` hands that state to
   `EntityRenderDispatcher.submit`. The plan verifies the mannequin path; the fallback is the
   default player skin.
 - **Confusion:** on `LivingChangeTargetEvent` (`MOB_TARGET` or `BEHAVIOR_TARGET`) where the new
-  target is a caster with live images within 16 blocks of it, the new target is replaced, with
-  probability **13/14** (dice), by a random one of those images. **Amends the parent §9.3:** any
+  target is a carrier with live images within 16 blocks of it **and differs from the mob's current
+  target** (a target goal re-sets its target every tick, `TargetGoal.java:70`, and each re-set
+  fires the event; rolling on those would redirect almost every mob), the new target is replaced,
+  with probability **13/14** (the confusion dice), by a random one of those images. An **iron
+  golem is never redirected onto a player's images**: they carry the player's mark, which
+  `GolemMercy` already refuses as a golem target. **Amends the parent §9.3:** any
   mob, not only hostiles (a golem going for an evoker with images is confused too; a mob picking a
   player is usually hostile anyway). A mob already targeting an image is not re-rolled. Brain mobs
   that write their target without the event are not confused (accepted; a playtest note).
@@ -528,25 +568,42 @@ edit.
   what any source needs and, when a source ends, restores the game mode's abilities
   (`gameMode().updatePlayerAbilities`) and re-grants what the others still need, then
   `onUpdateAbilities()`. The decision is a pure function (`GrantedAbilities.decide(gameMode,
-  infinity, ghostrail, granted)`, extending `InfinityAbilities`); Ghostrail grants `mayfly` only
-  and is tracked by its own `GRANTED`-style mark so a revoke is never applied twice.
+  infinity, ghostrail, granted)`, extending `InfinityAbilities`); Ghostrail grants `mayfly`
+  and `flying`, and is tracked by its own **saved** `GRANTED`-style mark (as Infinity's is), so a
+  revoke is never applied twice and a relog mid-effect does not leave `mayfly` on for good.
+  `flying` is set on apply and re-asserted every tick while the effect lasts, as spectator mode
+  does: `noPhysics` skips collision, so a player who is not flying would sink through the floor.
 - **No damage:** `LivingIncomingDamageEvent` is cancelled for a carrier except
   `DamageTypes.GENERIC_KILL` (`/kill`) and `DamageTypes.FELL_OUT_OF_WORLD` (a ghost who dives
   under the world still dies there).
 - **Trail:** every tick, 2 `WHITE_SMOKE` particles at the carrier's previous position
   (`sendParticles`).
-- **Last ground:** each tick the carrier is `onGround()`, its position is remembered (an
-  attachment, not saved).
+- **Start spot:** when the effect is added (`onEffectAdded`), the carrier's block position is
+  remembered (an attachment, not saved) if it is a standable spot. `onGround` is not updated while
+  `noPhysics` moves an entity (`Entity.java:748-754`), so positions are not recorded during the
+  effect.
 - **Ending** (expiry, dispel, milk; detected by the same per-tick poll, which also catches
   `/effect clear`): if the carrier's box collides with blocks, search outward (up to 8 blocks) for
   a free spot its box fits on a standable block, else any free spot, and teleport there; if none,
-  to its last ground; if none, stay. Then flight is revoked as above and `fallDistance` is 0. A
+  to its start spot if that is still free; if none, stay. Then flight is revoked as above and `fallDistance` is 0. A
   player who ends in mid-air falls from there.
-- **Mob carriers:** a `Mob` that is not already `noPhysics` (a vex or a ghost is) gets
-  `noPhysics = true` and `setNoGravity(true)` each effect tick and both back to `false` when it
-  ends (followed by the push-out). Pathfinding would still walk around walls, so while it has a
-  target its move control is pointed straight at the target each tick (`getMoveControl()
-  .setWantedPosition(target, 1.0)`), so it really steps through.
+- **Mob carriers:** a carrier that is not a `Vex` or a `VillagerGhost` (those fly through blocks
+  already; `Vex.noPhysics` is true only inside its own tick, so the flag cannot be the test) gets
+  `noPhysics = true` and `setNoGravity(true)` each tick, and on the end `noPhysics = false` and
+  its **original** `NoGravity` back (from the mark), then the push-out. Pathfinding would walk
+  around the wall Ghostrail is for, and `Mob.serverAiStep` overwrites a wanted position set from
+  outside the goals, so **scroll-carrying mobs** (§8) get a `GhostrailChaseGoal` (installed on
+  `EntityJoinLevelEvent`, goal priority 0, flag `MOVE`): while the mob has Ghostrail and a target,
+  it stops the navigation and sets the mob's velocity straight at the target's middle at 0.3
+  blocks per tick (no gravity, so it can rise and sink). Any other mob given Ghostrail by command
+  just loses collision and walks its normal path.
+- **Rescues:** the lava pull, the drowning push and the void catch (Part 5, `VexRescues`) skip a
+  Ghostrail carrier: it takes no damage, and a pull or catch would fight its flight.
+- **Who drives it:** `Ghostrail.tick(LivingEntity)` (public, so GameTests step it) runs the
+  trail, the flight sync and the end check: for players from `PlayerTickEvent.Post`, for other
+  carriers from `EntityTickEvent.Post` for entities carrying the saved **ghostrail mark** (set on
+  apply, holding the mob's original `NoGravity`; its presence with no effect is how the end is
+  noticed after expiry, milk or `/effect clear`).
 - **Durations** (`GhostrailDuration.of(kind)`, pure): player and Bound Vex 4800, hostile mob 40,
   villager ghost infinite (`MobEffectInstance.INFINITE_DURATION`).
 
@@ -571,7 +628,8 @@ edit.
 ## 9. Part 7: villager ghosts
 
 - **Record:** `LivingDeathEvent` for a `Villager` whose killer (`source.getEntity()`) is an
-  `Enemy` that is not a player's side (`Allies.isPlayersSide`, moved out of `GolemMercy`, which
+  `Enemy` that is not a player's side (a villager a zombie then converts still leaves a record: it
+  died to a monster, and the event fires before the conversion) (`Allies.isPlayersSide`, moved out of `GolemMercy`, which
   now calls it). **Amends the parent §9.5:** only monsters leave ghosts; a villager killed by
   lava, a fall or a cactus leaves none ("a villager that dies to monsters"). The record goes into
   `VillagerGhosts`, a `SavedData` of that level (`SavedDataType`, a `RecordCodecBuilder` codec,
@@ -579,7 +637,8 @@ edit.
   villager's `VillagerData` (type, profession, level), the game times its Mirror and Ghostrail
   cooldowns end. At most **32** records per level; adding a 33rd drops the oldest (the pure
   `GhostRecords` list rule).
-- **Appear:** every 20 ticks, for each player with the Evoking effect, alive, not a spectator,
+- **Appear:** `VillagerGhosts.step(ServerPlayer)` (public, for GameTests) runs every 20 ticks of
+  the player's `tickCount` from `PlayerTickEvent.Post`, for each player with the Evoking effect, alive, not a spectator,
   **in need** (below half health, or ≥ 3 hostiles that are `huntable` and `isPrey` for them
   within 8 blocks), and with **no ghost already helping them**: the nearest record in their level
   whose death position is within 48 blocks of them, whose chunk is loaded, and that has no live
@@ -587,7 +646,8 @@ edit.
   ghost per player, so a village massacre does not send a crowd.
 - **The ghost** (`VillagerGhost extends LivingEntity`, `spellcraft:villager_ghost`, `MISC`, sized
   like a villager): synced `VillagerData` (for the look), transient record id and helped player.
-  It is **not saved** (`shouldBeSaved` false): it vanishes with its chunk or a restart, and the
+  Attributes `MAX_HEALTH` 20 and `MOVEMENT_SPEED` 0.5 are registered as for the image. It is
+  **not saved** (`shouldBeSaved` false): it vanishes with its chunk or a restart, and the
   record stays. It carries an infinite Ghostrail (applied on spawn), is not attackable, not
   pickable and invulnerable, and flies by setting its own velocity toward the spot 2 blocks from
   the player at the player's eye height (no gravity, no physics). `/summon` with no record:
@@ -616,7 +676,7 @@ edit.
 - **Mirror on a creative player:** allowed (not redundant). Mirror while active: refused (REFUSE),
   sneak-cast dispels (images poof).
 - **Ghostrail on a creative or spectator player:** refused (redundant in creative).
-- **Ghostrail ends deep in stone with no free space within 8 and no last ground:** the carrier
+- **Ghostrail ends deep in stone with no free space within 8 and no free start spot:** the carrier
   stays put and takes suffocation as vanilla would. Accepted, noted for the playtest.
 - **An image whose caster is unloaded:** it wanders around where it is and poofs when its own life
   runs out; an image that loads in with no caster in its level keeps its life counter.
@@ -650,8 +710,16 @@ hostiles)`; `MirrorRule.redirects(roll)` (13 of 14 rolls). `./gradlew pitest` wi
   the last image dying removes the effect; a zombie picking the player is redirected to an image
   when the dice say so and not when they do not; images are allies of their player (fangs spare
   them).
-- Ghostrail: a player with it gets `noPhysics` in `Player.tick` (the Mixin) and `mayfly`; damage
-  is cancelled but `/kill` and void damage land; ending inside stone moves the player to a free
+Mock players are never ticked by the server and their effects never count down, so these tests
+step the public seams by hand (`Ghostrail.tick`, `VillagerGhosts.step`, `TeamMoves.tick`),
+reach the Mixin through `ServerPlayer.doTick()` (public), end effects with `removeEffect`, and
+test void damage with `hurtServer` and `damageSources().fellOutOfWorld()`. Rolls go through the
+scripted global dice (§5).
+
+- Ghostrail: a player with it gets `noPhysics` in `Player.tick` (the Mixin, via `doTick`),
+  `mayfly` and `flying`; a player on stone given Ghostrail and stepped 20 ticks keeps its `y`;
+  damage is cancelled but `/kill` and void damage land; a Ghostrail player in lava, under water
+  with low air, or below the End island gets no rescue; ending inside stone moves the player to a free
   spot with `fallDistance` 0 and no `mayfly`; ending with Infinity active keeps Infinity's flight;
   Infinity ending with Ghostrail active keeps `mayfly`; a creative player's cast is refused; a
   zombie given 40 ticks has `noPhysics` and loses it at the end; trail particles are sent.
@@ -676,8 +744,9 @@ trail; an evoker with a scroll casting; the ghost's look, flight and fade.
 parent's inline notes, `CLAUDE.md` (the Mixin list gains the Ghostrail Mixin), scribing docs if
 any list the pools.
 
-**Version:** `mod_version` becomes `1.3.0` in the Part 7 PR, and the merge commit is tagged
-`v1.3.0` (parent §12: "1.3.0 with a tag at the end of Part 7").
+**Version (a release step, not a plan task):** after the Part 7 plan is done, `mod_version`
+becomes `1.3.0` on the Part 7 branch before its PR, and the merge commit is tagged `v1.3.0`
+(parent §12: "1.3.0 with a tag at the end of Part 7").
 
 ## 12. What each part touches (orientation for the plans)
 
@@ -691,7 +760,8 @@ Part 7: `spell.rules.SpellDeclarations`, `GhostrailDuration`, `GrantedAbilities`
 `SpellScrollItem`, `Allies` (`isPlayersSide`), `GolemMercy`; `effect.ModEffects`, `MirrorEffect`,
 `GhostrailEffect`; `mixin.PlayerGhostrailMixin`; `infinity.InfinityAbilitySync` → shared sync;
 `evoking.BoundVex` (Caster), `CasterGoal`, `CasterSpellGoal`, `VexSummons`, `MirrorImage`,
-`MirrorImages` (events), `ScrollMobs`, `VillagerGhost`, `VillagerGhosts` (SavedData + spawner),
+`MirrorImages` (events), `ScrollMobs`, `GhostrailChaseGoal`, `Ghostrail` (the per-tick driver),
+`VexRescues` (skip Ghostrail), `Jobs` (Part 6: `busy`), `VillagerGhost`, `VillagerGhosts` (SavedData + spawner),
 `ModEntities`; `particle.ModParticles`; `client.evoking.BoundVexModel`, `BoundVexRobeLayer`,
 `BoundVexRenderer`, `BoundVexRenderState`, `CastingState`, `CastingParticles`,
 `MirrorImageRenderer`, `VillagerGhostRenderer`, the ghost profession layer; `scripts/spell_icons.py`,
@@ -728,7 +798,10 @@ walls).
 | Who images confuse | Any mob picking the caster | A golem going for an evoker should be fooled too. |
 | Player image skin | A mannequin stand-in with the caster's profile | The only client path that resolves an offline player's skin. |
 | Ghostrail vs. `/kill` and the void | Both still land | A ghost under the world must not fall forever. |
-| Mob Ghostrail steering | Straight at the target | Pathfinding walks around the wall Ghostrail is for. |
+| Mob Ghostrail steering | A chase goal on scroll mobs, straight at the target | Pathfinding walks around the wall Ghostrail is for, and a wanted position set outside the goals is overwritten. |
+| Ghostrail and rescues | No rescue for a carrier | It takes no damage and is flying. |
+| Ghostrail fallback spot | Where the effect started, if still free | Positions during the effect are inside walls. |
+| Move members and rescues | A member may be the rescuer; its kit is put back when it returns | Your life first; the move resumes. |
 | Mob scroll cast | Instant, on gaining a target | A 20-tick wind-up on a fighting illager is easy to miss. |
 | Mob Ghostrail cooldown | 30 s | The parent's number. |
 | Scroll drop | Vanilla offhand drop chance 0.5 (player kills, Looting) | "The loot path for players". |
