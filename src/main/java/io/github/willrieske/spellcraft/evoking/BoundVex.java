@@ -628,7 +628,10 @@ public class BoundVex extends Vex {
      * a vex is its own summoner's ally, and counting itself would hand its own target to the ally goal (spec §3.4).
      * The answer is kept for the tick, so the grudge goal and the ally goal, which scan on the same tick, share one
      * entity query. The list is cached for the current tick, so a second call in the same tick returns the first call's
-     * list, and the owner argument is assumed to be this vex's summoner on every call.
+     * list, and the owner argument is assumed to be this vex's summoner on every call. A zombie villager being cured
+     * ({@code AllyAttachments.isBeingCured}) is excluded although {@code Allies.isAllyOf} counts it: it is an ally only
+     * so that fangs and golems spare it, and counting it here would make the grudge and ally goals avenge it on whoever
+     * hurt it (another player with PvP on).
      *
      * @param owner the summoner
      * @return the allies in the area
@@ -639,7 +642,10 @@ public class BoundVex extends Vex {
             alliesCache = level().getEntitiesOfClass(
                             Mob.class,
                             guardArea(),
-                            mob -> !mob.getUUID().equals(self) && inGuardArea(mob) && Allies.isAllyOf(owner, mob));
+                            mob -> !mob.getUUID().equals(self)
+                                    && !AllyAttachments.isBeingCured(mob)
+                                    && inGuardArea(mob)
+                                    && Allies.isAllyOf(owner, mob));
             alliesTick = tickCount;
         }
         return alliesCache;

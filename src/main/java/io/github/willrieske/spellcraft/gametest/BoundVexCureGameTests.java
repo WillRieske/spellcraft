@@ -69,6 +69,9 @@ public final class BoundVexCureGameTests {
      */
     private static final String ALONE = "bound_vex_bribe_alone";
 
+    /** The environment of the one test that clears the static claim map, which no other cure test may run beside. */
+    private static final String CLAIMS = "bound_vex_cure_claims";
+
     private BoundVexCureGameTests() {}
 
     static void registerAll() {
@@ -133,6 +136,22 @@ public final class BoundVexCureGameTests {
                 SHARED,
                 "bound_vex_cure_a_staying_vex_cures_only_in_its_area",
                 BoundVexCureGameTests::aStayingVexCuresOnlyInItsArea);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_cure_a_golem_already_fighting_the_zombie_villager_stops",
+                BoundVexCureGameTests::aGolemAlreadyFightingTheZombieVillagerStops);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_cure_a_hurt_zombie_villager_being_cured_is_not_avenged",
+                BoundVexCureGameTests::aHurtZombieVillagerBeingCuredIsNotAvenged);
+        FangGameTests.addPadded(
+                SHARED,
+                "bound_vex_cure_a_vex_dying_in_the_apple_step_leaves_no_item_and_the_freeze_ends",
+                BoundVexCureGameTests::aVexDyingInTheAppleStepLeavesNoItemAndTheFreezeEnds);
+        FangGameTests.addPadded(
+                CLAIMS,
+                "bound_vex_cure_clearing_the_claims_frees_a_subject",
+                BoundVexCureGameTests::clearingTheClaimsFreesASubject);
         FangGameTests.addPadded(
                 SHARED, "bound_vex_bribe_a_bribe_that_succeeds", BoundVexCureGameTests::aBribeThatSucceeds);
         FangGameTests.addPadded(
@@ -269,12 +288,13 @@ public final class BoundVexCureGameTests {
             level.addFreshEntity(new EvokerFangs(level, victim.getX(), victim.getY(), victim.getZ(), 0.0F, 0, player));
         }
 
-        // Assert: the fangs bite on their 8th tick
-        helper.runAfterDelay(12, () -> {
-            helper.assertValueEqual(marked.getHealth(), markedHealth, "the fangs spare the marked zombie villager");
-            helper.assertTrue(plain.getHealth() < plainHealth, "the fangs bite the unmarked one");
-            helper.succeed();
-        });
+        // Assert: the unmarked one is bitten (on the fangs' 8th tick); by then the marked one would have been too
+        helper.startSequence()
+                .thenWaitUntil(
+                        () -> helper.assertTrue(plain.getHealth() < plainHealth, "the fangs bite the unmarked one"))
+                .thenExecute(() -> helper.assertValueEqual(
+                        marked.getHealth(), markedHealth, "the fangs spare the marked zombie villager"))
+                .thenSucceed();
     }
 
     /**
@@ -418,7 +438,7 @@ public final class BoundVexCureGameTests {
      * nobody standing near (the cure potion has no effects).
      *
      * <p>Method under test: {@link CureZombieVillagerGoal}, through the vex's goal selector: the four steps of spec
-     * §2.2
+     * §2.2; the vex also stops short of the zombie villager's head
      */
     static void cureRunsItsTimeline(GameTestHelper helper) {
         // Arrange
@@ -431,6 +451,14 @@ public final class BoundVexCureGameTests {
                 helper, bystander, helper.relativeVec(zombieVillager.position()).add(2.0, 0.0, 0.0));
         AtomicBoolean thrown = watchForPotion(helper, post);
         discardCureLeftovers(helper, post);
+        double[] throwDistance = {-1.0, -1.0};
+        BoundVexTestSupport.everyTick(helper, () -> {
+            if (thrown.get() && throwDistance[0] < 0.0) {
+                Vec3 apart = vex.position().subtract(zombieVillager.getEyePosition());
+                throwDistance[0] = apart.length();
+                throwDistance[1] = Math.hypot(apart.x, apart.z);
+            }
+        });
 
         // Act & Assert
         helper.startSequence()
@@ -441,6 +469,14 @@ public final class BoundVexCureGameTests {
                         ItemStack.matches(vex.getMainHandItem(), CureZombieVillagerGoal.curePotion()),
                         "the vex holds the cure potion"))
                 .thenWaitUntil(() -> helper.assertTrue(thrown.get(), "a splash potion was thrown"))
+                .thenExecute(() -> {
+                    helper.assertTrue(
+                            throwDistance[0] >= 0.8,
+                            "the vex stopped short of the head: " + throwDistance[0] + " blocks at the throw");
+                    helper.assertTrue(
+                            throwDistance[1] >= 0.3,
+                            "and the throw has a horizontal part: " + throwDistance[1] + " blocks");
+                })
                 .thenWaitUntil(() -> helper.assertTrue(zombieVillager.isConverting(), "the conversion began"))
                 .thenWaitUntil(() -> helper.assertTrue(swordBack(vex), "the vex holds its sword, nothing conjured"))
                 .thenExecute(() -> {
@@ -833,7 +869,155 @@ public final class BoundVexCureGameTests {
         // Act & Assert
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(claimed(near), "the near one is claimed"))
-                .thenExecuteFor(40, () -> helper.assertTrue(free(far), "the far one is left alone"))
+                .thenWaitUntil(() ->
+                        helper.assertTrue(near.isConverting(), "the vex finished with the near one and is free again"))
+                .thenExecuteFor(60, () -> helper.assertTrue(free(far), "the far one is left alone"))
+                .thenSucceed();
+    }
+
+    /**
+     * When an iron golem that already targets a zombie villager (its AI off until the vex claims, so the target is
+     * held) stands beside it and a vex then claims the zombie villager, should the golem's target be cleared at the
+     * claim, the golem (its AI on again) never target it again, the zombie villager's health not drop, and the cure
+     * reach {@code isConverting()}.
+     *
+     * <p>Method under test: {@code CureZombieVillagerGoal.start}: the claim ends a golem's fight with its subject
+     */
+    static void aGolemAlreadyFightingTheZombieVillagerStops(GameTestHelper helper) {
+        // Arrange: the vex waits (no AI) until the golem holds its target; the golem is in reach of the subject
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+        vex.setNoAi(true);
+        Vec3 post = vex.position();
+        ZombieVillager zombieVillager = cureSubject(helper, post, 3.0, 0.0);
+        discardCureLeftovers(helper, post);
+        IronGolem golem = helper.spawn(EntityTypes.IRON_GOLEM, FEET);
+        golem.setNoGravity(true);
+        golem.setNoAi(true);
+        golem.setPos(post.add(1.5, 0.0, 0.0));
+        whenDone(helper, golem::discard);
+        golem.setTarget(zombieVillager);
+        float health = zombieVillager.getHealth();
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        zombieVillager.equals(golem.getTarget()), "setup: the golem is fighting the zombie villager"))
+                .thenExecute(() -> vex.setNoAi(false))
+                .thenWaitUntil(() -> helper.assertTrue(claimed(zombieVillager), "a vex claims the zombie villager"))
+                .thenExecute(() -> {
+                    helper.assertTrue(golem.getTarget() == null, "the claim ended the golem's fight");
+                    golem.setNoAi(false);
+                })
+                .thenExecuteFor(40, () -> {
+                    helper.assertTrue(!zombieVillager.equals(golem.getTarget()), "the golem does not take it again");
+                    helper.assertValueEqual(zombieVillager.getHealth(), health, "the golem does not hurt it");
+                })
+                .thenWaitUntil(() -> helper.assertTrue(zombieVillager.isConverting(), "the cure reaches its end"))
+                .thenExecute(() -> helper.assertValueEqual(zombieVillager.getHealth(), health, "still unhurt"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a zombie villager being cured stands in a staying vex's area and a pig (which no patrol hunts) hurt it,
+     * should the vex take no target in sixty ticks: a marked zombie villager is not an ally whose attacker is avenged.
+     *
+     * <p>Method under test: {@code BoundVex.alliesInGuardArea} (package-private): the cure-mark exclusion, through
+     * {@code HurtBySummonerSideGoal} and {@code AllyFightGoal}
+     */
+    static void aHurtZombieVillagerBeingCuredIsNotAvenged(GameTestHelper helper) {
+        // Arrange: the zombie villager is frozen and marked by the test, so no vex works on it
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+        Vec3 post = vex.position();
+        ZombieVillager marked = frozenZombieVillager(helper, post, 3.0, 0.0);
+        marked.setData(AllyAttachments.CURE, helper.getLevel().getGameTime());
+        Pig pig = helper.spawn(EntityTypes.PIG, FEET);
+        pig.setNoAi(true);
+        pig.setNoGravity(true);
+        pig.setPos(post.add(-3.0, 0.0, 0.0));
+        whenDone(helper, pig::discard);
+        marked.setLastHurtByMob(pig);
+        helper.assertTrue(vex.isPrey(pig), "setup: a pig is prey");
+        helper.assertTrue(vex.inGuardArea(pig), "setup: it is in the guard area");
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteFor(
+                        60,
+                        () -> helper.assertTrue(
+                                vex.getTarget() == null, "nobody avenges a zombie villager being cured"))
+                .thenSucceed();
+    }
+
+    /**
+     * When the vex dies in the apple step, should its conjured golden apple not drop, and the zombie villager (frozen
+     * and marked, since no {@code stop} ran) be released once its mark is older than {@link CureEvents#RELEASE_AFTER}.
+     *
+     * <p>Method under test: {@code BoundVex.conjure} (no drop) and {@link CureEvents#onEntityTick}: the release of a
+     * freeze whose goal is gone
+     */
+    static void aVexDyingInTheAppleStepLeavesNoItemAndTheFreezeEnds(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex vex = stayingVex(helper, player, ItemStack.EMPTY);
+        Vec3 post = vex.position();
+        ZombieVillager zombieVillager = cureSubject(helper, post, 3.0, 0.0);
+        discardCureLeftovers(helper, post);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() ->
+                        helper.assertTrue(vex.getMainHandItem().is(Items.GOLDEN_APPLE), "setup: in the apple step"))
+                .thenExecute(() -> vex.kill(helper.getLevel()))
+                .thenWaitUntil(() -> helper.assertTrue(vex.isRemoved(), "the vex is gone"))
+                .thenExecute(() -> {
+                    boolean dropped = helper
+                            .getLevel()
+                            .getEntitiesOfClass(ItemEntity.class, new AABB(post, post).inflate(12.0))
+                            .stream()
+                            .anyMatch(item -> item.getItem().is(Items.GOLDEN_APPLE));
+                    helper.assertFalse(dropped, "the conjured apple did not drop");
+                    helper.assertTrue(claimed(zombieVillager), "the zombie villager is still frozen and marked");
+                    zombieVillager.setData(
+                            AllyAttachments.CURE, helper.getLevel().getGameTime() - (CureEvents.RELEASE_AFTER + 1));
+                })
+                .thenWaitUntil(() -> helper.assertTrue(free(zombieVillager), "the 300-tick rule released it"))
+                .thenSucceed();
+    }
+
+    /**
+     * When one vex holds a claim (its AI off, so its goal neither ends nor releases) on a zombie villager that has been
+     * unfrozen and unmarked by hand, should a second vex leave it alone for sixty ticks; after {@code clearClaims()}
+     * should the second vex claim it.
+     *
+     * <p>Method under test: {@link CureZombieVillagerGoal#clearClaims}
+     */
+    static void clearingTheClaimsFreesASubject(GameTestHelper helper) {
+        // Arrange: the second vex waits (no AI) until the first has the claim
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex first = stayingVex(helper, player, ItemStack.EMPTY);
+        BoundVex second = stayingVex(helper, player, ItemStack.EMPTY);
+        second.setNoAi(true);
+        Vec3 post = first.position();
+        ZombieVillager zombieVillager = cureSubject(helper, post, 3.0, 0.0);
+        discardCureLeftovers(helper, post);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(claimed(zombieVillager), "setup: the first vex claims it"))
+                .thenExecute(() -> {
+                    first.setNoAi(true);
+                    zombieVillager.setNoAi(false);
+                    zombieVillager.removeData(AllyAttachments.CURE);
+                    second.setNoAi(false);
+                })
+                .thenExecuteFor(
+                        60,
+                        () -> helper.assertTrue(free(zombieVillager), "the second vex respects the first vex's claim"))
+                .thenExecute(CureZombieVillagerGoal::clearClaims)
+                .thenWaitUntil(() ->
+                        helper.assertTrue(claimed(zombieVillager), "with the claims cleared the second vex takes it"))
                 .thenSucceed();
     }
 

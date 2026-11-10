@@ -16,8 +16,10 @@ import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 /**
  * Golem mercy (Evoking II spec §2.3): a player's side (any player, their fangs, a wolf a player owns, a mob a player
  * summoned) never takes an iron golem under {@link GolemMercyRule#MERCY_HEALTH}, a golem left there forgives, and a
- * golem never takes a player's summon as its target. The rule is {@link GolemMercyRule}; this class is the three
- * event hooks.
+ * golem never takes a player's summon, nor a zombie villager a Bound Vex is curing (the cure mark), as its target. The
+ * rule is {@link GolemMercyRule}; this class is the three event hooks. A golem already fighting a zombie villager when
+ * a vex claims it is told to stop by the cure itself ({@code CureZombieVillagerGoal}), because a cancelled change only
+ * keeps the old target.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class GolemMercy {

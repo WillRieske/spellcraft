@@ -23,14 +23,16 @@ import net.neoforged.neoforge.event.tick.EntityTickEvent;
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class CureEvents {
     /**
-     * Ticks after which a mark on a zombie villager that is not converting is stale: the vex died, was unloaded or never
-     * finished (steps 1-3 take at most 150 ticks). This releases a freeze whose goal can no longer run {@code stop}.
+     * Ticks after which a mark on a zombie villager that is not converting is stale: the vex died, was unloaded or
+     * never finished (steps 1-3 take at most 150 ticks). This releases a freeze whose goal can no longer run
+     * {@code stop}.
      */
     public static final long RELEASE_AFTER = 300L;
 
     /** Smoke particles of each kind per tick while converting. */
     private static final int SMOKE = 4;
 
+    /** The particle speed of the smoke. */
     private static final double SMOKE_SPEED = 0.02;
 
     private CureEvents() {}

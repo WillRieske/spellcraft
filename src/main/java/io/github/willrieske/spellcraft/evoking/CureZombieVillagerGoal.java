@@ -20,6 +20,7 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.monster.zombie.ZombieVillager;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownSplashPotion;
@@ -45,11 +46,11 @@ import org.jspecify.annotations.Nullable;
  * <p>A new target for the vex does not end the goal ({@code canContinueToUse} does not look at it): a half-cured zombie
  * villager left standing is worse than one vex out of the fight for a few seconds. The goal is interruptable, though:
  * {@link FleeCreeperGoal}, {@link DodgeGolemGoal} and Part 5's rescue outrank it on the move flag, and {@link #stop}
- * before step 4 is then the abort (the zombie villager is unfrozen and unmarked, the hand restored). An approach that times out also keeps this vex from starting another cure for
- * {@link #RETRY_DELAY} ticks (a departure from the spec: see that constant). The apple and the
- * potion are conjured ({@code BoundVex.conjure}), so nothing drops if the vex dies. The vanilla facts (the private
- * {@code startConverting}, opened by the access transformer; the potion stack; the particle options) are
- * docs/api-notes.md §23.
+ * before step 4 is then the abort (the zombie villager is unfrozen and unmarked, the hand restored). An approach that
+ * times out also keeps this vex from starting another cure for {@link #RETRY_DELAY} ticks (a departure from the spec:
+ * see that constant). The apple and the potion are conjured ({@code BoundVex.conjure}), so nothing drops if the vex
+ * dies. The vanilla facts (the private {@code startConverting}, opened by the access transformer; the potion stack;
+ * the particle options) are docs/api-notes.md §23.
  */
 public final class CureZombieVillagerGoal extends Goal {
     /** How near the zombie villager's head the vex works from. */
@@ -80,12 +81,29 @@ public final class CureZombieVillagerGoal extends Goal {
     /** Ticks between the eat sound and crumbs in the apple step. */
     private static final int CRUMB_INTERVAL = 4;
 
+    /** Crumb particles sent at the zombie villager's mouth each time. */
     private static final int CRUMBS = 5;
+
+    /** How far the vex turns its head away from the zombie villager before the throw, in degrees. */
     private static final double TURN_DEGREES = 60.0;
+
+    /** The move speed the vex is ordered to fly at. */
     private static final double SPEED = 1.0;
+
+    /** The speed the potion leaves the vex's hand at. */
     private static final float POTION_SPEED = 0.45F;
+
+    /** How far in front of its face the crumbs appear. */
     private static final double MOUTH_REACH = 0.3;
+
+    /** The mouth's height as a fraction of the zombie villager's eye height. */
     private static final double MOUTH_HEIGHT = 0.8;
+
+    /**
+     * How far from a claimed zombie villager an iron golem is told to stop fighting it: a golem that had it as a target
+     * before the mark would otherwise keep hitting it ({@code GolemMercy} cancels only a new target).
+     */
+    private static final double GOLEM_CALM_RADIUS = 24.0;
 
     /** The four steps of spec §2.2. */
     private enum Step {
@@ -120,8 +138,8 @@ public final class CureZombieVillagerGoal extends Goal {
         setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK));
     }
 
-    /** Forgets every claim (single-player loads one server per world in the same JVM). */
-    static void clearClaims() {
+    /** Forgets every claim (single-player loads one server per world in the same JVM); public for the GameTests. */
+    public static void clearClaims() {
         CLAIMED.clear();
     }
 
@@ -211,10 +229,27 @@ public final class CureZombieVillagerGoal extends Goal {
         CLAIMED.put(subject.getUUID(), vex);
         subject.setNoAi(true);
         subject.setData(AllyAttachments.CURE, subject.level().getGameTime());
+        calmGolems(subject);
         step = Step.APPROACH;
         stepTicks = 0;
         approachTicks = 0;
         finished = false;
+    }
+
+    /**
+     * Ends every iron golem's fight with {@code claimed} within {@link #GOLEM_CALM_RADIUS} blocks: its target is
+     * cleared. The mark is already set, so {@code GolemMercy} cancels the golem's target goals picking it again (a
+     * null target is never cancelled).
+     */
+    private static void calmGolems(ZombieVillager claimed) {
+        UUID id = claimed.getUUID();
+        for (IronGolem golem : claimed.level()
+                .getEntitiesOfClass(IronGolem.class, claimed.getBoundingBox().inflate(GOLEM_CALM_RADIUS), candidate -> {
+                    LivingEntity target = candidate.getTarget();
+                    return target != null && target.getUUID().equals(id);
+                })) {
+            golem.setTarget(null);
+        }
     }
 
     /**
@@ -233,12 +268,18 @@ public final class CureZombieVillagerGoal extends Goal {
 
     @Override
     public void tick() {
-        if (subject == null) {
+        if (subject == null || finished) {
             return;
         }
         Vec3 head = new Vec3(subject.getX(), subject.getEyeY(), subject.getZ());
         boolean near = vex.position().distanceTo(head) <= REACH;
-        if (!near) {
+        if (near) {
+            // Vanilla's vex move control flies to within about half a block of its wanted point, so a vex left
+            // flying would end inside the head (the head turn would degenerate and the throw go straight down):
+            // stop it where it came within reach, and the apple and potion steps hold that distance.
+            vex.getMoveControl().setWait();
+            vex.setDeltaMovement(Vec3.ZERO);
+        } else {
             // Step 1 flies there; the later steps fly back if the vex drifted off.
             vex.getMoveControl().setWantedPosition(head.x, head.y, head.z, SPEED);
         }
@@ -285,8 +326,8 @@ public final class CureZombieVillagerGoal extends Goal {
     }
 
     /**
-     * Steps 3 and 4: the cure potion in hand, the head turned away for the first {@link #THROW_TICK} ticks, the throw at
-     * the zombie villager's feet on the tenth, and at the end of {@link #POTION_TICKS} the conversion begins.
+     * Steps 3 and 4: the cure potion in hand, the head turned away for the first {@link #THROW_TICK} ticks, the throw
+     * at the zombie villager's feet on the tenth, and at the end of {@link #POTION_TICKS} the conversion begins.
      */
     private void potion() {
         if (subject == null) {
@@ -330,7 +371,8 @@ public final class CureZombieVillagerGoal extends Goal {
 
     /**
      * Step 4: unless a player fed the zombie villager by hand meanwhile (vanilla's conversion and that player's
-     * discount are left as they are), begin the conversion in the summoner's name; then the hand goes and the goal ends.
+     * discount are left as they are), begin the conversion in the summoner's name; then the hand goes and the goal
+     * ends.
      */
     private void begin(ZombieVillager target) {
         if (!target.isConverting()) {
