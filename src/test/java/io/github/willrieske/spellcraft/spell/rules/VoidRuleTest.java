@@ -185,8 +185,8 @@ class VoidRuleTest {
     @Nested
     class LastGroundUsable {
         /**
-         * When the last ground's chunk is not loaded, lastGroundUsable should be true without asking whether the spot is
-         * standable (asking would load the chunk).
+         * When the last ground's chunk is not loaded, lastGroundUsable should be true without asking whether the spot
+         * is standable (asking would load the chunk).
          *
          * <p>Method under test: {@link VoidRule#lastGroundUsable(boolean, BooleanSupplier)}
          */

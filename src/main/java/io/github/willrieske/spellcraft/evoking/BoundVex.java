@@ -154,12 +154,13 @@ public class BoundVex extends Vex {
 
     /**
      * The goals (spec §3.3). Not {@code super.registerGoals()}: vanilla's are private classes (docs/api-notes.md §21),
-     * so the charge goal is this class's copy, the post-holding goal is its own, and a Bound Vex has no raider grudge, no owner to copy a
-     * target from and no player hunt. Its three target goals are {@link HurtBySummonerSideGoal} (grudges),
-     * {@link AllyFightGoal} (an ally's fight) and {@link NearestHostileGoal} (the patrol). The job goals sit beside
-     * them: {@link FleeCreeperGoal} and {@link DodgeGolemGoal} outrank everything on the move flag,
-     * {@link RepairGolemGoal}, {@link CureZombieVillagerGoal}, {@link BribeGoal} and {@link AttackCrystalGoal} outrank the charge and the follow;
-     * {@link RescueGoal} (priority -1) outranks them all while {@link VexRescues} names the vex a rescuer.
+     * so the charge goal is this class's copy, the post-holding goal is its own, and a Bound Vex has no raider grudge,
+     * no owner to copy a target from and no player hunt. Its three target goals are {@link HurtBySummonerSideGoal}
+     * (grudges), {@link AllyFightGoal} (an ally's fight) and {@link NearestHostileGoal} (the patrol). The job goals sit
+     * beside them: {@link FleeCreeperGoal} and {@link DodgeGolemGoal} outrank everything on the move flag,
+     * {@link RepairGolemGoal}, {@link CureZombieVillagerGoal}, {@link BribeGoal} and {@link AttackCrystalGoal} outrank
+     * the charge and the follow; {@link RescueGoal} (priority -1) outranks them all while {@link VexRescues} names the
+     * vex a rescuer.
      */
     @Override
     protected void registerGoals() {
@@ -676,8 +677,8 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * Where this vex hovers and how often it scans, by where it is (Parts 4–5 spec §6.1): the Overworld by day and any
-     * modded dimension keep the wide posture; the dark Overworld, the Nether and the End close in overhead.
+     * Where this vex hovers and how often it scans, by where it is (Parts 4–5 spec §6.1): the Overworld by day and
+     * any modded dimension keep the wide posture; the dark Overworld, the Nether and the End close in overhead.
      *
      * @return the posture for this vex's level, now
      */

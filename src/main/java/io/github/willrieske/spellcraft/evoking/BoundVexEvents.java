@@ -197,12 +197,21 @@ public final class BoundVexEvents {
             if (spares(vex, owner, victim)) {
                 event.setCanceled(true);
             }
-        } else if (vex.summonerId().isPresent()
-                && !vex.equals(event.getSource().getDirectEntity())
-                && (!(victim instanceof Enemy)
-                        || victim.getExistingData(AllyAttachments.SUMMONER).equals(vex.summonerId()))) {
+        } else if (!vex.equals(event.getSource().getDirectEntity()) && sparesWithoutOwner(vex, victim)) {
             event.setCanceled(true);
         }
+    }
+
+    /**
+     * Whether the absent-summoner branch of the friendly-fire backstop spares {@code victim} from indirect damage by
+     * {@code vex}, whose summoner is not here: the vex has a summoner mark, and the victim is no {@code Enemy} or
+     * carries the same mark. Shared by the damage handler and the knockback handler, so a blast moves exactly those
+     * it does not hurt.
+     */
+    private static boolean sparesWithoutOwner(BoundVex vex, LivingEntity victim) {
+        return vex.summonerId().isPresent()
+                && (!(victim instanceof Enemy)
+                        || victim.getExistingData(AllyAttachments.SUMMONER).equals(vex.summonerId()));
     }
 
     /** Triples the hit and shows it: vanilla's critical-hit particles and sound at the victim. */
@@ -240,9 +249,10 @@ public final class BoundVexEvents {
     }
 
     /**
-     * Stops a blast from throwing those it may not hurt (Parts 4–5 spec §7.1): vanilla pushes everything in range even
-     * when the damage was canceled. A crystal's blast never moves a Bound Vex; a blast a Bound Vex caused never moves
-     * its summoner or anyone the friendly-fire backstop spares.
+     * Stops a blast from throwing those it may not hurt (Parts 4–5 spec §7.1): vanilla pushes everything in range
+     * even when the damage was canceled. A crystal's blast never moves a Bound Vex; a blast a Bound Vex caused never
+     * moves its summoner or anyone the friendly-fire backstop spares. When the vex's summoner is absent, that is
+     * exactly the victims whose damage the absent-summoner branch cancels ({@link #sparesWithoutOwner}).
      *
      * @param event the knockback for one entity, after the damage and before the push
      */
@@ -256,9 +266,12 @@ public final class BoundVexEvents {
         }
         if (explosion.getDamageSource().getEntity() instanceof BoundVex vex
                 && affected instanceof LivingEntity victim) {
-            vex.summoner()
-                    .filter(owner -> spares(vex, owner, victim))
-                    .ifPresent(owner -> event.setKnockbackVelocity(Vec3.ZERO));
+            boolean spared = vex.summoner()
+                    .map(owner -> spares(vex, owner, victim))
+                    .orElseGet(() -> sparesWithoutOwner(vex, victim));
+            if (spared) {
+                event.setKnockbackVelocity(Vec3.ZERO);
+            }
         }
     }
 

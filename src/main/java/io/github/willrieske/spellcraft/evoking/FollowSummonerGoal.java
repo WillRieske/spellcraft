@@ -9,14 +9,14 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Keeps a Bound Vex at its summoner's side (Evoking II spec §3.3, Parts 4–5 spec §6.1): while following (not staying)
- * and idle (no target), a vex outside its posture's band ({@code BoundVex.posture()}: wide by day in the Overworld,
- * close and overhead at night, in the Nether and in the End) flies to a random spot inside the band at the posture's
- * speed, and a vex farther than {@link #TELEPORT_DISTANCE} blocks teleports to an air cell beside the summoner
- * instead. In the wide posture each use makes one move; the move control flies it there and {@code canUse} picks the
- * next. In a close posture the use lasts until the vex arrives, and then {@link #stop} halts it dead: at speed 0.35 a
- * vex that coasted past its spot sank to the summoner's eye height (measured 1.5 above the feet), into their clicks.
- * A close flight ends when the vex arrives, when it gets a target, when the summoner runs more than
+ * Keeps a Bound Vex at its summoner's side (Evoking II spec §3.3, Parts 4–5 spec §6.1): while following (not
+ * staying) and idle (no target), a vex outside its posture's band ({@code BoundVex.posture()}: wide by day in the
+ * Overworld, close and overhead at night, in the Nether and in the End) flies to a random spot inside the band at
+ * the posture's speed, and a vex farther than {@link #TELEPORT_DISTANCE} blocks teleports to an air cell beside the
+ * summoner instead. In the wide posture each use makes one move; the move control flies it there and {@code canUse}
+ * picks the next. In a close posture the use lasts until the vex arrives, and then {@link #stop} halts it dead: at
+ * speed 0.35 a vex that coasted past its spot sank to the summoner's eye height (measured 1.5 above the feet), into
+ * their clicks. A close flight ends when the vex arrives, when it gets a target, when the summoner runs more than
  * {@link #TELEPORT_DISTANCE} blocks off or is gone (the flight is dropped, so the next use can teleport), when the vex
  * is told to stay, or when a higher-priority goal takes the move control. Without a summoner in the level the goal is
  * idle. Like vanilla's random move, the goal waits for the move control to be free ({@code !hasWanted()}), so a vex

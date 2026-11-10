@@ -24,6 +24,8 @@ import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.rules.GuardPosture;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
@@ -249,6 +251,18 @@ public final class BoundVexWorldGameTests {
         padded("bound_vex_world_crystal_removed_on_the_way", BoundVexWorldGameTests::crystalRemovedOnTheWay);
         padded("bound_vex_world_crystal_needs_a_dragon", BoundVexWorldGameTests::crystalNeedsADragon);
         padded("bound_vex_world_crystal_one_each", BoundVexWorldGameTests::crystalOneEach);
+        padded("bound_vex_world_crystal_only_in_the_end", BoundVexWorldGameTests::crystalOnlyInTheEnd);
+        padded(
+                "bound_vex_world_crystal_needs_a_summoner_at_the_start",
+                BoundVexWorldGameTests::crystalNeedsASummonerAtTheStart);
+        padded(
+                "bound_vex_world_crystal_summoner_lost_mid_flight",
+                BoundVexWorldGameTests::crystalSummonerLostMidFlight);
+        padded("bound_vex_world_crystal_dragon_dies_mid_flight", BoundVexWorldGameTests::crystalDragonDiesMidFlight);
+        padded("bound_vex_world_crystal_neighbors_both_go", BoundVexWorldGameTests::crystalNeighborsBothGo);
+        padded(
+                "bound_vex_world_crystal_blast_spares_your_side_without_you",
+                BoundVexWorldGameTests::crystalBlastSparesYourSideWithoutYou);
         padded("bound_vex_world_crystal_not_while_fighting", BoundVexWorldGameTests::crystalNotWhileFighting);
         padded(
                 "bound_vex_world_crystal_staying_vex_only_in_its_area",
@@ -3403,7 +3417,8 @@ public final class BoundVexWorldGameTests {
 
     /**
      * When something cancels the teleport (a listener on the travel event), should the catch start nothing: no rescue,
-     * no apple effects, the player where they were, the rescuer's sword in its hand.
+     * no apple effects, the player where they were, the rescuer's sword in its hand; and should it not try again
+     * (no search, no second teleport) during the next 19 steps.
      *
      * <p>Method under test: {@code VexRescues.catchFromVoid}: the teleport's refusal
      */
@@ -3414,11 +3429,14 @@ public final class BoundVexWorldGameTests {
         BlockPos slot = player.blockPosition();
         BoundVex vex = voidVex(helper, end, player, slot, VEX_EAST);
         Vec3 fallen = column(slot, end.getMinY() - BELOW_FLOOR);
+        AtomicInteger refused = new AtomicInteger();
         Consumer<EntityTravelToDimensionEvent> refuse = event -> {
             if (event.getEntity().equals(player)) {
+                refused.incrementAndGet();
                 event.setCanceled(true);
             }
         };
+        whenDone(helper, () -> NeoForge.EVENT_BUS.unregister(refuse));
 
         // Act & Assert
         helper.startSequence()
@@ -3426,15 +3444,18 @@ public final class BoundVexWorldGameTests {
                 .thenExecute(() -> {
                     dropTo(player, fallen);
                     NeoForge.EVENT_BUS.addListener(refuse);
-                    try {
-                        VexRescues.tick(player);
-                    } finally {
-                        NeoForge.EVENT_BUS.unregister(refuse);
-                    }
+                    VexRescues.tick(player);
                     assertStillThere(helper, player, fallen, "a refused teleport starts no rescue");
+                    helper.assertValueEqual(refused.get(), 1, "the teleport was tried once");
                     helper.assertFalse(player.hasEffect(MobEffects.REGENERATION), "no apple was eaten");
                     helper.assertTrue(BoundVexTestSupport.swordBack(vex), "the rescuer's hand is untouched");
                 })
+                .thenIdle(1)
+                .thenExecuteFor(19, () -> {
+                    VexRescues.tick(player);
+                    helper.assertValueEqual(refused.get(), 1, "no second attempt while the pause runs");
+                })
+                .thenExecute(() -> NeoForge.EVENT_BUS.unregister(refuse))
                 .thenSucceed();
     }
 
@@ -3633,6 +3654,11 @@ public final class BoundVexWorldGameTests {
                     helper.assertFalse(AttackCrystalGoal.isClaimed(far), "setup: not for the far one");
                     near.discard();
                 })
+                .thenExecuteAfter(
+                        2,
+                        () -> helper.assertFalse(
+                                AttackCrystalGoal.isClaimed(near), "the removed crystal's claim is given up"))
+                .thenWaitUntil(() -> helper.assertTrue(AttackCrystalGoal.isClaimed(far), "the far one is next"))
                 .thenWaitUntil(() -> helper.assertTrue(far.isRemoved(), "the far crystal is broken"))
                 .thenSucceed();
     }
@@ -3659,6 +3685,7 @@ public final class BoundVexWorldGameTests {
                     helper.assertTrue(crystal.isAlive(), "the crystal is still there");
                     helper.assertFalse(
                             AttackCrystalGoal.livingDragon(helper.getLevel()), "the Overworld has no living dragon");
+                    helper.assertFalse(AttackCrystalGoal.livingDragon(end), "the test End has no living dragon");
                 })
                 .thenSucceed();
     }
@@ -3856,6 +3883,170 @@ public final class BoundVexWorldGameTests {
                     helper.assertFalse(AttackCrystalGoal.isClaimed(crystal), "the stop handler freed the claim");
                 })
                 .thenSucceed();
+    }
+
+    /**
+     * When a vex with a scripted living dragon is in the Overworld test level and a crystal stands eight blocks away,
+     * should the crystal be alive and unclaimed after 60 ticks (the job is for the End only).
+     *
+     * <p>Method under test: {@code AttackCrystalGoal.canUse}: the End clause
+     */
+    static void crystalOnlyInTheEnd(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        BoundVex vex =
+                BoundVexTestSupport.noTargets(BoundVexTestSupport.boundVex(helper, FEET.offset(0, 3, 0), player));
+        AttackCrystalGoal.scriptDragon(vex, true);
+        whenDone(helper, () -> AttackCrystalGoal.unscriptDragon(vex));
+        EndCrystal crystal =
+                crystalIn(helper, helper.getLevel(), helper.absoluteVec(Vec3.atBottomCenterOf(FEET.offset(8, 3, 0))));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteAfter(60, () -> {
+                    helper.assertTrue(crystal.isAlive(), "the crystal is still there");
+                    helper.assertFalse(AttackCrystalGoal.isClaimed(crystal), "no vex claimed it");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a vex's summoner mark names nobody who is here from the start and a crystal stands 15 blocks away, should
+     * the crystal be alive and unclaimed after 60 ticks.
+     *
+     * <p>Method under test: {@code AttackCrystalGoal.canUse}: a summoner must be present
+     */
+    static void crystalNeedsASummonerAtTheStart(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = voidPlayer(helper);
+        ServerLevel end = endVoid(helper, player, CRYSTAL_REACH);
+        BlockPos slot = player.blockPosition();
+        BoundVex vex = crystalVex(helper, end, player, crystalSpot(slot, 0, 0), true);
+        vex.setData(AllyAttachments.SUMMONER, UUID.randomUUID());
+        EndCrystal crystal = crystalIn(helper, end, crystalSpot(slot, 15, 0));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteAfter(60, () -> {
+                    helper.assertTrue(crystal.isAlive(), "the crystal is still there");
+                    helper.assertFalse(AttackCrystalGoal.isClaimed(crystal), "no vex claimed it");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a held vex has claimed a crystal and its summoner mark then names nobody who is here, should the claim be
+     * given up within 2 ticks.
+     *
+     * <p>Method under test: {@code AttackCrystalGoal.canContinueToUse}: the summoner must stay present
+     */
+    static void crystalSummonerLostMidFlight(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = voidPlayer(helper);
+        ServerLevel end = endVoid(helper, player, CRYSTAL_REACH);
+        BlockPos slot = player.blockPosition();
+        BoundVex vex = crystalVex(helper, end, player, crystalSpot(slot, 0, 0), true);
+        BoundVexTestSupport.holdAt(helper, vex, vex.position());
+        EndCrystal crystal = crystalIn(helper, end, crystalSpot(slot, 20, 0));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(AttackCrystalGoal.isClaimed(crystal), "setup: the vex has it"))
+                .thenExecute(() -> vex.setData(AllyAttachments.SUMMONER, UUID.randomUUID()))
+                .thenExecuteAfter(2, () -> {
+                    helper.assertFalse(AttackCrystalGoal.isClaimed(crystal), "the claim is given up");
+                    helper.assertTrue(crystal.isAlive(), "the crystal is still there");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a held vex has claimed a crystal and the dragon (scripted) then dies, should the claim be given up within
+     * 2 ticks and the crystal survive.
+     *
+     * <p>Method under test: {@code AttackCrystalGoal.canContinueToUse}: the dragon must stay alive
+     */
+    static void crystalDragonDiesMidFlight(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = voidPlayer(helper);
+        ServerLevel end = endVoid(helper, player, CRYSTAL_REACH);
+        BlockPos slot = player.blockPosition();
+        BoundVex vex = crystalVex(helper, end, player, crystalSpot(slot, 0, 0), true);
+        BoundVexTestSupport.holdAt(helper, vex, vex.position());
+        EndCrystal crystal = crystalIn(helper, end, crystalSpot(slot, 20, 0));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(AttackCrystalGoal.isClaimed(crystal), "setup: the vex has it"))
+                .thenExecute(() -> AttackCrystalGoal.scriptDragon(vex, false))
+                .thenExecuteAfter(2, () -> {
+                    helper.assertFalse(AttackCrystalGoal.isClaimed(crystal), "the claim is given up");
+                    helper.assertTrue(crystal.isAlive(), "the crystal is still there");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When one vex breaks a crystal that has another crystal three blocks beside it and the summoner (vulnerable)
+     * stands two blocks from the first, should both crystals be gone, as vanilla does it (the neighbor is removed by
+     * the blast, without a second explosion of its own), and the summoner be unhurt with no velocity.
+     *
+     * <p>Method under test: {@code BoundVexEvents.onIncomingDamage} and {@code onExplosionKnockback}: a crystal chain
+     */
+    static void crystalNeighborsBothGo(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, 0.0F);
+        ServerLevel end = endVoid(helper, player, CRYSTAL_REACH);
+        BlockPos slot = player.blockPosition();
+        crystalVex(helper, end, player, crystalSpot(slot, -10, 0), true);
+        EndCrystal first = crystalIn(helper, end, crystalSpot(slot, 2, 0));
+        EndCrystal second = crystalIn(helper, end, crystalSpot(slot, 5, 0));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(
+                        () -> helper.assertTrue(first.isRemoved() && second.isRemoved(), "both crystals are gone"))
+                .thenExecute(() -> {
+                    assertUnhurt(helper, player, "the summoner");
+                    helper.assertValueEqual(player.getDeltaMovement(), Vec3.ZERO, "the summoner is not thrown");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a vex whose summoner mark names nobody here is the cause of a crystal's blast, with another player (not
+     * its summoner, vulnerable) two blocks from the crystal and a husk beside them, should the player be unhurt with
+     * no velocity and the husk hurt.
+     *
+     * <p>Method under test: {@code BoundVexEvents.onExplosionKnockback}: the absent-summoner case
+     */
+    static void crystalBlastSparesYourSideWithoutYou(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer owner = voidPlayer(helper);
+        ServerLevel end = endVoid(helper, owner, CRYSTAL_REACH);
+        BlockPos slot = owner.blockPosition();
+        Vec3 spot = crystalSpot(slot, 10, 0);
+        BoundVex vex = BoundVexTestSupport.noTargets(vexIn(helper, end, spot.add(0.0, 0.0, -6.0), owner));
+        vex.setNoAi(true);
+        vex.setData(AllyAttachments.SUMMONER, UUID.randomUUID());
+        ServerPlayer bystander = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        whenDone(helper, () -> MockPlayers.moveTo(helper, bystander, FangGameTests.STAND));
+        Vec3 at = spot.add(0.0, 0.0, 2.0);
+        bystander.teleportTo(end, at.x, at.y, at.z, Set.of(), 0.0F, 0.0F, false);
+        bystander.hasChangedDimension(); // a mock player is never ticked, which would end the move's immunity
+        plainVictim(bystander);
+        Husk husk = critHusk(helper, end, spot.add(0.0, 0.0, 3.0));
+        EndCrystal crystal = crystalIn(helper, end, spot);
+
+        // Act
+        crystal.hurtServer(end, end.damageSources().mobAttack(vex), 1.0F);
+
+        // Assert
+        helper.assertTrue(crystal.isRemoved(), "the crystal blew up");
+        helper.assertValueEqual(bystander.getHealth(), CRIT_HEALTH, "the bystander is unhurt");
+        helper.assertValueEqual(bystander.getDeltaMovement(), Vec3.ZERO, "the bystander is not thrown");
+        helper.assertTrue(husk.getHealth() < CRIT_HEALTH, "the husk is hurt, health " + husk.getHealth());
+        helper.succeed();
     }
 
     // ---- Task 9: critical hits in the End ----

@@ -85,7 +85,10 @@ public final class VexRescues {
     /** How far down a falling player is checked for ground. */
     private static final double GROUND_CHECK = 64.0;
 
-    /** After a void catch found no landing and no last ground, the landing search pauses this long. */
+    /**
+     * After a void catch found no landing and no last ground, or its teleport was refused, the landing search pauses
+     * this long.
+     */
     private static final int NO_LANDING_PAUSE = 20;
 
     /** How far to the right of the way the player faces the rescuer hangs. */
@@ -145,7 +148,10 @@ public final class VexRescues {
     /** The game time before which no lava pull starts for each player. */
     private static final Map<UUID, Long> LAVA_PAUSED_UNTIL = new HashMap<>();
 
-    /** The game time before which the landing search is skipped for each player (the last one found nothing). */
+    /**
+     * The game time before which the landing search is skipped for each player (the last one found nothing, or its
+     * teleport was refused).
+     */
     private static final Map<UUID, Long> NO_LANDING_UNTIL = new HashMap<>();
 
     private VexRescues() {}
@@ -327,7 +333,9 @@ public final class VexRescues {
         // it does not reset the fall distance, so the next landing would still count the fall into the void.
         player.resetFallDistance();
         if (!player.teleportTo(level, at.x, at.y, at.z, Set.of(), player.getYRot(), player.getXRot(), false)) {
-            return; // refused (an event cancelled it): no rescue, no apple
+            // Refused (an event cancelled it): no rescue, no apple, and no new search or attempt for a while.
+            NO_LANDING_UNTIL.put(player.getUUID(), now + NO_LANDING_PAUSE);
+            return;
         }
         Rescue rescue = new Rescue(Kind.VOID, found.get(), now);
         RUNNING.put(player.getUUID(), rescue);

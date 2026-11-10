@@ -23,7 +23,8 @@ import org.jspecify.annotations.Nullable;
  * {@link #RANGE} blocks of a following vex, inside the stay area of a staying one. The vex flies to the point one
  * block above the crystal and, within {@link #STRIKE} blocks of it, hits it once; the crystal explodes (the blast's
  * damage and push are held back by {@link BoundVexEvents}). A vex that cannot get there gives the crystal up after
- * {@link #LIMIT} ticks and takes none for {@link Jobs#RETRY_DELAY} ticks, so another vex can have it.
+ * {@link #LIMIT} ticks and takes none for {@link Jobs#RETRY_DELAY} ticks, so another vex can have it. The goal ends
+ * when the crystal is gone, the vex gets a target, its summoner leaves or the dragon dies.
  */
 public final class AttackCrystalGoal extends Goal {
     /** How far a following vex looks for a crystal. */
@@ -116,20 +117,26 @@ public final class AttackCrystalGoal extends Goal {
         SCRIPTED_DRAGON.remove(vex.getUUID());
     }
 
+    /** The answer to "does the dragon live" for this vex: the scripted one if a test set it, else the real one. */
+    private boolean dragonLives(ServerLevel level) {
+        Boolean scripted = SCRIPTED_DRAGON.get(vex.getUUID());
+        return scripted != null ? scripted : livingDragon(level);
+    }
+
     @Override
     public boolean canUse() {
-        // A vex that died, was discarded or unloaded never ran stop(); drop its claim so the map does not keep it
-        // (and its level) reachable. Such a claim already counts as free in Jobs.Claims.heldByAnother.
-        CLAIMS.prune();
         if (!vex.scanDue(vex.scanInterval())
                 || vex.level().getGameTime() < blockedUntil
                 || vex.getTarget() != null
                 || !(vex.level() instanceof ServerLevel level)
                 || !level.dimension().equals(Level.END)
                 || vex.summoner().isEmpty()
-                || !SCRIPTED_DRAGON.getOrDefault(vex.getUUID(), livingDragon(level))) {
+                || !dragonLives(level)) {
             return false;
         }
+        // A vex that died, was discarded or unloaded never ran stop(); drop its claim so the map does not keep it
+        // (and its level) reachable. Such a claim already counts as free in Jobs.Claims.heldByAnother.
+        CLAIMS.prune();
         Predicate<EndCrystal> free = candidate ->
                 candidate.isAlive() && !candidate.isInvulnerable() && !CLAIMS.heldByAnother(candidate, vex);
         List<EndCrystal> crystals = vex.isStaying()
@@ -166,6 +173,8 @@ public final class AttackCrystalGoal extends Goal {
                 && crystal.isAlive()
                 && vex.getTarget() == null
                 && vex.summoner().isPresent()
+                && vex.level() instanceof ServerLevel level
+                && dragonLives(level)
                 && ticks < LIMIT;
     }
 

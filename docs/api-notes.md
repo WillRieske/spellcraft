@@ -1179,13 +1179,13 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   restore it at cleanup. Blocks an explosion destroys are restored only if they were placed through them.
 - **`ServerPlayer.teleportTo` and the void catch.** `ServerPlayer.teleportTo` (`ServerPlayer.java:1824`) calls
   `Entity.teleportTo` (`Entity.java:3466`), which builds a `TeleportTransition` with `Vec3.ZERO` as its movement and
-  calls `ServerPlayer.teleport` (`ServerPlayer.java:1176`). That method returns null (so `teleportTo` returns false) when
-  the NeoForge travel event is canceled (`CommonHooks.onTravelToDimension`) or the player is removed. It dismounts the
+  calls `ServerPlayer.teleport` (`ServerPlayer.java:1176`). That method returns null (so `teleportTo` returns false)
+  when the NeoForge travel event is canceled (`CommonHooks.onTravelToDimension`) or the player is removed. It dismounts the
   player (`removeVehicle`, line 1190), and the position packet carries the transition's zero movement
   (`PositionMoveRotation.of`, lines 1194 and 1217), also on the client: no `setDeltaMovement`, `stopRiding` or
   `syncVelocity` is needed. It does **not** reset the fall distance: `resetFallDistance()` is still the caller's job.
-- **Which reads load a chunk.** `Level.getBlockState` (`Level.java:370`) calls `getChunk(x, z)`, which loads or generates
-  the chunk on the server thread. `Level.getHeight` (`Level.java:349-352`) does not: it asks `hasChunk` first and reports
-  `getMinY()` for an unloaded column. The non-loading test is `LevelReader.hasChunk(chunkX, chunkZ)`
-  (`ServerChunkCache.hasChunk`, `ServerChunkCache.java:263`); `hasChunkAt(BlockPos)` calls it but is deprecated. The void
-  catch uses `hasChunk(SectionPos.blockToSectionCoord(x), …)` and trusts a last ground in an unloaded chunk.
+- **Which reads load a chunk.** `Level.getBlockState` (`Level.java:370`) calls `getChunk(x, z)`, which loads or
+  generates the chunk on the server thread. `Level.getHeight` (`Level.java:349-352`) does not: it asks `hasChunk` first
+  and reports `getMinY()` for an unloaded column. The non-loading test is `LevelReader.hasChunk(chunkX, chunkZ)`
+  (`ServerChunkCache.hasChunk`, `ServerChunkCache.java:263`); `hasChunkAt(BlockPos)` calls it but is deprecated. The
+  void catch uses `hasChunk(SectionPos.blockToSectionCoord(x), …)` and trusts a last ground in an unloaded chunk.
