@@ -47,7 +47,7 @@ ghast; and "scan every 5 ticks" and "every tick" are not reachable on the goal c
 |---|---|
 | **Bound Vex**, **summoner**, **ally**, **guard area**, **stay area**, **conjured gear**, **stash** | As in the parent and Part 3 specs. |
 | **Job goal** | A goal that makes a vex do one task on one subject (repair a golem, cure a zombie villager, bribe a vex, break a crystal). It claims its subject so two vexes never share one. |
-| **Claim** | A transient map entry "subject → the vex working on it". A claim whose vex is dead or removed counts as free. |
+| **Claim** | A transient map entry "subject → the vex working on it". A claim whose vex is dead or removed counts as free; so does a cure claim on a zombie villager that no longer carries the cure mark, and a bribe claim older than 140 ticks (§4). |
 | **Cure mark** | The saved mark `spellcraft:cure` on a zombie villager a vex is curing: the game time the cure began. While it is there the zombie villager is frozen. |
 | **Frozen** | `setNoAi(true)`: the mob neither moves nor attacks. Vanilla still counts down a conversion on a frozen zombie villager. |
 | **Bribed**, **bribe tried** | Saved marks on a vanilla vex: `spellcraft:bribed` (it took the emerald and is leaving) and `spellcraft:bribe_tried` (it refused; no vex offers again). |
@@ -85,7 +85,15 @@ fighting (§2.2).
 frozen for up to half a minute, in a village more often than not. `Allies.isAllyOf` answers
 true for a mob with the cure mark, for every player, so fangs, the Trailing flame and every
 Bound Vex's projectiles spare it; and `GolemMercy`'s `LivingChangeTargetEvent` handler cancels
-an iron golem taking a marked zombie villager as its target, as it does for summons.
+an iron golem taking a marked zombie villager as its target, as it does for summons. A cancelled
+change keeps a golem's old target, so the claim also clears the target of every iron golem
+within 24 blocks that is already fighting that zombie villager.
+
+Two limits on "on your side". It is spared, not avenged: the vexes' grudge and ally goals do not
+count a marked zombie villager among the allies they defend, so whoever hurts it (another player
+with PvP on) is not attacked for it. And only the mark makes it an ally: a zombie villager that
+no vex has claimed yet is never prey for a Bound Vex, but the summoner's own fangs, flame and
+sword still hit it like any hostile.
 
 ### 2.2 The goal
 
@@ -104,12 +112,15 @@ at it): a half-cured zombie villager left standing is worse than one vex out of 
 few seconds. The goal can still be **interrupted** by the goals that outrank it on a shared
 flag: fleeing a hissing creeper, dodging a golem, and Part 5's rescue. An interruption before
 step 4, like every other early end (the zombie villager dies or is removed, the approach times
-out, the summoner is gone), is the **abort** below; because the abort removes the mark, the same
-vex or another can claim that zombie villager again on a later scan.
+out, the summoner is gone), is the **abort** below; because the abort removes the mark, another
+vex can claim that zombie villager on a later scan. The vex whose approach timed out does not
+claim anything for 200 ticks: vanilla asks a goal whether it may start in the same pass that
+stopped it, so without the delay a vex that cannot reach its subject would claim it again at
+once, forever.
 
 | Step | Lasts | What happens |
 |---|---|---|
-| 1 Approach | until within 1.5 blocks of the zombie villager's head, at most 100 ticks | The vex flies level with its head (charge speed). After 100 ticks without arriving the goal gives up (step "abort" below). |
+| 1 Approach | until within 1.5 blocks of the zombie villager's head, at most 100 ticks | The vex flies level with its head (charge speed) and stops there, 1.5 blocks short: its velocity is zeroed and it holds that point through steps 2 and 3 instead of coasting into the head. After 100 ticks without arriving the goal gives up (step "abort" below). |
 | 2 Apple | 30 ticks | `conjure(MAINHAND, golden apple)`. Every 4 ticks: `SoundEvents.GENERIC_EAT` at the zombie villager and 5 `ITEM` crumb particles of a golden apple at its mouth. (No arm swing: the vex model has none; the sound and crumbs are the cue.) |
 | 3 Potion | 20 ticks | `conjure(MAINHAND, the cure potion)` (it replaces the apple in the same conjured slot). The vex turns its head 60° to one side for the first 10 ticks; at tick 10 it throws a `ThrownSplashPotion` of the cure potion at the zombie villager's feet. |
 | 4 Begin | at the end of step 3 | If the zombie villager is not converting yet: `startConverting(summonerUuid, 400)`. (If a player fed it by hand meanwhile, vanilla's conversion and that player's discount are left as they are.) Then `dismiss(MAINHAND)`; the claim is released; the goal ends. The vex is free again; the mark and the freeze stay until the conversion ends (§2.3). |
@@ -171,7 +182,7 @@ target does not matter.
 
 | Step | Lasts | What happens |
 |---|---|---|
-| 1 Approach | until within 1.5 blocks, at most 100 ticks | Fly to it. A timeout ends the goal with no mark (it may try again). |
+| 1 Approach | until within 1.5 blocks, at most 100 ticks | Fly to it. A timeout ends the goal with no mark; another vex may try at once, the same vex after 200 ticks (the cure's rule, §2.2). |
 | 2 Offer | 20 ticks | `conjure(MAINHAND, emerald)`; `SoundEvents.VILLAGER_AMBIENT` once at the start; the vex looks at the other vex. |
 | 3 Roll | | One roll from the pure rule `BribeRule` (§9): **2 in 3** it is bribed, **1 in 3** it refuses. `dismiss(MAINHAND)`; the claim is released. The roll comes from `BribeGoal`'s `Dice` (the small interface `ScrollDraw` already uses), which is the vex's random source in play and which a GameTest replaces for one vex through a public test hook (`BribeGoal.scriptDice`), removed when the test ends. |
 
@@ -191,7 +202,8 @@ again.
 - `FleeFromViewGoal`: each tick it flies directly away from the nearest player (through blocks,
   as vexes do). When it is at least **12 blocks** from every player within 64 blocks and none of
   those players has line of sight to it, it is `discard()`ed: no sound, no particles, no drop.
-  After **200 ticks** it is discarded anyway.
+  After **200 ticks** it is discarded anyway. Spectators do not count as players here: it does
+  not flee from one, and one watching does not keep it in the world.
 - Saved and reloaded, it keeps the mark; `EntityJoinLevelEvent` strips its goals again and
   reinstalls the flee goal (the 200 ticks start over).
 
@@ -201,6 +213,11 @@ again.
   server-stop handler clears them next to the repair claims.
 - **The curing vex dies, is discarded or unloads in steps 1–3:** its hand items were conjured,
   so nothing drops; the zombie villager is released by the 300-tick rule (§2.3).
+- **A vex that stops ticking mid-job** (alive, in a chunk that is loaded but no longer ticks)
+  never runs its goal's `stop`. Its cure claim is free once the 300-tick rule has removed the
+  mark, and a cure goes on only while the mark is there, so a vex that wakes later drops the
+  job instead of finishing it on an unfrozen zombie villager. Its bribe claim is free after 140
+  ticks (the approach, the offer and a margin), so the courted vex becomes prey again.
 - **The summoner leaves mid-cure after step 4:** the conversion finishes; no discount (vanilla).
 - **A zombie villager in sunlight:** it burns as vanilla; a frozen one cannot walk to shade.
   Accepted (the cure takes 20 seconds; a helmeted or shaded one survives). Playtest item.
