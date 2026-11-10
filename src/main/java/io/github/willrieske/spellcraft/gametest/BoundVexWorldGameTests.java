@@ -48,7 +48,10 @@ public final class BoundVexWorldGameTests {
     /** How many ticks a close posture is watched once its vex is in place. */
     private static final int WATCH_TICKS = 60;
 
-    /** The least height above the summoner's feet a close-posture vex may hang at (spec §6.1, §9). */
+    /**
+     * The least height above the summoner's feet a close-posture vex may hang at (spec §6.1, §9): a floor with margin,
+     * below the in-place low edge of 2.0 (band 2.5 less the 0.5 slack) so one tick of coast does not fail it.
+     */
     private static final double LEAST_HEIGHT = 1.7;
 
     /** A runaway guard only: a close-posture vex farther sideways than this has left its band by far. */

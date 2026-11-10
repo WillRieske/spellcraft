@@ -116,7 +116,7 @@ class GuardPosturePropertiesTest {
         }
 
         /**
-         * For every close posture and roll, the height should be at least 2.2: above the summoner's head.
+         * For every close posture and roll, the height should be at least 2.5: above the summoner's head.
          *
          * <p>Method under test: {@link GuardPosture#height(double)}
          */
@@ -128,7 +128,7 @@ class GuardPosturePropertiesTest {
 
             // Assert
             if (posture.close()) {
-                assertThat(posture.height(roll)).isGreaterThanOrEqualTo(2.2);
+                assertThat(posture.height(roll)).isGreaterThanOrEqualTo(2.5);
             }
         }
     }

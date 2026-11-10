@@ -63,7 +63,7 @@ class GuardPostureTest {
          */
         @Test
         void overworldDark_isTheNearRow() {
-            assertRow(GuardPosture.of(Place.OVERWORLD, true), 1.0, 2.0, 2.2, 3.0, 0.35, 4, true);
+            assertRow(GuardPosture.of(Place.OVERWORLD, true), 1.0, 2.0, 2.5, 3.0, 0.35, 4, true);
         }
 
         /**
@@ -74,7 +74,7 @@ class GuardPostureTest {
         @ParameterizedTest(name = "dark = {0}")
         @CsvSource({"true", "false"})
         void nether_isTheNearRow(boolean dark) {
-            assertRow(GuardPosture.of(Place.NETHER, dark), 1.0, 2.0, 2.2, 3.0, 0.35, 4, true);
+            assertRow(GuardPosture.of(Place.NETHER, dark), 1.0, 2.0, 2.5, 3.0, 0.35, 4, true);
         }
 
         /**
@@ -85,7 +85,7 @@ class GuardPostureTest {
         @ParameterizedTest(name = "dark = {0}")
         @CsvSource({"true", "false"})
         void end_isTheNearestRow(boolean dark) {
-            assertRow(GuardPosture.of(Place.END, dark), 0.5, 1.5, 2.2, 3.0, 0.35, 2, true);
+            assertRow(GuardPosture.of(Place.END, dark), 0.5, 1.5, 2.5, 3.0, 0.35, 2, true);
         }
 
         /**
@@ -131,10 +131,10 @@ class GuardPostureTest {
          */
         @ParameterizedTest(name = "near ({0}, {1}, {2}) in place = {3}")
         @CsvSource({
-            "2.5, 2.2, 0, true",
-            "2.51, 2.2, 0, false",
-            "1, 1.7, 0, true",
-            "1, 1.69, 0, false",
+            "2.5, 2.5, 0, true",
+            "2.51, 2.5, 0, false",
+            "1, 2.0, 0, true",
+            "1, 1.99, 0, false",
             "1, 3.5, 0, true",
             "1, 3.51, 0, false",
             "0, 2.5, 0, true",
@@ -158,7 +158,7 @@ class GuardPostureTest {
             // Arrange
             GuardPosture near = GuardPosture.of(Place.OVERWORLD, true);
             double side = 2.0 + 0.5 + 1.0e-9;
-            double low = 2.2 - 0.5 - 1.0e-9;
+            double low = 2.5 - 0.5 - 1.0e-9;
             double high = 3.0 + 0.5 + 1.0e-9;
             // Act & Assert
             assertThat(near.inPlace(side, 2.5, 0)).isTrue();
@@ -250,7 +250,7 @@ class GuardPostureTest {
             // Act & Assert
             assertThat(posture.height(0)).isEqualTo(posture.heightMin());
             assertThat(posture.height(1)).isEqualTo(posture.heightMax());
-            assertThat(posture.height(0.5)).isEqualTo(2.6);
+            assertThat(posture.height(0.5)).isEqualTo(2.75);
         }
     }
 }

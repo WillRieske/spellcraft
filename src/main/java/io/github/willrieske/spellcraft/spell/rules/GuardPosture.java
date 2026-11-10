@@ -37,10 +37,10 @@ public record GuardPosture(
     public static final GuardPosture WIDE = new GuardPosture(2.0, 3.5, 0.5, 1.5, 0.7, 10, false);
 
     /** The Overworld in the dark, and the Nether: close and overhead, scanning every fourth tick. */
-    private static final GuardPosture NEAR = new GuardPosture(1.0, 2.0, 2.2, 3.0, 0.35, 4, true);
+    private static final GuardPosture NEAR = new GuardPosture(1.0, 2.0, 2.5, 3.0, 0.35, 4, true);
 
     /** The End: closest and overhead, scanning every second tick. */
-    private static final GuardPosture NEAREST = new GuardPosture(0.5, 1.5, 2.2, 3.0, 0.35, 2, true);
+    private static final GuardPosture NEAREST = new GuardPosture(0.5, 1.5, 2.5, 3.0, 0.35, 2, true);
 
     /** In the wide posture a vex farther than this from the summoner's feet moves (feet to feet, as before Part 5). */
     private static final double WIDE_LIMIT = 4.0;
@@ -48,7 +48,7 @@ public record GuardPosture(
     /** How far outside a close band a vex may hang before it moves. */
     private static final double SLACK = 0.5;
 
-    /** Absorbs floating-point error at the band's edges (2.2 − 0.5 is not exactly 1.7 in doubles). */
+    /** Absorbs floating-point error at the band's edges (2.5 − 0.5 is not exactly 2.0 in doubles). */
     private static final double TOLERANCE = 1.0e-9;
 
     /**
