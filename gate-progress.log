@@ -71,3 +71,4 @@ b1aefe8 Task 8 done (docs, pitest 98% 247/251, minors closed); plan complete; ba
 4754fb1 Task 7: markdownlint 0 errors; pitest 264/268 killed (99%), line coverage 270/284; build green (commit gate)
 8854374 Task 1: api-notes §22 recorded; baseline All 249 required tests passed at 667c882
 e5ef3e0 Task 2: GuardArea tests red then green (./gradlew test --tests *GuardArea*); build green (commit gate)
+222c588 Task 3: build green; All 257 required tests passed twice

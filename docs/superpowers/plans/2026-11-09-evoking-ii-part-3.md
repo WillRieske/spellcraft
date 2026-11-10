@@ -311,7 +311,7 @@ git commit -m "feat(evoking): add the stay box and the follow-range bound to Gua
 - Consumes: `GuardArea.STAY_HALF_WIDTH`, `GuardArea.FOLLOW_RANGE`, `GuardArea.containsStaying` (Task 2).
 - Produces: `BoundVex.postPoint()` (package-private, `Vec3`), `BoundVex.POST_TOLERANCE` (`static final double`, 1.0, package-private); `inGuardArea`, `guardArea()`, `keepsTarget` keep their signatures. `mobInteract` handles the empty hand only; Task 5 adds gear.
 
-- [ ] **Step 1: `BoundVex` production changes.**
+- [x] **Step 1: `BoundVex` production changes.**
 
 (a) `createAttributes`: `return Vex.createAttributes().add(Attributes.FOLLOW_RANGE, GuardArea.FOLLOW_RANGE);` and fix its Javadoc ("the follow-range bound (Part 3 spec §2.3)"). `finalizeSpawn`'s Javadoc: the bonus is removed so the attribute is exactly `GuardArea.FOLLOW_RANGE`.
 
@@ -436,9 +436,9 @@ and in `registerGoals`: `goalSelector.addGoal(5, new HoldPostGoal());`. Update t
     }
 ```
 
-- [ ] **Step 2: Fix the existing tests.** `grep -n "interact(\|FOLLOW_RANGE\|StayWander\|wander" src/main/java/io/github/willrieske/spellcraft/gametest/*.java`. In `BoundVexCapGameTests.stayToggle` (and any other test that toggles by click): the toggling clicks now need `summoner.setShiftKeyDown(true)` first; add assertions that a plain (un-sneaked) empty-hand click by the summoner is consumed (`consumesAction()`) and leaves `isStaying()` unchanged; the stranger's sneak click still passes and changes nothing. Any assertion that the `FOLLOW_RANGE` attribute equals `GuardArea.REACH` becomes `GuardArea.FOLLOW_RANGE`. Update Javadoc that describes the wander ("drifts", "wander leg", `StayWanderGoal`) to the hover (`HoldPostGoal`); `followsAgainAfterStay` and `stayingHoldsItsPost` keep their bodies.
+- [x] **Step 2: Fix the existing tests.** `grep -n "interact(\|FOLLOW_RANGE\|StayWander\|wander" src/main/java/io/github/willrieske/spellcraft/gametest/*.java`. In `BoundVexCapGameTests.stayToggle` (and any other test that toggles by click): the toggling clicks now need `summoner.setShiftKeyDown(true)` first; add assertions that a plain (un-sneaked) empty-hand click by the summoner is consumed (`consumesAction()`) and leaves `isStaying()` unchanged; the stranger's sneak click still passes and changes nothing. Any assertion that the `FOLLOW_RANGE` attribute equals `GuardArea.REACH` becomes `GuardArea.FOLLOW_RANGE`. Update Javadoc that describes the wander ("drifts", "wander leg", `StayWanderGoal`) to the hover (`HoldPostGoal`); `followsAgainAfterStay` and `stayingHoldsItsPost` keep their bodies.
 
-- [ ] **Step 3: New GameTests.** Create `BoundVexStayGameTests` (class Javadoc: "Bound Vex GameTests (Evoking II Part 3 spec §2, §8): the post, the hover and the stay area."), using `SpellcraftGameTests.SHARED` as the sibling classes do (copy their header and imports), a `static void registerAll()` registering every test below through `FangGameTests.addPadded(SHARED, "bound_vex_stay_<name>", BoundVexStayGameTests::<method>)`, and these tests. Lay stone under any husk (`helper.setBlock(pos.below(), Blocks.STONE)`): the padded box is air.
+- [x] **Step 3: New GameTests.** Create `BoundVexStayGameTests` (class Javadoc: "Bound Vex GameTests (Evoking II Part 3 spec §2, §8): the post, the hover and the stay area."), using `SpellcraftGameTests.SHARED` as the sibling classes do (copy their header and imports), a `static void registerAll()` registering every test below through `FangGameTests.addPadded(SHARED, "bound_vex_stay_<name>", BoundVexStayGameTests::<method>)`, and these tests. Lay stone under any husk (`helper.setBlock(pos.below(), Blocks.STONE)`): the padded box is air.
 
 The first, in full, as the pattern:
 
@@ -486,9 +486,9 @@ The other five (write each with the same Javadoc shape and Arrange/Act/Assert):
 
 That is seven tests with the worked example; register all seven. Add to `BoundVexCapGameTests` one more registered test, `stayToggleKeepsTheOffHandItem`: the summoner holds an ender pearl in the off hand (`player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.ENDER_PEARL))`), sneaks, clicks with the empty main hand: the result is `InteractionResult.SUCCESS_SERVER` (a `Success`, which is what stops the client's fall-through), stay toggled, the pearl stack still has count 1. (No GameTest covered the pearl before; a server-side test cannot run the client's fall-through, so the result type is what it pins, and the playtest item covers the rest.)
 
-- [ ] **Step 4: Verify.** `spotlessApply`, then `./gradlew build` (recipe), then `runGameTestServer` in the background. Expected: `exit=0`; total = baseline + 8. Run the GameTests a second time: a test that passes once and fails once depends on entity-id parity.
+- [x] **Step 4: Verify.** `spotlessApply`, then `./gradlew build` (recipe), then `runGameTestServer` in the background. Expected: `exit=0`; total = baseline + 8. Run the GameTests a second time: a test that passes once and fails once depends on entity-id parity.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/io/github/willrieske/spellcraft/evoking/BoundVex.java src/main/java/io/github/willrieske/spellcraft/gametest
@@ -497,6 +497,8 @@ git add src/main/java/io/github/willrieske/spellcraft/evoking/BoundVex.java src/
 ```bash
 git commit -m "feat(evoking): stay on the sneak click; a staying vex hovers and guards 13x13"
 ```
+
+> **As built (`222c588`):** diverged — `POST_TOLERANCE` is public (the GameTests are in another package); the stay tests hang the vex at `FEET.above(4)` (the barrier shell at `FEET.above(2)` blocks line of sight) and place husks with no gravity by absolute `setPos` from the post point instead of on stone at structure coordinates (rotated tests put those a block off); the two "drops the target" tests wait with `thenWaitUntil` instead of a 30-tick window; reason: implementer, to make the tests correct under rotation and Error Prone.
 
 ---
 
@@ -1152,6 +1154,7 @@ git commit -m "docs: describe Bound Vex gear and the new stay; playtest items; m
 | Task | SHA | Divergence |
 |---|---|---|
 | 1 | `8854374` | the sources corrected the plan in four places later tasks use: `Player.drop` takes three arguments (`drop(ItemStack, boolean thrownFromHand, Prediction)`); `SoundEvents.ARMOR_EQUIP_GENERIC` and `SHIELD_BLOCK` are holders (`.value()`); `LivingEntity.onEquipItem` already plays the equip sound for armor and an offhand shield set with `setItemSlot`, so Task 5 plays no armor sound of its own; mobs launch projectiles with `Projectile.spawnProjectileUsingShoot` (signatures in api-notes §22); reason: api-notes §22 records what `build/mc-src` says. |
+| 3 | `222c588` | `POST_TOLERANCE` is public (the GameTests are in another package); the stay tests hang the vex at `FEET.above(4)` (the barrier shell at `FEET.above(2)` blocks line of sight) and place husks with no gravity by absolute `setPos` from the post point instead of on stone at structure coordinates (rotated tests put those a block off); the two "drops the target" tests wait with `thenWaitUntil` instead of a 30-tick window; reason: implementer, to make the tests correct under rotation and Error Prone. |
 
 ## Resume State
 
