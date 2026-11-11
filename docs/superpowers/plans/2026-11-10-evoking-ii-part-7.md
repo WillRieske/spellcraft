@@ -3603,7 +3603,7 @@ git commit -m "feat(evoking): Casters, one vex in three, that keep their distanc
   - `TeamMoves.Member.casterDone` (package-private mutable boolean).
   - `RaidMove.tick`: a Caster member flies to its cell, casts Mirror on the summoner once at the start of the gather if the summoner has none (ignoring and then setting its Mirror cooldown), holds the scroll through the gather and, when the charge starts, empties its conjured main hand and holds its cell.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `CasterSpellGameTests` (javadoc `/** GameTests of a Caster's casting and of a Caster in a Raid (Parts 6-7 spec §6.2). */`). A scene helper:
 
@@ -3729,11 +3729,11 @@ Raid tests. Each starts from `ScrollTestSupport.raidScene(helper)` (Task 8: a pl
 
 Add `CasterSpellGameTests.registerAll();` after `CasterGameTests.registerAll();`.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:caster_*"`. Expected: the new tests FAIL (no casting yet).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `ScrollCasting` (the shared pieces; Tasks 10 and 12 call it too):
 
@@ -4046,11 +4046,11 @@ private static void casterTick(
 
 (`member.kit` must be a mutable map: it is the `EnumMap` `TeamMoveKits.kit` returned. If `Member.kit` is a final field of an immutable copy, make it mutable.)
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:caster_*"` and `"-PgameTests=spellcraft:team_move_*"` (Part 6's Raid tests must still pass). Expected: PASS.
 
-- [ ] **Step 5: Gates and commit**
+- [x] **Step 5: Gates and commit**
 
 Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 743 required tests passed` both times (the Task 8 total plus the 15 `caster_*` tests registered in `CasterSpellGameTests`).
 
@@ -4058,6 +4058,8 @@ Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expec
 git add src
 git commit -m "feat(evoking): Casters cast Mirror and Ghostrail, alone and in a Raid"
 ```
+
+> **As built (`f871ee5`):** diverged — CasterSpellGameTests scene floor is 8 blocks, not 3 (Mirror images wander up to 6 blocks and fell off a 3-block floor; spec has no ledge avoidance); review minors fixed in f871ee5 (dismiss once, exact cast-timing bound, choose() clears its pick); reason: implementer report, review approved
 
 ---
 
@@ -6016,3 +6018,4 @@ git commit -m "docs(evoking): Part 7 in the README, playtest items, mutation tes
 | 6 | `dabd455` | `staysAloftOverStone` asserts a drift under 0.5 blocks, not an exact y; reason: `ServerPlayer.doTick` runs `aiStep` and the first tick, before the sync sets `flying`, takes full gravity, which flight then damps (reviewed against `Player.travel`). |
 | 7 | `6302d73` | `endingGoesToTheStartSpot` lifts the player 10, not 6, inside a stone cube (the plan's lift left the start spot within the search radius); a recast in stone keeps the earlier start spot (review fix, +1 test); the Task 6 review's creative-player fix (+1 test) landed first in 30ed2b4. No RED capture. |
 | 8 | `31ca0c1` | no RED capture (production code partly written before tests); caster_plain_vex_charges resets a vex parked at rest beside the frozen husk each tick (test-only: ChargeGoal needs >2 blocks, a real target moves); countsTowardARaidTrigger proves the Shield control with a second summoner; reason: implementer report, review approved |
+| 9 | `f871ee5` | CasterSpellGameTests scene floor is 8 blocks, not 3 (Mirror images wander up to 6 blocks and fell off a 3-block floor; spec has no ledge avoidance); review minors fixed in f871ee5 (dismiss once, exact cast-timing bound, choose() clears its pick); reason: implementer report, review approved |
