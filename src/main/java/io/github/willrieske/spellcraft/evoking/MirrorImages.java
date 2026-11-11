@@ -14,16 +14,19 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.animal.golem.IronGolem;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 
 /**
- * Spawning, ending and the confusion of Mirror images (Parts 6-7 spec §7.2). The death handler is here; Task 5 adds the
- * confusion handler beside it (same class, same annotation).
+ * Spawning, ending and the confusion of Mirror images (Parts 6-7 spec §7.2).
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class MirrorImages {
@@ -122,6 +125,45 @@ public final class MirrorImages {
         boolean others = of(level, caster).stream().anyMatch(image -> !image.equals(ending));
         if (!others && level.getEntities().get(caster) instanceof LivingEntity carrier) {
             carrier.removeEffect(ModEffects.MIRROR);
+        }
+    }
+
+    /**
+     * Confusion (spec §7.2; amends the parent §9.3 to any mob): when a mob is about to pick a carrier that has live
+     * images within {@link MirrorRule#CONFUSION_RANGE} of the carrier, the new target is replaced, with probability
+     * 13/14, by a random one of those images. Skipped when the new target has no Mirror effect (this event fires for
+     * every target change of every mob in the world, and finding images walks every entity in the level, so the cheap
+     * effect test comes first; "no images alive" and "no Mirror effect" are the same thing), when the new target is
+     * already an image, when it is the mob's current target (a target goal re-sets its target every tick, and each
+     * re-set fires this event; rolling on those would redirect almost every mob), when the mob already targets an
+     * image, and for an iron golem going for a player (the images carry the player's mark, which {@code GolemMercy}
+     * refuses as a golem's target). The roll is taken only for an eligible change, so a scripted GameTest roll is never
+     * spent on a skipped one. Brain mobs that write their target without this event are not confused (accepted).
+     *
+     * @param event the change-target event for any living entity
+     */
+    @SubscribeEvent
+    public static void onChangeTarget(LivingChangeTargetEvent event) {
+        LivingEntity carrier = event.getNewAboutToBeSetTarget();
+        if (carrier == null
+                || !carrier.hasEffect(ModEffects.MIRROR)
+                || carrier instanceof MirrorImage
+                || !(event.getEntity() instanceof Mob mob)
+                || !(carrier.level() instanceof ServerLevel level)
+                || carrier.equals(mob.getTarget())
+                || mob.getTarget() instanceof MirrorImage
+                || (mob instanceof IronGolem && carrier instanceof Player)) {
+            return;
+        }
+        List<MirrorImage> near = of(level, carrier.getUUID()).stream()
+                .filter(image -> image.distanceTo(carrier) <= MirrorRule.CONFUSION_RANGE)
+                .toList();
+        if (near.isEmpty()) {
+            return;
+        }
+        int roll = Dice.MIRROR_CONFUSION.below(mob.getRandom(), MirrorRule.CONFUSION_BOUND);
+        if (MirrorRule.redirects(roll)) {
+            event.setNewAboutToBeSetTarget(near.get(mob.getRandom().nextInt(near.size())));
         }
     }
 }
