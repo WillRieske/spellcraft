@@ -29,8 +29,8 @@ import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class VillagerGhosts extends SavedData {
-    // The spec and the plan name this type Record; it shadows java.lang.Record only inside this class's API.
     /** One note: a UUID, the death block, the villager's type, profession and level, and the two cooldown ends. */
+    // The spec and the plan name this type Record; it shadows java.lang.Record only inside this class's API.
     @SuppressWarnings("AvoidCommonTypeNames")
     public record Record(UUID id, BlockPos pos, VillagerData data, long mirrorReadyAt, long ghostrailReadyAt) {
         /** The save format of one record. */
@@ -48,7 +48,7 @@ public final class VillagerGhosts extends SavedData {
          * @param time the game time the cooldown ends
          * @return the changed record
          */
-        public Record withMirrorReadyAt(long time) {
+        Record withMirrorReadyAt(long time) {
             return new Record(id, pos, data, time, ghostrailReadyAt);
         }
 
@@ -58,7 +58,7 @@ public final class VillagerGhosts extends SavedData {
          * @param time the game time the cooldown ends
          * @return the changed record
          */
-        public Record withGhostrailReadyAt(long time) {
+        Record withGhostrailReadyAt(long time) {
             return new Record(id, pos, data, mirrorReadyAt, time);
         }
     }

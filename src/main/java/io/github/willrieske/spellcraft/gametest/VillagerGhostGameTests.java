@@ -73,12 +73,26 @@ final class VillagerGhostGameTests {
                 VillagerGhostGameTests::conversionStillLeavesARecord);
     }
 
-    /** Kills {@code villager} with {@code source} (a hit far above its health). */
+    /**
+     * Kills {@code villager} with {@code source} (a hit far above its health) and asserts that it died, so a kill that
+     * failed cannot make a "writes none" test pass silently.
+     *
+     * @param helper the test helper
+     * @param villager the villager to kill
+     * @param source the damage source
+     */
     private static void kill(GameTestHelper helper, Villager villager, DamageSource source) {
         villager.hurtServer(helper.getLevel(), source, 1000.0F);
+        helper.assertTrue(villager.isDeadOrDying(), "the villager died");
     }
 
-    /** The record at {@code pos}, if any. */
+    /**
+     * The record at {@code pos}, if any.
+     *
+     * @param helper the test helper
+     * @param pos the block position
+     * @return the record there
+     */
     private static Optional<VillagerGhosts.Record> recordAt(GameTestHelper helper, BlockPos pos) {
         return VillagerGhosts.get(helper.getLevel()).records().stream()
                 .filter(record -> record.pos().equals(pos))
@@ -88,6 +102,9 @@ final class VillagerGhostGameTests {
     /**
      * A no-AI villager of the non-default sample data in a test-owned spot, which removes the record at its spot when
      * the test ends.
+     *
+     * @param helper the test helper
+     * @return the villager
      */
     private static Villager villager(GameTestHelper helper) {
         Villager villager = helper.spawn(EntityTypes.VILLAGER, new BlockPos(1, 2, 1));
@@ -177,10 +194,12 @@ final class VillagerGhostGameTests {
         Villager villager = villager(helper);
         BlockPos pos = villager.blockPosition();
 
-        // Act
-        kill(helper, villager, level.damageSources().mobAttack(vex));
+        // Act (the Bound Vex's friendly-fire backstop cancels a hit on a villager, so the villager never dies of one;
+        // the death is delivered directly to prove the death handler's own side test)
+        villager.die(level.damageSources().mobAttack(vex));
 
         // Assert
+        helper.assertTrue(villager.isDeadOrDying(), "the villager died");
         helper.assertTrue(recordAt(helper, pos).isEmpty(), "no record for a Bound Vex's kill");
         helper.succeed();
     }
