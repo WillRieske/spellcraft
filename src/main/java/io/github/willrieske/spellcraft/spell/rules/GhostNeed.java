@@ -16,6 +16,7 @@ public final class GhostNeed {
      * @param health the current health, not negative
      * @param maxHealth the maximum health, positive
      * @return true when health is below half
+     * @throws IllegalArgumentException if {@code health} is negative or {@code maxHealth} is not positive
      */
     public static boolean belowHalf(float health, float maxHealth) {
         check(health, maxHealth);
@@ -28,6 +29,7 @@ public final class GhostNeed {
      * @param health the current health, not negative
      * @param maxHealth the maximum health, positive
      * @return true when health is below a quarter
+     * @throws IllegalArgumentException if {@code health} is negative or {@code maxHealth} is not positive
      */
     public static boolean belowQuarter(float health, float maxHealth) {
         check(health, maxHealth);
@@ -41,6 +43,8 @@ public final class GhostNeed {
      * @param maxHealth the player's maximum health, positive
      * @param hostiles how many hostiles (already filtered by the caller) are close
      * @return true when a ghost should come
+     * @throws IllegalArgumentException if {@code hostiles} is negative, {@code health} is negative, or
+     *     {@code maxHealth} is not positive
      */
     public static boolean inNeed(float health, float maxHealth, int hostiles) {
         if (hostiles < 0) {

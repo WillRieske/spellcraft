@@ -18,6 +18,7 @@ public final class GhostRecords {
      * @param max the most to keep, at least 1
      * @param <T> the record type
      * @return a new list, oldest first, newest last
+     * @throws IllegalArgumentException if {@code max} is less than 1
      */
     public static <T> List<T> add(List<T> records, T record, int max) {
         if (max < 1) {

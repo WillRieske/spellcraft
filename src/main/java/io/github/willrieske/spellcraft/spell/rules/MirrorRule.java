@@ -27,6 +27,7 @@ public final class MirrorRule {
      *
      * @param roll a roll of the confusion die, 0 to {@link #CONFUSION_BOUND} - 1
      * @return true if the new target is replaced by an image
+     * @throws IllegalArgumentException if {@code roll} is negative or at least {@link #CONFUSION_BOUND}
      */
     public static boolean redirects(int roll) {
         if (roll < 0 || roll >= CONFUSION_BOUND) {

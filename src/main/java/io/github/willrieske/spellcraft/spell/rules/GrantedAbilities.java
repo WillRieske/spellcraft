@@ -68,7 +68,8 @@ public final class GrantedAbilities {
 
     /**
      * One plan settles the state every tick. A source that ended (its mark set, its effect gone) resets the
-     * abilities; whatever is still active then grants again in the same plan.
+     * abilities; whatever is still active then grants again in the same plan. While Ghostrail is active and the
+     * player is not flying, it re-asserts {@code flying} every tick (spec §7.3).
      *
      * @param state the player's mode, effects, marks and flags
      * @return the plan

@@ -66,6 +66,7 @@ public final class CasterRules {
      * @param inWall whether it is inside a block
      * @param subjectIsSummoner true for the summoner, false for a vex
      * @return true if the Caster should cast Ghostrail on it
+     * @throws IllegalArgumentException if {@code health} is negative or {@code maxHealth} is not positive
      */
     public static boolean wantsGhostrail(float health, float maxHealth, boolean inWall, boolean subjectIsSummoner) {
         return GhostNeed.belowQuarter(health, maxHealth) || (subjectIsSummoner && inWall);
