@@ -136,7 +136,8 @@ public final class MirrorImages {
      * effect test comes first; "no images alive" and "no Mirror effect" are the same thing), when the new target is
      * already an image, when it is the mob's current target (a target goal re-sets its target every tick, and each
      * re-set fires this event; rolling on those would redirect almost every mob), when the mob already targets an
-     * image (it stays on a live image of this carrier: the change is cancelled, without a roll), and for an iron golem
+     * image (a live image of this carrier: the change is cancelled and the mob stays on it; any other image: the
+     * change goes ahead; no roll either way), and for an iron golem
      * going for a player (the images carry the player's mark, which {@code GolemMercy} refuses as a golem's target).
      * The roll is taken only for an eligible change, so a scripted GameTest roll is never spent on a skipped one.
      * Brain mobs that write their target without this event are not confused (accepted).
