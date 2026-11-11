@@ -2,7 +2,7 @@ package io.github.willrieske.spellcraft.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
-import io.github.willrieske.spellcraft.effect.ModEffects;
+import io.github.willrieske.spellcraft.infinity.AbilitySync;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -13,14 +13,15 @@ import org.spongepowered.asm.mixin.injection.At;
  * so this wraps the first {@code isSpectator()} call in {@code tick()} (ordinal 0: the statement
  * {@code this.noPhysics = this.isSpectator()}, api-notes §26). The server then accepts the moves
  * ({@code ServerGamePacketListenerImpl} skips its "moved wrongly" check for {@code noPhysics}). {@code require = 1}:
- * a moved call fails startup loudly. The handler is one expression (the original answer or the effect), so there is
- * no logic to share.
+ * a moved call fails startup loudly. The handler is thin: the original answer or
+ * {@link AbilitySync#ghostrailPassesThroughBlocks} (survival and adventure only, so a creative player given Ghostrail
+ * keeps physics).
  */
 @Mixin(Player.class)
 abstract class PlayerGhostrailMixin {
     /**
      * Wraps the first {@code isSpectator()} call of {@code Player.tick}: true for a spectator (the original answer)
-     * or for a player with Ghostrail.
+     * or for a survival or adventure player with Ghostrail.
      *
      * @param player the ticking player
      * @param original the original call
@@ -36,6 +37,6 @@ abstract class PlayerGhostrailMixin {
             require = 1)
     @SuppressWarnings("UnusedMethod") // invoked by Mixin at runtime, not by Java code
     private boolean spellcraft$ghostrailNoPhysics(Player player, Operation<Boolean> original) {
-        return original.call(player) || player.hasEffect(ModEffects.GHOSTRAIL);
+        return original.call(player) || AbilitySync.ghostrailPassesThroughBlocks(player);
     }
 }

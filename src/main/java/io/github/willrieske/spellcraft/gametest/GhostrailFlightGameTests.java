@@ -48,6 +48,10 @@ public final class GhostrailFlightGameTests {
                 SHARED, "ghostrail_flight_grants_mayfly_and_flying", GhostrailFlightGameTests::grantsFlight);
         SpellcraftGameTests.add(
                 SHARED, "ghostrail_flight_flying_is_reasserted_each_sync", GhostrailFlightGameTests::reassertsFlying);
+        FangGameTests.addPadded(
+                SHARED,
+                "ghostrail_flight_creative_player_keeps_physics",
+                GhostrailFlightGameTests::creativeKeepsPhysics);
         SpellcraftGameTests.add(
                 SHARED, "ghostrail_flight_ending_revokes_the_flight", GhostrailFlightGameTests::endingRevokes);
         SpellcraftGameTests.add(
@@ -96,6 +100,23 @@ public final class GhostrailFlightGameTests {
         player.doTick();
         // Assert
         helper.assertTrue(player.noPhysics, "noPhysics follows the effect");
+        helper.succeed();
+    }
+
+    /**
+     * When a creative player with Ghostrail runs a full player tick, should keep noPhysics false (they get no forced
+     * flying, so passing through blocks would sink them through the floor).
+     *
+     * <p>Method under test: {@code PlayerGhostrailMixin#spellcraft$ghostrailNoPhysics}.
+     */
+    static void creativeKeepsPhysics(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = player(helper, GameType.CREATIVE);
+        castGhostrail(player);
+        // Act
+        player.doTick();
+        // Assert
+        helper.assertFalse(player.noPhysics, "a creative player keeps physics");
         helper.succeed();
     }
 
@@ -217,7 +238,8 @@ public final class GhostrailFlightGameTests {
         AbilitySync.sync(player);
         // Assert
         Abilities abilities = player.getAbilities();
-        helper.assertTrue(!abilities.mayfly && !abilities.flying, "no flight left");
+        helper.assertFalse(abilities.mayfly, "no mayfly left");
+        helper.assertFalse(abilities.flying, "no flying left");
         helper.succeed();
     }
 

@@ -4,15 +4,17 @@ import io.github.willrieske.spellcraft.Spellcraft;
 import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.spell.PlayerModes;
 import io.github.willrieske.spellcraft.spell.rules.GrantedAbilities;
+import io.github.willrieske.spellcraft.spell.rules.PlayerMode;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Abilities;
+import net.minecraft.world.entity.player.Player;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 /**
  * Keeps each player's creative-style abilities in line with Infinity and Ghostrail, every server tick (Parts 6-7
- * spec §7.3; formerly {@code AbilitySync}). Vanilla's abilities packet syncs the client, which then opens the
+ * spec §7.3; formerly {@code InfinityAbilitySync}). Vanilla's abilities packet syncs the client, which then opens the
  * creative inventory by itself (docs/api-notes.md §11). The decision is the pure {@link GrantedAbilities}. This
  * class is the one driver of the sync: {@code Ghostrail.tick} (Task 7) does not call it, and the two do not depend
  * on each other's order in the Post event (a GameTest that steps {@code Ghostrail.tick} by hand and needs the
@@ -21,6 +23,20 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class AbilitySync {
     private AbilitySync() {}
+
+    /**
+     * Whether Ghostrail makes {@code player} pass through blocks: it has the effect and is in a mode where Ghostrail
+     * grants flight (survival or adventure). A creative player given Ghostrail by command keeps physics, since the
+     * sync forces no flying for them and they would sink through the floor; a spectator keeps vanilla's own
+     * {@code noPhysics}. Shared by the Mixin on {@code Player.tick}, on both sides.
+     *
+     * @param player the ticking player
+     * @return true when {@code noPhysics} should be set by Ghostrail
+     */
+    public static boolean ghostrailPassesThroughBlocks(Player player) {
+        PlayerMode mode = PlayerModes.of(player);
+        return player.hasEffect(ModEffects.GHOSTRAIL) && (mode == PlayerMode.SURVIVAL || mode == PlayerMode.ADVENTURE);
+    }
 
     /**
      * Syncs the abilities of every server-side player after each tick.

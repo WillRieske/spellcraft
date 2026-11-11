@@ -619,6 +619,10 @@ an evoker), not the Caster vex.
   both sides (`LocalPlayer.tick` reaches `Player.tick`; the effect is synced), so the client does
   not rubber-band and the server accepts the moves (`ServerGamePacketListenerImpl` skips its
   "moved wrongly" check for `noPhysics`).
+  Only a player in a mode where Ghostrail grants abilities (survival, adventure) gets it: a creative
+  player given Ghostrail by command keeps physics (no forced flying, so they would sink through the
+  floor), and a spectator keeps vanilla's own `noPhysics`. The predicate is shared code
+  (`AbilitySync.ghostrailPassesThroughBlocks`); the Mixin calls it.
 - **Flight (players):** a player's `mayfly` comes from the game mode, Infinity or Ghostrail.
   The abilities sync of `InfinityAbilitySync` is generalized into one per-tick sync that grants
   what any source needs and, when a source ends, restores the game mode's abilities
