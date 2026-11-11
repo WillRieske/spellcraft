@@ -17,6 +17,7 @@
   "block.spellcraft.trail_fire": "Trail Fire",
   "entity.spellcraft.bound_vex": "Bound Vex",
   "entity.spellcraft.mirror_image": "Mirror Image",
+  "entity.spellcraft.villager_ghost": "Villager Ghost",
   "message.spellcraft.scroll_not_needed": "Scroll not needed; already have effect!",
   "message.spellcraft.no_targets": "No targets in range",
   "message.spellcraft.peaceful_vexes": "Vexes cannot be summoned on Peaceful",

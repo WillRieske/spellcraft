@@ -39,14 +39,15 @@ public final class Ghostrail {
     private Ghostrail() {}
 
     /**
-     * Whether {@code carrier} flies through blocks by itself: a Vex ({@code Vex.noPhysics} is true only inside its own
-     * tick, so the flag cannot be the test). Task 12 adds the villager ghost, and updates this Javadoc with it.
+     * Whether {@code carrier} flies through blocks by itself: a Vex or a villager ghost (a Vex's {@code noPhysics} is
+     * true only inside its own tick, so the flag cannot be the test; a ghost sets its own position and has no physics
+     * at all).
      *
      * @param carrier any living entity
      * @return true when Ghostrail must not touch its physics
      */
     static boolean flies(LivingEntity carrier) {
-        return carrier instanceof Vex;
+        return carrier instanceof Vex || carrier instanceof VillagerGhost;
     }
 
     /**

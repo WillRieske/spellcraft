@@ -48,10 +48,26 @@ public final class ModEntities {
                     MobCategory.MISC,
                     builder -> builder.sized(0.6F, 1.8F).clientTrackingRange(8).noLootTable());
 
+    /**
+     * The villager ghost (Parts 6-7 spec §9): the spirit drawn from a record, sized like a villager. Never saved: it
+     * vanishes with its chunk or a restart, and the record stays. Position updates every tick, because a ghost moves
+     * by position and the default of three ticks would make it look steppy.
+     */
+    public static final DeferredHolder<EntityType<?>, EntityType<VillagerGhost>> VILLAGER_GHOST =
+            ENTITIES.registerEntityType(
+                    "villager_ghost",
+                    VillagerGhost::new,
+                    MobCategory.MISC,
+                    builder -> builder.sized(0.6F, 1.95F)
+                            .clientTrackingRange(8)
+                            .updateInterval(1)
+                            .noSave()
+                            .noLootTable());
+
     private ModEntities() {}
 
     /**
-     * Gives the Bound Vex and the Mirror image their attributes (a mod-bus event, received here as
+     * Gives the Bound Vex, the Mirror image and the villager ghost their attributes (a mod-bus event, received here as
      * {@code SpellcraftGameTests} receives {@code RegisterGameTestsEvent}).
      *
      * @param event the attribute event
@@ -64,6 +80,12 @@ public final class ModEntities {
                 LivingEntity.createLivingAttributes()
                         .add(Attributes.MAX_HEALTH, 10.0)
                         .add(Attributes.MOVEMENT_SPEED, 0.25)
+                        .build());
+        event.put(
+                VILLAGER_GHOST.get(),
+                LivingEntity.createLivingAttributes()
+                        .add(Attributes.MAX_HEALTH, 20.0)
+                        .add(Attributes.MOVEMENT_SPEED, 0.5)
                         .build());
     }
 }

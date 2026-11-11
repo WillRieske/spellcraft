@@ -157,5 +157,6 @@ class SpellAssetsTest {
         // Act & Assert
         assertThat(lang).contains("\"effect.spellcraft.casting_scroll\"");
         assertThat(lang).contains("\"entity.spellcraft.mirror_image\"");
+        assertThat(lang).contains("\"entity.spellcraft.villager_ghost\"");
     }
 }
