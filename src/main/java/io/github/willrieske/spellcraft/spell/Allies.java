@@ -2,12 +2,14 @@ package io.github.willrieske.spellcraft.spell;
 
 import java.util.UUID;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityReference;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.OwnableEntity;
 import net.minecraft.world.entity.animal.allay.Allay;
 import net.minecraft.world.entity.animal.golem.IronGolem;
+import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.npc.villager.AbstractVillager;
 import net.minecraft.world.entity.player.Player;
 
@@ -82,6 +84,23 @@ public final class Allies {
                 || other instanceof IronGolem
                 || other.hasData(AllyAttachments.SUMMONER)
                 || other.hasData(AllyAttachments.CURE);
+    }
+
+    /**
+     * Whether the damage comes from a player's side: its causing entity is a player (a sword, or fangs through {@code
+     * indirectMagic(fangs, caster)}), a tamed wolf (every tamed wolf is a player's, even while its owner is offline and
+     * {@code getOwner()} cannot resolve it), or any mob carrying a summoner mark (round one's vexes, Bound Vexes from
+     * Part 2 on, Mirror images of a player). Lava, falls, other mobs and {@code /kill} are not. Shared by {@code
+     * GolemMercy} and the villager-ghost records.
+     *
+     * @param source the damage
+     * @return true if a player's side caused it
+     */
+    public static boolean isPlayersSide(DamageSource source) {
+        Entity cause = source.getEntity();
+        return cause instanceof Player
+                || (cause instanceof Wolf wolf && wolf.isTame())
+                || (cause != null && cause.hasData(AllyAttachments.SUMMONER));
     }
 
     private static boolean ownedBy(UUID owner, Entity other) {

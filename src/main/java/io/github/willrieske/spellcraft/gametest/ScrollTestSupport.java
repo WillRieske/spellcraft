@@ -4,7 +4,12 @@ import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.MirrorImage;
 import io.github.willrieske.spellcraft.evoking.MirrorImages;
+import io.github.willrieske.spellcraft.evoking.VillagerGhosts;
 import java.util.List;
+import java.util.UUID;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -14,6 +19,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.zombie.Husk;
+import net.minecraft.world.entity.npc.villager.VillagerData;
+import net.minecraft.world.entity.npc.villager.VillagerProfession;
+import net.minecraft.world.entity.npc.villager.VillagerType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
@@ -133,5 +141,36 @@ final class ScrollTestSupport {
         List<BoundVex> vexes = TeamMoveTestSupport.flyingVexes(helper, player, 12, hang);
         vexes.get(0).setCaster(true);
         return new RaidScene(player, husk, vexes.get(0));
+    }
+
+    /**
+     * A fixed non-default villager look for a record: desert type, librarian profession, level 3. A fresh villager's
+     * data equals the codec's defaults, so a default sample could not catch a codec that drops a field.
+     *
+     * @param helper the test's helper
+     * @return the sample data
+     */
+    static VillagerData sampleVillagerData(GameTestHelper helper) {
+        RegistryAccess registries = helper.getLevel().registryAccess();
+        return new VillagerData(
+                registries.lookupOrThrow(Registries.VILLAGER_TYPE).getOrThrow(VillagerType.DESERT),
+                registries.lookupOrThrow(Registries.VILLAGER_PROFESSION).getOrThrow(VillagerProfession.LIBRARIAN),
+                3);
+    }
+
+    /**
+     * Adds a record at {@code at} (absolute) with the sample data and removes it again when the test ends.
+     *
+     * @param helper the test's helper
+     * @param at the absolute position
+     * @return the record
+     */
+    static VillagerGhosts.Record record(GameTestHelper helper, Vec3 at) {
+        VillagerGhosts ghosts = VillagerGhosts.get(helper.getLevel());
+        VillagerGhosts.Record record = new VillagerGhosts.Record(
+                UUID.randomUUID(), BlockPos.containing(at), sampleVillagerData(helper), 0L, 0L);
+        ghosts.add(record);
+        GameTestSupport.whenDone(helper, () -> ghosts.remove(record.id()));
+        return record;
     }
 }
