@@ -121,3 +121,4 @@ d00be34 Task 7 GameTests 596 passed x2
 0efd173 Task 12 GameTests 630 passed x2
 eef3d4c Task 13 docs; pitest 485/492; GameTests 630 (2 of 3 runs; multishot arc test flaky)
 a1532b6 Part 7 Task 1: build green; GameTests 650 required passed (baseline)
+02d5693 Part 7 Task 2: build green; GameTests 650 required passed x2; unit 650

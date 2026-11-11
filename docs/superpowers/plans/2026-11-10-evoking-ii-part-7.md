@@ -209,7 +209,7 @@ git commit -m "docs(evoking): API notes for Evoking II Part 7"
 
 `GrantedAbilities` replaces `InfinityAbilities`: its Infinity rows keep their meaning (a row of the old table with `ghostrail` false and `ghostrailMarked` false gives the same action: GRANT is `reset=false, mayfly, instabuild`; REVOKE is `reset=true`; RELEASE is a plan with no change and the mark cleared; NONE is a plan with no change and the mark kept).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `GhostrailDurationTest`:
 
@@ -881,12 +881,12 @@ class GrantedAbilitiesPropertiesTest {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `./gradlew test --tests "*GhostrailDurationTest" --tests "*GrantedAbilities*" --tests "*GhostRecords*" --tests "*GhostNeedTest" --tests "*MirrorRuleTest" --tests "*CasterRulesTest"`
 Expected: FAIL to compile (the classes do not exist).
 
-- [ ] **Step 3: Write the implementations**
+- [x] **Step 3: Write the implementations**
 
 ```java
 /** How long a Ghostrail lasts for each kind of carrier (Parts 6-7 spec §7.3, "Durations"). */
@@ -1215,12 +1215,12 @@ public static void sync(ServerPlayer player) {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew test`
 Expected: PASS, including `ArchitectureTest.spellRulesCoreIsPure` and the unchanged `InfinityAbilityGameTests` logic (they run in Step 5).
 
-- [ ] **Step 5: Gates and commit**
+- [x] **Step 5: Gates and commit**
 
 Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice. Expected: `All N required tests passed` both times, where N is the baseline Task 1 recorded (no GameTest was added; the Infinity ability tests prove the adapter kept the old behavior).
 
@@ -1228,6 +1228,8 @@ Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice. 
 git add src
 git commit -m "feat(spells): pure core for Casters, Mirror, Ghostrail and villager ghosts"
 ```
+
+> **As built (`02d5693`):** matches plan.
 
 ---
 
