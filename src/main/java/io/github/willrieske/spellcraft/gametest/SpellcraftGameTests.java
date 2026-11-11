@@ -100,6 +100,7 @@ public final class SpellcraftGameTests {
         BoundVexTeamMoveEvaderGameTests.registerAll();
         BoundVexTeamMoveRaidGameTests.registerAll();
         SpellScrollGameTests.registerAll();
+        MirrorGameTests.registerAll();
         GolemGameTests.registerAll();
     }
 

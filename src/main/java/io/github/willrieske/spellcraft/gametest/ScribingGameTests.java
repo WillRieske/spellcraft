@@ -216,8 +216,9 @@ public final class ScribingGameTests {
     }
 
     /**
-     * Dice for one draw: the tier roll comes up 0 (not below a 0% chance, so the lower pool), then the pick comes up
-     * {@code pick}. Remembers the bound of the pick, which is the size of the pool drawn from.
+     * Dice for one draw: the tier roll always comes up 0, so a 0% chance selects the lower pool and a 100% chance
+     * selects the top pool; then the pick comes up {@code pick}. Remembers the bound of the pick, which is the size of
+     * the pool drawn from.
      */
     private static final class FixedPick implements ScrollDraw.Dice {
         private final int pick;

@@ -145,8 +145,8 @@ class SpellAssetsTest {
     }
 
     /**
-     * When the casting effect is named in the lang file, should its key exist: a missing one would show a raw key in
-     * game. Tasks 4 and 12 add the entity keys to this test as their entities arrive.
+     * When the casting effect and the Mirror image are named in the lang file, should their keys exist: a missing one
+     * would show a raw key in game. Task 12 adds the ghost's key to this test when that entity arrives.
      *
      * <p>Method under test: the lang file against the Part 7 names
      */
@@ -156,5 +156,6 @@ class SpellAssetsTest {
         String lang = Files.readString(ASSETS.resolve("lang/en_us.json"));
         // Act & Assert
         assertThat(lang).contains("\"effect.spellcraft.casting_scroll\"");
+        assertThat(lang).contains("\"entity.spellcraft.mirror_image\"");
     }
 }

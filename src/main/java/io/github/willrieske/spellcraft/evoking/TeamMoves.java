@@ -724,12 +724,12 @@ public final class TeamMoves {
         }
     }
 
-    /** Forgets every record and any scripted Raid dice (single-player loads one server per world in the same JVM). */
+    /** Forgets every record and any scripted dice (single-player loads one server per world in the same JVM). */
     static void clear() {
         STATES.clear();
         LAST_REQUEST.clear();
         NEXT_SCAN.clear();
-        Dice.RAID_KIT.unscript();
+        Dice.unscriptAll();
     }
 
     /**

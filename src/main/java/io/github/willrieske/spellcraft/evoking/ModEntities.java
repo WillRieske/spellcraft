@@ -2,7 +2,9 @@ package io.github.willrieske.spellcraft.evoking;
 
 import io.github.willrieske.spellcraft.Spellcraft;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
@@ -34,10 +36,21 @@ public final class ModEntities {
                     .noLootTable()
                     .notInPeaceful());
 
+    /**
+     * The Mirror image (Parts 6-7 spec §7.2): a copy of a caster that wanders and can be hit. Not a mob: a living entity
+     * with its own small walk. Sized at spawn like its caster ({@link MirrorImage#getDefaultDimensions}); no loot table.
+     */
+    public static final DeferredHolder<EntityType<?>, EntityType<MirrorImage>> MIRROR_IMAGE =
+            ENTITIES.registerEntityType(
+                    "mirror_image",
+                    MirrorImage::new,
+                    MobCategory.MISC,
+                    builder -> builder.sized(0.6F, 1.8F).clientTrackingRange(8).noLootTable());
+
     private ModEntities() {}
 
     /**
-     * Gives the Bound Vex its attributes (a mod-bus event, received here as {@code SpellcraftGameTests} receives
+     * Gives the Bound Vex and the Mirror image their attributes (a mod-bus event, received here as {@code SpellcraftGameTests} receives
      * {@code RegisterGameTestsEvent}).
      *
      * @param event the attribute event
@@ -45,5 +58,11 @@ public final class ModEntities {
     @SubscribeEvent
     public static void onAttributes(EntityAttributeCreationEvent event) {
         event.put(BOUND_VEX.get(), BoundVex.createAttributes().build());
+        event.put(
+                MIRROR_IMAGE.get(),
+                LivingEntity.createLivingAttributes()
+                        .add(Attributes.MAX_HEALTH, 10.0)
+                        .add(Attributes.MOVEMENT_SPEED, 0.25)
+                        .build());
     }
 }
