@@ -17,6 +17,7 @@ import io.github.willrieske.spellcraft.evoking.BoundVexEvents;
 import io.github.willrieske.spellcraft.evoking.DodgeGolemGoal;
 import io.github.willrieske.spellcraft.evoking.FleeCreeperGoal;
 import io.github.willrieske.spellcraft.evoking.FollowSummonerGoal;
+import io.github.willrieske.spellcraft.evoking.TeamMoves;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -98,6 +99,8 @@ public final class BoundVexJobGameTests {
                 SHARED,
                 "bound_vex_dodge_ignores_a_diagonal_swing_beyond_three_blocks",
                 BoundVexJobGameTests::dodgeIgnoresADiagonalSwingBeyondThreeBlocks);
+        FangGameTests.addPadded(
+                SHARED, "bound_vex_job_repairing_vex_is_not_free", BoundVexJobGameTests::repairingVexIsNotFree);
         FangGameTests.addPadded(
                 SHARED, "bound_vex_repairs_a_hurt_ally_golem", BoundVexJobGameTests::repairsAHurtAllyGolem);
         FangGameTests.addPadded(
@@ -429,6 +432,32 @@ public final class BoundVexJobGameTests {
     }
 
     /**
+     * When a Bound Vex is repairing a hurt ally golem (it holds the claim), should the free-vex list leave it out and
+     * keep
+     * an idle vex of the same summoner in.
+     *
+     * <p>Method under test: {@code Jobs.busy}, through {@link TeamMoves#isFree}
+     */
+    static void repairingVexIsNotFree(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        MockPlayers.moveTo(helper, player, new Vec3(6.5, 1, 1.5), NORTH);
+        golemOnStone(helper, GOLEM_SPOT, 50.0F);
+        BoundVex worker = unleashed(helper, GOLEM_SPOT.north(2).above(2), player);
+        BoundVex idle = TeamMoveTestSupport.frozenVexes(helper, player, 1).get(0);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(
+                        () -> helper.assertTrue(worker.getMainHandItem().is(Items.IRON_INGOT), "setup: it repairs"))
+                .thenExecute(() -> {
+                    helper.assertFalse(TeamMoves.isFree(worker, player), "a vex mid-job is not free");
+                    helper.assertValueEqual(TeamMoves.freeVexes(player), List.of(idle), "only the idle vex is listed");
+                })
+                .thenSucceed();
+    }
+
+    /**
      * When an ally golem at half health stands in the guard area of two idle Bound Vexes, both out of reach of its
      * chest, should have exactly one vex fly in and take it (holding an iron ingot while the other keeps its sword),
      * heal it by exactly 25 (to 75) on the first tap with the repair sound and by 25 more on the second, and give the
@@ -694,7 +723,8 @@ public final class BoundVexJobGameTests {
 
     /**
      * When a Bound Vex with a target hovers within reach of a hurt ally golem's chest (the target, a husk, is within
-     * two blocks of the vex, so the vex has no charge to make), should keep its sword and leave the golem's health alone
+     * two blocks of the vex, so the vex has no charge to make), should keep its sword and leave the golem's health
+     * alone
      * for forty ticks, over several scans; once the target is cleared, should repair the golem (the control).
      *
      * <p>Method under test: {@code RepairGolemGoal.canUse}: the no-target gate (package-private), through the goal
@@ -727,7 +757,8 @@ public final class BoundVexJobGameTests {
     }
 
     /**
-     * When a Bound Vex flies to a hurt ally golem, three blocks off and about to arrive, and the golem is healed to full
+     * When a Bound Vex flies to a hurt ally golem, three blocks off and about to arrive, and the golem is healed to
+     * full
      * before the vex gets there (so the repair stops before it ever conjured the ingot), should keep the item it holds
      * (the iron sword) for forty ticks; once the golem is hurt again, should repair it with the ingot and get the sword
      * back at the end.

@@ -90,6 +90,15 @@ public final class SpellcraftGameTests {
         BoundVexCritGameTests.registerAll();
         BoundVexRescueJobGameTests.registerAll();
         BoundVexRescueLifecycleGameTests.registerAll();
+        BoundVexTeamMoveRosterGameTests.registerAll();
+        BoundVexTeamMoveLifecycleGameTests.registerAll();
+        BoundVexTeamFlightGameTests.registerAll();
+        BoundVexTeamMoveTriggerGameTests.registerAll();
+        BoundVexTeamMoveRequestGameTests.registerAll();
+        BoundVexTeamMoveShieldGameTests.registerAll();
+        BoundVexTeamMoveMultishotGameTests.registerAll();
+        BoundVexTeamMoveEvaderGameTests.registerAll();
+        BoundVexTeamMoveRaidGameTests.registerAll();
         GolemGameTests.registerAll();
     }
 

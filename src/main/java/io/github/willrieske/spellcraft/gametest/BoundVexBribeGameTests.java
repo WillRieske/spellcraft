@@ -18,6 +18,7 @@ import io.github.willrieske.spellcraft.evoking.BoundVexEvents;
 import io.github.willrieske.spellcraft.evoking.BribeGoal;
 import io.github.willrieske.spellcraft.evoking.FleeCreeperGoal;
 import io.github.willrieske.spellcraft.evoking.FleeFromViewGoal;
+import io.github.willrieske.spellcraft.evoking.TeamMoves;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -77,6 +78,7 @@ public final class BoundVexBribeGameTests {
                 BoundVexBribeGameTests::aBribedVexLeavesOutOfSight);
         padded("bound_vex_bribe_a_bribe_that_fails", BoundVexBribeGameTests::aBribeThatFails);
         padded("bound_vex_bribe_a_courted_vex_is_not_prey", BoundVexBribeGameTests::aCourtedVexIsNotPrey);
+        padded("bound_vex_bribe_courting_vex_is_not_free", BoundVexBribeGameTests::courtingVexIsNotFree);
         padded(
                 "bound_vex_bribe_no_offer_to_a_vex_that_is_not_attacking_your_side",
                 BoundVexBribeGameTests::noOfferToAVexThatIsNotAttackingYourSide);
@@ -319,6 +321,35 @@ public final class BoundVexBribeGameTests {
                 .thenExecuteFor(60, () -> {
                     helper.assertFalse(holdsEmerald(vex), "no emerald is conjured again");
                     helper.assertFalse(BribeGoal.isCourted(other), "and the other vex is not courted again");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a Bound Vex courts an enemy vex (it holds a live claim), should it not be free and not be listed.
+     *
+     * <p>Method under test: {@code Jobs.busy} (the bribe wiring), through {@link TeamMoves#isFree}
+     */
+    static void courtingVexIsNotFree(GameTestHelper helper) {
+        // Arrange (as aCourtedVexIsNotPrey)
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        BoundVex first = stayingVex(helper, player, ItemStack.EMPTY);
+        BoundVex second = stayingVex(helper, player, ItemStack.EMPTY);
+        rolling(helper, first, 2);
+        rolling(helper, second, 2);
+        Vex other = enemyVex(helper, first.position(), 3.0, 0.0, player);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        BribeGoal.isCourted(other) && (holdsEmerald(first) || holdsEmerald(second)),
+                        "setup: a Bound Vex courts it"))
+                .thenExecute(() -> {
+                    BoundVex worker = holdsEmerald(first) ? first : second;
+                    worker.setStaying(false);
+                    TeamMoveTestSupport.assertFreeButForJobs(helper, worker, player);
+                    helper.assertFalse(TeamMoves.isFree(worker, player), "a vex mid-courtship is not free");
+                    helper.assertFalse(TeamMoves.freeVexes(player).contains(worker), "and is not listed");
                 })
                 .thenSucceed();
     }

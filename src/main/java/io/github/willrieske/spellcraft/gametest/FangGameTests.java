@@ -18,6 +18,7 @@ import io.github.willrieske.spellcraft.particle.ModParticles;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import io.github.willrieske.spellcraft.spell.rules.EvokerSpell;
 import io.github.willrieske.spellcraft.spell.rules.FangSquare;
+import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -148,7 +149,8 @@ public final class FangGameTests {
 
     /**
      * Registers a test that places fangs or vexes far from its structure: padding 13, a tick budget that covers the
-     * body plus the wait of {@link #padded}, and the body wrapped in {@link #padded}. The vex tests register their padded
+     * body plus the wait of {@link #padded}, and the body wrapped in {@link #padded}. The vex tests register their
+     * padded
      * tests through this too.
      */
     static void addPadded(String environment, String name, Consumer<GameTestHelper> body) {
@@ -1315,15 +1317,23 @@ public final class FangGameTests {
     }
 
     /**
-     * When a request is written and read back through its stream codec, should it come back equal for both spells,
-     * with no byte left over.
+     * When a request is written and read back through its stream codec, should it come back equal for both spells and
+     * every team move, with no byte left over.
      *
      * <p>Method under test: {@link EvokingRequest#STREAM_CODEC}
      */
     static void requestCodecRoundTrip(GameTestHelper helper) {
+        List<EvokingRequest> requests = new ArrayList<>();
         for (EvokerSpell spell : EvokerSpell.values()) {
+            requests.add(EvokingRequest.cast(spell));
+        }
+        for (TeamMove move : TeamMove.values()) {
+            requests.add(EvokingRequest.teamMove(move));
+        }
+        requests.add(new EvokingRequest(EvokingRequest.Kind.TEAM_MOVE, (byte) 99));
+        requests.add(new EvokingRequest(EvokingRequest.Kind.CAST, (byte) -1)); // the signed-byte path
+        for (EvokingRequest request : requests) {
             // Arrange
-            EvokingRequest request = new EvokingRequest(spell);
             RegistryFriendlyByteBuf buf = new RegistryFriendlyByteBuf(
                     Unpooled.buffer(), helper.getLevel().registryAccess(), ConnectionType.NEOFORGE);
 
@@ -1332,8 +1342,8 @@ public final class FangGameTests {
             EvokingRequest decoded = EvokingRequest.STREAM_CODEC.decode(buf);
 
             // Assert
-            helper.assertValueEqual(decoded, request, "round trip of " + spell);
-            helper.assertValueEqual(buf.readableBytes(), 0, "bytes left after " + spell);
+            helper.assertValueEqual(decoded, request, "round trip of " + request);
+            helper.assertValueEqual(buf.readableBytes(), 0, "bytes left after " + request);
             buf.release();
         }
         helper.succeed();

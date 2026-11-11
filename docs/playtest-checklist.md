@@ -250,6 +250,24 @@ Survival world, Strength of Evoking on, a dozen Bound Vexes out. Where a mob can
 - [ ] Critical hits in the End: the particles and sound on every vex hit.
 - [ ] A rescuer that was mid-cure or fleeing a creeper: does it come, and does the cure restart afterwards?
 
+## Evoking II (Part 6)
+
+Survival world, Strength of Evoking on, twelve Bound Vexes out. Give yourself Resistance (`/effect give @s resistance 600 4`) for the fights.
+
+- [ ] Shield: three, or nine, vexes with a shield in each hand fly at something big (an enderman, a ravager), take turns lunging, and back off to about six blocks. Do the bashes read as bashes? Is the sound right? Do the shields in both hands look odd on the vex model?
+- [ ] Multishot: a zombie with a raised attack (or a pillager captain, a piglin brute) going after one vex: the vex and two friends hold crossbows and fire three arrows at once. Is the spread right? Do the volleys look like a crossbow volley, with the crossbow visible in the vex's hand? Do the three stand apart on an arc round the enemy (not in a row), and do all three keep firing every couple of seconds, not only the middle one?
+- [ ] Multishot members each keep their own slot on the arc round the enemy, even if they arrived in a line, and all three keep firing every couple of seconds (none goes silent behind another).
+- [ ] Evader: drop below half health (`/damage @s 12`). Do three vexes circle you at two blocks, shove a zombie that gets close, and knock a skeleton's arrow back? Does the circle get in the way of your clicks? Does it end when you are healed?
+- [ ] The Evader orbit looks smooth and keeps up with a sprinting summoner (the circle stays centered on you, not trailing behind).
+- [ ] Raid: a ravager (`/summon ravager`) with twelve vexes out. Do they gear up, line up in a 3 x 4 block eight blocks from it facing it, charge together, and do the crossbow ones fire rockets that hurt the ravager and not you? Are the armor and weapons visible? Rocket hit rate on small and large giants. Do the crossbow vexes keep firing rockets during the charge, or only once? The melee vexes hang in the line of fire; the rocketeers ignore them (the summoner and non-roster vexes still stop a shot).
+- [ ] Raid rocketeers hit short enemies (spiders, creepers, silverfish): the rocket is aimed straight at the enemy's lower body, so it should not fly over them at 7 to 9 blocks. Farm animals or villagers standing near the enemy are not hurt by the blast.
+- [ ] Which mobs trigger what. Walk past an enderman, a witch, a pillager party, a baby zombie with a raised attack: do the moves start when you would want them to, and not when you would not?
+- [ ] J and K: J cycles Shield, Multishot, Evader, Raid and shows the "Team move: ..." line; K in automatic mode says "Team moves are automatic"; with `teamMoves = MANUAL` K starts the picked move, and the four refusals read right (already in a move, not ready yet, not enough vexes or no enemy).
+- [ ] A move does not fight you for control of your vexes: the empty-hand clicks say "That vex is busy" and change nothing; giving a vex gear still works and the gift waits until the move ends.
+- [ ] Rescues in a move: stand in lava with a Shield running; the rescuer (a team-move member) still pulls you out but shows no bucket or apple while its main hand holds a kit item, and it keeps its kit and goes back to the move.
+- [ ] The moves with the Evoking effect gone: the vexes finish the move.
+- [ ] The setting in the in-game config screen: "Team moves" under "Evoking".
+
 ## Real profile
 
 - [ ] Will installs the new jar. From the repo root, in a normal PowerShell window (the Claude app's shells cannot write under `%APPDATA%`), he runs the command below. It builds, then copies the jar whose name carries `mod_version` into `%APPDATA%\.minecraft\mods` and removes every other `spellcraft-*.jar` there; the old `1.0.0` jar goes away and the `1.2.0` jar is replaced. He then launches the NeoForge 26.3 profile and casts each scroll once.

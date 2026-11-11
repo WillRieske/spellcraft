@@ -30,6 +30,20 @@ final class Jobs {
     private Jobs() {}
 
     /**
+     * Whether {@code vex} is in the middle of one of the four jobs (a repair, a cure, a bribe, a crystal): a vex
+     * mid-job finishes it and is not free for a team move (Parts 6-7 spec §2.2).
+     *
+     * @param vex a Bound Vex
+     * @return true while it holds a live claim in any job
+     */
+    static boolean busy(BoundVex vex) {
+        return RepairGolemGoal.holds(vex)
+                || CureZombieVillagerGoal.holds(vex)
+                || BribeGoal.holds(vex)
+                || AttackCrystalGoal.holds(vex);
+    }
+
+    /**
      * A claim map: subject UUID to the Bound Vex holding the claim and the game time it was made. A claim counts only
      * while its holder is alive (a vex that dies, despawns or is unloaded never runs its goal's {@code stop}) and, when
      * the map has an age limit, while it is not older than that (a vex alive in a chunk that stopped ticking never
@@ -74,6 +88,20 @@ final class Jobs {
         boolean held(Entity subject) {
             Claim claim = claims.get(subject.getUUID());
             return claim != null && live(claim, subject.level().getGameTime());
+        }
+
+        /**
+         * Whether {@code holder} holds a live claim on any subject. The map is keyed by subject, so this scans the
+         * values.
+         *
+         * @param holder a Bound Vex
+         * @return true while one of its claims is live
+         */
+        boolean heldBy(BoundVex holder) {
+            UUID self = holder.getUUID();
+            return claims.values().stream()
+                    .anyMatch(claim -> claim.holder().getUUID().equals(self)
+                            && live(claim, claim.holder().level().getGameTime()));
         }
 
         /**

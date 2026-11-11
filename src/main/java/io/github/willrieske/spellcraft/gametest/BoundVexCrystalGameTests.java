@@ -15,6 +15,7 @@ import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARE
 import io.github.willrieske.spellcraft.evoking.AttackCrystalGoal;
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.BoundVexEvents;
+import io.github.willrieske.spellcraft.evoking.TeamMoves;
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
 import java.util.Set;
 import java.util.UUID;
@@ -82,6 +83,7 @@ public final class BoundVexCrystalGameTests {
                 "bound_vex_world_crystal_gives_up_after_200_ticks",
                 CRYSTAL_LONG_BODY,
                 BoundVexCrystalGameTests::crystalGivesUpAfter200Ticks);
+        padded("bound_vex_crystal_attacking_vex_is_not_free", BoundVexCrystalGameTests::crystalVexIsNotFree);
         padded("bound_vex_world_crystal_blast_by_a_player", BoundVexCrystalGameTests::crystalBlastByAPlayer);
         padded(
                 "bound_vex_world_crystal_blast_spares_another_players_vex",
@@ -325,7 +327,7 @@ public final class BoundVexCrystalGameTests {
         BlockPos slot = player.blockPosition();
         BoundVex vex = crystalVex(helper, end, player, crystalSpot(slot, 0, 0), true);
         Husk husk = huskIn(end, crystalSpot(slot, -3, 0).add(0.0, 2.0, 0.0));
-        husk.getAttribute(Attributes.MAX_HEALTH).setBaseValue(1000.0);
+        TeamMoveTestSupport.setBase(husk, Attributes.MAX_HEALTH, 1000.0);
         husk.setHealth(1000.0F);
         whenDone(helper, husk::discard);
         vex.setTarget(husk);
@@ -360,6 +362,31 @@ public final class BoundVexCrystalGameTests {
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(inside.isRemoved(), "the near crystal is broken"))
                 .thenExecuteAfter(100, () -> helper.assertTrue(outside.isAlive(), "the far crystal is left alone"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a Bound Vex holds a live claim on a crystal (an attack job), should it not be free and not be listed.
+     *
+     * <p>Method under test: {@code Jobs.busy} (the crystal wiring), through {@link TeamMoves#isFree}
+     */
+    static void crystalVexIsNotFree(GameTestHelper helper) {
+        // Arrange (as crystalGivesUpAfter200Ticks)
+        ServerPlayer player = voidPlayer(helper);
+        ServerLevel end = endVoid(helper, player, CRYSTAL_REACH);
+        BlockPos slot = player.blockPosition();
+        BoundVex worker = crystalVex(helper, end, player, crystalSpot(slot, 0, 0), true);
+        EndCrystal crystal = crystalIn(helper, end, crystalSpot(slot, 20, 0));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(AttackCrystalGoal.isClaimed(crystal), "setup: the vex has it"))
+                .thenExecute(() -> {
+                    worker.setStaying(false);
+                    TeamMoveTestSupport.assertFreeButForJobs(helper, worker, player);
+                    helper.assertFalse(TeamMoves.isFree(worker, player), "a vex mid-attack is not free");
+                    helper.assertFalse(TeamMoves.freeVexes(player).contains(worker), "and is not listed");
+                })
                 .thenSucceed();
     }
 

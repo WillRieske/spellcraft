@@ -107,3 +107,16 @@ a7b074c Part 5 Task 10 (+ Task 8 fixes 8b51744): build, runData green; All 475 r
 ac816fd Part 5 branch-review fixes (A 151fdd0, B ac816fd, C tests): build green; All 489 required tests passed twice
 Part 5 tail-item fix round (tail self-heals after a preempted job; level-clause, blocked-crit tests): build green; All 496 required tests passed twice
 Part 5 flaky-test fix (rescuer-target tests pause the follow goal until the vex holds the husk): build green; five lava-selector runs green; All 496 required tests passed twice
+4f42510 Task 1 docs-only; GameTests 497 (baseline)
+c19b658 Task 2 unit tests green (TeamMove*), build green
+a24543f Task 3 GameTests 514 passed x2
+e37f437 Task 4 GameTests 528 passed x2
+2d4c6e9 Task 5 GameTests 549 passed x2
+7d431bf Task 6 GameTests 577 passed x2
+d00be34 Task 7 GameTests 596 passed x2
+28bebae Task 8 GameTests 600 passed x2, runData green
+1a11c98 Task 9 GameTests 607 passed x2
+636baf4 Task 10 GameTests 614 passed x2
+9210bea Task 11 GameTests 623 passed x2
+0efd173 Task 12 GameTests 630 passed x2
+eef3d4c Task 13 docs; pitest 485/492; GameTests 630 (2 of 3 runs; multishot arc test flaky)

@@ -355,7 +355,8 @@ public final class BoundVexGearGameTests {
      *
      * <p>Method under test: {@code BoundVex#checkDespawn}
      *
-     * <p>Sets the server difficulty, which is global, so it runs alone in the {@code peaceful_gear} batch; the difficulty
+     * <p>Sets the server difficulty, which is global, so it runs alone in the {@code peaceful_gear} batch; the
+     * difficulty
      * is restored through {@code whenDone}.
      */
     static void peacefulRemovalDropsGear(GameTestHelper helper) {
@@ -414,7 +415,8 @@ public final class BoundVexGearGameTests {
     }
 
     /**
-     * When {@code VexGear} classifies armor, a shield, launchers, throwables, arrows, melee weapons and junk, should give
+     * When {@code VexGear} classifies armor, a shield, launchers, throwables, arrows, melee weapons and junk, should
+     * give
      * the kind and slot of the spec's table (a potion with no effects and a beneficial tipped arrow are not gear), and
      * tell support (potions only) from ranged by the potion's effects.
      *
@@ -867,7 +869,7 @@ public final class BoundVexGearGameTests {
 
     /** Gives {@code mob} a thousand health, so a few hits cannot kill it. */
     private static void toughen(LivingEntity mob) {
-        mob.getAttribute(Attributes.MAX_HEALTH).setBaseValue(1000.0);
+        TeamMoveTestSupport.setBase(mob, Attributes.MAX_HEALTH, 1000.0);
         mob.setHealth(1000.0F);
     }
 
@@ -925,7 +927,9 @@ public final class BoundVexGearGameTests {
         return pig;
     }
 
-    /** An iron golem with no AI at the structure's middle (calm: nothing has angered it), discarded when the test ends. */
+    /**
+     * An iron golem with no AI at the structure's middle (calm: nothing has angered it), discarded when the test ends.
+     */
     private static IronGolem calmGolem(GameTestHelper helper) {
         IronGolem golem = helper.spawn(EntityTypes.IRON_GOLEM, FEET);
         golem.setNoAi(true);
@@ -1110,7 +1114,8 @@ public final class BoundVexGearGameTests {
     }
 
     /**
-     * A staying Bound Vex of {@code player} holding a splash potion of healing at {@link BoundVexTestSupport#AIR_SPOT}, without the repair
+     * A staying Bound Vex of {@code player} holding a splash potion of healing at {@link
+     * BoundVexTestSupport#AIR_SPOT}, without the repair
      * goal (a hurt golem would send it off to conjure an ingot over the potion; repair is Part 2's subject).
      */
     private static BoundVex healer(GameTestHelper helper, ServerPlayer player) {
@@ -1538,7 +1543,8 @@ public final class BoundVexGearGameTests {
     }
 
     /**
-     * When a staying vex holds a poison-tipped arrow item and has a husk six blocks away (the stay area reaches 6.5), should shoot an {@code Arrow}
+     * When a staying vex holds a poison-tipped arrow item and has a husk six blocks away (the stay area reaches 6.5),
+     * should shoot an {@code Arrow}
      * it owns within a hundred and thirty ticks, carrying poison in its pickup stack, and still hold exactly one tipped
      * arrow.
      *

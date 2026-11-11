@@ -15,6 +15,20 @@
   "message.spellcraft.no_targets": "No targets in range",
   "message.spellcraft.peaceful_vexes": "Vexes cannot be summoned on Peaceful",
   "message.spellcraft.too_many_vexes": "You have too many vexes",
+  "message.spellcraft.vex_busy": "That vex is busy",
+  "message.spellcraft.team_move_shield": "Your vexes form a Shield!",
+  "message.spellcraft.team_move_multishot": "Your vexes ready a Multishot!",
+  "message.spellcraft.team_move_evader": "Your vexes form an Evader guard!",
+  "message.spellcraft.team_move_raid": "Your vexes Raid!",
+  "message.spellcraft.team_moves_automatic": "Team moves are automatic",
+  "message.spellcraft.team_move_running": "Your vexes are already in a team move",
+  "message.spellcraft.team_move_cooling": "That team move is not ready yet",
+  "message.spellcraft.team_move_unavailable": "Not enough vexes, or no enemy for that move",
+  "message.spellcraft.team_move_selected": "Team move: %s",
+  "team_move.spellcraft.shield": "Shield",
+  "team_move.spellcraft.multishot": "Multishot",
+  "team_move.spellcraft.evader": "Evader",
+  "team_move.spellcraft.raid": "Raid",
 
   "spellcraft.configuration.title": "Spellcraft Configs",
   "spellcraft.configuration.section.spellcraft.server.toml": "Spellcraft Server Configs",
@@ -23,6 +37,8 @@
   "spellcraft.configuration.section.spellcraft.client.toml.title": "Spellcraft Client Configs",
   "spellcraft.configuration.upsideDown": "Strength of Upside-Down",
   "spellcraft.configuration.scribing": "Scribing",
+  "spellcraft.configuration.evoking": "Evoking",
+  "spellcraft.configuration.teamMoves": "Team moves",
   "spellcraft.configuration.trailing": "Strength of Trailing",
   "spellcraft.configuration.maxTrailBlocks": "Most flames per trail",
   "spellcraft.configuration.topTierChancePercent": "Extreme-tier chance per option (%)",
@@ -32,5 +48,7 @@
   "container.spellcraft.scribe.chance": "%s%% chance of an extreme-tier spell",
   "key.category.spellcraft.spells": "Spellcraft",
   "key.spellcraft.fangs_y": "Evoking: Fangs",
-  "key.spellcraft.vexes": "Evoking: Summon Vexes"
+  "key.spellcraft.vexes": "Evoking: Summon Vexes",
+  "key.spellcraft.team_move_cycle": "Evoking: Next Team Move",
+  "key.spellcraft.team_move_go": "Evoking: Team Move!"
 }

@@ -1,22 +1,18 @@
 package io.github.willrieske.spellcraft.evoking;
 
-import io.github.willrieske.spellcraft.spell.Allies;
-import io.github.willrieske.spellcraft.spell.rules.SegmentDistance;
 import java.util.EnumSet;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
  * A Bound Vex holding ranged gear (a launcher, or a throwable or arrow that is not support gear, Part 3 spec §4.3
  * "Ranged") keeps between {@link #MIN_DISTANCE} and {@link #MAX_DISTANCE} blocks from its target, looks at it, and
- * every {@link #SHOT_INTERVAL} ticks with line of sight shoots or throws a copy of the held item
- * ({@link VexShots#launch}). Priority 3, flags {@code MOVE} and {@code LOOK}: it takes the place of the charge goal,
- * which the same main-hand test keeps out. It holds its fire while a friend is in the way ({@code friendInTheWay}, spec §4.3
- * "Friendly fire"). A staying vex may back out of its stay area to hold the band; it returns through the post
- * goal once the target is gone (spec §2.2).
+ * every {@link #SHOT_INTERVAL} ticks with line of sight shoots or throws a copy of the held item ({@link
+ * VexShots#launch}). Priority 3, flags {@code MOVE} and {@code LOOK}: it takes the place of the charge goal, which the
+ * same main-hand test keeps out. It holds its fire while a friend is in the way ({@link
+ * VexShots#friendInTheWay(BoundVex, LivingEntity)}, spec §4.3 "Friendly fire"). A staying vex may back out of its stay
+ * area to hold the band; it returns through the post goal once the target is gone (spec §2.2).
  */
 public final class RangedGearGoal extends Goal {
     /** Closer than this and the vex flies away (spec §4.3). */
@@ -38,10 +34,10 @@ public final class RangedGearGoal extends Goal {
     public static final int SHOT_INTERVAL = 40;
 
     /** How close to the line of an arrow a friend's middle may be before the vex holds its fire (spec §4.3). */
-    public static final double LINE_CLEARANCE = 1.0;
+    public static final double LINE_CLEARANCE = VexShots.LINE_CLEARANCE;
 
     /** How close to its target a friend may be before the vex holds back a splash potion (spec §4.3). */
-    public static final double SPLASH_CLEARANCE = 4.0;
+    public static final double SPLASH_CLEARANCE = VexShots.SPLASH_CLEARANCE;
 
     private final BoundVex vex;
 
@@ -86,48 +82,10 @@ public final class RangedGearGoal extends Goal {
         }
         if (cooldown > 0) {
             cooldown--;
-        } else if (distance <= MAX_DISTANCE && vex.hasLineOfSight(target) && !friendInTheWay(target)) {
+        } else if (distance <= MAX_DISTANCE && vex.hasLineOfSight(target) && !VexShots.friendInTheWay(vex, target)) {
             // Holding fire leaves the cooldown at zero: the shot goes as soon as the way is clear.
             VexShots.launch(vex, target);
             cooldown = SHOT_INTERVAL;
         }
-    }
-
-    /**
-     * Whether a friend (the summoner, an ally of the summoner, or another Bound Vex of the same summoner; never the
-     * vex itself or its target) stands where the shot would hurt it (spec §4.3 "Friendly fire"): for an arrow, a friend
-     * whose bounding-box center is within {@link #LINE_CLEARANCE} of the segment from the vex's eyes to the point the
-     * arrow is aimed at ({@link VexShots#aimPoint}: the target's lower body, not its eyes); for a thrown potion, a friend within {@link #SPLASH_CLEARANCE} of the target.
-     */
-    private boolean friendInTheWay(LivingEntity target) {
-        ServerPlayer owner = vex.summoner().orElse(null);
-        if (owner == null) {
-            return false;
-        }
-        boolean thrown = VexGear.kindOf(vex.getMainHandItem()) == VexGear.Kind.THROWABLE;
-        Vec3 from = vex.getEyePosition();
-        Vec3 to = VexShots.aimPoint(target);
-        AABB box = thrown ? target.getBoundingBox().inflate(SPLASH_CLEARANCE + 2.0) : new AABB(from, to).inflate(4.0);
-        return !vex.level()
-                .getEntitiesOfClass(LivingEntity.class, box, friend -> {
-                    if (friend.equals(vex) || friend.equals(target) || !friend.isAlive()) {
-                        return false;
-                    }
-                    boolean isFriend = friend.getUUID().equals(owner.getUUID())
-                            || Allies.isAllyOf(owner, friend)
-                            || (friend instanceof BoundVex other && other.isSummonedBy(owner.getUUID()));
-                    if (!isFriend) {
-                        return false;
-                    }
-                    return thrown
-                            ? friend.distanceTo(target) <= SPLASH_CLEARANCE
-                            : lineDistance(friend.getBoundingBox().getCenter(), from, to) <= LINE_CLEARANCE;
-                })
-                .isEmpty();
-    }
-
-    /** {@link SegmentDistance#distanceToSegment} for {@code Vec3}s. */
-    private static double lineDistance(Vec3 point, Vec3 a, Vec3 b) {
-        return SegmentDistance.distanceToSegment(point.x, point.y, point.z, a.x, a.y, a.z, b.x, b.y, b.z);
     }
 }
