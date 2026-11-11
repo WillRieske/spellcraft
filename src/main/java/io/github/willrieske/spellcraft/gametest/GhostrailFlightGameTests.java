@@ -48,7 +48,7 @@ public final class GhostrailFlightGameTests {
                 SHARED, "ghostrail_flight_grants_mayfly_and_flying", GhostrailFlightGameTests::grantsFlight);
         SpellcraftGameTests.add(
                 SHARED, "ghostrail_flight_flying_is_reasserted_each_sync", GhostrailFlightGameTests::reassertsFlying);
-        FangGameTests.addPadded(
+        SpellcraftGameTests.add(
                 SHARED,
                 "ghostrail_flight_creative_player_keeps_physics",
                 GhostrailFlightGameTests::creativeKeepsPhysics);

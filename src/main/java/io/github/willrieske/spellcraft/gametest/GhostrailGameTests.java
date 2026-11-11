@@ -75,6 +75,10 @@ public final class GhostrailGameTests {
         FangGameTests.addPadded(SHARED, "ghostrail_vex_carrier_is_left_alone", GhostrailGameTests::vexIsLeftAlone);
         SpellcraftGameTests.add(
                 SHARED, "ghostrail_infinite_duration_is_vanillas", GhostrailGameTests::infiniteIsVanillas);
+        FangGameTests.addPadded(
+                SHARED,
+                "ghostrail_recast_in_stone_keeps_the_earlier_start_spot",
+                GhostrailGameTests::recastInStoneKeepsTheStart);
         FangGameTests.addPadded(SHARED, "ghostrail_mob_mark_is_saved", GhostrailGameTests::mobMarkIsSaved);
     }
 
@@ -365,6 +369,7 @@ public final class GhostrailGameTests {
         Husk husk = ghostHusk(helper);
         Ghostrail.tick(husk);
         husk.hurtServer(level, level.damageSources().genericKill(), 1000.0F);
+        husk.removeAllEffects(); // the effect runs out during the death animation: the end must not move a corpse
         Vec3 before = husk.position();
         // Act
         Ghostrail.tick(husk);
@@ -405,6 +410,27 @@ public final class GhostrailGameTests {
      */
     static void infiniteIsVanillas(GameTestHelper helper) {
         helper.assertValueEqual(GhostrailDuration.INFINITE, MobEffectInstance.INFINITE_DURATION, "the sentinel");
+        helper.succeed();
+    }
+
+    /**
+     * When Ghostrail is cast again on a player whose block is now stone, should the earlier start spot be kept.
+     *
+     * <p>Method under test: {@code Ghostrail#begin}: a start spot is only replaced by another standable one.
+     */
+    static void recastInStoneKeepsTheStart(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = plainPlayer(helper);
+        ScrollTestSupport.floor(helper, 3);
+        Spells.cast(player, Spells.GHOSTRAIL, GhostrailDuration.PLAYER_TICKS);
+        BlockPos start = player.blockPosition();
+        stoneBox(helper, FangGameTests.FEET, FangGameTests.FEET.above());
+        player.removeEffect(ModEffects.GHOSTRAIL);
+        // Act
+        Spells.cast(player, Spells.GHOSTRAIL, GhostrailDuration.PLAYER_TICKS);
+        // Assert
+        helper.assertValueEqual(
+                player.getExistingData(EvokingAttachments.GHOSTRAIL_START).orElse(null), start, "the start is kept");
         helper.succeed();
     }
 

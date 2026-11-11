@@ -53,17 +53,19 @@ public final class Ghostrail {
      * Notes that Ghostrail began on {@code carrier} (the effect's {@code onEffectAdded}): the mark with its original
      * {@code NoGravity} (only when no mark is set yet: if the effect was removed and cast again before the end ran,
      * the hold has already set {@code noGravity}, and the stored original must survive), and the block it stands in
-     * if that is a standable spot.
+     * if that is a standable spot (a recast before the end keeps the earlier start when this one is not standable).
      *
      * @param carrier the new carrier, on a server level
      */
     public static void begin(LivingEntity carrier) {
-        if (!carrier.hasData(EvokingAttachments.GHOSTRAIL_MARK)) {
+        boolean recast = carrier.hasData(EvokingAttachments.GHOSTRAIL_MARK);
+        if (!recast) {
             carrier.setData(EvokingAttachments.GHOSTRAIL_MARK, carrier.isNoGravity());
         }
         if (StandableSpots.standable(carrier.level(), carrier.blockPosition())) {
             carrier.setData(EvokingAttachments.GHOSTRAIL_START, carrier.blockPosition());
-        } else {
+        } else if (!recast) {
+            // A fresh start with no standable spot has none; a recast before the end keeps the earlier one
             carrier.removeData(EvokingAttachments.GHOSTRAIL_START);
         }
     }
