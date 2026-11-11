@@ -136,8 +136,8 @@ public final class MirrorConfusionGameTests {
     }
 
     /**
-     * When a zombie is set on an image, then on the image's carrier, should no roll be taken for either (the carrier
-     * is then its plain target), so the next zombie gets the scripted 0.
+     * When a zombie is set on an image, then on the image's carrier, should no roll be taken for either and the
+     * zombie stay on the image, so the next zombie gets the scripted 0.
      *
      * <p>Method under test: {@code MirrorImages.onChangeTarget}.
      */
@@ -159,7 +159,7 @@ public final class MirrorConfusionGameTests {
             Dice.unscriptAll();
         }
         // Assert
-        helper.assertTrue(player.equals(zombieA.getTarget()), "A went to the player without a roll");
+        helper.assertTrue(image.equals(zombieA.getTarget()), "A still targets that image");
         helper.assertTrue(zombieB.getTarget() instanceof MirrorImage, "B was redirected, so the 0 was not spent");
         helper.succeed();
     }
