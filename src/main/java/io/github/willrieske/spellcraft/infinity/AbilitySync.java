@@ -11,12 +11,16 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 /**
- * Keeps each player's creative abilities in line with Infinity, every server tick. Vanilla's abilities packet
- * syncs the client, which then opens the creative inventory by itself (docs/api-notes.md §11).
+ * Keeps each player's creative-style abilities in line with Infinity and Ghostrail, every server tick (Parts 6-7
+ * spec §7.3; formerly {@code AbilitySync}). Vanilla's abilities packet syncs the client, which then opens the
+ * creative inventory by itself (docs/api-notes.md §11). The decision is the pure {@link GrantedAbilities}. This
+ * class is the one driver of the sync: {@code Ghostrail.tick} (Task 7) does not call it, and the two do not depend
+ * on each other's order in the Post event (a GameTest that steps {@code Ghostrail.tick} by hand and needs the
+ * abilities settled calls {@link #sync} itself).
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
-public final class InfinityAbilitySync {
-    private InfinityAbilitySync() {}
+public final class AbilitySync {
+    private AbilitySync() {}
 
     /**
      * Syncs the abilities of every server-side player after each tick.
@@ -31,8 +35,8 @@ public final class InfinityAbilitySync {
     }
 
     /**
-     * Grants, revokes or releases the player's creative abilities to match Infinity. Public so GameTests can run
-     * one sync without waiting for a tick.
+     * Applies one {@link GrantedAbilities} plan: a reset to the game mode's abilities when a source ended, the
+     * grants of what is still active, both marks. Public so GameTests can run one sync without waiting for a tick.
      *
      * @param player the player to sync
      */
@@ -44,9 +48,9 @@ public final class InfinityAbilitySync {
         GrantedAbilities.Plan plan = GrantedAbilities.decide(new GrantedAbilities.State(
                 PlayerModes.of(player),
                 player.hasEffect(ModEffects.INFINITY),
-                false,
+                player.hasEffect(ModEffects.GHOSTRAIL),
                 player.getData(InfinityAttachments.GRANTED),
-                false,
+                player.getData(InfinityAttachments.GHOSTRAIL_GRANTED),
                 abilities.mayfly,
                 abilities.instabuild,
                 abilities.flying));
@@ -56,8 +60,16 @@ public final class InfinityAbilitySync {
         }
         abilities.mayfly |= plan.mayfly();
         abilities.instabuild |= plan.instabuild();
+        if (plan.flying()) {
+            // noPhysics skips collision, so a player who is not flying would sink through the floor
+            // (as in spectator mode)
+            abilities.flying = true;
+        }
         if (plan.infinityMarked() != player.getData(InfinityAttachments.GRANTED)) {
             player.setData(InfinityAttachments.GRANTED, plan.infinityMarked());
+        }
+        if (plan.ghostrailMarked() != player.getData(InfinityAttachments.GHOSTRAIL_GRANTED)) {
+            player.setData(InfinityAttachments.GHOSTRAIL_GRANTED, plan.ghostrailMarked());
         }
         if (plan.changesAbilities()) {
             player.onUpdateAbilities();
