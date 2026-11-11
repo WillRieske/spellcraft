@@ -16,8 +16,11 @@ import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.BoundVexEvents;
 import io.github.willrieske.spellcraft.evoking.FleeCreeperGoal;
+import io.github.willrieske.spellcraft.evoking.TeamMoveGoal;
 import io.github.willrieske.spellcraft.evoking.TeamMoves;
 import io.github.willrieske.spellcraft.evoking.VexRescues;
+import io.github.willrieske.spellcraft.spell.rules.TeamMove;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -86,6 +89,9 @@ public final class BoundVexLavaGameTests {
                 "bound_vex_world_lava_pull_not_with_a_staying_vex",
                 helper -> lavaPullNotForTheUnhurt(helper, player -> {}, true));
         padded("bound_vex_world_lava_rescuer_is_not_free", BoundVexLavaGameTests::lavaRescuerIsNotFree);
+        padded(
+                "bound_vex_world_lava_rescuer_keeps_its_team_move_kit",
+                BoundVexLavaGameTests::lavaRescuerKeepsItsTeamMoveKit);
         padded("bound_vex_world_lava_rescuer_keeps_its_target", BoundVexLavaGameTests::lavaRescuerKeepsItsTarget);
         padded("bound_vex_world_rescue_dropped_on_logout", BoundVexLavaGameTests::rescueDroppedOnLogout);
         padded("bound_vex_world_lava_pull_takes_a_fleeing_vex", BoundVexLavaGameTests::lavaPullTakesAFleeingVex);
@@ -404,7 +410,7 @@ public final class BoundVexLavaGameTests {
     private static Husk sturdyHusk(GameTestHelper helper, BlockPos relative) {
         Husk husk = BoundVexTestSupport.husk(helper, relative);
         husk.setNoGravity(true);
-        husk.getAttribute(Attributes.MAX_HEALTH).setBaseValue(1000.0);
+        TeamMoveTestSupport.setBase(husk, Attributes.MAX_HEALTH, 1000.0);
         husk.setHealth(1000.0F);
         return husk;
     }
@@ -424,9 +430,55 @@ public final class BoundVexLavaGameTests {
 
         // Assert
         helper.assertTrue(VexRescues.rescuer(player).equals(Optional.of(rescuer)), "setup: the vex is the rescuer");
+        TeamMoveTestSupport.assertFreeButForJobs(helper, rescuer, player);
         helper.assertFalse(TeamMoves.isFree(rescuer, player), "the rescuer is not free");
         helper.assertTrue(TeamMoves.freeVexes(player).isEmpty(), "nobody is free");
         helper.succeed();
+    }
+
+    /**
+     * When a member of a running Shield becomes the rescuer of a player in lava, should it keep its mark and kit during
+     * the rescue (the priority -1 rescue goal pauses the team-move goal) and run the team-move goal again, kit on,
+     * once the player is out.
+     *
+     * <p>Method under test: {@code RescueGoal} against {@link TeamMoveGoal}, in the real goal selector
+     */
+    static void lavaRescuerKeepsItsTeamMoveKit(GameTestHelper helper) {
+        // Arrange (the husk is far off and has no AI; the Shield starts before the rescue, which then names a member)
+        ServerPlayer player = lavaPool(helper, 0);
+        List<BoundVex> vexes =
+                List.of(followingVex(helper, player), followingVex(helper, player), followingVex(helper, player));
+        Husk husk = sturdyHusk(helper, FEET.offset(10, 3, 10));
+        husk.setNoAi(true);
+        helper.assertTrue(TeamMoves.start(player, TeamMove.SHIELD, husk), "setup: the Shield starts");
+        BoundVex[] rescuer = new BoundVex[1];
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecute(() -> {
+                    step(player);
+                    assertLavaRunning(helper, player, "setup: the rescue started");
+                    rescuer[0] = VexRescues.rescuer(player).orElseThrow();
+                    helper.assertTrue(vexes.contains(rescuer[0]), "setup: a member is the rescuer");
+                })
+                .thenExecuteAfter(4, () -> {
+                    helper.assertValueEqual(rescuer[0].teamMove(), TeamMove.SHIELD, "the rescuer is still marked");
+                    helper.assertTrue(rescuer[0].isConjured(EquipmentSlot.MAINHAND), "and its kit stays on");
+                })
+                .thenExecute(() -> {
+                    walkOut(helper, player);
+                    step(player);
+                    assertNoRescue(helper, player, "the rescue ends when the player stands on the shore");
+                })
+                .thenWaitUntil(() -> helper.assertTrue(
+                        rescuer[0].goalSelector.getAvailableGoals().stream()
+                                .anyMatch(wrapped -> wrapped.isRunning() && wrapped.getGoal() instanceof TeamMoveGoal),
+                        "the team-move goal runs again"))
+                .thenExecute(() -> {
+                    helper.assertValueEqual(rescuer[0].teamMove(), TeamMove.SHIELD, "still marked");
+                    helper.assertTrue(rescuer[0].isConjured(EquipmentSlot.MAINHAND), "with the kit on");
+                })
+                .thenSucceed();
     }
 
     /**

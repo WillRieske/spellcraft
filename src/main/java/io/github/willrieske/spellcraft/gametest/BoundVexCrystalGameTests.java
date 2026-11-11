@@ -327,7 +327,7 @@ public final class BoundVexCrystalGameTests {
         BlockPos slot = player.blockPosition();
         BoundVex vex = crystalVex(helper, end, player, crystalSpot(slot, 0, 0), true);
         Husk husk = huskIn(end, crystalSpot(slot, -3, 0).add(0.0, 2.0, 0.0));
-        husk.getAttribute(Attributes.MAX_HEALTH).setBaseValue(1000.0);
+        TeamMoveTestSupport.setBase(husk, Attributes.MAX_HEALTH, 1000.0);
         husk.setHealth(1000.0F);
         whenDone(helper, husk::discard);
         vex.setTarget(husk);
@@ -383,6 +383,7 @@ public final class BoundVexCrystalGameTests {
                 .thenWaitUntil(() -> helper.assertTrue(AttackCrystalGoal.isClaimed(crystal), "setup: the vex has it"))
                 .thenExecute(() -> {
                     worker.setStaying(false);
+                    TeamMoveTestSupport.assertFreeButForJobs(helper, worker, player);
                     helper.assertFalse(TeamMoves.isFree(worker, player), "a vex mid-attack is not free");
                     helper.assertFalse(TeamMoves.freeVexes(player).contains(worker), "and is not listed");
                 })

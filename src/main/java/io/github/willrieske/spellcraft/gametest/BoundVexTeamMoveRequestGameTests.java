@@ -113,6 +113,10 @@ final class BoundVexTeamMoveRequestGameTests {
                 "team_move_request_running_beats_cooling",
                 BoundVexTeamMoveRequestGameTests::runningBeatsCooling);
         FangGameTests.addPadded(
+                "config_mutation",
+                "team_move_request_flood_is_ignored",
+                BoundVexTeamMoveRequestGameTests::floodIsIgnored);
+        FangGameTests.addPadded(
                 SHARED, "team_move_packet_cast_still_casts", BoundVexTeamMoveRequestGameTests::castStillCasts);
         FangGameTests.addPadded(
                 SHARED,
@@ -397,6 +401,37 @@ final class BoundVexTeamMoveRequestGameTests {
     }
 
     /**
+     * When a summoner sends a second request in the tick of the first, should it be ignored without a word on the
+     * action bar (the first was answered), and when {@code REQUEST_INTERVAL} ticks have passed, should the next one be
+     * answered again.
+     *
+     * <p>Method under test: {@link TeamMoves#request}: the per-player throttle
+     */
+    static void floodIsIgnored(GameTestHelper helper) {
+        // Arrange (no enemy near, so every handled request is answered "unavailable")
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        frozenVexes(helper, player, 3);
+        TeamMoves.Answer first = manual(() -> TeamMoves.request(player, TeamMove.SHIELD));
+        GameTestSupport.drainActionBar(player);
+
+        // Act
+        TeamMoves.Answer second = manual(() -> TeamMoves.request(player, TeamMove.SHIELD));
+        List<?> spoken = GameTestSupport.drainActionBar(player);
+        TeamMoves.age(player, TeamMoves.REQUEST_INTERVAL - 1);
+        TeamMoves.Answer almost = manual(() -> TeamMoves.request(player, TeamMove.SHIELD));
+        TeamMoves.age(player, 1);
+        TeamMoves.Answer later = manual(() -> TeamMoves.request(player, TeamMove.SHIELD));
+
+        // Assert
+        helper.assertValueEqual(first, TeamMoves.Answer.UNAVAILABLE, "the first request is answered");
+        helper.assertValueEqual(second, TeamMoves.Answer.IGNORED, "the second, in the same tick, is ignored");
+        helper.assertTrue(spoken.isEmpty(), "and silently");
+        helper.assertValueEqual(almost, TeamMoves.Answer.IGNORED, "one tick short of the interval is still ignored");
+        helper.assertValueEqual(later, TeamMoves.Answer.UNAVAILABLE, "after the interval it is answered again");
+        helper.succeed();
+    }
+
+    /**
      * When the sender is dead, should the request be ignored: no answer on the action bar and nothing started.
      *
      * <p>Method under test: {@link TeamMoves#request}: dead and spectating senders
@@ -407,12 +442,14 @@ final class BoundVexTeamMoveRequestGameTests {
         frozenVexes(helper, player, 3);
         bigHusk(helper, beside(helper));
         player.kill(helper.getLevel());
+        GameTestSupport.drainActionBar(player);
 
         // Act
         TeamMoves.Answer answer = manual(() -> TeamMoves.request(player, TeamMove.SHIELD));
 
         // Assert
         helper.assertValueEqual(answer, TeamMoves.Answer.IGNORED, "the answer");
+        helper.assertTrue(GameTestSupport.drainActionBar(player).isEmpty(), "nothing is said");
         helper.assertTrue(TeamMoves.running(player).isEmpty(), "nothing started");
         helper.succeed();
     }

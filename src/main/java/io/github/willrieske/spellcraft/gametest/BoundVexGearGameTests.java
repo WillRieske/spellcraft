@@ -867,7 +867,7 @@ public final class BoundVexGearGameTests {
 
     /** Gives {@code mob} a thousand health, so a few hits cannot kill it. */
     private static void toughen(LivingEntity mob) {
-        mob.getAttribute(Attributes.MAX_HEALTH).setBaseValue(1000.0);
+        TeamMoveTestSupport.setBase(mob, Attributes.MAX_HEALTH, 1000.0);
         mob.setHealth(1000.0F);
     }
 

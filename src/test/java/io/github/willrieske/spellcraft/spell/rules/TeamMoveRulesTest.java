@@ -216,6 +216,18 @@ class TeamMoveRulesTest {
         }
 
         /**
+         * When the ticks are negative, orbitDegrees should still answer an angle in [0, 360).
+         *
+         * <p>Method under test: {@link TeamMoveRules#orbitDegrees(int, int, long)}
+         */
+        @ParameterizedTest
+        @CsvSource({"0,3,-1,354", "0,3,-60,0", "1,3,-61,114", "0,1,-7,318"})
+        void staysInOneTurnForNegativeTicks(int slot, int count, long ticks, double expected) {
+            // Arrange & Act & Assert
+            assertThat(TeamMoveRules.orbitDegrees(slot, count, ticks)).isCloseTo(expected, within(1e-9));
+        }
+
+        /**
          * When the slot is out of range, orbitDegrees should name the valid range and the count in its message.
          *
          * <p>Method under test: {@link TeamMoveRules#orbitDegrees(int, int, long)}

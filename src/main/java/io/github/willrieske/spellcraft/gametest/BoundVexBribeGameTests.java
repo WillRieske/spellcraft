@@ -347,6 +347,7 @@ public final class BoundVexBribeGameTests {
                 .thenExecute(() -> {
                     BoundVex worker = holdsEmerald(first) ? first : second;
                     worker.setStaying(false);
+                    TeamMoveTestSupport.assertFreeButForJobs(helper, worker, player);
                     helper.assertFalse(TeamMoves.isFree(worker, player), "a vex mid-courtship is not free");
                     helper.assertFalse(TeamMoves.freeVexes(player).contains(worker), "and is not listed");
                 })

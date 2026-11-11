@@ -33,6 +33,18 @@ final class BoundVexTeamMoveTriggerGameTests {
     static void registerAll() {
         FangGameTests.addPadded(
                 SHARED,
+                "team_move_trigger_cooling_shield_starts_nothing",
+                BoundVexTeamMoveTriggerGameTests::coolingShieldStartsNothing);
+        FangGameTests.addPadded(
+                SHARED,
+                "team_move_trigger_cooling_multishot_starts_nothing",
+                BoundVexTeamMoveTriggerGameTests::coolingMultishotStartsNothing);
+        FangGameTests.addPadded(
+                SHARED,
+                "team_move_trigger_cooling_evader_starts_nothing",
+                BoundVexTeamMoveTriggerGameTests::coolingEvaderStartsNothing);
+        FangGameTests.addPadded(
+                SHARED,
                 "team_move_trigger_ravager_with_twelve_raids",
                 BoundVexTeamMoveTriggerGameTests::ravagerWithTwelveRaids);
         FangGameTests.addPadded(
@@ -693,7 +705,7 @@ final class BoundVexTeamMoveTriggerGameTests {
 
     /**
      * When the scan found nothing this tick and a husk of 40 health appears, should a second step in the same tick not
-     * scan again and one ten ticks later start the Shield.
+     * scan again, one a tick short of the clock not scan either, and one on the clock start the Shield.
      *
      * <p>Method under test: {@code TeamMoves.tick}: the 10-tick scan clock
      */
@@ -710,9 +722,13 @@ final class BoundVexTeamMoveTriggerGameTests {
         // Assert
         helper.assertTrue(TeamMoves.running(player).isEmpty(), "the clock is closed within the same tick");
         helper.startSequence()
-                .thenExecuteAfter(10, () -> {
+                .thenExecuteAfter(TeamMoves.SCAN_INTERVAL - 1, () -> {
                     TeamMoves.tick(player);
-                    helper.assertValueEqual(TeamMoves.running(player), Optional.of(TeamMove.SHIELD), "ten ticks later");
+                    helper.assertTrue(TeamMoves.running(player).isEmpty(), "one tick short of the clock: no scan");
+                })
+                .thenExecuteAfter(1, () -> {
+                    TeamMoves.tick(player);
+                    helper.assertValueEqual(TeamMoves.running(player), Optional.of(TeamMove.SHIELD), "on the clock");
                 })
                 .thenSucceed();
     }
@@ -734,5 +750,80 @@ final class BoundVexTeamMoveTriggerGameTests {
         // Assert
         helper.assertTrue(TeamMoves.running(player).isEmpty(), "manual mode starts nothing by itself");
         helper.succeed();
+    }
+
+    /**
+     * When a Shield ended a moment ago and a new husk of 40 health stands in the guard area, should the scan start
+     * nothing before the cooldown is over (a Shield cools like every kind).
+     *
+     * <p>Method under test: {@code TeamMoveTriggers.scan}: a cooling Shield is not ready
+     */
+    static void coolingShieldStartsNothing(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        frozenVexes(helper, player, 4);
+        Husk first = bigHusk(helper, beside(helper));
+        helper.assertTrue(TeamMoves.start(player, TeamMove.SHIELD, first), "setup: a Shield runs");
+        first.kill(helper.getLevel());
+        TeamMoves.tick(player); // ends the Shield; the scan finds nothing and closes the scan clock
+        bigHusk(helper, beside(helper));
+        helper.assertTrue(TeamMoves.cooling(player, TeamMove.SHIELD), "setup: the Shield cools");
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteAfter(TeamMoves.SCAN_INTERVAL, () -> TeamMoves.tick(player))
+                .thenExecute(() -> helper.assertTrue(TeamMoves.running(player).isEmpty(), "nothing starts yet"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a Multishot ended a moment ago and a husk with attack damage 6 hunts a free vex, should the scan start
+     * nothing before the cooldown is over.
+     *
+     * <p>Method under test: {@code TeamMoveTriggers.scan}: a cooling Multishot is not ready
+     */
+    static void coolingMultishotStartsNothing(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        List<BoundVex> vexes = frozenVexes(helper, player, 4);
+        Husk first = foe(helper, EntityTypes.HUSK, beside(helper));
+        setBase(first, Attributes.ATTACK_DAMAGE, 6.0);
+        helper.assertTrue(TeamMoves.start(player, TeamMove.MULTISHOT, first), "setup: a Multishot runs");
+        first.kill(helper.getLevel());
+        TeamMoves.tick(player);
+        Husk second = foe(helper, EntityTypes.HUSK, beside(helper));
+        setBase(second, Attributes.ATTACK_DAMAGE, 6.0);
+        second.setTarget(vexes.get(0));
+        helper.assertTrue(TeamMoves.cooling(player, TeamMove.MULTISHOT), "setup: the Multishot cools");
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteAfter(TeamMoves.SCAN_INTERVAL, () -> TeamMoves.tick(player))
+                .thenExecute(() -> helper.assertTrue(TeamMoves.running(player).isEmpty(), "nothing starts yet"))
+                .thenSucceed();
+    }
+
+    /**
+     * When an Evader ended a moment ago and the summoner is hurt again, should the scan start nothing before the
+     * cooldown is over.
+     *
+     * <p>Method under test: {@code TeamMoveTriggers.scan}: a cooling Evader is not ready
+     */
+    static void coolingEvaderStartsNothing(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        frozenVexes(helper, player, 3);
+        player.setHealth(player.getMaxHealth() * 0.4F);
+        helper.assertTrue(TeamMoves.start(player, TeamMove.EVADER, player), "setup: an Evader runs");
+        player.setHealth(player.getMaxHealth());
+        TeamMoves.tick(player); // the ward is healed: the Evader ends
+        player.setHealth(player.getMaxHealth() * 0.4F);
+        helper.assertTrue(TeamMoves.cooling(player, TeamMove.EVADER), "setup: the Evader cools");
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteAfter(TeamMoves.SCAN_INTERVAL, () -> TeamMoves.tick(player))
+                .thenExecute(() -> helper.assertTrue(TeamMoves.running(player).isEmpty(), "nothing starts yet"))
+                .thenSucceed();
     }
 }

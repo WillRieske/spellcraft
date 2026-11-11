@@ -106,4 +106,41 @@ class SpellAssetsTest {
         // Act & Assert
         assertThat(lang).contains("\"team_move.spellcraft." + move.id() + "\"");
     }
+
+    /**
+     * When a team move starts, should the lang file have its overlay message: {@code TeamMoves.start} builds the key
+     * {@code message.spellcraft.team_move_<id>}, so a typo would show a raw key.
+     *
+     * <p>Method under test: the lang file against {@code TeamMove#id}
+     */
+    @ParameterizedTest
+    @MethodSource("playableMoves")
+    void teamMovesHaveStartMessages(TeamMove move) throws IOException {
+        // Arrange
+        String lang = Files.readString(ASSETS.resolve("lang/en_us.json"));
+
+        // Act & Assert
+        assertThat(lang).contains("\"message.spellcraft.team_move_" + move.id() + "\"");
+    }
+
+    /**
+     * When a team-move request is refused, should the lang file have each fixed answer: the keys are string literals
+     * of {@code TeamMoves} (not loaded on the unit classpath), so a drift between the two would show a raw key.
+     *
+     * <p>Method under test: the lang file against the answer keys of {@code TeamMoves} and the vex-busy message
+     */
+    @Test
+    void teamMoveAnswersHaveEnglishText() throws IOException {
+        // Arrange
+        String lang = Files.readString(ASSETS.resolve("lang/en_us.json"));
+
+        // Act & Assert
+        assertThat(lang)
+                .contains("\"message.spellcraft.team_moves_automatic\"")
+                .contains("\"message.spellcraft.team_move_running\"")
+                .contains("\"message.spellcraft.team_move_cooling\"")
+                .contains("\"message.spellcraft.team_move_unavailable\"")
+                .contains("\"message.spellcraft.vex_busy\"")
+                .contains("\"message.spellcraft.team_move_selected\"");
+    }
 }

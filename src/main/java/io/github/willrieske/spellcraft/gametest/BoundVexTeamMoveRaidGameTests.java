@@ -20,7 +20,9 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.animal.cow.Cow;
 import net.minecraft.world.entity.monster.Ravager;
+import net.minecraft.world.entity.monster.spider.Spider;
 import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.entity.projectile.FireworkRocketEntity;
 import net.minecraft.world.item.Item;
@@ -35,12 +37,12 @@ final class BoundVexTeamMoveRaidGameTests {
     /** Registers the tests. */
     static void registerAll() {
         FangGameTests.addPadded(
-                SHARED,
+                "team_move_dice",
                 "team_move_raid_members_reach_their_grid_cells",
                 300,
                 BoundVexTeamMoveRaidGameTests::membersReachTheirCells);
         FangGameTests.addPadded(
-                SHARED,
+                "team_move_dice",
                 "team_move_raid_melee_members_hit_the_enemy",
                 300,
                 BoundVexTeamMoveRaidGameTests::meleeMembersHitTheEnemy);
@@ -65,6 +67,21 @@ final class BoundVexTeamMoveRaidGameTests {
                 "team_move_raid_charge_starts_at_forty",
                 400,
                 BoundVexTeamMoveRaidGameTests::chargeStartsAtForty);
+        FangGameTests.addPadded(
+                "team_move_dice",
+                "team_move_raid_rocket_hits_a_spider_at_seven_blocks",
+                400,
+                helper -> rocketHitsASpiderAt(helper, 7.1));
+        FangGameTests.addPadded(
+                "team_move_dice",
+                "team_move_raid_rocket_hits_a_spider_at_nine_blocks",
+                400,
+                helper -> rocketHitsASpiderAt(helper, 8.9));
+        FangGameTests.addPadded(
+                "team_move_dice",
+                "team_move_raid_rocket_blast_spares_a_cow",
+                400,
+                BoundVexTeamMoveRaidGameTests::rocketBlastSparesACow);
     }
 
     /** The parts of a running Raid scene: the summoner, the twelve flying members and the ravager. */
@@ -75,11 +92,16 @@ final class BoundVexTeamMoveRaidGameTests {
      * every tick.
      */
     private static Scene scene(GameTestHelper helper) {
+        // Every kit is a sword (roll 0), so no rocket member is a second source of damage; the script is used up by
+        // the start, which is why these tests run in the dice batch
+        Dice.RAID_KIT.script(new int[24]);
+        GameTestSupport.whenDone(helper, Dice.RAID_KIT::unscript);
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
         Vec3 hang = hangPoint(helper);
         Ravager ravager = foe(helper, EntityTypes.RAVAGER, hang.add(0.0, 0.0, -4.0));
         List<BoundVex> vexes = flyingVexes(helper, player, 12, hang.add(0.0, 0.0, 3.0));
         helper.assertTrue(TeamMoves.start(player, TeamMove.RAID, ravager), "setup: the Raid starts");
+        Dice.RAID_KIT.unscript();
         TeamMoveTestSupport.stepEveryTick(helper, player);
         return new Scene(player, vexes, ravager);
     }
@@ -290,8 +312,8 @@ final class BoundVexTeamMoveRaidGameTests {
     }
 
     /**
-     * When one melee member is pressed against the enemy, should consecutive hits be 20 ticks apart (plus or minus
-     * one): without the attack clock a member pressed against the enemy would hit every tick.
+     * When one melee member is pressed against the enemy, should consecutive hits be 20 to 24 ticks apart (19 at
+     * the least): without the attack clock a member pressed against the enemy would hit every tick.
      *
      * <p>Method under test: {@code RaidMove.tick}: the 20-tick attack clock
      */
@@ -305,7 +327,9 @@ final class BoundVexTeamMoveRaidGameTests {
                 .thenExecute(() -> {
                     for (int i = 1; i < 3; i++) {
                         long gap = run.drops().get(i) - run.drops().get(i - 1);
-                        helper.assertTrue(gap >= 19 && gap <= 21, "hits " + gap + " ticks apart");
+                        // the lower bound is the one that kills a "hits every tick" mutant; the clock only
+                        // promises at least 20, so the upper bound leaves room for a tick of no contact
+                        helper.assertTrue(gap >= 19 && gap <= 24, "hits " + gap + " ticks apart");
                     }
                 })
                 .thenSucceed();
@@ -374,6 +398,75 @@ final class BoundVexTeamMoveRaidGameTests {
                 Double.isNaN(coincident.x) || Double.isNaN(coincident.z), "no NaN when the summoner is on the enemy");
         helper.assertTrue(coincident.z > 0.0, "and the grid falls back to +z");
         helper.succeed();
+    }
+
+    /**
+     * A Raid against a spider (0.9 blocks tall) four blocks north of the hang point, started past its gather: member 0
+     * is the rocketeer, {@code distance} blocks south of the spider at its eye height; members 1 to 11 are frozen out
+     * of the way, above the barrier shell like the other rocket scenes. When {@code cow} has a slot, a cow is spawned
+     * two blocks east of the spider and stored there.
+     */
+    private static Spider rocketScene(GameTestHelper helper, double distance, Cow[] cow) {
+        int[] script = new int[24];
+        script[0] = 6; // member 0: the rocket crossbow
+        Dice.RAID_KIT.script(script);
+        GameTestSupport.whenDone(helper, Dice.RAID_KIT::unscript);
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        Vec3 hang = hangPoint(helper);
+        Spider spider = foe(helper, EntityTypes.SPIDER, hang.add(0.0, 0.0, -4.0));
+        if (cow.length > 0) {
+            cow[0] = foe(helper, EntityTypes.COW, spider.position().add(2.0, 0.0, 0.0));
+        }
+        flyingVexes(helper, player, 12, hang.add(0.0, 0.0, 3.0));
+        helper.assertTrue(TeamMoves.start(player, TeamMove.RAID, spider), "setup: the Raid starts");
+        Dice.RAID_KIT.unscript();
+        List<BoundVex> roster = TeamMoves.roster(player);
+        for (int k = 1; k < roster.size(); k++) {
+            roster.get(k).setNoAi(true);
+            roster.get(k).setPos(roster.get(k).position().add(0.0, 6.0, 0.0));
+        }
+        // Skip the gather: the rocketeer starts at the distance under test, and stays there while it is in 7 to 9
+        TeamMoves.age(player, RaidMove.GATHER_TICKS);
+        roster.get(0).setPos(spider.getX(), spider.getY() + spider.getEyeHeight(), spider.getZ() + distance);
+        TeamMoveTestSupport.stepEveryTick(helper, player);
+        return spider;
+    }
+
+    /**
+     * When a rocketeer is {@code distance} blocks from a spider, should the spider take damage (the rocket flies
+     * straight at the spider's lower body, without the arrow's lift that would carry it over a short enemy).
+     *
+     * <p>Method under test: {@code VexShots.rocket}
+     */
+    private static void rocketHitsASpiderAt(GameTestHelper helper, double distance) {
+        // Arrange & Act
+        Spider spider = rocketScene(helper, distance, new Cow[0]);
+
+        // Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        spider.getHealth() < spider.getMaxHealth(), "the rocket hurt the spider at " + distance))
+                .thenSucceed();
+    }
+
+    /**
+     * When a rocket bursts on a spider with a cow two blocks from it, should the spider be hurt and the cow not (a
+     * Bound Vex's blast hurts only what the vex may hunt).
+     *
+     * <p>Method under test: {@code BoundVexEvents.backstop}: the rocket blast clause
+     */
+    static void rocketBlastSparesACow(GameTestHelper helper) {
+        // Arrange & Act
+        Cow[] cow = new Cow[1];
+        Spider spider = rocketScene(helper, 8.0, cow);
+
+        // Assert
+        helper.startSequence()
+                .thenWaitUntil(() ->
+                        helper.assertTrue(spider.getHealth() < spider.getMaxHealth(), "the rocket burst on the spider"))
+                .thenExecute(() -> helper.assertValueEqual(
+                        cow[0].getHealth(), cow[0].getMaxHealth(), "and the cow beside it is unhurt"))
+                .thenSucceed();
     }
 
     /** The rockets of {@code vex} still in flight. */

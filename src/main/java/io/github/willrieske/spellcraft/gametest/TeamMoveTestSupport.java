@@ -4,6 +4,7 @@ import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.TeamMoveGoal;
 import io.github.willrieske.spellcraft.evoking.TeamMoves;
 import io.github.willrieske.spellcraft.evoking.VexGear;
+import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.Holder;
@@ -28,6 +29,18 @@ final class TeamMoveTestSupport {
     /** The point (absolute) a test hangs its vexes around: over the structure's middle, above the barrier shell. */
     static Vec3 hangPoint(GameTestHelper helper) {
         return helper.absoluteVec(Vec3.atBottomCenterOf(BoundVexTestSupport.AIR_SPOT));
+    }
+
+    /** The parts of a running Shield scene: the summoner, the member vexes and the husk. */
+    record ShieldScene(ServerPlayer player, List<BoundVex> vexes, Husk husk) {}
+
+    /** A running Shield: three frozen vexes and a 40-health husk beside them. */
+    static ShieldScene startedShield(GameTestHelper helper) {
+        ServerPlayer player = FangGameTests.caster(helper, FangGameTests.NORTH);
+        List<BoundVex> vexes = frozenVexes(helper, player, 3);
+        Husk husk = bigHusk(helper, beside(helper));
+        helper.assertTrue(TeamMoves.start(player, TeamMove.SHIELD, husk), "setup: the Shield starts");
+        return new ShieldScene(player, vexes, husk);
     }
 
     /** A point 3 blocks east of the hang point, where a test's foe stands. */
@@ -95,6 +108,20 @@ final class TeamMoveTestSupport {
         instance.setBaseValue(value);
     }
 
+    /**
+     * Fails unless every clause of {@code TeamMoves.isFree} that does not name a job or the rescuer holds for
+     * {@code vex} (alive, the summoner's, in their level, following, in no move, within the free range): the control
+     * that makes a following {@code isFree} assertion about the job or rescuer clause alone.
+     */
+    static void assertFreeButForJobs(GameTestHelper helper, BoundVex vex, ServerPlayer owner) {
+        helper.assertTrue(vex.isAlive(), "control: the vex is alive");
+        helper.assertTrue(vex.isSummonedBy(owner.getUUID()), "control: it is the summoner's");
+        helper.assertTrue(vex.level().equals(owner.level()), "control: it is in the summoner's level");
+        helper.assertFalse(vex.isStaying(), "control: it is following");
+        helper.assertValueEqual(vex.teamMove(), TeamMove.NONE, "control: it is in no move");
+        helper.assertTrue(vex.distanceTo(owner) <= TeamMoves.FREE_RANGE, "control: it is within the free range");
+    }
+
     /** Fails unless {@code vex} holds a conjured main-hand item, a conjured shield and three conjured armor pieces. */
     static void assertRaidGear(GameTestHelper helper, BoundVex vex) {
         helper.assertTrue(vex.isConjured(EquipmentSlot.MAINHAND), "a conjured weapon");
@@ -108,8 +135,8 @@ final class TeamMoveTestSupport {
     }
 
     /**
-     * Steps {@code TeamMoves.tick(player)} once per tick until the test ends; a mock player gets no player tick. (Used
-     * from Task 9 on; the lifecycle tests call {@code TeamMoves.tick} by hand.)
+     * Steps {@code TeamMoves.tick(player)} once per tick until the test ends; a mock player gets no player tick. (The
+     * lifecycle tests call {@code TeamMoves.tick} by hand.)
      */
     static void stepEveryTick(GameTestHelper helper, ServerPlayer player) {
         BoundVexTestSupport.everyTick(helper, () -> TeamMoves.tick(player));

@@ -9,10 +9,14 @@ import static io.github.willrieske.spellcraft.gametest.TeamMoveTestSupport.froze
 import static io.github.willrieske.spellcraft.gametest.TeamMoveTestSupport.hangPoint;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
-import io.github.willrieske.spellcraft.evoking.TeamFlight;
 import io.github.willrieske.spellcraft.evoking.TeamMoves;
+import io.github.willrieske.spellcraft.gametest.TeamMoveTestSupport.ShieldScene;
 import io.github.willrieske.spellcraft.spell.rules.TeamMove;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
@@ -54,25 +58,21 @@ final class BoundVexTeamMoveShieldGameTests {
                 SHARED,
                 "team_move_shield_takes_a_hit_from_behind",
                 BoundVexTeamMoveShieldGameTests::takesAHitFromBehind);
-        FangGameTests.addPadded(SHARED, "team_move_shield_flight_math", BoundVexTeamMoveShieldGameTests::flightMath);
     }
-
-    /** The parts of a running Shield scene: the summoner, the three flying members and the husk. */
-    private record Scene(ServerPlayer player, List<BoundVex> vexes, Husk husk) {}
 
     /**
      * A Shield against a 40-health husk, with three flying vexes nine blocks south of it, stepped every tick. The husk
      * has no AI, so it never moves: a knockback shows in its delta movement, and the 5 to 8.5 and 38 to 75 windows
      * below are not disturbed by it being pushed.
      */
-    private static Scene scene(GameTestHelper helper) {
+    private static ShieldScene scene(GameTestHelper helper) {
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
         Vec3 hang = hangPoint(helper);
         Husk husk = bigHusk(helper, hang.add(0.0, 0.0, -4.0));
         List<BoundVex> vexes = flyingVexes(helper, player, 3, hang.add(0.0, 0.0, 5.0));
         helper.assertTrue(TeamMoves.start(player, TeamMove.SHIELD, husk), "setup: the Shield starts");
         TeamMoveTestSupport.stepEveryTick(helper, player);
-        return new Scene(player, vexes, husk);
+        return new ShieldScene(player, vexes, husk);
     }
 
     /**
@@ -84,7 +84,7 @@ final class BoundVexTeamMoveShieldGameTests {
      */
     static void bashesForFourAndKnocksBack(GameTestHelper helper) {
         // Arrange
-        Scene scene = scene(helper);
+        ShieldScene scene = scene(helper);
 
         // Act & Assert (a vanilla hit's knockback 0.4 plus the bash's 1.5, plus up to two more bashes at once, gives z
         // of about -1.7 to -2.7; below -1.0 separates 1.5 from 0.4)
@@ -110,7 +110,7 @@ final class BoundVexTeamMoveShieldGameTests {
      */
     static void backsOffToAboutSix(GameTestHelper helper) {
         // Arrange
-        Scene scene = scene(helper);
+        ShieldScene scene = scene(helper);
 
         // Act & Assert
         helper.startSequence()
@@ -125,23 +125,35 @@ final class BoundVexTeamMoveShieldGameTests {
     }
 
     /**
-     * When the first bash has landed, should the next one land between 38 and 75 ticks later: each member waits out
-     * its own 40-tick clock. The three vexes start one block apart, so their first bashes fall inside one
-     * invulnerability window of the husk (10 ticks) and the first drop below 40 and the first drop below 36 are bash
-     * one and bash two. The black-box health window is backed by a white-box check of each member's own clock.
+     * When a member has bashed, should its next bash come 38 to 75 ticks after its first: the member's own 40-tick
+     * clock, read from the member's clocks (the husk's health cannot tell the members' bashes apart, since its
+     * invulnerability frames swallow some). A member that has bashed also waits 30 to 40 ticks on that clock.
      *
      * <p>Method under test: {@code ShieldMove.tick}: the bash clock
      */
     static void bashesAgainAfterFortyTicks(GameTestHelper helper) {
         // Arrange
-        Scene scene = scene(helper);
-        AtomicLong first = new AtomicLong();
+        ShieldScene scene = scene(helper);
+        Map<UUID, Long> firstClock = new HashMap<>();
+        List<Long> gaps = new ArrayList<>();
+        BoundVexTestSupport.everyTick(helper, () -> {
+            for (BoundVex vex : scene.vexes()) {
+                long next = TeamMoves.clocksOf(vex).orElseThrow().nextAction();
+                if (next == 0L) {
+                    continue;
+                }
+                Long first = firstClock.putIfAbsent(vex.getUUID(), next);
+                if (first != null && first != next) {
+                    gaps.add(next - first);
+                    firstClock.put(vex.getUUID(), next);
+                }
+            }
+        });
 
         // Act & Assert
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(scene.husk().getHealth() < 40.0F, "the first bash lands"))
                 .thenExecute(() -> {
-                    first.set(helper.getTick());
                     long now = helper.getLevel().getGameTime();
                     for (BoundVex vex : scene.vexes()) {
                         TeamMoves.Clocks clocks = TeamMoves.clocksOf(vex).orElseThrow();
@@ -152,31 +164,22 @@ final class BoundVexTeamMoveShieldGameTests {
                         }
                     }
                 })
-                .thenWaitUntil(() -> helper.assertTrue(scene.husk().getHealth() < 36.0F, "the second bash lands"))
-                .thenExecute(() -> {
-                    long gap = helper.getTick() - first.get();
-                    helper.assertTrue(gap >= 38 && gap <= 75, "the second bash came " + gap + " ticks after the first");
-                    long now = helper.getLevel().getGameTime();
-                    for (BoundVex vex : scene.vexes()) {
-                        TeamMoves.Clocks clocks = TeamMoves.clocksOf(vex).orElseThrow();
-                        helper.assertTrue(
-                                !clocks.stage().equals("LUNGING") || clocks.nextAction() <= now,
-                                "no member lunges before its own clock is ready");
-                    }
-                })
+                .thenWaitUntil(() -> helper.assertFalse(gaps.isEmpty(), "a member bashes a second time"))
+                .thenExecute(() -> gaps.forEach(gap -> helper.assertTrue(
+                        gap >= 38 && gap <= 75, "the second bash came " + gap + " ticks after the first")))
                 .thenSucceed();
     }
 
     /**
-     * When a lunging member's enemy is moved about 25 blocks away, should the member give up its lunge and be backing
+     * When a lunging member's enemy is moved about 40 blocks away, should the member give up its lunge and be backing
      * off within 45 ticks of first lunging (the lunge limit is 40).
      *
      * <p>Method under test: {@code ShieldMove.tick}: the lunge give-up (spec section 4.1)
      */
     static void lungeGivesUp(GameTestHelper helper) {
-        // Arrange (as scene; the husk has no AI, so it stays where it is put; 25 blocks is within the 48-block end
+        // Arrange (as scene; the husk has no AI, so it stays where it is put; 40 blocks is within the 48-block end
         // rule)
-        Scene scene = scene(helper);
+        ShieldScene scene = scene(helper);
         BoundVex member = scene.vexes().get(0);
         AtomicLong lungeSeen = new AtomicLong();
 
@@ -186,12 +189,17 @@ final class BoundVexTeamMoveShieldGameTests {
                         TeamMoves.clocksOf(member).orElseThrow().stage().equals("LUNGING"), "a member lunges"))
                 .thenExecute(() -> {
                     lungeSeen.set(helper.getTick());
-                    scene.husk().setPos(scene.husk().position().add(0.0, 25.0, 0.0));
+                    scene.husk().setPos(scene.husk().position().add(0.0, 40.0, 0.0));
                 })
                 .thenWaitUntil(() -> helper.assertTrue(
                         TeamMoves.clocksOf(member).orElseThrow().stage().equals("BACKING"), "the lunge is given up"))
-                .thenExecute(() -> helper.assertTrue(
-                        helper.getTick() - lungeSeen.get() <= 45, "it gave up within about forty ticks"))
+                .thenExecute(() -> {
+                    helper.assertTrue(helper.getTick() - lungeSeen.get() <= 45, "it gave up within about forty ticks");
+                    helper.assertTrue(
+                            member.distanceTo(scene.husk()) > 5.0,
+                            "and it gave up far from the husk (a bash would have left it beside it), not "
+                                    + member.distanceTo(scene.husk()));
+                })
                 .thenSucceed();
     }
 
@@ -245,31 +253,6 @@ final class BoundVexTeamMoveShieldGameTests {
 
         // Assert
         helper.assertTrue(vex.getHealth() < before, "the hit from behind lands");
-        helper.succeed();
-    }
-
-    /**
-     * When two overlapping boxes and two boxes 3 blocks apart are measured, should {@code boxGap} give 0 and the plain
-     * gap, and {@code ringPoint} from straight above the center give due east.
-     *
-     * <p>Method under test: {@link TeamFlight#boxGap}, {@link TeamFlight#ringPoint}: the documented edge cases
-     */
-    static void flightMath(GameTestHelper helper) {
-        // Arrange
-        Vec3 at = hangPoint(helper);
-        Husk a = foe(helper, EntityTypes.HUSK, at);
-        Husk overlapping = foe(helper, EntityTypes.HUSK, at.add(0.2, 0.0, 0.0));
-        Husk apart = foe(helper, EntityTypes.HUSK, at.add(3.0 + a.getBbWidth(), 0.0, 0.0));
-
-        // Act & Assert
-        helper.assertValueEqual(TeamFlight.boxGap(a, overlapping), 0.0, "overlapping boxes touch");
-        helper.assertTrue(
-                Math.abs(TeamFlight.boxGap(a, apart) - 3.0) < 1.0E-6,
-                "boxes 3 blocks apart, less nothing: " + TeamFlight.boxGap(a, apart));
-        Vec3 east = TeamFlight.ringPoint(at, at.add(0.0, 5.0, 0.0), 6.0, at.y);
-        helper.assertTrue(
-                Math.abs(east.x - (at.x + 6.0)) < 1.0E-9 && Math.abs(east.z - at.z) < 1.0E-9,
-                "straight above the center falls back to due east: " + east);
         helper.succeed();
     }
 }

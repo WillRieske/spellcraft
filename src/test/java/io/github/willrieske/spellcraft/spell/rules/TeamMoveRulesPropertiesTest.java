@@ -38,8 +38,7 @@ class TeamMoveRulesPropertiesTest {
         }
 
         /**
-         * For any move that can start with free vexes, enough free vexes should always give a roster, and the roster
-         * should not shrink as more vexes become free.
+         * For any move, the roster should not shrink as one more vex becomes free.
          *
          * <p>Method under test: {@link TeamMoveRules#rosterSize(TeamMove, int)}
          */

@@ -73,6 +73,16 @@ final class BoundVexTeamMoveEvaderGameTests {
                 "team_move_evader_follows_a_moving_ward",
                 200,
                 BoundVexTeamMoveEvaderGameTests::followsAMovingWard);
+        FangGameTests.addPadded(
+                SHARED,
+                "team_move_evader_reverses_a_fast_arrow",
+                200,
+                BoundVexTeamMoveEvaderGameTests::reversesAFastArrow);
+        FangGameTests.addPadded(
+                SHARED,
+                "team_move_evader_keeps_up_with_a_steadily_moving_ward",
+                200,
+                BoundVexTeamMoveEvaderGameTests::keepsUpWithASteadilyMovingWard);
     }
 
     /** The parts of a running Evader scene: the summoner, the three flying members and the ward. */
@@ -347,6 +357,63 @@ final class BoundVexTeamMoveEvaderGameTests {
                 .thenWaitUntil(() -> helper.assertTrue(
                         scene.vexes().stream().allMatch(vex -> vex.position().distanceTo(center(scene.ward())) <= 2.7),
                         "every member is within 2.7 blocks of the new middle"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a skeleton's arrow flies at the summoner at three blocks a tick (a full-draw player arrow) from five blocks
+     * out, so that no tick's position falls inside the two-block window, should a member still reverse it.
+     *
+     * <p>Method under test: {@code EvaderMove.guard}: the look-ahead along the arrow's next step
+     */
+    static void reversesAFastArrow(GameTestHelper helper) {
+        // Arrange
+        Scene scene = guardingTheSummoner(helper);
+        Mob skeleton =
+                foe(helper, EntityTypes.SKELETON, scene.player().position().add(9.0, 0.0, 0.0));
+        Arrow arrow = arrowAt(helper, skeleton, scene.ward());
+        arrow.setPos(center(scene.ward()).add(5.0, 0.0, 0.0));
+        arrow.setDeltaMovement(-3.0, 0.0, 0.0);
+
+        // Act
+        TeamMoves.tick(scene.player());
+
+        // Assert
+        helper.assertTrue(arrow.getOwner() instanceof BoundVex, "a vex owns the arrow now");
+        helper.assertTrue(arrow.getDeltaMovement().x > 0.0, "and it flies away from the summoner");
+        helper.succeed();
+    }
+
+    /**
+     * When a hurt villager (not a player: its delta movement is its real motion) walks steadily east at 0.1 blocks a
+     * tick, should every member stay within 3.2 blocks of its middle for 20 ticks once the walk is under way (the
+     * orbit follows the ward's motion, it does not trail it).
+     *
+     * <p>Method under test: {@code EvaderMove.tick}: the ward's known movement feeds the steering
+     */
+    static void keepsUpWithASteadilyMovingWard(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        Villager villager = foe(helper, EntityTypes.VILLAGER, hangPoint(helper).add(0.0, 0.0, 2.0));
+        villager.setHealth(villager.getMaxHealth() * 0.4F);
+        List<BoundVex> vexes = flyingVexes(helper, player, 3, hangPoint(helper));
+        helper.assertTrue(TeamMoves.start(player, TeamMove.EVADER, villager), "setup: the Evader starts");
+        TeamMoveTestSupport.stepEveryTick(helper, player);
+        BoundVexTestSupport.everyTick(helper, () -> {
+            if (helper.getTick() < 90) {
+                villager.setPos(villager.position().add(0.1, 0.0, 0.0));
+                villager.setDeltaMovement(0.1, 0.0, 0.0);
+            }
+        });
+
+        // Act & Assert
+        helper.startSequence()
+                .thenIdle(60)
+                .thenExecuteFor(
+                        20,
+                        () -> vexes.forEach(vex -> helper.assertTrue(
+                                vex.position().distanceTo(center(villager)) <= 3.2,
+                                "a member trails the ward by " + vex.position().distanceTo(center(villager)))))
                 .thenSucceed();
     }
 }

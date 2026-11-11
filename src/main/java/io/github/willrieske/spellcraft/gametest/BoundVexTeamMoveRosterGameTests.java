@@ -39,9 +39,10 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
 /** GameTests of the free-vex test and the busy refusals (Parts 6-7 spec section 2.2, section 2.6). */
-public final class BoundVexTeamMoveRosterGameTests {
+final class BoundVexTeamMoveRosterGameTests {
     private BoundVexTeamMoveRosterGameTests() {}
 
+    /** Registers the tests. */
     static void registerAll() {
         FangGameTests.addPadded(
                 SHARED, "team_move_free_a_following_vex", BoundVexTeamMoveRosterGameTests::followingVexIsFree);
@@ -104,6 +105,10 @@ public final class BoundVexTeamMoveRosterGameTests {
         FangGameTests.addPadded(
                 SHARED, "team_move_start_raid_twelve_geared", BoundVexTeamMoveRosterGameTests::startRaidTwelveGeared);
         FangGameTests.addPadded(
+                SHARED,
+                "team_move_start_raid_takes_twelve_of_thirteen",
+                BoundVexTeamMoveRosterGameTests::startRaidTakesTwelveOfThirteen);
+        FangGameTests.addPadded(
                 SHARED, "team_move_start_stashes_given_gear", BoundVexTeamMoveRosterGameTests::startStashesGivenGear);
         FangGameTests.addPadded(
                 SHARED,
@@ -124,8 +129,8 @@ public final class BoundVexTeamMoveRosterGameTests {
     }
 
     /**
-     * When a summoner has three following vexes with no mark, no job and no rescue near them, should every one be free and
-     * listed.
+     * When a summoner has three following vexes with no mark, no job and no rescue near them, should every one be free
+     * and listed.
      *
      * <p>Method under test: {@link TeamMoves#isFree}, {@link TeamMoves#freeVexes}
      */
@@ -198,8 +203,8 @@ public final class BoundVexTeamMoveRosterGameTests {
     }
 
     /**
-     * When the summoner stands in the Nether and the vexes are in the test level, at the summoner's own coordinates, should
-     * none be free (only the level differs).
+     * When the summoner stands in the Nether and the vexes are in the test level, at the summoner's own coordinates,
+     * should none be free (only the level differs).
      *
      * <p>Method under test: {@link TeamMoves#isFree}: the same-level clause
      */
@@ -262,8 +267,8 @@ public final class BoundVexTeamMoveRosterGameTests {
     }
 
     /**
-     * When the summoner clicks a vex in a team move with an empty hand, should it answer "That vex is busy" and keep the
-     * sword in its hand.
+     * When the summoner clicks a vex in a team move with an empty hand, should it answer "That vex is busy" and keep
+     * the sword in its hand.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
      */
@@ -285,8 +290,8 @@ public final class BoundVexTeamMoveRosterGameTests {
     }
 
     /**
-     * When the summoner gives a diamond sword to a vex in a team move, should the gift be taken as always (the refusal is
-     * for the empty hand only) and no busy message come.
+     * When the summoner gives a diamond sword to a vex in a team move, should the gift be taken as always (the refusal
+     * is for the empty hand only) and no busy message come.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
      */
@@ -307,7 +312,8 @@ public final class BoundVexTeamMoveRosterGameTests {
     }
 
     /**
-     * When the summoner is 31.9 blocks from a following vex, should the vex be free, and when 32.1 blocks, should it not.
+     * When the summoner is 31.9 blocks from a following vex, should the vex be free, and when 32.1 blocks, should it
+     * not.
      *
      * <p>Method under test: {@link TeamMoves#isFree}: the range clause
      */
@@ -343,8 +349,8 @@ public final class BoundVexTeamMoveRosterGameTests {
     }
 
     /**
-     * When a player who did not summon the vex clicks it with an empty hand, should the vex in a team move answer no busy
-     * message (the {@code isSummonedBy} check comes first).
+     * When a player who did not summon the vex clicks it with an empty hand, should the vex in a team move answer no
+     * busy message (the {@code isSummonedBy} check comes first).
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
      */
@@ -595,6 +601,26 @@ public final class BoundVexTeamMoveRosterGameTests {
         }
         helper.assertValueEqual(TeamMoves.subject(player), Optional.of(player.getUUID()), "the ward is the summoner");
         GameTestSupport.assertActionBarKey(helper, player, TeamMoves.MESSAGE_PREFIX + "evader");
+        helper.succeed();
+    }
+
+    /**
+     * When thirteen vexes are free and a ravager stands beside them, should a Raid take exactly twelve (the cap).
+     *
+     * <p>Method under test: {@link TeamMoves#start}: the Raid roster cap
+     */
+    static void startRaidTakesTwelveOfThirteen(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        frozenVexes(helper, player, 13);
+        Ravager ravager = foe(helper, EntityTypes.RAVAGER, beside(helper));
+
+        // Act
+        boolean started = TeamMoves.start(player, TeamMove.RAID, ravager);
+
+        // Assert
+        helper.assertTrue(started, "the move started");
+        helper.assertValueEqual(TeamMoves.roster(player).size(), 12, "twelve of the thirteen");
         helper.succeed();
     }
 

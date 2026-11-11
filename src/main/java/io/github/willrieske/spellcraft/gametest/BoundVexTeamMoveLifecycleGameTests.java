@@ -4,14 +4,18 @@ import static io.github.willrieske.spellcraft.gametest.FangGameTests.NORTH;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 import static io.github.willrieske.spellcraft.gametest.TeamMoveTestSupport.beside;
 import static io.github.willrieske.spellcraft.gametest.TeamMoveTestSupport.bigHusk;
+import static io.github.willrieske.spellcraft.gametest.TeamMoveTestSupport.flyingVexes;
 import static io.github.willrieske.spellcraft.gametest.TeamMoveTestSupport.foe;
 import static io.github.willrieske.spellcraft.gametest.TeamMoveTestSupport.frozenVexes;
 import static io.github.willrieske.spellcraft.gametest.TeamMoveTestSupport.hangPoint;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.BoundVexEvents;
+import io.github.willrieske.spellcraft.evoking.Dice;
+import io.github.willrieske.spellcraft.evoking.FleeCreeperGoal;
 import io.github.willrieske.spellcraft.evoking.TeamMoveGoal;
 import io.github.willrieske.spellcraft.evoking.TeamMoves;
+import io.github.willrieske.spellcraft.gametest.TeamMoveTestSupport.ShieldScene;
 import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import java.util.EnumSet;
 import java.util.List;
@@ -19,9 +23,11 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.Items;
@@ -35,9 +41,10 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 /** GameTests of how a team move runs and ends (Parts 6-7 spec section 2.5). */
-public final class BoundVexTeamMoveLifecycleGameTests {
+final class BoundVexTeamMoveLifecycleGameTests {
     private BoundVexTeamMoveLifecycleGameTests() {}
 
+    /** Registers the tests. */
     static void registerAll() {
         FangGameTests.addPadded(SHARED, "team_move_end_enemy_dies", BoundVexTeamMoveLifecycleGameTests::enemyDies);
         FangGameTests.addPadded(
@@ -91,25 +98,39 @@ public final class BoundVexTeamMoveLifecycleGameTests {
                 "team_move_goal_runs_in_the_selector",
                 BoundVexTeamMoveLifecycleGameTests::goalRunsInTheSelector);
         FangGameTests.addPadded(
+                SHARED,
+                "team_move_end_member_marked_none_is_dropped",
+                BoundVexTeamMoveLifecycleGameTests::memberMarkedNoneIsDropped);
+        FangGameTests.addPadded(
+                SHARED,
+                "team_move_end_removed_member_is_dropped",
+                BoundVexTeamMoveLifecycleGameTests::removedMemberIsDropped);
+        FangGameTests.addPadded(
+                SHARED,
+                "team_move_end_multishot_continues_and_drops_no_kit",
+                BoundVexTeamMoveLifecycleGameTests::multishotContinuesAndDropsNoKit);
+        FangGameTests.addPadded(
+                SHARED,
+                "team_move_end_raid_continues_and_drops_no_kit",
+                BoundVexTeamMoveLifecycleGameTests::raidContinuesAndDropsNoKit);
+        FangGameTests.addPadded(
+                SHARED,
+                "team_move_goal_flee_keeps_the_kit_and_resumes",
+                300,
+                BoundVexTeamMoveLifecycleGameTests::fleeKeepsTheKitAndResumes);
+        FangGameTests.addPadded(
                 "team_move_server_stop",
                 "team_move_end_server_stop_clears_records",
                 BoundVexTeamMoveLifecycleGameTests::serverStopClearsRecords);
     }
 
-    /** The parts of a running Shield scene: the summoner, the three frozen members and the husk. */
-    private record Scene(ServerPlayer player, List<BoundVex> vexes, Husk husk) {}
-
     /** A running Shield: three frozen vexes and a 40-health husk beside them. */
-    private static Scene shield(GameTestHelper helper) {
-        ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        List<BoundVex> vexes = frozenVexes(helper, player, 3);
-        Husk husk = bigHusk(helper, beside(helper));
-        helper.assertTrue(TeamMoves.start(player, TeamMove.SHIELD, husk), "setup: the Shield starts");
-        return new Scene(player, vexes, husk);
+    private static ShieldScene shield(GameTestHelper helper) {
+        return TeamMoveTestSupport.startedShield(helper);
     }
 
     /** Fails unless the Shield is over: unmarked members with their swords back and the Shield cooling. */
-    private static void assertOver(GameTestHelper helper, Scene scene) {
+    private static void assertOver(GameTestHelper helper, ShieldScene scene) {
         helper.assertTrue(TeamMoves.running(scene.player()).isEmpty(), "the move is over");
         for (BoundVex vex : scene.vexes()) {
             helper.assertValueEqual(vex.teamMove(), TeamMove.NONE, "unmarked");
@@ -128,7 +149,7 @@ public final class BoundVexTeamMoveLifecycleGameTests {
      */
     static void enemyDies(GameTestHelper helper) {
         // Arrange
-        Scene scene = shield(helper);
+        ShieldScene scene = shield(helper);
         GameTestSupport.drainActionBar(scene.player());
         scene.husk().kill(helper.getLevel());
 
@@ -148,7 +169,7 @@ public final class BoundVexTeamMoveLifecycleGameTests {
      */
     static void enemyRemoved(GameTestHelper helper) {
         // Arrange
-        Scene scene = shield(helper);
+        ShieldScene scene = shield(helper);
         scene.husk().discard();
 
         // Act
@@ -167,7 +188,7 @@ public final class BoundVexTeamMoveLifecycleGameTests {
      */
     static void enemyBeyond48(GameTestHelper helper) {
         // Arrange
-        Scene scene = shield(helper);
+        ShieldScene scene = shield(helper);
         Husk husk = scene.husk();
         Vec3 flat = husk.position();
 
@@ -188,7 +209,7 @@ public final class BoundVexTeamMoveLifecycleGameTests {
      */
     static void timeLimit(GameTestHelper helper) {
         // Arrange
-        Scene scene = shield(helper);
+        ShieldScene scene = shield(helper);
 
         // Act & Assert
         TeamMoves.age(scene.player(), 2399);
@@ -255,7 +276,7 @@ public final class BoundVexTeamMoveLifecycleGameTests {
      */
     static void rosterEmpty(GameTestHelper helper) {
         // Arrange
-        Scene scene = shield(helper);
+        ShieldScene scene = shield(helper);
         scene.vexes().forEach(vex -> vex.kill(helper.getLevel()));
 
         // Act
@@ -275,7 +296,7 @@ public final class BoundVexTeamMoveLifecycleGameTests {
      */
     static void summonerDies(GameTestHelper helper) {
         // Arrange
-        Scene scene = shield(helper);
+        ShieldScene scene = shield(helper);
         scene.player().kill(helper.getLevel());
         helper.assertFalse(scene.player().isAlive(), "setup: the summoner is dead");
 
@@ -294,7 +315,7 @@ public final class BoundVexTeamMoveLifecycleGameTests {
      */
     static void summonerSpectates(GameTestHelper helper) {
         // Arrange
-        Scene scene = shield(helper);
+        ShieldScene scene = shield(helper);
         scene.player().setGameMode(GameType.SPECTATOR);
 
         // Act
@@ -313,7 +334,7 @@ public final class BoundVexTeamMoveLifecycleGameTests {
      */
     static void summonerChangesLevel(GameTestHelper helper) {
         // Arrange
-        Scene scene = shield(helper);
+        ShieldScene scene = shield(helper);
         // Members within 16 blocks follow the summoner through a dimension change (BoundVexEvents.note/bring): lift
         // them out of range.
         scene.vexes().forEach(vex -> vex.setPos(vex.position().add(0.0, 20.0, 0.0)));
@@ -336,7 +357,7 @@ public final class BoundVexTeamMoveLifecycleGameTests {
      */
     static void cooldownPerKind(GameTestHelper helper) {
         // Arrange
-        Scene scene = shield(helper);
+        ShieldScene scene = shield(helper);
         scene.husk().kill(helper.getLevel());
         TeamMoves.tick(scene.player());
         assertOver(helper, scene);
@@ -358,7 +379,7 @@ public final class BoundVexTeamMoveLifecycleGameTests {
      */
     static void logoutReleasesKits(GameTestHelper helper) {
         // Arrange
-        Scene scene = shield(helper);
+        ShieldScene scene = shield(helper);
 
         // Act
         TeamMoves.onLogout(new PlayerEvent.PlayerLoggedOutEvent(scene.player()));
@@ -382,7 +403,7 @@ public final class BoundVexTeamMoveLifecycleGameTests {
      */
     static void deadMemberDropsNoKit(GameTestHelper helper) {
         // Arrange
-        Scene scene = shield(helper);
+        ShieldScene scene = shield(helper);
         BoundVex dying = scene.vexes().get(0);
         AABB around = new AABB(dying.position(), dying.position()).inflate(3.0);
         GameTestSupport.whenDone(
@@ -439,7 +460,7 @@ public final class BoundVexTeamMoveLifecycleGameTests {
      */
     static void goalStopKeepsTheKitWhileListed(GameTestHelper helper) {
         // Arrange
-        Scene scene = shield(helper);
+        ShieldScene scene = shield(helper);
         BoundVex member = scene.vexes().get(0);
 
         // Act
@@ -459,7 +480,7 @@ public final class BoundVexTeamMoveLifecycleGameTests {
      */
     static void goalPutsAReplacedItemBack(GameTestHelper helper) {
         // Arrange (the synthetic dismiss stands in for a job goal's own dismiss(MAINHAND) in its stop)
-        Scene scene = shield(helper);
+        ShieldScene scene = shield(helper);
         BoundVex member = scene.vexes().get(0);
         member.dismiss(EquipmentSlot.MAINHAND);
         helper.assertTrue(BoundVexTestSupport.swordBack(member), "setup: the sword is back in the hand");
@@ -510,7 +531,7 @@ public final class BoundVexTeamMoveLifecycleGameTests {
      */
     static void cooldownLastsThirtySeconds(GameTestHelper helper) {
         // Arrange
-        Scene scene = shield(helper);
+        ShieldScene scene = shield(helper);
         scene.husk().kill(helper.getLevel());
         TeamMoves.tick(scene.player());
         assertOver(helper, scene);
@@ -533,7 +554,7 @@ public final class BoundVexTeamMoveLifecycleGameTests {
      */
     static void playerTickEventStepsTheMove(GameTestHelper helper) {
         // Arrange (mock players get no PlayerTickEvent, so post one, as BoundVexLavaGameTests does for the logout)
-        Scene scene = shield(helper);
+        ShieldScene scene = shield(helper);
         scene.husk().kill(helper.getLevel());
 
         // Act
@@ -584,8 +605,10 @@ public final class BoundVexTeamMoveLifecycleGameTests {
      */
     static void serverStopClearsRecords(GameTestHelper helper) {
         // Arrange
-        Scene scene = shield(helper);
+        ShieldScene scene = shield(helper);
         BoundVex member = scene.vexes().get(0);
+        Dice.RAID_KIT.script(5);
+        GameTestSupport.whenDone(helper, Dice.RAID_KIT::unscript);
 
         // Act
         BoundVexEvents.onServerStopped(new ServerStoppedEvent(helper.getLevel().getServer()));
@@ -596,6 +619,148 @@ public final class BoundVexTeamMoveLifecycleGameTests {
         TeamMoveTestSupport.goalOf(member).stop();
         helper.assertValueEqual(member.teamMove(), TeamMove.NONE, "its stop unmarks the vex");
         helper.assertTrue(BoundVexTestSupport.swordBack(member), "and puts the sword back");
+        // A still-scripted 5 is outside [0, 1) and would throw: the stop dropped the Raid dice script
+        helper.assertValueEqual(
+                Dice.RAID_KIT.below(helper.getLevel().getRandom(), 1), 0, "and unscripts the Raid dice");
         helper.succeed();
+    }
+
+    /**
+     * When a listed member is replaced by a vex marked NONE (what a portal or a save and load leaves), should the next
+     * tick drop it from the roster and the move go on with the others.
+     *
+     * <p>Method under test: {@link TeamMoves#tick}: pruning a member that is no longer marked
+     */
+    static void memberMarkedNoneIsDropped(GameTestHelper helper) {
+        // Arrange
+        ShieldScene scene = shield(helper);
+        BoundVex copy = scene.vexes().get(0);
+        copy.setTeamMove(TeamMove.NONE);
+
+        // Act
+        TeamMoves.tick(scene.player());
+
+        // Assert
+        helper.assertFalse(TeamMoves.roster(scene.player()).contains(copy), "the copy is off the roster");
+        helper.assertFalse(TeamMoveTestSupport.goalOf(copy).canUse(), "and its goal does not run");
+        helper.assertValueEqual(TeamMoves.roster(scene.player()).size(), 2, "two members are left");
+        helper.assertTrue(TeamMoves.running(scene.player()).isPresent(), "and the move goes on");
+        helper.succeed();
+    }
+
+    /**
+     * When a listed member is removed from the world without dying (an unloaded chunk, a discard), should the next tick
+     * drop it from the roster (the level cannot find it) and the move go on.
+     *
+     * <p>Method under test: {@link TeamMoves#tick}: pruning a member the level cannot find
+     */
+    static void removedMemberIsDropped(GameTestHelper helper) {
+        // Arrange
+        ShieldScene scene = shield(helper);
+        BoundVex gone = scene.vexes().get(0);
+        gone.discard();
+
+        // Act
+        TeamMoves.tick(scene.player());
+
+        // Assert
+        helper.assertValueEqual(TeamMoves.roster(scene.player()).size(), 2, "two members are left");
+        helper.assertTrue(TeamMoves.running(scene.player()).isPresent(), "and the move goes on");
+        helper.succeed();
+    }
+
+    /**
+     * Kills {@code kills} of the roster's members of a running {@code move}, steps the move and checks that it goes on
+     * with the others and that the dead members dropped only the iron sword the kit had stashed, none of the kit.
+     */
+    private static void membersDieAndTheMoveGoesOn(
+            GameTestHelper helper, TeamMove move, int count, LivingEntity enemy, int kills) {
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        frozenVexes(helper, player, count);
+        helper.assertTrue(TeamMoves.start(player, move, enemy), "setup: the move starts");
+        List<BoundVex> dying = TeamMoves.roster(player).subList(0, kills);
+        AABB around = new AABB(hangPoint(helper), hangPoint(helper)).inflate(8.0);
+        GameTestSupport.whenDone(
+                helper,
+                () -> helper.getLevel()
+                        .getEntitiesOfClass(ItemEntity.class, around)
+                        .forEach(ItemEntity::discard));
+        dying.forEach(vex -> vex.kill(helper.getLevel()));
+
+        TeamMoves.tick(player);
+
+        List<ItemEntity> items = helper.getLevel().getEntitiesOfClass(ItemEntity.class, around);
+        helper.assertTrue(
+                items.stream().anyMatch(item -> item.getItem().is(Items.IRON_SWORD)), "the given sword drops");
+        helper.assertTrue(
+                items.stream().allMatch(item -> item.getItem().is(Items.IRON_SWORD)),
+                "and nothing of the kit does, only the sword");
+        helper.assertValueEqual(TeamMoves.roster(player).size(), count - kills, "the others are left");
+        helper.assertTrue(TeamMoves.running(player).isPresent(), "and the move goes on");
+        helper.succeed();
+    }
+
+    /**
+     * When a member of a running Multishot dies, should it drop only its given sword, never the crossbow, and the move
+     * go on with the other two.
+     *
+     * <p>Method under test: {@link TeamMoves#tick}: pruning; {@code BoundVex#dropCustomDeathLoot} for a Multishot kit
+     */
+    static void multishotContinuesAndDropsNoKit(GameTestHelper helper) {
+        membersDieAndTheMoveGoesOn(helper, TeamMove.MULTISHOT, 3, bigHusk(helper, beside(helper)), 1);
+    }
+
+    /**
+     * When five members of a running Raid die, should they drop only their given swords, never a raid weapon, shield
+     * or armor piece, and the Raid go on with the other seven.
+     *
+     * <p>Method under test: {@link TeamMoves#tick}: pruning; {@code BoundVex#dropCustomDeathLoot} for a Raid kit
+     */
+    static void raidContinuesAndDropsNoKit(GameTestHelper helper) {
+        membersDieAndTheMoveGoesOn(helper, TeamMove.RAID, 12, foe(helper, EntityTypes.RAVAGER, beside(helper)), 5);
+    }
+
+    /** Whether the vex's goal selector is running a goal of the given class. */
+    private static boolean runs(BoundVex vex, Class<? extends Goal> goal) {
+        return vex.goalSelector.getAvailableGoals().stream()
+                .anyMatch(wrapped -> wrapped.isRunning() && goal.isInstance(wrapped.getGoal()));
+    }
+
+    /**
+     * When a swelling creeper comes within eight blocks of a member of a running Shield, should the member flee (the
+     * priority-0 goal pauses the team-move goal) and keep its mark and its kit, and when the creeper stops swelling,
+     * should its team-move goal run again with the kit still on.
+     *
+     * <p>Method under test: {@link TeamMoveGoal} against {@code FleeCreeperGoal}, in the real goal selector
+     */
+    static void fleeKeepsTheKitAndResumes(GameTestHelper helper) {
+        // Arrange (full-AI vexes, so the selector decides)
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        List<BoundVex> vexes = flyingVexes(helper, player, 3, hangPoint(helper));
+        Husk husk = bigHusk(helper, beside(helper).add(0.0, 0.0, -4.0));
+        husk.setPermanentlyInvulnerable(true);
+        helper.assertTrue(TeamMoves.start(player, TeamMove.SHIELD, husk), "setup: the Shield starts");
+        TeamMoveTestSupport.stepEveryTick(helper, player);
+        BoundVex member = TeamMoves.roster(player).get(0);
+        Creeper creeper = foe(helper, EntityTypes.CREEPER, member.position().add(2.0, 0.0, 0.0));
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(runs(member, TeamMoveGoal.class), "setup: it runs the move"))
+                .thenExecute(() -> creeper.setSwellDir(1))
+                .thenWaitUntil(() -> helper.assertTrue(runs(member, FleeCreeperGoal.class), "it flees the creeper"))
+                .thenExecuteFor(10, () -> {
+                    helper.assertFalse(runs(member, TeamMoveGoal.class), "the move is paused while it flees");
+                    helper.assertValueEqual(member.teamMove(), TeamMove.SHIELD, "still marked");
+                    helper.assertTrue(member.isConjured(EquipmentSlot.MAINHAND), "and the kit stays on");
+                    helper.assertTrue(TeamMoves.roster(player).contains(member), "and it stays on the roster");
+                })
+                .thenExecute(() -> creeper.setSwellDir(-1))
+                .thenWaitUntil(() -> helper.assertTrue(runs(member, TeamMoveGoal.class), "the move resumes"))
+                .thenExecute(() -> {
+                    helper.assertTrue(member.isConjured(EquipmentSlot.MAINHAND), "with the kit on");
+                    helper.assertTrue(vexes.contains(member), "setup: the same vex");
+                })
+                .thenSucceed();
     }
 }

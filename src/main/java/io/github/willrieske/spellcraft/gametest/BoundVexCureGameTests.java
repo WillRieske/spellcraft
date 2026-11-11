@@ -1058,6 +1058,7 @@ public final class BoundVexCureGameTests {
                         "setup: the vex is in the apple step and holds the claim"))
                 .thenExecute(() -> {
                     worker.setStaying(false);
+                    TeamMoveTestSupport.assertFreeButForJobs(helper, worker, player);
                     helper.assertFalse(TeamMoves.isFree(worker, player), "a vex mid-cure is not free");
                     helper.assertFalse(TeamMoves.freeVexes(player).contains(worker), "and is not listed");
                 })
