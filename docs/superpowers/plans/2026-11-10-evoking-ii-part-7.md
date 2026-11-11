@@ -3291,7 +3291,7 @@ git commit -m "feat(ghostrail): no damage, a smoke trail, a safe ending and mob 
   - `TeamMoveKits.kit(TeamMove, ServerLevel, RandomSource, boolean caster)` **replaces** the three-argument form (its only caller, `TeamMoves.start`, passes `vex.isCaster()`): a Raid kit for a Caster is the Mirror scroll in the main hand (`ModItems.scrollFor(Spells.MIRROR)`), a shield in the off hand, and head, chest and legs of one armor material from **one** `Dice.RAID_KIT` roll (the Part 6 comment `// Part 7: a Caster rolls only the armor...` becomes this code).
   - `ScrollTestSupport.casterVex(GameTestHelper, ServerPlayer, Vec3 absolute)` (a parked Caster: `BoundVexTestSupport.noTargets(boundVex(...))`, then `BoundVexTestSupport.pauseFollowing(vex)` so the follow goal does not pull it toward the player, with `setCaster(true)` at that position; tests place it clearly inside `GuardPosture.WIDE_LIMIT` (4.0) of the player or well outside it, never exactly on the limit); `ScrollTestSupport.raidScene(GameTestHelper)` and its `RaidScene(player, husk, caster)` record (below).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `CasterRulesTest.constantsAreTheSpecsNumbers`: `assertThat(CasterRules.CASTER_ONE_IN).isEqualTo(3);`.
 
@@ -3371,11 +3371,11 @@ static RaidScene raidScene(GameTestHelper helper) {
 
 Add `CasterGameTests.registerAll();` after `GhostrailGameTests.registerAll();` in `SpellcraftGameTests`.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `./gradlew test` and `./gradlew compileJava` (FAIL: no `isCaster`, no `CASTER_ONE_IN`).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `CasterRules`: `/** One vex in this many is a Caster. */ public static final int CASTER_ONE_IN = 3;`.
 
@@ -3570,11 +3570,11 @@ git grep -n "VexSummons.summon\|EvokerSpell.VEXES" -- src/main/java/io/github/wi
 
 (The known hits are `BoundVexCapGameTests` and `BoundVexFollowGameTests`; `EvokingCaster.request` for fangs is not a summon.) Read each hit. A test that calls `VexSummons.summon` itself is synchronous: if it then needs the vex to fight, hold gear, follow or count on a plain vex, script a plain vex around the call, `Dice.CASTER_ROLL.script(1, 1, 1)` immediately before and `Dice.unscriptAll()` in a `finally` after, and register the test in the environment `caster_dice` (a test in `SHARED` must not script). A test that summons through `EvokingCaster.request` is asynchronous: the roll happens inside a later `EvokingCaster.tick`, so there is no "immediately before" to script; if such a test needs a plain vex, call `vex.setCaster(false)` on the vexes as soon as they exist. A test that only counts vexes or checks messages needs nothing (the cap tests are of this kind). Note the tests you changed in the commit message.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew test`, `./gradlew runGameTestServer "-PgameTests=spellcraft:caster_*"`, then the full `./gradlew runGameTestServer` once to see whether any existing test broke because a summoned vex was a Caster. Expected: PASS after the Step 3 fixes.
 
-- [ ] **Step 5: Gates and commit**
+- [x] **Step 5: Gates and commit**
 
 Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 728 required tests passed` both times (the Task 7 total plus the 15 `caster_*` tests registered in `CasterGameTests`).
 
@@ -3582,6 +3582,8 @@ Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expec
 git add src
 git commit -m "feat(evoking): Casters, one vex in three, that keep their distance and never fight"
 ```
+
+> **As built (`31ca0c1`):** diverged — no RED capture (production code partly written before tests); caster_plain_vex_charges resets a vex parked at rest beside the frozen husk each tick (test-only: ChargeGoal needs >2 blocks, a real target moves); countsTowardARaidTrigger proves the Shield control with a second summoner; reason: implementer report, review approved
 
 ---
 
@@ -6013,3 +6015,4 @@ git commit -m "docs(evoking): Part 7 in the README, playtest items, mutation tes
 | 5 | `b30d56d` | a mob already targeting a live image of this carrier keeps it (the change is cancelled, no roll), where the plan's handler returned early and let vanilla switch it to the carrier; reason: controller ruling on spec §7.2 "not re-rolled" read with the 13-in-14 rule. |
 | 6 | `dabd455` | `staysAloftOverStone` asserts a drift under 0.5 blocks, not an exact y; reason: `ServerPlayer.doTick` runs `aiStep` and the first tick, before the sync sets `flying`, takes full gravity, which flight then damps (reviewed against `Player.travel`). |
 | 7 | `6302d73` | `endingGoesToTheStartSpot` lifts the player 10, not 6, inside a stone cube (the plan's lift left the start spot within the search radius); a recast in stone keeps the earlier start spot (review fix, +1 test); the Task 6 review's creative-player fix (+1 test) landed first in 30ed2b4. No RED capture. |
+| 8 | `31ca0c1` | no RED capture (production code partly written before tests); caster_plain_vex_charges resets a vex parked at rest beside the frozen husk each tick (test-only: ChargeGoal needs >2 blocks, a real target moves); countsTowardARaidTrigger proves the Shield control with a second summoner; reason: implementer report, review approved |
