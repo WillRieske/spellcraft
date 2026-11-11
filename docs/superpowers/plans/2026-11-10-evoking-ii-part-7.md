@@ -2495,7 +2495,7 @@ git commit -m "feat(evoking): Mirror images that copy the caster and end with th
 - Consumes: Task 4 (`MirrorImages.of`, `Dice.MIRROR_CONFUSION`, `MirrorRule.redirects/CONFUSION_BOUND/CONFUSION_RANGE`).
 - Produces: `MirrorImages.onChangeTarget(LivingChangeTargetEvent)` (`@SubscribeEvent`; `MirrorImages` is already `@EventBusSubscriber(modid = Spellcraft.MODID)` since Task 4, which added its death handler).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `MirrorConfusionGameTests` (javadoc: `/** GameTests of the Mirror confusion (Parts 6-7 spec §7.2: 13 of 14, any mob, never a golem onto a player's images). */`). Tests that script the die register in the environment `mirror_dice` (one batch); the ones that cannot roll register in `SHARED`. Each scripts **immediately before** the call that consumes it and unscripts in a `finally`. Every test in this class (and in Tasks 7-12) gets a When/should Javadoc **and** a `<p>Method under test:` line, as in Task 2's tests; the Javadoc shown on a body below is its When/should part. The mobs here are `Husk`s from `ScrollTestSupport.hostileAt` (Task 4): a husk is a `Zombie` that does not burn in daylight, so a frozen foe lives out the test. In the prose below, every `zombie`, `zombieA` and `zombieB` is such a husk.
 
@@ -2558,11 +2558,11 @@ static void redirects(GameTestHelper helper) {
 
 Add `MirrorConfusionGameTests.registerAll();` after `MirrorGameTests.registerAll();`.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:mirror_confusion_*"`. Expected: the redirect tests FAIL (no handler yet), the keep tests pass.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Add to `MirrorImages` (the class is already annotated `@EventBusSubscriber(modid = Spellcraft.MODID)`):
 
@@ -2607,11 +2607,11 @@ public static void onChangeTarget(LivingChangeTargetEvent event) {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:mirror_*"`. Expected: PASS.
 
-- [ ] **Step 5: Gates and commit**
+- [x] **Step 5: Gates and commit**
 
 Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 683 required tests passed` both times (the Task 4 total plus the 7 `mirror_confusion_*` tests). No GameTest uses a real target goal to show that the same-target re-set does not re-roll (the reason for the `carrier.equals(mob.getTarget())` guard): Task 15's playtest list has an item for it.
 
@@ -2619,6 +2619,8 @@ Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expec
 git add src
 git commit -m "feat(evoking): Mirror confuses a mob that picks the carrier 13 times in 14"
 ```
+
+> **As built (`b30d56d`):** diverged — a mob already targeting a live image of this carrier keeps it (the change is cancelled, no roll), where the plan's handler returned early and let vanilla switch it to the carrier; reason: controller ruling on spec §7.2 "not re-rolled" read with the 13-in-14 rule.
 
 ### Task 6: Ghostrail for players: the Mixin and the shared abilities sync
 
@@ -6004,3 +6006,4 @@ git commit -m "docs(evoking): Part 7 in the README, playtest items, mutation tes
 |---|---|---|
 | 3 | `b63ced0` | `hundredPercent` passes option index 0 with chances `List.of(100, 100, 100)` (the plan implied passing 100 as the option); reason: `ScrollDraw.draw`'s first argument is an option index; the Task 2 review's Javadoc minors were fixed first in 978244f. |
 | 4 | `e4e09ca` | one extra GameTest `mirror_tall_images_never_spawn_inside_a_ceiling` (total 677, not 676), and every spawn tier checks the copied type's box; reason: per-task review found a tall copied type could overlap a ceiling. No RED capture. |
+| 5 | `b30d56d` | a mob already targeting a live image of this carrier keeps it (the change is cancelled, no roll), where the plan's handler returned early and let vanilla switch it to the carrier; reason: controller ruling on spec §7.2 "not re-rolled" read with the 13-in-14 rule. |
