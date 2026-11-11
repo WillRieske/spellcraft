@@ -37,8 +37,9 @@ public final class ModEntities {
                     .notInPeaceful());
 
     /**
-     * The Mirror image (Parts 6-7 spec §7.2): a copy of a caster that wanders and can be hit. Not a mob: a living entity
-     * with its own small walk. Sized at spawn like its caster ({@link MirrorImage#getDefaultDimensions}); no loot table.
+     * The Mirror image (Parts 6-7 spec §7.2): a copy of a caster that wanders and can be hit. Not a mob: a living
+     * entity with its own small walk. Sized at spawn like its caster ({@link MirrorImage#getDefaultDimensions}); no
+     * loot table.
      */
     public static final DeferredHolder<EntityType<?>, EntityType<MirrorImage>> MIRROR_IMAGE =
             ENTITIES.registerEntityType(
@@ -50,8 +51,8 @@ public final class ModEntities {
     private ModEntities() {}
 
     /**
-     * Gives the Bound Vex and the Mirror image their attributes (a mod-bus event, received here as {@code SpellcraftGameTests} receives
-     * {@code RegisterGameTestsEvent}).
+     * Gives the Bound Vex and the Mirror image their attributes (a mod-bus event, received here as
+     * {@code SpellcraftGameTests} receives {@code RegisterGameTestsEvent}).
      *
      * @param event the attribute event
      */

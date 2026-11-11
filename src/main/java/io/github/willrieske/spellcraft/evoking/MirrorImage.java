@@ -252,6 +252,7 @@ public final class MirrorImage extends LivingEntity {
         double dz = wanderTo.z - getZ();
         if (dx * dx + dz * dz < 1.0) {
             zza = 0.0F;
+            setJumping(false);
             if (caster != null) {
                 setYRot(caster.getYRot());
                 yBodyRot = getYRot();

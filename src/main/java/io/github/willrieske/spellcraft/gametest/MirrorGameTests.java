@@ -31,6 +31,7 @@ import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.Enderman;
 import net.minecraft.world.entity.monster.illager.Evoker;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -76,6 +77,10 @@ public final class MirrorGameTests {
                 SHARED, "mirror_a_second_cast_makes_no_extra_images", MirrorGameTests::secondCastMakesNoExtras);
         FangGameTests.addPadded(
                 SHARED, "mirror_images_never_spawn_inside_blocks", MirrorGameTests::tunnelKeepsImagesOutOfWalls);
+        FangGameTests.addPadded(
+                SHARED,
+                "mirror_tall_images_never_spawn_inside_a_ceiling",
+                MirrorGameTests::tallCarrierKeepsImagesOutOfCeiling);
         // Scripts every die, so it runs in an environment of its own (Dice is global).
         SpellcraftGameTests.add(
                 "dice_unscript", "dice_unscript_all_clears_every_die", MirrorGameTests::unscriptAllClearsEveryDie);
@@ -457,6 +462,33 @@ public final class MirrorGameTests {
     }
 
     /**
+     * When a 2.9-high enderman has Mirror under a two-high ceiling that covers every ring cell but its own column,
+     * should none of the 13 images start inside a block. (The enderman stands away from the test box, whose barrier
+     * shell would already cover its column.)
+     *
+     * <p>Method under test: {@code MirrorImages#spawn}
+     */
+    static void tallCarrierKeepsImagesOutOfCeiling(GameTestHelper helper) {
+        // Arrange: the carrier stands 5 blocks east of the standing spot, clear of the test box's barrier shell
+        plainPlayer(helper);
+        floor(helper, 12);
+        for (int dz = -4; dz <= 4; dz++) {
+            for (int dx = 1; dx <= 9; dx++) {
+                if (dx != 5 || dz != 0) {
+                    helper.setBlock(FangGameTests.FEET.offset(dx, 2, dz), Blocks.STONE);
+                }
+            }
+        }
+        Enderman enderman = foeAt(helper, EntityTypes.ENDERMAN, at(helper, 5.0, 0.0, 0.0));
+        // Act
+        Spells.cast(enderman, Spells.MIRROR, MirrorRule.DURATION_TICKS);
+        // Assert
+        helper.assertValueEqual(images(enderman).size(), MirrorRule.IMAGES, "thirteen images");
+        images(enderman).forEach(image -> helper.assertFalse(image.isInWall(), "none starts inside a block"));
+        helper.succeed();
+    }
+
+    /**
      * When every die is scripted with a roll that is out of range for its bound and {@code Dice.unscriptAll()} runs,
      * should each die answer from the real random source (a leaked script would throw).
      *
@@ -467,6 +499,7 @@ public final class MirrorGameTests {
         RandomSource random = helper.getLevel().getRandom();
         List<Dice> dice = List.of(Dice.RAID_KIT, Dice.CASTER_ROLL, Dice.SCROLL_MOB, Dice.MIRROR_CONFUSION);
         dice.forEach(die -> die.script(5));
+        GameTestSupport.whenDone(helper, Dice::unscriptAll);
         // Act
         Dice.unscriptAll();
         // Assert

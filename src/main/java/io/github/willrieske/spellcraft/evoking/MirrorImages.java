@@ -7,6 +7,7 @@ import io.github.willrieske.spellcraft.spell.rules.VexRing;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -44,7 +45,7 @@ public final class MirrorImages {
 
     /**
      * Spawns {@link MirrorRule#IMAGES} images of {@code carrier} on its ring cells ({@link VexRing}, Chebyshev 2 to 3):
-     * standable cells first in a random order, then any other cell where an image's box is free of blocks, then the
+     * cells where the copied type's box is free first (standable ones before the rest), in a random order, then the
      * carrier's own spot for every image that is left (a tunnel has few free cells; the carrier's spot is free by
      * definition). An image is never placed inside a block, so none takes wall damage on its first ticks. Images the
      * carrier still has are poofed first, so a recast in the tick after a removal never doubles the set.
@@ -63,13 +64,13 @@ public final class MirrorImages {
             VexRing.Offset offset = VexRing.offset(i);
             cells.add(feet.offset(offset.dx(), 0, offset.dz()));
         }
-        Collections.shuffle(cells, new java.util.Random(level.getRandom().nextLong()));
+        Collections.shuffle(cells, new Random(level.getRandom().nextLong()));
         List<BlockPos> ordered = new ArrayList<>();
-        cells.stream().filter(cell -> StandableSpots.standable(level, cell)).forEach(ordered::add);
-        cells.stream()
-                .filter(cell -> !ordered.contains(cell))
+        List<BlockPos> roomy = cells.stream()
                 .filter(cell -> level.noBlockCollision(null, size.makeBoundingBox(Vec3.atBottomCenterOf(cell))))
-                .forEach(ordered::add);
+                .toList();
+        roomy.stream().filter(cell -> StandableSpots.standable(level, cell)).forEach(ordered::add);
+        roomy.stream().filter(cell -> !ordered.contains(cell)).forEach(ordered::add);
         for (int i = 0; i < MirrorRule.IMAGES; i++) {
             MirrorImage image = ModEntities.MIRROR_IMAGE.get().create(level, EntitySpawnReason.MOB_SUMMONED);
             if (image == null) {

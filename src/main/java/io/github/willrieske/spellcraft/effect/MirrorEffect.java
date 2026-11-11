@@ -31,8 +31,8 @@ public final class MirrorEffect extends MobEffect {
 
     /**
      * A mob carrier that is killed or discarded loses its effects in {@code LivingEntity.remove}, which calls this hook
-     * (api-notes §26): its images go with it. A carrier removed any other way (unloaded) keeps them until their own life
-     * ends, as the spec says.
+     * (api-notes §26): its images go with it. A carrier removed any other way (unloaded) keeps them until their own
+     * life ends, as the spec says.
      */
     @Override
     public void onMobRemoved(ServerLevel level, LivingEntity mob, int amplifier, Entity.RemovalReason reason) {
