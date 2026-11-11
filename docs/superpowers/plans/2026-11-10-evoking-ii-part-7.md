@@ -2856,7 +2856,7 @@ git commit -m "feat(ghostrail): players pass through blocks and fly; one abiliti
   - `EvokingAttachments` (public final): `ATTACHMENT_TYPES` (`DeferredRegister<AttachmentType<?>>`), `GHOSTRAIL_MARK` (`AttachmentType<Boolean>`, saved, id `ghostrail_mark`: its presence means "this carrier has Ghostrail running"; its value is the carrier's original `NoGravity`), `GHOSTRAIL_START` (`AttachmentType<BlockPos>`, **not** saved, id `ghostrail_start`: the standable spot the effect began at; read with `getExistingData`), `MOB_MIRROR_READY` and `MOB_GHOSTRAIL_READY` (`AttachmentType<Long>`, saved, ids `mob_mirror_ready` and `mob_ghostrail_ready`: the game time the cooldown ends; Task 10 uses them).
   - `Ghostrail` (public final): `static void begin(LivingEntity carrier)` (called by `GhostrailEffect.onEffectAdded` on a server level: sets the mark from `carrier.isNoGravity()` only when no mark is set yet, so an effect removed and cast again before the end ran keeps the original value, and, if the block is standable, the start spot); `static void tick(LivingEntity carrier)` (public so GameTests step it: a missing mark re-set while the effect is on, the mob-carrier hold, the trail, and the end when the mark is set with no effect; for a carrier that is no longer alive it only clears the mark and gives gravity back, no push-out; it does **not** sync a player's abilities: `AbilitySync` is the one driver of that, and a GameTest that needs it calls `AbilitySync.sync` itself); `static boolean flies(LivingEntity carrier)` (`carrier instanceof Vex`; Task 12 adds `|| carrier instanceof VillagerGhost`); events `onPlayerTick`, `onEntityTick`, `onIncomingDamage`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `GhostrailGameTests` (javadoc `/** GameTests of Ghostrail's damage rule, trail, ending and mob carriers (Parts 6-7 spec §7.3, §10). */`; tests that place a player or a hostile mob in the padding register through `FangGameTests.addPadded(SHARED, …)`; the one test that reads a constant registers through `SpellcraftGameTests.add(SHARED, …)`; the bodies call `ScrollTestSupport.plainPlayer` as `plainPlayer(helper)`; every mob below is a `Husk` from `hostileAt` (a zombie burns in daylight), and a `Husk` is a `Zombie`):
 
@@ -2973,11 +2973,11 @@ Add three no-rescue tests to the existing classes (each is one registered line p
 
 Add `GhostrailGameTests.registerAll();` after `GhostrailFlightGameTests.registerAll();`.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:ghostrail_*"` (FAIL: `Ghostrail` does not exist).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `EvokingAttachments` (register `ATTACHMENT_TYPES` in the `Spellcraft` constructor beside `AllyAttachments`):
 
@@ -3255,11 +3255,11 @@ if (player.hasEffect(ModEffects.GHOSTRAIL)) {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:ghostrail_*"`, then `"-PgameTests=spellcraft:bound_vex_world_*"`. Expected: PASS.
 
-- [ ] **Step 5: Gates and commit**
+- [x] **Step 5: Gates and commit**
 
 Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 713 required tests passed` both times (the Task 6 total plus 19: the 16 `ghostrail_*` tests of the list in `GhostrailGameTests` and the 3 no-rescue tests).
 
@@ -3267,6 +3267,8 @@ Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expec
 git add src
 git commit -m "feat(ghostrail): no damage, a smoke trail, a safe ending and mob carriers"
 ```
+
+> **As built (`6302d73`):** diverged — `endingGoesToTheStartSpot` lifts the player 10, not 6, inside a stone cube (the plan's lift left the start spot within the search radius); a recast in stone keeps the earlier start spot (review fix, +1 test); the Task 6 review's creative-player fix (+1 test) landed first in 30ed2b4. No RED capture.
 
 ### Task 8: The Caster: the roll, the flag, the goal that keeps its distance, the Raid roster
 
@@ -6010,3 +6012,4 @@ git commit -m "docs(evoking): Part 7 in the README, playtest items, mutation tes
 | 4 | `e4e09ca` | one extra GameTest `mirror_tall_images_never_spawn_inside_a_ceiling` (total 677, not 676), and every spawn tier checks the copied type's box; reason: per-task review found a tall copied type could overlap a ceiling. No RED capture. |
 | 5 | `b30d56d` | a mob already targeting a live image of this carrier keeps it (the change is cancelled, no roll), where the plan's handler returned early and let vanilla switch it to the carrier; reason: controller ruling on spec §7.2 "not re-rolled" read with the 13-in-14 rule. |
 | 6 | `dabd455` | `staysAloftOverStone` asserts a drift under 0.5 blocks, not an exact y; reason: `ServerPlayer.doTick` runs `aiStep` and the first tick, before the sync sets `flying`, takes full gravity, which flight then damps (reviewed against `Player.travel`). |
+| 7 | `6302d73` | `endingGoesToTheStartSpot` lifts the player 10, not 6, inside a stone cube (the plan's lift left the start spot within the search radius); a recast in stone keeps the earlier start spot (review fix, +1 test); the Task 6 review's creative-player fix (+1 test) landed first in 30ed2b4. No RED capture. |
