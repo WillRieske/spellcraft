@@ -123,3 +123,4 @@ eef3d4c Task 13 docs; pitest 485/492; GameTests 630 (2 of 3 runs; multishot arc 
 a1532b6 Part 7 Task 1: build green; GameTests 650 required passed (baseline)
 02d5693 Part 7 Task 2: build green; GameTests 650 required passed x2; unit 650
 b63ced0 Part 7 Task 3: build green; GameTests 657 required passed x2
+e4e09ca Part 7 Task 4: build green; GameTests 677 required passed x2

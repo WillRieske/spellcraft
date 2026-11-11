@@ -1594,7 +1594,7 @@ git commit -m "feat(spells): Mirror and Ghostrail scrolls, effects, icons and Sp
   - `MirrorEffect.onEffectAdded` calls `MirrorImages.spawn(mob)` on a server level; `MirrorEffect.onMobRemoved` calls `MirrorImages.poofAll(mob)`.
   - `gametest/ScrollTestSupport` (package-private, all static): Task 3 created `ServerPlayer plainPlayer(GameTestHelper)` (a survival mock player at `FangGameTests.STAND` after the padding wait, Evoking removed) and `void floor(GameTestHelper, int radius)` (stone under the square of that radius around `FangGameTests.FEET`); this task adds `List<MirrorImage> images(LivingEntity carrier)`, `Vec3 at(GameTestHelper, double dx, double dy, double dz)` (absolute, from `FangGameTests.STAND`), `<T extends Mob> T foeAt(GameTestHelper, EntityType<T>, Vec3 absolute)` (= `TeamMoveTestSupport.foe`) and `Husk hostileAt(GameTestHelper, Vec3 absolute)` (= `foeAt(helper, EntityTypes.HUSK, at)`: a frozen hostile that does not burn in daylight, unlike a zombie; Tasks 5, 7, 9 and 12 use it).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Adding the Mirror images changes what the Task 3 tests in `SpellScrollGameTests` (`spell_scroll_*`) do: each Mirror cast there now spawns 13 ticking images. They are already padded and take their player from `plainPlayer` over a floor (Task 3), so the images stay inside each test's own bounds; confirm that by running `./gradlew runGameTestServer "-PgameTests=spellcraft:spell_scroll_*"` in Step 4.
 
@@ -2004,11 +2004,11 @@ static void secondCastMakesNoExtras(GameTestHelper helper) {
 
 Add `"entity.spellcraft.mirror_image": "Mirror Image",` to the lang file (after `"entity.spellcraft.bound_vex"`) and the matching `.contains("\"entity.spellcraft.mirror_image\"")` line to `SpellAssetsTest.part7NamesAreEnglish` (Task 3 added the test with one line; reword its Javadoc to "casting effect and the Mirror image").
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `./gradlew compileJava` (expected: FAIL, `MirrorImage`/`ModEntities.MIRROR_IMAGE` do not exist).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `Dice` (append beside `RAID_KIT`). Rewrite the class Javadoc's last two sentences, from "{@code TeamMoves.clear()} (server stop) calls {@link #unscript} on {@link #RAID_KIT}" on, to: "{@link #unscriptAll} names every instance, and {@code TeamMoves.clear()} (server stop) calls it, so a leaked script cannot outlive a world. A new die must be added to {@link #unscriptAll}; the GameTest {@code dice_unscript_all_clears_every_die} fails when one is forgotten." The first users of the new dice are Tasks 5 (`MIRROR_CONFUSION`), 8 (`CASTER_ROLL`) and 10 (`SCROLL_MOB`), which test them; `MirrorGameTests.unscriptAllClearsEveryDie` (Step 1) covers the shared `unscriptAll`.
 
@@ -2466,11 +2466,11 @@ A killed *player* keeps its effects until the respawn, so `MirrorImages.onDeath`
 
 Add `MirrorGameTests.registerAll();` after `SpellScrollGameTests.registerAll();`.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:mirror_*"`, `"-PgameTests=spellcraft:spell_scroll_*"` (the Task 3 tests now spawn images) and `"-PgameTests=spellcraft:dice_*"`, and `./gradlew test`. Expected: PASS. If `mirror_images_stand_on_the_ring` finds fewer than 13 distinct cells, read `VexRing.offset` (the ring has 40 cells, and the shell of the test box takes 16 of them, so 13 distinct always exist there).
 
-- [ ] **Step 5: Gates and commit**
+- [x] **Step 5: Gates and commit**
 
 Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (`runData` is not needed: nothing here is client code it can check). Expected: `All 676 required tests passed` both times (the Task 3 total plus the 19 tests registered here: the 14 `mirror_*` tests of the first list, `mirror_images_poof_when_a_mob_carrier_is_killed`, `mirror_images_poof_when_a_player_carrier_dies`, `mirror_an_idle_image_faces_where_the_caster_faces`, `mirror_images_never_spawn_inside_blocks` and `dice_unscript_all_clears_every_die`).
 
@@ -2478,6 +2478,8 @@ Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (
 git add src
 git commit -m "feat(evoking): Mirror images that copy the caster and end with the effect"
 ```
+
+> **As built (`e4e09ca`):** diverged — one extra GameTest `mirror_tall_images_never_spawn_inside_a_ceiling` (total 677, not 676), and every spawn tier checks the copied type's box; reason: per-task review found a tall copied type could overlap a ceiling. No RED capture.
 
 ---
 
@@ -6001,3 +6003,4 @@ git commit -m "docs(evoking): Part 7 in the README, playtest items, mutation tes
 | Task | SHA | Divergence |
 |---|---|---|
 | 3 | `b63ced0` | `hundredPercent` passes option index 0 with chances `List.of(100, 100, 100)` (the plan implied passing 100 as the option); reason: `ScrollDraw.draw`'s first argument is an option index; the Task 2 review's Javadoc minors were fixed first in 978244f. |
+| 4 | `e4e09ca` | one extra GameTest `mirror_tall_images_never_spawn_inside_a_ceiling` (total 677, not 676), and every spawn tier checks the copied type's box; reason: per-task review found a tall copied type could overlap a ceiling. No RED capture. |
