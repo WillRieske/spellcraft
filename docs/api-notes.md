@@ -1311,3 +1311,100 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
 - **A player's motion on the server.** `ServerPlayer.getDeltaMovement()` stays near zero (the client moves the player);
   `Entity.getKnownMovement()` (`Entity.java:4265`, overridden in `ServerPlayer`) is the real motion, and is
   `getDeltaMovement()` for any other entity.
+
+## 26. Evoking II, Part 7: Casters, Mirror, Ghostrail, scroll mobs, villager ghosts (Evoking II Part 7, Task 1)
+
+Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-src`; paths are under
+`net/minecraft/` and `net/neoforged/neoforge/` respectively.
+
+- **When a spell's effect "starts".** `MobEffect.onEffectAdded(LivingEntity, int)` (`world/effect/MobEffect.java:108`; the
+  default plays the effect's sound, so an override calls `super`) is reached from `LivingEntity.addEffect`
+  (`world/entity/LivingEntity.java:1050-1057`) only when the entity had no such effect (`effect == null`), after the instance is
+  already in `activeEffects`. An existing effect goes through `effect.update` and `onEffectUpdated` instead. `forceAddEffect`
+  (`:1085`) and a reload from a save (`:832-836`, `activeEffects.put`) never call the `MobEffect` hook. So a scroll, a Caster, a mob
+  and `/effect give` all start Mirror through `addEffect`, and a relog mid-effect does not spawn a second set. The client never reaches
+  that hook: `ClientPacketListener.java:1832` calls `forceAddEffect`, which reaches only `LivingEntity.onEffectAdded(instance, source)`
+  (`LivingEntity.java:1116`, a server-only body). The `isClientSide()` test in `MirrorEffect.onEffectAdded` is therefore a harmless
+  guard, not a necessity; build no client behavior on a client-side hook call.
+- **Death and removal.** A dead *player's* effects are NOT cleared (they stay until the respawn), so an effect-based "the caster is
+  gone" check never fires for a player on the death screen; Mirror needs a `LivingDeathEvent` handler for players. A *mob's*
+  `LivingEntity.remove(reason)` (`LivingEntity.java:742-745`) calls `triggerOnDeathMobEffects` (`:760`, which calls
+  `MobEffect.onMobRemoved(ServerLevel, LivingEntity, int, Entity.RemovalReason)`, `MobEffect.java:113`, then clears the effects) only for
+  `KILLED` and `DISCARDED`; `UNLOADED_TO_CHUNK` (`Entity.java:4421`) skips it. A removed mob is also no longer found by
+  `server.getEntities().get(uuid)`.
+- **Player.noPhysics.** `Player.tick()` (`world/entity/player/Player.java:241`) runs `net.neoforged.neoforge.event.EventHooks.firePlayerTickPre(this)`
+  (`:242`) and then `this.noPhysics = this.isSpectator();` (`:243`, the spec's number is right). That is the first `isSpectator()` call
+  in `tick()` (ordinal 0; the second is the `if (this.isSpectator() || this.isPassenger())` on `:244`). `Player.isSpectator()` is
+  concrete (`:1721`, `return this.gameMode() == GameType.SPECTATOR`), and the Mixin owner is `Player`. `Entity.noPhysics`
+  is a public field (`world/entity/Entity.java:253`). `Entity.isInWall()` returns false while `noPhysics` (`:2321-2323`), so a Ghostrail
+  carrier is never "in a wall"; the Casters and ghosts test the effect first. `Entity.isAffectedByBlocks()` (`:1030`) is
+  `!noPhysics`, so a Ghostrail carrier also triggers no block effects (portals, pressure plates, cobweb, honey, powder snow); this is
+  a playtest item (Task 15).
+- **Target changes.** `LivingChangeTargetEvent(LivingEntity, @Nullable LivingEntity, ILivingTargetType)`
+  (`event/entity/living/LivingChangeTargetEvent.java:40`): `getNewAboutToBeSetTarget()` `:51`, `setNewAboutToBeSetTarget` `:60`,
+  `getTargetType()` `:67`; the two stock types are `LivingTargetType.MOB_TARGET` (`Mob.setTarget`) and `BEHAVIOR_TARGET`
+  (`:91-100`). Cancelling keeps the old target. `TargetGoal` re-sets its target every tick (`TargetGoal.java:70`), so Mirror
+  rolls only when the new target differs from `mob.getTarget()`.
+- **Spawn equipment.** `FinalizeSpawnEvent(Mob, …)` (`event/entity/living/FinalizeSpawnEvent.java:55`) fires before `Mob.finalizeSpawn`
+  runs vanilla's `populateDefaultEquipmentSlots` (`world/entity/Mob.java:992`). `Mob.finalizeSpawn` never fills equipment, and `Vindicator`
+  and `Pillager` set only `MAINHAND`, so an offhand scroll survives. `Mob.setDropChance(EquipmentSlot, float)` (`Mob.java:1137`).
+  NeoForge's `EventHooks.finalizeMobSpawn` (`EventHooks.java:334`) posts the event; `Mob.finalizeSpawn` is deprecated and does not, so the
+  scroll-mob GameTests call the hook (a direct `finalizeSpawn` call fails the `-Werror` build).
+  `Mob.dropCustomDeathLoot` (`Mob.java:920-944`) drops a slot's item only when `killedByPlayer || preserved`, with probability
+  `dropChance` raised by Looting (`processEquipmentDropChance`), so a 0.5 offhand chance is "half of player kills".
+- **Saved data.** `SavedDataType<T>(Identifier, Supplier<T>, Codec<T>)` (`world/level/saveddata/SavedDataType.java:14-19`) and
+  `serverLevel.getDataStorage().computeIfAbsent(TYPE)` (`ServerLevel.java:285`, as `Raids.TYPE`, `Raids.java:43`). `setDirty()` marks it for save.
+  `VillagerData.CODEC` (`world/entity/npc/villager/VillagerData.java:20`).
+- **Entity types.** Vanilla types are `EntityTypes.X` (`world/entity/EntityTypes.java`), e.g. `EntityTypes.MANNEQUIN`.
+  `EntityType.Builder.noSave()` (`EntityType.java:609`), `.noLootTable()` `:648`. A `LivingEntity` subclass needs `getMainArm()`
+  (`LivingEntity.java:3536`, the only abstract method) and attributes from `EntityAttributeCreationEvent` with
+  `LivingEntity.createLivingAttributes()` (`:346`). `Entity.shouldBeSaved()` (`Entity.java:4125`), `isPickable`, `isAttackable` (`:3097`),
+  `LivingEntity.isInvulnerableTo(ServerLevel, DamageSource)` (`:4214`). `Entity` has only `getDimensions(Pose)` (`:3848`), which
+  `LivingEntity` makes `final` (`LivingEntity.java:3913`); a subclass overrides `LivingEntity.getDefaultDimensions(Pose)` (protected,
+  `LivingEntity.java:3917`), never `getDimensions`. `LivingEntity.serverAiStep()` (`:3336`) runs each tick for a server-side non-`Mob`
+  living entity: `aiStep` calls it when `isEffectiveAi() && !isClientSide()` (`:3181`), and `isEffectiveAi()` is
+  `isLocalInstanceAuthoritative()` (`Entity.java:3754`), true server-side when no passenger controls the entity; `xxa`/`zza`
+  (`:257`, `:259`) drive `travel`.
+- **Goals.** `GoalSelector.tick` (`world/entity/ai/goal/GoalSelector.java:66-90`) stops a goal that cannot continue or is preempted
+  (`stop()`) before it starts the new one (`start()`), so a preempted `CasterSpellGoal.stop()` runs before the Raid goal's `start()`.
+- **Damage and effects.** `DamageTypes.GENERIC_KILL` and `FELL_OUT_OF_WORLD` (`world/damagesource/DamageTypes.java:24,58`);
+  `LivingIncomingDamageEvent` (`event/entity/living/`). `ServerLevel.sendParticles(T, x, y, z, count, xDist, yDist, zDist, speed)`
+  (`ServerLevel.java:1355`). `ColorParticleOption.create(ParticleType<ColorParticleOption>, int rgb)` (`core/particles/ColorParticleOption.java:48`).
+  `ParticleTypes.WHITE_SMOKE`, `POOF`, `ENTITY_EFFECT`. `SoundEvents.EVOKER_PREPARE_SUMMON` `:614`, `EVOKER_CAST_SPELL` `:608`, `VEX_DEATH` `:1675`.
+  `ServerPlayer.doTick()` is public (`server/level/ServerPlayer.java:668`).
+- **Client: the vex.** `VexModel.createBodyLayer()` is `LayerDefinition.create(mesh, 32, 32)`
+  (`client/model/monster/vex/VexModel.java:71`; `createBodyLayer` is `:33`): the robe texture is 32 x 32. The arms (`right_arm`, `left_arm`) are private fields; reach
+  them by `root().getChild("body").getChild("right_arm")`. `LivingEntityRenderer.model` is protected and not final
+  (`client/renderer/entity/LivingEntityRenderer.java:45`), so `BoundVexRenderer` can swap in a `BoundVexModel` after `super(context)`.
+  `VexRenderer` builds its model in `super(...)` (`VexRenderer.java:22`). `RenderTypes.entityCutout(Identifier)` `:604`,
+  `entityTranslucent(Identifier)` `:652` (`client/renderer/rendertype/RenderTypes.java`); there is no `entityCutoutNoCull`; `entityCutoutZOffset(Identifier)` `:612` draws an overlay without z-fighting.
+  `LivingEntityRenderer.getModelTint(S)` `:119` and `getRenderType(S, boolean, boolean, boolean)` `:125` are overridable.
+  `RenderLayer.renderColoredCutoutModel` (`RenderLayer.java:39`) always uses `entityCutout`; for alpha use
+  `submitNodeCollector.submitModel(model, state, poseStack, RenderTypes.entityTranslucent(texture), light, overlay, argb, null, outline)`.
+- **Client: villager.** `VillagerProfessionLayer` (`client/renderer/entity/layers/VillagerProfessionLayer.java`) keeps `getIdentifier`,
+  `getHatData` and the caches private/instance-bound and draws with `renderColoredCutoutModel`; the ghost needs its own copy that draws
+  translucent. `VillagerRenderer` extends `AgeableMobRenderer<Villager, …>`, which needs a `Villager`, so the ghost renderer extends
+  `LivingEntityRenderer<VillagerGhost, VillagerRenderState, VillagerModel>` and fills `state.villagerData` itself.
+- **Client: the image stand-in.** `Mannequin` (`world/entity/decoration/Mannequin.java:28`): `EntityTypes.MANNEQUIN.create(level, …)`; its
+  profile is a synced `ResolvableProfile` set through `entity.setComponent(DataComponents.PROFILE, profile)` (`Entity.java:4306` →
+  `Mannequin.applyImplicitComponent` `:167`); `ResolvableProfile.createResolved(GameProfile)` `:57`, `createUnresolved(UUID)` `:65` (also `createUnresolved(String)` `:61`);
+  `EntityDataSerializers.RESOLVABLE_PROFILE` `:146` and `STRING` `:58`. The description label is drawn through the render state's name
+  tag and its below-name line: clear **both** `state.nameTag` and `state.scoreText` (`EntityRenderState.java:33-34`) on the extracted state;
+  `EntityRenderer.extractNameTags` sets `scoreText = entity.belowNameDisplay()` within 10 blocks (`EntityRenderer.java:272`) and
+  `submitNameDisplay` draws it (`:131-135`). `ClientMannequin.setSkin` runs only inside `ClientMannequin.tick()`, and a stand-in that is
+  never added to the level is never ticked, so the stand-in's own skin stays `DEFAULT_SKIN` forever: after `extractEntity`, for an
+  `AvatarRenderState` set `state.skin = Minecraft.getInstance().playerSkinRenderCache().getOrDefault(profile).playerSkin()`
+  (`client/renderer/PlayerSkinRenderCache.getOrDefault` `:63`, `RenderInfo.playerSkin()` `:104`, `Minecraft.playerSkinRenderCache()` `:3013`; it
+  returns the resolved skin or the default on each call, and the dispatcher picks the renderer from `state.skin.model()`). Do not tick the
+  stand-in: `LivingEntity.tick` pushes nearby entities client-side. For the copied animation state, `hurtTime`, `hurtDuration`,
+  `deathTime`, `yBodyRotO`, `yHeadRotO`, `walkAnimation`, `xOld/yOld/zOld`, `xo/yo/zo` and `tickCount` are public
+  (`LivingEntity.java:239-249`, `Entity.java:225-255`); `EntityType.create(Level, EntitySpawnReason)` exists (`EntityType.java:343`),
+  as do `EntityTypes.MANNEQUIN` and `EntityTypes.PLAYER`; `Entity.setComponent` is public (`Entity.java:4306`), so no access transformer
+  is needed. `EntityRenderDispatcher.extractEntity(entity, partialTicks)` `:128` returns a state; `submit(state, camera, x, y, z, poseStack, collector)`
+  `:143` translates by `x, y, z` plus the renderer's offset, so the image renderer, which is already translated to the image, passes 0, 0, 0.
+- **Casting look.** `CastingState` reads `LivingEntity.DATA_EFFECT_PARTICLES` (the existing AT line); an effect shows in that list when its
+  instance is `visible` and the effect has a particle (`MobEffect` constructor with a `ParticleOptions` function, as `CastingEffect`).
+  `ClientLevel.entitiesForRendering()` (`ClientLevel.java:465`) returns `Iterable<Entity>`, so the `CastingParticles` loop over every
+  living entity in render range filters with `instanceof LivingEntity`.
+- **Test seams.** Batches run one after another; tests inside a batch run at the same time (`SpellcraftGameTests.register`).
+- **Baseline.** `./gradlew runGameTestServer`: `All 650 required tests passed` on 2026-11-10 (Part 6 ended at 650). Every Part 7 gate is this number plus the tests registered so far.
