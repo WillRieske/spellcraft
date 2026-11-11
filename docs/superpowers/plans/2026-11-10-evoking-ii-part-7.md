@@ -2637,7 +2637,7 @@ git commit -m "feat(evoking): Mirror confuses a mob that picks the carrier 13 ti
   - `AbilitySync.sync(ServerPlayer)` (public static; the one per-tick abilities sync for Infinity and Ghostrail; subscribed to `PlayerTickEvent.Post`); `InfinityAttachments.GHOSTRAIL_GRANTED` (saved `Boolean`, default false, id `ghostrail_granted`; not copied on death).
   - `PlayerGhostrailMixin` (package-private abstract, `@Mixin(Player.class)`): `Player.tick`'s first `isSpectator()` call returns `original || player.hasEffect(ModEffects.GHOSTRAIL)`, `require = 1`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `GhostrailFlightGameTests` (javadoc `/** GameTests of a Ghostrail player's physics and flight (Parts 6-7 spec §7.3). */`; no mobs. Tests that run a full player tick through `doTick()` register through `FangGameTests.addPadded(SHARED, …)`, because `ServerPlayer.doTick` (`ServerPlayer.java:670`) runs `super.tick()` only when `!isSpectator() || !touchingUnloadedChunk()`, and an unpadded structure forces only its own chunks, so near a chunk edge the tick (and with it `noPhysics`) can be skipped; the rest use `SpellcraftGameTests.add(SHARED, name, body)`. No existing test calls `doTick()` on a mock player, so the first padded test is its probe: if `doTick()` throws for a mock player (read the stack trace), run the same assertion through `player.tick()` after `FangGameTests.loadPadding(helper)` and say so in the as-built note. The class is `@SuppressWarnings("deprecation")` with the same comment as `InfinityAbilityGameTests`, because every test reads `Abilities#mayfly`). A helper `private static ServerPlayer player(GameTestHelper helper, GameType mode)` = `MockPlayers.inLevel(helper, mode)` then `MockPlayers.moveIntoTest(helper, player)`.
 
@@ -2688,11 +2688,11 @@ static void noEffectMeansPhysics(GameTestHelper helper) {
 
 Add `GhostrailFlightGameTests.registerAll();` after `MirrorConfusionGameTests.registerAll();`.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:ghostrail_flight_*"`. Expected: FAIL (`AbilitySync` does not exist; the Mixin is missing).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `git mv` the sync to `AbilitySync.java`, rename the class, and update its references in the four files (`InfinityAbilityGameTests`, `InfinityDeathGameTests`, the `InfinityEffect` and `ModEffects` comments and calls). New body:
 
@@ -2824,12 +2824,12 @@ abstract class PlayerGhostrailMixin {
 
 `spellcraft.mixins.json`: `"mixins": ["ClearAllStatusEffectsConsumeEffectMixin", "EnchantmentMenuMixin", "PlayerGhostrailMixin"]`.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:ghostrail_flight_*"`, then `"-PgameTests=spellcraft:infinity_*"` (the Infinity tests must still pass unchanged). If startup fails with a Mixin error, read the target in `build/mc-src/net/minecraft/world/entity/player/Player.java` (the owner of the first `isSpectator()` call in `tick`; api-notes §26) and fix the `target` string, never `require`.
 Expected: PASS.
 
-- [ ] **Step 5: Gates and commit**
+- [x] **Step 5: Gates and commit**
 
 Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (`runData` is not needed: the Mixin is common code that the GameTest server loads, and nothing here is client code). Expected: `All 694 required tests passed` both times (the Task 5 total plus the 11 `ghostrail_flight_*` tests: the 10 of the list and `ghostrail_flight_player_on_stone_stays_aloft_and_passes_through_it`).
 
@@ -2837,6 +2837,8 @@ Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (
 git add src
 git commit -m "feat(ghostrail): players pass through blocks and fly; one abilities sync for two spells"
 ```
+
+> **As built (`dabd455`):** diverged — `staysAloftOverStone` asserts a drift under 0.5 blocks, not an exact y; reason: `ServerPlayer.doTick` runs `aiStep` and the first tick, before the sync sets `flying`, takes full gravity, which flight then damps (reviewed against `Player.travel`).
 
 ---
 
@@ -6007,3 +6009,4 @@ git commit -m "docs(evoking): Part 7 in the README, playtest items, mutation tes
 | 3 | `b63ced0` | `hundredPercent` passes option index 0 with chances `List.of(100, 100, 100)` (the plan implied passing 100 as the option); reason: `ScrollDraw.draw`'s first argument is an option index; the Task 2 review's Javadoc minors were fixed first in 978244f. |
 | 4 | `e4e09ca` | one extra GameTest `mirror_tall_images_never_spawn_inside_a_ceiling` (total 677, not 676), and every spawn tier checks the copied type's box; reason: per-task review found a tall copied type could overlap a ceiling. No RED capture. |
 | 5 | `b30d56d` | a mob already targeting a live image of this carrier keeps it (the change is cancelled, no roll), where the plan's handler returned early and let vanilla switch it to the carrier; reason: controller ruling on spec §7.2 "not re-rolled" read with the 13-in-14 rule. |
+| 6 | `dabd455` | `staysAloftOverStone` asserts a drift under 0.5 blocks, not an exact y; reason: `ServerPlayer.doTick` runs `aiStep` and the first tick, before the sync sets `flying`, takes full gravity, which flight then damps (reviewed against `Player.travel`). |
