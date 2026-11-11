@@ -36,5 +36,19 @@ public final class ModEffects {
     public static final DeferredHolder<MobEffect, MobEffect> CASTING_VEXES =
             MOB_EFFECTS.register("casting_vexes", () -> new CastingEffect(ModParticles.CASTING_VEXES));
 
+    /** Strength of Mirror. {@code MirrorEffect.onEffectAdded} spawns the images; they end with the effect. */
+    public static final DeferredHolder<MobEffect, MobEffect> MIRROR = MOB_EFFECTS.register("mirror", MirrorEffect::new);
+
+    /** Strength of Ghostrail. {@code Ghostrail} runs it every tick; the Mixin lets a player through blocks. */
+    public static final DeferredHolder<MobEffect, MobEffect> GHOSTRAIL =
+            MOB_EFFECTS.register("ghostrail", GhostrailEffect::new);
+
+    /**
+     * On a non-player caster for the 20 ticks a scroll cast keeps the hands lit; carries
+     * {@code ModParticles.CASTING_SCROLL}.
+     */
+    public static final DeferredHolder<MobEffect, MobEffect> CASTING_SCROLL =
+            MOB_EFFECTS.register("casting_scroll", () -> new CastingEffect(ModParticles.CASTING_SCROLL));
+
     private ModEffects() {}
 }

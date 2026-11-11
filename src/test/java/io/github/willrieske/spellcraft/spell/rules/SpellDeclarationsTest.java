@@ -15,7 +15,9 @@ class SpellDeclarationsTest {
                         SpellDeclarations.UPSIDE_DOWN,
                         SpellDeclarations.INFINITY,
                         SpellDeclarations.TRAILING,
-                        SpellDeclarations.EVOKING);
+                        SpellDeclarations.EVOKING,
+                        SpellDeclarations.MIRROR,
+                        SpellDeclarations.GHOSTRAIL);
         assertThat(SpellDeclarations.UPSIDE_DOWN.tier()).isEqualTo(SpellTier.STARTER);
         assertThat(SpellDeclarations.INFINITY.tier()).isEqualTo(SpellTier.EXTREME);
         assertThat(SpellDeclarations.TRAILING.tier()).isEqualTo(SpellTier.GOOD);
@@ -24,6 +26,9 @@ class SpellDeclarationsTest {
         assertThat(SpellDeclarations.TRAILING.tier().isTop()).isFalse();
         assertThat(SpellDeclarations.EVOKING.tier()).isEqualTo(SpellTier.AMAZING);
         assertThat(SpellDeclarations.EVOKING.tier().isTop()).isFalse();
+        assertThat(SpellDeclarations.MIRROR.tier()).isEqualTo(SpellTier.AMAZING);
+        assertThat(SpellDeclarations.GHOSTRAIL.tier()).isEqualTo(SpellTier.EXTREME);
+        assertThat(SpellDeclarations.GHOSTRAIL.tier().isTop()).isTrue();
     }
 
     @Test
@@ -46,6 +51,34 @@ class SpellDeclarationsTest {
         assertThat(SpellDeclarations.EVOKING.recast()).isEqualTo(SpellRules.Recast.REFUSE);
         assertThat(SpellDeclarations.EVOKING.dispellable()).isTrue();
         assertThat(SpellDeclarations.EVOKING.redundantInCreative()).isFalse();
+    }
+
+    /**
+     * When the Mirror declaration is read, it should refuse a recast, be dispellable and not be redundant in
+     * creative.
+     *
+     * <p>Method under test: {@link SpellDeclarations#MIRROR}
+     */
+    @Test
+    void mirrorRefusesARecastIsDispellableAndCastsInCreative() {
+        assertThat(SpellDeclarations.MIRROR.name()).isEqualTo("mirror");
+        assertThat(SpellDeclarations.MIRROR.recast()).isEqualTo(SpellRules.Recast.REFUSE);
+        assertThat(SpellDeclarations.MIRROR.dispellable()).isTrue();
+        assertThat(SpellDeclarations.MIRROR.redundantInCreative()).isFalse();
+    }
+
+    /**
+     * When the Ghostrail declaration is read, it should refuse a recast, be dispellable and be redundant in
+     * creative.
+     *
+     * <p>Method under test: {@link SpellDeclarations#GHOSTRAIL}
+     */
+    @Test
+    void ghostrailRefusesARecastIsDispellableAndIsRedundantInCreative() {
+        assertThat(SpellDeclarations.GHOSTRAIL.name()).isEqualTo("ghostrail");
+        assertThat(SpellDeclarations.GHOSTRAIL.recast()).isEqualTo(SpellRules.Recast.REFUSE);
+        assertThat(SpellDeclarations.GHOSTRAIL.dispellable()).isTrue();
+        assertThat(SpellDeclarations.GHOSTRAIL.redundantInCreative()).isTrue();
     }
 
     @ParameterizedTest

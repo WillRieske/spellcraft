@@ -60,10 +60,46 @@ class CastRulesTest {
         "EVOKING,     true,  true,  ADVENTURE, DISPEL",
         "EVOKING,     true,  true,  CREATIVE,  DISPEL",
         "EVOKING,     true,  true,  SPECTATOR, DISPEL",
+        // Mirror: refuse on recast yet dispellable, not redundant in creative (never refuses a first cast).
+        "MIRROR,      false, false, SURVIVAL,  CAST",
+        "MIRROR,      false, false, ADVENTURE, CAST",
+        "MIRROR,      false, false, CREATIVE,  CAST",
+        "MIRROR,      false, false, SPECTATOR, CAST",
+        "MIRROR,      true,  false, SURVIVAL,  CAST",
+        "MIRROR,      true,  false, ADVENTURE, CAST",
+        "MIRROR,      true,  false, CREATIVE,  CAST",
+        "MIRROR,      true,  false, SPECTATOR, CAST",
+        "MIRROR,      false, true,  SURVIVAL,  REFUSE",
+        "MIRROR,      false, true,  ADVENTURE, REFUSE",
+        "MIRROR,      false, true,  CREATIVE,  REFUSE",
+        "MIRROR,      false, true,  SPECTATOR, REFUSE",
+        "MIRROR,      true,  true,  SURVIVAL,  DISPEL",
+        "MIRROR,      true,  true,  ADVENTURE, DISPEL",
+        "MIRROR,      true,  true,  CREATIVE,  DISPEL",
+        "MIRROR,      true,  true,  SPECTATOR, DISPEL",
+        // Ghostrail: as Mirror, but redundant in creative, so every creative row is refused first.
+        "GHOSTRAIL,   false, false, SURVIVAL,  CAST",
+        "GHOSTRAIL,   false, false, ADVENTURE, CAST",
+        "GHOSTRAIL,   false, false, CREATIVE,  REFUSE",
+        "GHOSTRAIL,   false, false, SPECTATOR, CAST",
+        "GHOSTRAIL,   true,  false, SURVIVAL,  CAST",
+        "GHOSTRAIL,   true,  false, ADVENTURE, CAST",
+        "GHOSTRAIL,   true,  false, CREATIVE,  REFUSE",
+        "GHOSTRAIL,   true,  false, SPECTATOR, CAST",
+        "GHOSTRAIL,   false, true,  SURVIVAL,  REFUSE",
+        "GHOSTRAIL,   false, true,  ADVENTURE, REFUSE",
+        "GHOSTRAIL,   false, true,  CREATIVE,  REFUSE",
+        "GHOSTRAIL,   false, true,  SPECTATOR, REFUSE",
+        "GHOSTRAIL,   true,  true,  SURVIVAL,  DISPEL",
+        "GHOSTRAIL,   true,  true,  ADVENTURE, DISPEL",
+        "GHOSTRAIL,   true,  true,  CREATIVE,  REFUSE",
+        "GHOSTRAIL,   true,  true,  SPECTATOR, DISPEL",
     })
     void decidesEveryCase(String spell, boolean sneaking, boolean active, PlayerMode mode, CastOutcome expected) {
         SpellRules rules = switch (spell) {
             case "EVOKING" -> SpellDeclarations.EVOKING;
+            case "MIRROR" -> SpellDeclarations.MIRROR;
+            case "GHOSTRAIL" -> SpellDeclarations.GHOSTRAIL;
             case "INFINITY" -> SpellDeclarations.INFINITY;
             case "UPSIDE_DOWN" -> SpellDeclarations.UPSIDE_DOWN;
             default -> throw new IllegalArgumentException("unknown spell in the CSV: " + spell);

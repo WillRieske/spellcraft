@@ -7,7 +7,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.Level;
@@ -53,12 +52,8 @@ public class SpellScrollItem extends Item {
 
     private void apply(CastOutcome outcome, Player player) {
         switch (outcome) {
-            // Particles hidden (visible = false): other players see nothing unusual; icon shown. addEffect on an
-            // active effect with a longer duration refreshes it without a remove/add pair, so the client sees
-            // no gap.
             case CAST, REFRESH ->
-                player.addEffect(new MobEffectInstance(
-                        spell.effect(), spell.durationTicks().getAsInt(), 0, false, false, true));
+                Spells.cast(player, spell, spell.durationTicks().getAsInt());
             case DISPEL -> player.removeEffect(spell.effect());
             case REFUSE -> throw new IllegalStateException("REFUSE keeps the scroll and never reaches apply");
         }

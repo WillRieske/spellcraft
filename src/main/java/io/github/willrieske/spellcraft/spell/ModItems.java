@@ -24,6 +24,8 @@ public final class ModItems {
     public static final DeferredItem<SpellScrollItem> INFINITY_SCROLL = registerScroll(Spells.INFINITY);
     public static final DeferredItem<SpellScrollItem> TRAILING_SCROLL = registerScroll(Spells.TRAILING);
     public static final DeferredItem<SpellScrollItem> EVOKING_SCROLL = registerScroll(Spells.EVOKING);
+    public static final DeferredItem<SpellScrollItem> MIRROR_SCROLL = registerScroll(Spells.MIRROR);
+    public static final DeferredItem<SpellScrollItem> GHOSTRAIL_SCROLL = registerScroll(Spells.GHOSTRAIL);
 
     private ModItems() {}
 

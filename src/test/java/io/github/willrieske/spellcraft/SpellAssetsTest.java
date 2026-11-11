@@ -143,4 +143,18 @@ class SpellAssetsTest {
                 .contains("\"message.spellcraft.vex_busy\"")
                 .contains("\"message.spellcraft.team_move_selected\"");
     }
+
+    /**
+     * When the casting effect is named in the lang file, should its key exist: a missing one would show a raw key in
+     * game. Tasks 4 and 12 add the entity keys to this test as their entities arrive.
+     *
+     * <p>Method under test: the lang file against the Part 7 names
+     */
+    @Test
+    void part7NamesAreEnglish() throws IOException {
+        // Arrange
+        String lang = Files.readString(ASSETS.resolve("lang/en_us.json"));
+        // Act & Assert
+        assertThat(lang).contains("\"effect.spellcraft.casting_scroll\"");
+    }
 }
