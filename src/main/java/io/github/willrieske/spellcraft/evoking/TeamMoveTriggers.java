@@ -42,8 +42,9 @@ final class TeamMoveTriggers {
         if (followers.isEmpty()) {
             return;
         }
-        List<BoundVex> free = TeamMoves.freeVexes(owner, followers);
-        boolean raidReady = ready(record, TeamMove.RAID, free.size(), now);
+        List<BoundVex> free = TeamMoves.freeVexes(owner, followers, false);
+        List<BoundVex> raidFree = TeamMoves.freeVexes(owner, followers, true);
+        boolean raidReady = ready(record, TeamMove.RAID, raidFree.size(), now);
         boolean shieldReady = ready(record, TeamMove.SHIELD, free.size(), now);
         boolean multishotReady = ready(record, TeamMove.MULTISHOT, free.size(), now);
         List<LivingEntity> candidates = candidates(owner, followers);

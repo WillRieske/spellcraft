@@ -1,6 +1,7 @@
 package io.github.willrieske.spellcraft.gametest;
 
 import io.github.willrieske.spellcraft.effect.ModEffects;
+import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.MirrorImage;
 import io.github.willrieske.spellcraft.evoking.MirrorImages;
 import java.util.List;
@@ -11,6 +12,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
@@ -18,6 +20,9 @@ import net.minecraft.world.phys.Vec3;
 /** Helpers of the Part 7 GameTests: players, floors, images and hostiles. */
 final class ScrollTestSupport {
     private ScrollTestSupport() {}
+
+    /** A summoner, a Raid-sized husk and twelve flying vexes, the first a Caster; nothing is started yet. */
+    record RaidScene(ServerPlayer player, Husk husk, BoundVex caster) {}
 
     /**
      * A survival player at {@link FangGameTests#STAND} (the padded box is loaded), without the Evoking effect.
@@ -90,5 +95,43 @@ final class ScrollTestSupport {
      */
     static Husk hostileAt(GameTestHelper helper, Vec3 at) {
         return foeAt(helper, EntityTypes.HUSK, at);
+    }
+
+    /**
+     * A parked Caster of {@code player} at {@code absolute}: no target goals, no follow goal (so nothing pulls it
+     * toward the player), {@code setCaster(true)}. Tests place it clearly inside {@code GuardPosture.WIDE_LIMIT} (4.0)
+     * of the player or well outside it, never exactly on the limit.
+     *
+     * @param helper the test's helper
+     * @param player the summoner
+     * @param absolute where it hangs
+     * @return the Caster
+     */
+    static BoundVex casterVex(GameTestHelper helper, ServerPlayer player, Vec3 absolute) {
+        BoundVex vex = BoundVexTestSupport.noTargets(
+                BoundVexTestSupport.boundVex(helper, BoundVexTestSupport.AIR_SPOT, player));
+        BoundVexTestSupport.pauseFollowing(vex);
+        vex.setCaster(true);
+        vex.setPos(absolute);
+        return vex;
+    }
+
+    /**
+     * Builds a Raid scene: a plain player, {@code TeamMoveTestSupport.bigHusk} beside the hang point with its health
+     * raised to 1000 (the netherite swordsmen would otherwise kill the 40-health husk in the first volley and end the
+     * move before a test can look at the Caster), twelve vexes from {@code flyingVexes}, the first made a Caster.
+     *
+     * @param helper the test's helper
+     * @return the scene
+     */
+    static RaidScene raidScene(GameTestHelper helper) {
+        ServerPlayer player = plainPlayer(helper);
+        Vec3 hang = TeamMoveTestSupport.hangPoint(helper);
+        Husk husk = TeamMoveTestSupport.bigHusk(helper, TeamMoveTestSupport.beside(helper));
+        TeamMoveTestSupport.setBase(husk, Attributes.MAX_HEALTH, 1000.0);
+        husk.setHealth(1000.0F);
+        List<BoundVex> vexes = TeamMoveTestSupport.flyingVexes(helper, player, 12, hang);
+        vexes.get(0).setCaster(true);
+        return new RaidScene(player, husk, vexes.get(0));
     }
 }

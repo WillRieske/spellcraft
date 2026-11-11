@@ -1,6 +1,7 @@
 package io.github.willrieske.spellcraft.evoking;
 
 import io.github.willrieske.spellcraft.spell.AllyAttachments;
+import io.github.willrieske.spellcraft.spell.rules.CasterRules;
 import io.github.willrieske.spellcraft.spell.rules.VexRing;
 import java.util.ArrayList;
 import java.util.List;
@@ -55,6 +56,9 @@ public final class VexSummons {
             vex.snapTo(pos, 0.0F, 0.0F);
             vex.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), EntitySpawnReason.MOB_SUMMONED, null);
             vex.setBoundOrigin(pos);
+            if (Dice.CASTER_ROLL.below(random, CasterRules.CASTER_ONE_IN) == 0) {
+                vex.setCaster(true);
+            }
             vex.setData(AllyAttachments.SUMMONER, summoner.getUUID());
             if (team != null) {
                 level.getScoreboard().addPlayerToTeam(vex.getScoreboardName(), team);

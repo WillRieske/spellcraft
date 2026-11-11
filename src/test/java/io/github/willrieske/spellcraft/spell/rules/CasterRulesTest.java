@@ -81,6 +81,7 @@ class CasterRulesTest {
      */
     @Test
     void constantsAreTheSpecsNumbers() {
+        assertThat(CasterRules.CASTER_ONE_IN).isEqualTo(3);
         assertThat(CasterRules.KEEP_MIN).isEqualTo(4.0);
         assertThat(CasterRules.KEEP_MAX).isEqualTo(6.0);
         assertThat(CasterRules.WIND_UP_TICKS).isEqualTo(20);

@@ -55,7 +55,7 @@ public final class RangedGearGoal extends Goal {
     @Override
     public boolean canUse() {
         LivingEntity target = vex.getTarget();
-        return target != null && target.isAlive() && VexGear.isRanged(vex.getMainHandItem());
+        return target != null && target.isAlive() && !vex.isCaster() && VexGear.isRanged(vex.getMainHandItem());
     }
 
     @Override

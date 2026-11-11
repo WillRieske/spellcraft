@@ -80,6 +80,19 @@ public class BoundVex extends Vex {
 
     private static final String STAYING_TAG = "staying";
 
+    /** Synced: whether the vex is a Caster (the client draws the robe and the casting pose). */
+    private static final EntityDataAccessor<Boolean> CASTER =
+            SynchedEntityData.defineId(BoundVex.class, EntityDataSerializers.BOOLEAN);
+
+    /** The save tag of the Caster flag. */
+    private static final String CASTER_TAG = "caster";
+
+    /** The save tag of the game time a Caster may cast Mirror again. */
+    private static final String MIRROR_READY_TAG = "mirror_ready";
+
+    /** The save tag of the game time a Caster may cast Ghostrail again. */
+    private static final String GHOSTRAIL_READY_TAG = "ghostrail_ready";
+
     /** The slots a Bound Vex can hold gear in (Part 3 spec §4.1, §5.1). */
     public static final List<EquipmentSlot> GEAR_SLOTS = List.of(
             EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND, EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS);
@@ -128,6 +141,12 @@ public class BoundVex extends Vex {
      */
     private boolean repostOnArrival;
 
+    /** The game time this Caster may cast Mirror again; 0 means now. Saved. */
+    private long mirrorReadyAt;
+
+    /** The game time this Caster may cast Ghostrail again; 0 means now. Saved. */
+    private long ghostrailReadyAt;
+
     /** The allies found on {@link #alliesTick}; see {@link #alliesInGuardArea}. */
     private List<Mob> alliesCache = List.of();
 
@@ -166,6 +185,7 @@ public class BoundVex extends Vex {
     protected void defineSynchedData(SynchedEntityData.Builder entityData) {
         super.defineSynchedData(entityData);
         entityData.define(STAYING, false);
+        entityData.define(CASTER, false);
     }
 
     /**
@@ -177,7 +197,9 @@ public class BoundVex extends Vex {
      * {@link RepairGolemGoal}, {@link CureZombieVillagerGoal}, {@link BribeGoal} and {@link AttackCrystalGoal} outrank
      * the charge and the follow; {@link RescueGoal} (priority -1) outranks them all while {@link VexRescues} names the
      * vex a rescuer. {@link TeamMoveGoal} (priority 1) runs a team move's part and keeps its kit on, above the job,
-     * charge, ranged and follow goals and below the flee, dodge and rescue goals.
+     * charge, ranged and follow goals and below the flee, dodge and rescue goals. Both sets of fighting goals and the
+     * Caster goals are registered, because {@code registerGoals} runs in the constructor, before {@code CASTER} is
+     * known; each {@code canUse} tests {@link #isCaster()}.
      */
     @Override
     protected void registerGoals() {
@@ -190,6 +212,7 @@ public class BoundVex extends Vex {
         goalSelector.addGoal(2, new CureZombieVillagerGoal(this));
         goalSelector.addGoal(2, new BribeGoal(this));
         goalSelector.addGoal(2, new AttackCrystalGoal(this));
+        goalSelector.addGoal(3, new CasterGoal(this));
         goalSelector.addGoal(3, new RangedGearGoal(this));
         goalSelector.addGoal(3, new ChargeGoal());
         goalSelector.addGoal(3, new SupportGearGoal(this));
@@ -206,6 +229,9 @@ public class BoundVex extends Vex {
     protected void addAdditionalSaveData(ValueOutput output) {
         super.addAdditionalSaveData(output);
         output.putBoolean(STAYING_TAG, isStaying());
+        output.putBoolean(CASTER_TAG, isCaster());
+        output.putLong(MIRROR_READY_TAG, mirrorReadyAt);
+        output.putLong(GHOSTRAIL_READY_TAG, ghostrailReadyAt);
         for (EquipmentSlot slot : GEAR_SLOTS) {
             // ItemStack.CODEC rejects an empty stack, so only a real stash is written.
             if (!stashed(slot).isEmpty()) {
@@ -221,6 +247,9 @@ public class BoundVex extends Vex {
     protected void readAdditionalSaveData(ValueInput input) {
         super.readAdditionalSaveData(input);
         entityData.set(STAYING, input.getBooleanOr(STAYING_TAG, false));
+        entityData.set(CASTER, input.getBooleanOr(CASTER_TAG, false));
+        mirrorReadyAt = input.getLongOr(MIRROR_READY_TAG, 0L);
+        ghostrailReadyAt = input.getLongOr(GHOSTRAIL_READY_TAG, 0L);
         // A staying vex with no saved post (hand-edited, or /summon with NBT) would carry a post that moves with it.
         // The position is read before this method (Entity.load), so the vex's own block is available here.
         if (isStaying() && getBoundOrigin() == null) {
@@ -404,6 +433,36 @@ public class BoundVex extends Vex {
             }
         }
         super.checkDespawn();
+    }
+
+    /** Whether this vex is a Caster: it wears the robe, never fights, and casts scrolls on its summoner (Part 7). */
+    public boolean isCaster() {
+        return entityData.get(CASTER);
+    }
+
+    /** Makes this vex a Caster or a plain vex. */
+    public void setCaster(boolean caster) {
+        entityData.set(CASTER, caster);
+    }
+
+    /** The game time this Caster may cast Mirror again; 0 means now. */
+    public long mirrorReadyAt() {
+        return mirrorReadyAt;
+    }
+
+    /** Sets the game time this Caster may cast Mirror again. */
+    public void setMirrorReadyAt(long gameTime) {
+        mirrorReadyAt = gameTime;
+    }
+
+    /** The game time this Caster may cast Ghostrail again; 0 means now. */
+    public long ghostrailReadyAt() {
+        return ghostrailReadyAt;
+    }
+
+    /** Sets the game time this Caster may cast Ghostrail again. */
+    public void setGhostrailReadyAt(long gameTime) {
+        ghostrailReadyAt = gameTime;
     }
 
     /** Whether the vex holds its post instead of following. */
@@ -964,6 +1023,7 @@ public class BoundVex extends Vex {
             LivingEntity target = BoundVex.this.getTarget();
             return target != null
                     && target.isAlive()
+                    && !BoundVex.this.isCaster()
                     && !VexGear.isRanged(BoundVex.this.getMainHandItem())
                     && !VexGear.isSupport(BoundVex.this.getMainHandItem())
                     && !BoundVex.this.getMoveControl().hasWanted()

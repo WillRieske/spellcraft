@@ -18,6 +18,9 @@ public final class CasterRules {
     /** Farthest the Caster stays from its target. */
     public static final double KEEP_MAX = 6.0;
 
+    /** One vex in this many is a Caster. */
+    public static final int CASTER_ONE_IN = 3;
+
     /** Ticks a cast takes. */
     public static final int WIND_UP_TICKS = 20;
 
