@@ -70,11 +70,11 @@ All Java paths are under `src/main/java/io/github/willrieske/spellcraft/`; unit 
 
 - Modify: `docs/api-notes.md` (new §26)
 
-- [ ] **Step 1: Take the baseline**
+- [x] **Step 1: Take the baseline**
 
 Check `build/mc-src` and `build/nf-src` exist (extract them per CLAUDE.md "Minecraft sources" if not). Run `./gradlew build` and then `./gradlew runGameTestServer` once, one after the other in a single background command (two Gradle runs at once block on the build lock and can fail on the `run/` directory; a cold build takes 5-15 min; `build` also warms the Gradle cache so the commit gate's own `build` fits in 300 s). Expected: green; note the `All N required tests passed` number `N` (650 expected). Write it into the last bullet of §26 (Step 2) before the commit.
 
-- [ ] **Step 2: Verify the facts and write `docs/api-notes.md` §26**
+- [x] **Step 2: Verify the facts and write `docs/api-notes.md` §26**
 
 Check each line below in the sources (`Grep` the quoted names in `build/mc-src` and `build/nf-src`; keep or correct the cited line). They were read once while writing this plan; confirm them. If a line is wrong, write what the sources say and tell the coordinator which later task is affected. Every fact below was checked once already; no `(verify)` marker may reach the committed note, so if a check disagrees, write the corrected fact in the note's own words.
 
@@ -177,12 +177,14 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
 - **Baseline.** `./gradlew runGameTestServer`: `All <N> required tests passed` on <date> (Part 6 ended at 650). Every Part 7 gate is this number plus the tests registered so far.
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/api-notes.md
 git commit -m "docs(evoking): API notes for Evoking II Part 7"
 ```
+
+> **As built (`a1532b6`):** matches plan.
 
 ---
 
