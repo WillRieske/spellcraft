@@ -4405,7 +4405,7 @@ git commit -m "feat(evoking): evokers, vindicators and pillagers that carry scro
   - `VillagerGhosts.onDeath(LivingDeathEvent)` (`@SubscribeEvent`; the class is `@EventBusSubscriber`): a `Villager` whose killer (`source.getEntity()`) is an `Enemy` and `!Allies.isPlayersSide(source)` leaves a record (a villager a zombie then converts still does: the event fires before the conversion). A villager killed by lava, a fall, a cactus, a player, a golem or a Bound Vex leaves none (amends the parent §9.5).
   - `ScrollTestSupport.sampleVillagerData(GameTestHelper)` (a fixed, **non-default** `VillagerData`: desert type, librarian profession, level 3; a fresh villager's data equals the codec's defaults, so a default sample could not catch a codec that drops a field) and `ScrollTestSupport.record(GameTestHelper, Vec3 absolute)` (adds a record there with the sample data, removes it again in `whenDone`, returns it).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `VillagerGhostGameTests` (javadoc `/** GameTests of the villager-ghost records (Parts 6-7 spec §9, §10) and, from Task 12, the ghosts. */`). **Record budget:** the records live in one level-wide list capped at 32, and tests of one batch run at the same time, so a cap eviction would remove another test's record. The `SHARED` tests of this task keep at most three records alive at once (the kill test, the data test and the save test), and each cleans up its own records (`ScrollTestSupport.record` and `whenDone` do); the 33-deaths test and the conversion test run in environments of their own, `villager_ghost_records` and `villager_ghost_hard`, and Task 12 puts its tests in environments of their own too (`villager_ghost_help`, `villager_ghost_fade`), so the budget never nears 32.
 
@@ -4522,11 +4522,11 @@ static VillagerGhosts.Record record(GameTestHelper helper, Vec3 at) {
 
 Add `VillagerGhostGameTests.registerAll();` after `ScrollMobGameTests.registerAll();`.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `./gradlew compileJava` (FAIL: `VillagerGhosts` does not exist).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `Allies`: add (and delete the private copy from `GolemMercy`, whose two call sites, `GolemMercy.java:36` and `:52`, become `Allies.isPlayersSide(...)`; the `Entity`, `Player`, `Wolf` and `DamageSource` imports there are then unused, and `spotlessApply` removes them):
 
@@ -4665,11 +4665,11 @@ public final class VillagerGhosts extends SavedData {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:villager_ghost_*"`, `"-PgameTests=spellcraft:golems_ii_*"`, `"-PgameTests=spellcraft:bound_vex_world_crit_*"` and `"-PgameTests=spellcraft:allies_*"` (the golem mercy tests, registered as `golems_ii_*` and `bound_vex_world_crit_keeps_golem_mercy`, must be unchanged; a selector that matches nothing fails the run). Expected: PASS.
 
-- [ ] **Step 5: Gates and commit**
+- [x] **Step 5: Gates and commit**
 
 Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 767 required tests passed` both times (the Task 10 total plus the 10 `villager_ghost_record*` tests of this task).
 
@@ -4677,6 +4677,8 @@ Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expec
 git add src
 git commit -m "feat(evoking): villagers that monsters kill leave a saved record"
 ```
+
+> **As built (`ff499bf`):** diverged — no RED capture (production code written before the tests compiled); `VillagerGhosts.Record` carries `@SuppressWarnings("AvoidCommonTypeNames")` (Error Prone rejects the name the spec mandates); test helpers discard their villagers and any converted zombie villager when done; reason: implementer report, review approved (its minors are fixed first in Task 12).
 
 ---
 
@@ -6022,3 +6024,4 @@ git commit -m "docs(evoking): Part 7 in the README, playtest items, mutation tes
 | 8 | `31ca0c1` | no RED capture (production code partly written before tests); caster_plain_vex_charges resets a vex parked at rest beside the frozen husk each tick (test-only: ChargeGoal needs >2 blocks, a real target moves); countsTowardARaidTrigger proves the Shield control with a second summoner; reason: implementer report, review approved |
 | 9 | `f871ee5` | CasterSpellGameTests scene floor is 8 blocks, not 3 (Mirror images wander up to 6 blocks and fell off a 3-block floor; spec has no ledge avoidance); review minors fixed in f871ee5 (dismiss once, exact cast-timing bound, choose() clears its pick); reason: implementer report, review approved |
 | 10 | `ea7c862` | chasesThroughAWall keeps the player vulnerable (Mob.asValidTarget rejects an invulnerable target via canBeSeenAsEnemy, so the plan's setTarget was dropped) and empties the pillager's main hand instead; floored scenes use radius 12 for Mirror image wander room; EVOKER_CAST_SPELL has no .value() in 26.3; MOB_GHOSTRAIL_COOLDOWN_TICKS made public for the test; RED was compile-time; reason: implementer report, review approved |
+| 11 | `ff499bf` | no RED capture (production code written before the tests compiled); `VillagerGhosts.Record` carries `@SuppressWarnings("AvoidCommonTypeNames")` (Error Prone rejects the name the spec mandates); test helpers discard their villagers and any converted zombie villager when done; reason: implementer report, review approved (its minors are fixed first in Task 12). |
