@@ -14,6 +14,8 @@ import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.VexRescues;
+import io.github.willrieske.spellcraft.spell.Spells;
+import io.github.willrieske.spellcraft.spell.rules.GhostrailDuration;
 import java.util.Optional;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
@@ -47,6 +49,9 @@ public final class BoundVexDrowningGameTests {
                 "bound_vex_world_drowning_not_with_conduit_power",
                 BoundVexDrowningGameTests::drowningNotWithConduitPower);
         padded("bound_vex_world_drowning_not_for_creative", BoundVexDrowningGameTests::drowningNotForCreative);
+        padded(
+                "bound_vex_world_drowning_not_for_a_ghostrail_carrier",
+                BoundVexDrowningGameTests::drowningNotForAGhostrailCarrier);
         padded("bound_vex_world_drowning_not_for_passengers", BoundVexDrowningGameTests::drowningNotForPassengers);
         padded("bound_vex_world_lava_before_drowning", BoundVexDrowningGameTests::lavaBeforeDrowning);
         padded("bound_vex_world_drowning_ends_at_the_surface", BoundVexDrowningGameTests::drowningEndsAtTheSurface);
@@ -197,6 +202,19 @@ public final class BoundVexDrowningGameTests {
      */
     static void drowningNotForCreative(GameTestHelper helper) {
         drowningNotFor(helper, player -> player.setGameMode(GameType.CREATIVE), false, 40);
+    }
+
+    /**
+     * When the player has Ghostrail (it takes no damage and is flying), should no rescue start.
+     *
+     * <p>Method under test: {@code VexRescues.tick}: a Ghostrail carrier is not rescued
+     */
+    static void drowningNotForAGhostrailCarrier(GameTestHelper helper) {
+        drowningNotFor(
+                helper,
+                player -> Spells.cast(player, Spells.GHOSTRAIL, GhostrailDuration.PLAYER_TICKS),
+                false,
+                VexRescues.LOW_AIR - 1);
     }
 
     /**

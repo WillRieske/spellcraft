@@ -1,6 +1,7 @@
 package io.github.willrieske.spellcraft.evoking;
 
 import io.github.willrieske.spellcraft.Spellcraft;
+import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.spell.rules.RescuePush;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -166,6 +167,11 @@ public final class VexRescues {
             return;
         }
         VoidCatch.recordGround(player);
+        if (player.hasEffect(ModEffects.GHOSTRAIL)) {
+            // It takes no damage and is flying: a pull, a push or a catch would fight its flight (Parts 6-7 spec §7.3)
+            drop(id);
+            return;
+        }
         Rescue rescue = RUNNING.get(id);
         if (rescue != null) {
             if (!holds(rescue.rescuer, player)) {

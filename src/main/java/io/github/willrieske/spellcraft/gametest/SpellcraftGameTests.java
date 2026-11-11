@@ -103,6 +103,7 @@ public final class SpellcraftGameTests {
         MirrorGameTests.registerAll();
         MirrorConfusionGameTests.registerAll();
         GhostrailFlightGameTests.registerAll();
+        GhostrailGameTests.registerAll();
         GolemGameTests.registerAll();
     }
 

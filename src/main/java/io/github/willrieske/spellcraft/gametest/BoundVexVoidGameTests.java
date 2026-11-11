@@ -14,6 +14,8 @@ import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.VexRescues;
+import io.github.willrieske.spellcraft.spell.Spells;
+import io.github.willrieske.spellcraft.spell.rules.GhostrailDuration;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -87,6 +89,9 @@ public final class BoundVexVoidGameTests {
                 BoundVexVoidGameTests::voidLogoutForgetsTheSearch);
         padded("bound_vex_world_void_catch_dismounts", BoundVexVoidGameTests::voidCatchDismounts);
         padded("bound_vex_world_void_catch_creative", BoundVexVoidGameTests::voidCatchCreative);
+        padded(
+                "bound_vex_world_void_catch_not_for_a_ghostrail_carrier",
+                BoundVexVoidGameTests::voidCatchNotForAGhostrailCarrier);
         padded("bound_vex_world_void_catch_not_while_gliding", BoundVexVoidGameTests::voidCatchNotWhileGliding);
         padded("bound_vex_world_void_catch_skips_a_portal_column", BoundVexVoidGameTests::voidCatchSkipsAPortalColumn);
         padded(
@@ -436,6 +441,35 @@ public final class BoundVexVoidGameTests {
                     VexRescues.tick(player);
                     assertVoidRunning(helper, player, "a creative player who is not flying is caught");
                     helper.assertTrue(player.getY() > PLATFORM_Y, "the player is on the platform");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a player with Ghostrail is under the floor, should no catch start (it takes no damage and is flying).
+     *
+     * <p>Method under test: {@code VexRescues.tick}: a Ghostrail carrier is not rescued
+     */
+    static void voidCatchNotForAGhostrailCarrier(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = voidPlayer(helper);
+        ServerLevel end = endVoid(helper, player, VOID_REACH);
+        BlockPos slot = player.blockPosition();
+        platform(helper, end, slot.offset(LANDING_EAST, PLATFORM_Y - slot.getY(), 0), 1);
+        BoundVex vex = voidVex(helper, end, player, slot, VEX_EAST);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(vex.tickCount > 0, "setup: the vex ticks"))
+                .thenExecute(() -> {
+                    Spells.cast(player, Spells.GHOSTRAIL, GhostrailDuration.PLAYER_TICKS);
+                    dropTo(player, column(slot, end.getMinY() - BELOW_FLOOR));
+                    VexRescues.tick(player);
+                    assertStillThere(
+                            helper,
+                            player,
+                            column(slot, end.getMinY() - BELOW_FLOOR),
+                            "no void catch for a Ghostrail carrier");
                 })
                 .thenSucceed();
     }
