@@ -212,6 +212,7 @@ public class BoundVex extends Vex {
         goalSelector.addGoal(2, new CureZombieVillagerGoal(this));
         goalSelector.addGoal(2, new BribeGoal(this));
         goalSelector.addGoal(2, new AttackCrystalGoal(this));
+        goalSelector.addGoal(2, new CasterSpellGoal(this));
         goalSelector.addGoal(3, new CasterGoal(this));
         goalSelector.addGoal(3, new RangedGearGoal(this));
         goalSelector.addGoal(3, new ChargeGoal());

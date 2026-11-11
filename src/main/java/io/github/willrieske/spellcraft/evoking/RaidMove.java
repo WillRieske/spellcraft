@@ -1,10 +1,15 @@
 package io.github.willrieske.spellcraft.evoking;
 
+import io.github.willrieske.spellcraft.effect.ModEffects;
+import io.github.willrieske.spellcraft.spell.Spells;
+import io.github.willrieske.spellcraft.spell.rules.GhostrailDuration;
 import io.github.willrieske.spellcraft.spell.rules.TeamMoveRules;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -91,13 +96,16 @@ public final class RaidMove {
      * @param level the vex's level
      */
     static void tick(BoundVex vex, TeamMoves.Move record, TeamMoves.Member member, ServerLevel level) {
-        // Part 7: a Caster only gathers, casts Mirror, then holds its cell
         LivingEntity enemy = TeamMoves.subjectOf(level, record);
         if (enemy == null || !enemy.isAlive()) {
             return;
         }
         TeamFlight.lookAt(vex, enemy);
         long now = level.getGameTime();
+        if (vex.isCaster()) {
+            casterTick(vex, record, member, enemy, now);
+            return;
+        }
         if (record.phase == TeamMoves.Phase.GATHER) {
             Vec3 summoner = vex.summoner().map(Entity::position).orElse(vex.position());
             TeamFlight.flyTo(vex, cell(enemy.getEyePosition(), summoner, member.cell), TeamFlight.NORMAL);
@@ -105,6 +113,30 @@ public final class RaidMove {
             rocketeer(vex, record, member, enemy, now);
         } else {
             charger(vex, member, enemy, level, now);
+        }
+    }
+
+    /**
+     * A Caster in a Raid: it flies to its grid cell and holds it for the whole move, and never attacks. At the start of
+     * the gather it casts Mirror on the summoner at once (no wind-up) if the summoner has none, ignoring its own Mirror
+     * cooldown and then setting it. It holds the scroll through the gather (spec §4.4: the scroll is its gather kit)
+     * and empties the conjured main hand only when the charge starts.
+     */
+    private static void casterTick(
+            BoundVex vex, TeamMoves.Move record, TeamMoves.Member member, LivingEntity enemy, long now) {
+        Vec3 summoner = vex.summoner().map(Entity::position).orElse(vex.position());
+        TeamFlight.flyTo(vex, cell(enemy.getEyePosition(), summoner, member.cell), TeamFlight.NORMAL);
+        if (!member.casterDone) {
+            member.casterDone = true;
+            vex.summoner().filter(owner -> !owner.hasEffect(ModEffects.MIRROR)).ifPresent(owner -> {
+                if (ScrollCasting.land(vex, owner, Spells.MIRROR, GhostrailDuration.Kind.PLAYER)) {
+                    vex.setMirrorReadyAt(now + ScrollCasting.cooldownFor(Spells.MIRROR));
+                }
+            });
+        }
+        if (record.phase == TeamMoves.Phase.CHARGE && !vex.getMainHandItem().isEmpty()) {
+            member.kit.put(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+            vex.conjure(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
         }
     }
 

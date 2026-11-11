@@ -168,6 +168,9 @@ public final class TeamMoves {
         /** The member's Shield stage. */
         Stage stage = Stage.READY;
 
+        /** Whether a Caster member has already done its one Raid cast (or skipped it). */
+        boolean casterDone;
+
         Member(int cell, Map<EquipmentSlot, ItemStack> kit) {
             this.cell = cell;
             this.kit = kit;
