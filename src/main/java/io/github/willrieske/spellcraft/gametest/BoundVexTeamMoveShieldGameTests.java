@@ -127,7 +127,10 @@ final class BoundVexTeamMoveShieldGameTests {
     /**
      * When a member has bashed, should its next bash come 38 to 75 ticks after its first: the member's own 40-tick
      * clock, read from the member's clocks (the husk's health cannot tell the members' bashes apart, since its
-     * invulnerability frames swallow some). A member that has bashed also waits 30 to 40 ticks on that clock.
+     * invulnerability frames swallow some). A member that has bashed also waits 30 to 40 ticks on that clock, and no
+     * member lunges before its own clock is ready. A gap counts only when the clock was set in the {@code BACKING}
+     * stage (the stage a bash or a give-up sets it in), so a clock that changed in any other stage is not read as a
+     * bash.
      *
      * <p>Method under test: {@code ShieldMove.tick}: the bash clock
      */
@@ -136,10 +139,16 @@ final class BoundVexTeamMoveShieldGameTests {
         ShieldScene scene = scene(helper);
         Map<UUID, Long> firstClock = new HashMap<>();
         List<Long> gaps = new ArrayList<>();
+        List<String> earlyLunges = new ArrayList<>();
         BoundVexTestSupport.everyTick(helper, () -> {
+            long now = helper.getLevel().getGameTime();
             for (BoundVex vex : scene.vexes()) {
-                long next = TeamMoves.clocksOf(vex).orElseThrow().nextAction();
-                if (next == 0L) {
+                TeamMoves.Clocks clocks = TeamMoves.clocksOf(vex).orElseThrow();
+                if (clocks.stage().equals("LUNGING") && now < clocks.nextAction()) {
+                    earlyLunges.add("a member lunged at " + now + " with its clock at " + clocks.nextAction());
+                }
+                long next = clocks.nextAction();
+                if (next == 0L || !clocks.stage().equals("BACKING")) {
                     continue;
                 }
                 Long first = firstClock.putIfAbsent(vex.getUUID(), next);
@@ -165,8 +174,11 @@ final class BoundVexTeamMoveShieldGameTests {
                     }
                 })
                 .thenWaitUntil(() -> helper.assertFalse(gaps.isEmpty(), "a member bashes a second time"))
-                .thenExecute(() -> gaps.forEach(gap -> helper.assertTrue(
-                        gap >= 38 && gap <= 75, "the second bash came " + gap + " ticks after the first")))
+                .thenExecute(() -> {
+                    gaps.forEach(gap -> helper.assertTrue(
+                            gap >= 38 && gap <= 75, "the second bash came " + gap + " ticks after the first"));
+                    helper.assertTrue(earlyLunges.isEmpty(), "no member lunges before its clock: " + earlyLunges);
+                })
                 .thenSucceed();
     }
 

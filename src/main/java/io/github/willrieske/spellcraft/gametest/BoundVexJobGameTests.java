@@ -432,7 +432,8 @@ public final class BoundVexJobGameTests {
     }
 
     /**
-     * When a Bound Vex is repairing a hurt ally golem (it holds the claim), should the free-vex list leave it out and keep
+     * When a Bound Vex is repairing a hurt ally golem (it holds the claim), should the free-vex list leave it out and
+     * keep
      * an idle vex of the same summoner in.
      *
      * <p>Method under test: {@code Jobs.busy}, through {@link TeamMoves#isFree}
@@ -722,7 +723,8 @@ public final class BoundVexJobGameTests {
 
     /**
      * When a Bound Vex with a target hovers within reach of a hurt ally golem's chest (the target, a husk, is within
-     * two blocks of the vex, so the vex has no charge to make), should keep its sword and leave the golem's health alone
+     * two blocks of the vex, so the vex has no charge to make), should keep its sword and leave the golem's health
+     * alone
      * for forty ticks, over several scans; once the target is cleared, should repair the golem (the control).
      *
      * <p>Method under test: {@code RepairGolemGoal.canUse}: the no-target gate (package-private), through the goal
@@ -755,7 +757,8 @@ public final class BoundVexJobGameTests {
     }
 
     /**
-     * When a Bound Vex flies to a hurt ally golem, three blocks off and about to arrive, and the golem is healed to full
+     * When a Bound Vex flies to a hurt ally golem, three blocks off and about to arrive, and the golem is healed to
+     * full
      * before the vex gets there (so the repair stops before it ever conjured the ingot), should keep the item it holds
      * (the iron sword) for forty ticks; once the golem is hurt again, should repair it with the ingot and get the sword
      * back at the end.

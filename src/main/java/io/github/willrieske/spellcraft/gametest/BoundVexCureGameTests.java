@@ -968,8 +968,10 @@ public final class BoundVexCureGameTests {
      * When the 300-tick rule releases a zombie villager (the mark removed, its AI back) just before the vex's last
      * potion-step tick, should the vex start no conversion, whether that tick is one on which vanilla asks
      * {@code canContinueToUse} first (the even id-based ticks) or one on which it does not (the odd ones): the
-     * zombie villager is never converting afterwards, stays unmarked (it is lifted out of reach after the release, so no
-     * vex takes it again), and the vex's hand is back to its sword. The test makes the parity of the vex's id-based tick count differ between
+     * zombie villager is never converting afterwards, stays unmarked (it is lifted out of reach after the release, so
+     * no
+     * vex takes it again), and the vex's hand is back to its sword. The test makes the parity of the vex's id-based
+     * tick count differ between
      * its two vexes (it moves {@code tickCount} by one where needed), so both kinds of tick are exercised.
      *
      * <p>Method under test: {@link CureZombieVillagerGoal}: its tick drops a job whose subject lost the mark

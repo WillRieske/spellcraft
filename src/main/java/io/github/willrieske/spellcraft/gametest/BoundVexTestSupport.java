@@ -322,7 +322,18 @@ public final class BoundVexTestSupport {
      * @return the creeper
      */
     static Creeper patientCreeper(GameTestHelper helper, BlockPos relative) {
-        Creeper creeper = calmCreeper(helper, relative);
+        return patient(helper, calmCreeper(helper, relative));
+    }
+
+    /**
+     * Gives {@code creeper} a fuse so long that it hisses without exploding once {@code setSwellDir(1)} is called
+     * (the {@code Fuse} short tag, written over its own save and loaded back).
+     *
+     * @param helper the test helper
+     * @param creeper the creeper
+     * @return the same creeper
+     */
+    static Creeper patient(GameTestHelper helper, Creeper creeper) {
         CompoundTag tag = GameTestSupport.saved(creeper);
         tag.putShort("Fuse", Short.MAX_VALUE);
         creeper.load(TagValueInput.create(

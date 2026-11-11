@@ -149,7 +149,8 @@ public final class FangGameTests {
 
     /**
      * Registers a test that places fangs or vexes far from its structure: padding 13, a tick budget that covers the
-     * body plus the wait of {@link #padded}, and the body wrapped in {@link #padded}. The vex tests register their padded
+     * body plus the wait of {@link #padded}, and the body wrapped in {@link #padded}. The vex tests register their
+     * padded
      * tests through this too.
      */
     static void addPadded(String environment, String name, Consumer<GameTestHelper> body) {

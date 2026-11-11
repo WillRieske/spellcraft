@@ -742,7 +742,9 @@ final class BoundVexTeamMoveLifecycleGameTests {
         helper.assertTrue(TeamMoves.start(player, TeamMove.SHIELD, husk), "setup: the Shield starts");
         TeamMoveTestSupport.stepEveryTick(helper, player);
         BoundVex member = TeamMoves.roster(player).get(0);
-        Creeper creeper = foe(helper, EntityTypes.CREEPER, member.position().add(2.0, 0.0, 0.0));
+        // A patient creeper: its fuse is so long that it hisses for as long as the vex needs to flee, never exploding
+        Creeper creeper = BoundVexTestSupport.patient(
+                helper, foe(helper, EntityTypes.CREEPER, member.position().add(2.0, 0.0, 0.0)));
 
         // Act & Assert
         helper.startSequence()

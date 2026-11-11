@@ -15,6 +15,7 @@ import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.EvokingNetwork;
 import io.github.willrieske.spellcraft.evoking.EvokingRequest;
 import io.github.willrieske.spellcraft.evoking.TeamMoves;
+import io.github.willrieske.spellcraft.gametest.TeamMoveTestSupport.Scene;
 import io.github.willrieske.spellcraft.spell.rules.EvokerSpell;
 import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import java.util.Comparator;
@@ -132,6 +133,16 @@ final class BoundVexTeamMoveRequestGameTests {
                 BoundVexTeamMoveRequestGameTests::outOfRangeCastIsIgnored);
     }
 
+    /**
+     * The usual arrange block of a request test: a summoner with Evoking, {@code count} frozen vexes around the hang
+     * point and a 40-health husk beside it.
+     */
+    private static Scene<Husk> requestScene(GameTestHelper helper, int count) {
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        List<BoundVex> vexes = frozenVexes(helper, player, count);
+        return new Scene<>(player, vexes, bigHusk(helper, beside(helper)));
+    }
+
     /** Runs {@code body} with the setting on MANUAL and gives back its answer; the setting is restored. */
     private static <T> T manual(Supplier<T> body) {
         AtomicReference<T> answer = new AtomicReference<>();
@@ -147,9 +158,7 @@ final class BoundVexTeamMoveRequestGameTests {
      */
     static void automaticAnswers(GameTestHelper helper) {
         // Arrange
-        ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        frozenVexes(helper, player, 3);
-        bigHusk(helper, beside(helper));
+        ServerPlayer player = requestScene(helper, 3).player();
 
         // Act
         TeamMoves.Answer answer = TeamMoves.request(player, TeamMove.SHIELD);
@@ -187,9 +196,7 @@ final class BoundVexTeamMoveRequestGameTests {
      */
     static void tooFewVexesIsUnavailable(GameTestHelper helper) {
         // Arrange
-        ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        frozenVexes(helper, player, 2);
-        bigHusk(helper, beside(helper));
+        ServerPlayer player = requestScene(helper, 2).player();
 
         // Act
         TeamMoves.Answer answer = manual(() -> TeamMoves.request(player, TeamMove.SHIELD));
@@ -228,10 +235,9 @@ final class BoundVexTeamMoveRequestGameTests {
      */
     static void runningMoveAnswersRunning(GameTestHelper helper) {
         // Arrange
-        ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        frozenVexes(helper, player, 6);
-        helper.assertTrue(
-                TeamMoves.start(player, TeamMove.SHIELD, bigHusk(helper, beside(helper))), "setup: a Shield runs");
+        Scene<Husk> scene = requestScene(helper, 6);
+        ServerPlayer player = scene.player();
+        helper.assertTrue(TeamMoves.start(player, TeamMove.SHIELD, scene.enemy()), "setup: a Shield runs");
         GameTestSupport.drainActionBar(player);
 
         // Act
@@ -251,9 +257,9 @@ final class BoundVexTeamMoveRequestGameTests {
      */
     static void coolingKindAnswersCooling(GameTestHelper helper) {
         // Arrange
-        ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        frozenVexes(helper, player, 3);
-        Husk first = bigHusk(helper, beside(helper));
+        Scene<Husk> scene = requestScene(helper, 3);
+        ServerPlayer player = scene.player();
+        Husk first = scene.enemy();
         helper.assertTrue(TeamMoves.start(player, TeamMove.SHIELD, first), "setup: a Shield runs");
         first.kill(helper.getLevel());
         TeamMoves.tick(player);
@@ -277,9 +283,9 @@ final class BoundVexTeamMoveRequestGameTests {
      */
     static void shieldRequestStarts(GameTestHelper helper) {
         // Arrange
-        ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        frozenVexes(helper, player, 3);
-        Husk husk = bigHusk(helper, beside(helper));
+        Scene<Husk> scene = requestScene(helper, 3);
+        ServerPlayer player = scene.player();
+        Husk husk = scene.enemy();
 
         // Act
         TeamMoves.Answer answer = manual(() -> TeamMoves.request(player, TeamMove.SHIELD));
@@ -387,10 +393,8 @@ final class BoundVexTeamMoveRequestGameTests {
      */
     static void requestNeedsNoEvoking(GameTestHelper helper) {
         // Arrange
-        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        ServerPlayer player = requestScene(helper, 3).player();
         player.removeEffect(ModEffects.EVOKING);
-        frozenVexes(helper, player, 3);
-        bigHusk(helper, beside(helper));
 
         // Act
         TeamMoves.Answer answer = manual(() -> TeamMoves.request(player, TeamMove.SHIELD));
@@ -438,9 +442,7 @@ final class BoundVexTeamMoveRequestGameTests {
      */
     static void deadSenderIsIgnored(GameTestHelper helper) {
         // Arrange
-        ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        frozenVexes(helper, player, 3);
-        bigHusk(helper, beside(helper));
+        ServerPlayer player = requestScene(helper, 3).player();
         player.kill(helper.getLevel());
         GameTestSupport.drainActionBar(player);
 
@@ -461,9 +463,7 @@ final class BoundVexTeamMoveRequestGameTests {
      */
     static void spectatingSenderIsIgnored(GameTestHelper helper) {
         // Arrange
-        ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        frozenVexes(helper, player, 3);
-        bigHusk(helper, beside(helper));
+        ServerPlayer player = requestScene(helper, 3).player();
         player.setGameMode(GameType.SPECTATOR);
         GameTestSupport.drainActionBar(player);
 
@@ -545,10 +545,9 @@ final class BoundVexTeamMoveRequestGameTests {
      */
     static void automaticBeatsRunning(GameTestHelper helper) {
         // Arrange (the setting stays on its default, AUTOMATIC: no manual(...))
-        ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        frozenVexes(helper, player, 6);
-        helper.assertTrue(
-                TeamMoves.start(player, TeamMove.SHIELD, bigHusk(helper, beside(helper))), "setup: a Shield runs");
+        Scene<Husk> scene = requestScene(helper, 6);
+        ServerPlayer player = scene.player();
+        helper.assertTrue(TeamMoves.start(player, TeamMove.SHIELD, scene.enemy()), "setup: a Shield runs");
         GameTestSupport.drainActionBar(player);
 
         // Act
@@ -568,9 +567,9 @@ final class BoundVexTeamMoveRequestGameTests {
      */
     static void runningBeatsCooling(GameTestHelper helper) {
         // Arrange
-        ServerPlayer player = FangGameTests.caster(helper, NORTH);
-        frozenVexes(helper, player, 6);
-        Husk husk = bigHusk(helper, beside(helper));
+        Scene<Husk> scene = requestScene(helper, 6);
+        ServerPlayer player = scene.player();
+        Husk husk = scene.enemy();
         helper.assertTrue(TeamMoves.start(player, TeamMove.SHIELD, husk), "setup: a Shield runs");
         husk.kill(helper.getLevel());
         TeamMoves.tick(player); // the Shield ends and cools

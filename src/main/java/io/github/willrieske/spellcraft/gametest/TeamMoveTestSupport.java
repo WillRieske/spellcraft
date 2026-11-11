@@ -31,6 +31,13 @@ final class TeamMoveTestSupport {
         return helper.absoluteVec(Vec3.atBottomCenterOf(BoundVexTestSupport.AIR_SPOT));
     }
 
+    /**
+     * The parts of a scene: the summoner, the member vexes and the enemy (or, for an Evader, the ward).
+     *
+     * @param <E> the enemy's type
+     */
+    record Scene<E extends LivingEntity>(ServerPlayer player, List<BoundVex> vexes, E enemy) {}
+
     /** The parts of a running Shield scene: the summoner, the member vexes and the husk. */
     record ShieldScene(ServerPlayer player, List<BoundVex> vexes, Husk husk) {}
 

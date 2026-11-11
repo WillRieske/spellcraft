@@ -16,7 +16,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
@@ -68,8 +70,13 @@ final class BoundVexTeamMoveMultishotGameTests {
         FangGameTests.addPadded(
                 SHARED,
                 "team_move_multishot_holds_on_its_slot",
-                200,
+                300,
                 BoundVexTeamMoveMultishotGameTests::holdsOnItsSlot);
+        FangGameTests.addPadded(
+                SHARED,
+                "team_move_multishot_flies_back_from_far_above_its_slot",
+                300,
+                BoundVexTeamMoveMultishotGameTests::fliesBackFromFarAboveItsSlot);
         FangGameTests.addPadded(
                 SHARED,
                 "team_move_multishot_in_line_members_separate_and_keep_firing",
@@ -346,9 +353,27 @@ final class BoundVexTeamMoveMultishotGameTests {
     }
 
     /**
-     * When the vexes have settled on their arc slots, should no member move sideways more than half a block in the
-     * next 20 ticks (a member within a block of its slot holds; it bobs up and down by itself, so only the sideways
-     * movement is measured).
+     * Counts, every tick, how many ticks in a row none of {@code vexes} has moved more than 0.02 blocks sideways
+     * (up and down is left out: a vex bobs by itself).
+     */
+    private static AtomicInteger countStillTicks(GameTestHelper helper, List<BoundVex> vexes) {
+        List<Vec3> last = new ArrayList<>(vexes.stream().map(Entity::position).toList());
+        AtomicInteger stillTicks = new AtomicInteger();
+        BoundVexTestSupport.everyTick(helper, () -> {
+            boolean still = true;
+            for (int i = 0; i < vexes.size(); i++) {
+                still &= vexes.get(i).position().subtract(last.get(i)).horizontalDistance() <= 0.02;
+                last.set(i, vexes.get(i).position());
+            }
+            stillTicks.set(still ? stillTicks.get() + 1 : 0);
+        });
+        return stillTicks;
+    }
+
+    /**
+     * When the vexes have settled on their arc slots (none moved more than 0.02 blocks sideways in a tick for 20
+     * ticks running; a member coasts for a while after each flight), should no member move sideways more than half a block in the next 20 ticks (a member within a
+     * block of its slot holds; it bobs up and down by itself, so only the sideways movement is measured).
      *
      * <p>Method under test: {@code MultishotMove.tick}: the hold within {@code SLOT_TOLERANCE}
      */
@@ -363,22 +388,59 @@ final class BoundVexTeamMoveMultishotGameTests {
         GameTestSupport.whenDone(helper, () -> volleyArrows(helper, vexes).forEach(Entity::discard));
         helper.assertTrue(TeamMoves.start(player, TeamMove.MULTISHOT, husk), "setup: the Multishot starts");
         TeamMoveTestSupport.stepEveryTick(helper, player);
+        AtomicInteger stillTicks = countStillTicks(helper, vexes);
         List<Vec3> before = new ArrayList<>();
 
         // Act & Assert
         helper.startSequence()
-                .thenIdle(80)
+                .thenWaitUntil(() -> helper.assertTrue(stillTicks.get() >= 20, "the members have settled"))
                 .thenExecute(() -> vexes.forEach(vex -> before.add(vex.position())))
                 .thenExecuteAfter(20, () -> {
                     for (int i = 0; i < vexes.size(); i++) {
                         helper.assertTrue(
                                 vexes.get(i).position().subtract(before.get(i)).horizontalDistance() <= 0.5,
-                                "member " + i + " held its slot, moved "
-                                        + vexes.get(i).position().distanceTo(before.get(i)) + " to "
-                                        + vexes.get(i).position() + " dist "
-                                        + vexes.get(i).distanceTo(husk));
+                                "member " + i + " held its slot");
                     }
                 })
+                .thenSucceed();
+    }
+
+    /**
+     * When a settled member is lifted eight blocks straight up (still on its slot sideways), should it fly back down to
+     * within three blocks of its slot height within 40 ticks (the vex sinks only slowly by itself, so a member that
+     * does not fly back would still be above that after 40 ticks).
+     *
+     * <p>Method under test: {@code MultishotMove.tick}: the vertical slot tolerance
+     */
+    static void fliesBackFromFarAboveItsSlot(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        Vec3 hang = hangPoint(helper);
+        Husk husk = bigHusk(helper, hang.add(0.0, 0.0, -3.5));
+        husk.setPermanentlyInvulnerable(true);
+        List<BoundVex> vexes = flyingVexes(helper, player, 3, hang.add(0.0, 0.0, 3.5));
+        MockPlayers.moveTo(helper, player, FangGameTests.STAND, NORTH);
+        GameTestSupport.whenDone(helper, () -> volleyArrows(helper, vexes).forEach(Entity::discard));
+        helper.assertTrue(TeamMoves.start(player, TeamMove.MULTISHOT, husk), "setup: the Multishot starts");
+        TeamMoveTestSupport.stepEveryTick(helper, player);
+        AtomicInteger stillTicks = countStillTicks(helper, vexes);
+        BoundVex lifted = vexes.get(0);
+        AtomicReference<Double> slotY = new AtomicReference<>();
+        AtomicLong liftedAt = new AtomicLong();
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(stillTicks.get() >= 20, "the members have settled"))
+                .thenExecute(() -> {
+                    slotY.set(lifted.getY());
+                    lifted.setPos(lifted.getX(), lifted.getY() + 8.0, lifted.getZ());
+                    liftedAt.set(helper.getTick());
+                })
+                .thenWaitUntil(() -> helper.assertTrue(
+                        Math.abs(lifted.getY() - slotY.get()) <= 3.0, "the lifted member flies back toward its slot"))
+                .thenExecute(() -> helper.assertTrue(
+                        helper.getTick() - liftedAt.get() <= 40,
+                        "and does so quickly, not in " + (helper.getTick() - liftedAt.get()) + " ticks"))
                 .thenSucceed();
     }
 

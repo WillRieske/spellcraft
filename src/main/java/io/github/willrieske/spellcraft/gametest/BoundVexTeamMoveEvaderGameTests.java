@@ -8,6 +8,7 @@ import static io.github.willrieske.spellcraft.gametest.TeamMoveTestSupport.hangP
 
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.TeamMoves;
+import io.github.willrieske.spellcraft.gametest.TeamMoveTestSupport.Scene;
 import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import java.util.List;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -85,17 +86,14 @@ final class BoundVexTeamMoveEvaderGameTests {
                 BoundVexTeamMoveEvaderGameTests::keepsUpWithASteadilyMovingWard);
     }
 
-    /** The parts of a running Evader scene: the summoner, the three flying members and the ward. */
-    private record Scene(ServerPlayer player, List<BoundVex> vexes, LivingEntity ward) {}
-
     /** An Evader warding the hurt summoner with three flying vexes, stepped every tick. */
-    private static Scene guardingTheSummoner(GameTestHelper helper) {
+    private static Scene<LivingEntity> guardingTheSummoner(GameTestHelper helper) {
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
         player.setHealth(8.0F);
         List<BoundVex> vexes = flyingVexes(helper, player, 3, hangPoint(helper));
         helper.assertTrue(TeamMoves.start(player, TeamMove.EVADER, player), "setup: the Evader starts");
         TeamMoveTestSupport.stepEveryTick(helper, player);
-        return new Scene(player, vexes, player);
+        return new Scene<>(player, vexes, player);
     }
 
     /** The point an Evader member circles around: the ward's middle. */
@@ -142,7 +140,7 @@ final class BoundVexTeamMoveEvaderGameTests {
      */
     static void orbitsAtTwoBlocks(GameTestHelper helper) {
         // Arrange
-        Scene scene = guardingTheSummoner(helper);
+        Scene<LivingEntity> scene = guardingTheSummoner(helper);
 
         // Act & Assert (the members start in a row, so wait until they have spread round the circle too)
         helper.startSequence()
@@ -150,7 +148,7 @@ final class BoundVexTeamMoveEvaderGameTests {
                     helper.assertTrue(
                             scene.vexes().stream()
                                     .allMatch(vex ->
-                                            Math.abs(vex.position().distanceTo(center(scene.ward())) - 2.0) <= 0.7),
+                                            Math.abs(vex.position().distanceTo(center(scene.enemy())) - 2.0) <= 0.7),
                             "every member is about two blocks out");
                     helper.assertTrue(spread(scene.vexes()), "and the members are spread");
                 })
@@ -158,7 +156,7 @@ final class BoundVexTeamMoveEvaderGameTests {
                     helper.assertTrue(
                             scene.vexes().stream()
                                     .allMatch(vex ->
-                                            Math.abs(vex.position().distanceTo(center(scene.ward())) - 2.0) <= 0.7),
+                                            Math.abs(vex.position().distanceTo(center(scene.enemy())) - 2.0) <= 0.7),
                             "every member stays about two blocks out");
                     helper.assertTrue(spread(scene.vexes()), "and the members stay spread");
                 })
@@ -174,7 +172,7 @@ final class BoundVexTeamMoveEvaderGameTests {
      */
     static void shovesAHostileWithinThree(GameTestHelper helper) {
         // Arrange
-        Scene scene = guardingTheSummoner(helper);
+        Scene<LivingEntity> scene = guardingTheSummoner(helper);
         Husk husk = foe(helper, EntityTypes.HUSK, overTheShell(scene.player()));
 
         // Act & Assert (knockback(2.0, ...) sets x to 0 / 2 + 2.0; 2.0 * 0.98^5 = 1.8 is above 1.0 either way)
@@ -196,7 +194,7 @@ final class BoundVexTeamMoveEvaderGameTests {
      */
     static void shovesOncePerTwentyTicks(GameTestHelper helper) {
         // Arrange
-        Scene scene = guardingTheSummoner(helper);
+        Scene<LivingEntity> scene = guardingTheSummoner(helper);
         Husk husk = foe(helper, EntityTypes.HUSK, overTheShell(scene.player()));
         BoundVexTestSupport.holdAt(helper, husk, husk.position());
 
@@ -229,10 +227,10 @@ final class BoundVexTeamMoveEvaderGameTests {
      */
     static void reversesASkeletonsArrow(GameTestHelper helper) {
         // Arrange
-        Scene scene = guardingTheSummoner(helper);
+        Scene<LivingEntity> scene = guardingTheSummoner(helper);
         Mob skeleton =
                 foe(helper, EntityTypes.SKELETON, scene.player().position().add(9.0, 0.0, 0.0));
-        Arrow arrow = arrowAt(helper, skeleton, scene.ward());
+        Arrow arrow = arrowAt(helper, skeleton, scene.enemy());
 
         // Act
         TeamMoves.tick(scene.player());
@@ -278,11 +276,11 @@ final class BoundVexTeamMoveEvaderGameTests {
      */
     static void leavesAGhastFireballAlone(GameTestHelper helper) {
         // Arrange
-        Scene scene = guardingTheSummoner(helper);
+        Scene<LivingEntity> scene = guardingTheSummoner(helper);
         Mob skeleton =
                 foe(helper, EntityTypes.SKELETON, scene.player().position().add(9.0, 0.0, 0.0));
         LargeFireball fireball = new LargeFireball(helper.getLevel(), skeleton, new Vec3(-0.5, 0.0, 0.0), 1);
-        fireball.setPos(center(scene.ward()).add(2.0, 0.0, 0.0));
+        fireball.setPos(center(scene.enemy()).add(2.0, 0.0, 0.0));
         helper.getLevel().addFreshEntity(fireball);
         GameTestSupport.whenDone(helper, fireball::discard);
         Vec3 before = fireball.getDeltaMovement();
@@ -304,14 +302,14 @@ final class BoundVexTeamMoveEvaderGameTests {
      */
     static void doesNotReverseTwice(GameTestHelper helper) {
         // Arrange
-        Scene scene = guardingTheSummoner(helper);
+        Scene<LivingEntity> scene = guardingTheSummoner(helper);
         Mob skeleton =
                 foe(helper, EntityTypes.SKELETON, scene.player().position().add(9.0, 0.0, 0.0));
-        Arrow arrow = arrowAt(helper, skeleton, scene.ward());
+        Arrow arrow = arrowAt(helper, skeleton, scene.enemy());
 
         // Act
         TeamMoves.tick(scene.player());
-        arrow.setPos(center(scene.ward()).add(1.5, 0.0, 0.0));
+        arrow.setPos(center(scene.enemy()).add(1.5, 0.0, 0.0));
         arrow.setDeltaMovement(-0.5, 0.0, 0.0); // aimed at the ward again, but it is now the vex's
         TeamMoves.tick(scene.player());
 
@@ -329,7 +327,7 @@ final class BoundVexTeamMoveEvaderGameTests {
      */
     static void leavesAPigAlone(GameTestHelper helper) {
         // Arrange
-        Scene scene = guardingTheSummoner(helper);
+        Scene<LivingEntity> scene = guardingTheSummoner(helper);
         Pig pig = foe(helper, EntityTypes.PIG, overTheShell(scene.player()));
 
         // Act & Assert
@@ -346,7 +344,7 @@ final class BoundVexTeamMoveEvaderGameTests {
      */
     static void followsAMovingWard(GameTestHelper helper) {
         // Arrange
-        Scene scene = guardingTheSummoner(helper);
+        Scene<LivingEntity> scene = guardingTheSummoner(helper);
 
         // Act
         Vec3 target = helper.relativeVec(scene.player().position()).add(6.0, 0.0, 0.0);
@@ -355,7 +353,7 @@ final class BoundVexTeamMoveEvaderGameTests {
         // Assert
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(
-                        scene.vexes().stream().allMatch(vex -> vex.position().distanceTo(center(scene.ward())) <= 2.7),
+                        scene.vexes().stream().allMatch(vex -> vex.position().distanceTo(center(scene.enemy())) <= 2.7),
                         "every member is within 2.7 blocks of the new middle"))
                 .thenSucceed();
     }
@@ -368,11 +366,11 @@ final class BoundVexTeamMoveEvaderGameTests {
      */
     static void reversesAFastArrow(GameTestHelper helper) {
         // Arrange
-        Scene scene = guardingTheSummoner(helper);
+        Scene<LivingEntity> scene = guardingTheSummoner(helper);
         Mob skeleton =
                 foe(helper, EntityTypes.SKELETON, scene.player().position().add(9.0, 0.0, 0.0));
-        Arrow arrow = arrowAt(helper, skeleton, scene.ward());
-        arrow.setPos(center(scene.ward()).add(5.0, 0.0, 0.0));
+        Arrow arrow = arrowAt(helper, skeleton, scene.enemy());
+        arrow.setPos(center(scene.enemy()).add(5.0, 0.0, 0.0));
         arrow.setDeltaMovement(-3.0, 0.0, 0.0);
 
         // Act

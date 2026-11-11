@@ -12,6 +12,7 @@ import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.Dice;
 import io.github.willrieske.spellcraft.evoking.RaidMove;
 import io.github.willrieske.spellcraft.evoking.TeamMoves;
+import io.github.willrieske.spellcraft.gametest.TeamMoveTestSupport.Scene;
 import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import java.util.ArrayList;
 import java.util.List;
@@ -84,14 +85,11 @@ final class BoundVexTeamMoveRaidGameTests {
                 BoundVexTeamMoveRaidGameTests::rocketBlastSparesACow);
     }
 
-    /** The parts of a running Raid scene: the summoner, the twelve flying members and the ravager. */
-    private record Scene(ServerPlayer player, List<BoundVex> vexes, Ravager ravager) {}
-
     /**
      * A Raid against a ravager four blocks north of the hang point, with twelve flying vexes south of it, stepped
      * every tick.
      */
-    private static Scene scene(GameTestHelper helper) {
+    private static Scene<Ravager> scene(GameTestHelper helper) {
         // Every kit is a sword (roll 0), so no rocket member is a second source of damage; the script is used up by
         // the start, which is why these tests run in the dice batch
         Dice.RAID_KIT.script(new int[24]);
@@ -103,7 +101,7 @@ final class BoundVexTeamMoveRaidGameTests {
         helper.assertTrue(TeamMoves.start(player, TeamMove.RAID, ravager), "setup: the Raid starts");
         Dice.RAID_KIT.unscript();
         TeamMoveTestSupport.stepEveryTick(helper, player);
-        return new Scene(player, vexes, ravager);
+        return new Scene<>(player, vexes, ravager);
     }
 
     /**
@@ -114,7 +112,7 @@ final class BoundVexTeamMoveRaidGameTests {
      */
     static void membersReachTheirCells(GameTestHelper helper) {
         // Arrange
-        Scene scene = scene(helper);
+        Scene<Ravager> scene = scene(helper);
 
         // Act & Assert
         helper.startSequence()
@@ -122,7 +120,7 @@ final class BoundVexTeamMoveRaidGameTests {
                     List<BoundVex> roster = TeamMoves.roster(scene.player());
                     for (int i = 0; i < roster.size(); i++) {
                         Vec3 cell = RaidMove.cell(
-                                scene.ravager().getEyePosition(), scene.player().position(), i);
+                                scene.enemy().getEyePosition(), scene.player().position(), i);
                         helper.assertTrue(
                                 roster.get(i).position().distanceTo(cell) <= 1.3,
                                 "member " + i + " is at its cell, not "
@@ -139,12 +137,12 @@ final class BoundVexTeamMoveRaidGameTests {
      */
     static void meleeMembersHitTheEnemy(GameTestHelper helper) {
         // Arrange
-        Scene scene = scene(helper);
+        Scene<Ravager> scene = scene(helper);
 
         // Act & Assert
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(
-                        scene.ravager().getHealth() < scene.ravager().getMaxHealth(), "the charge hurts the ravager"))
+                        scene.enemy().getHealth() < scene.enemy().getMaxHealth(), "the charge hurts the ravager"))
                 .thenSucceed();
     }
 

@@ -14,6 +14,7 @@ import io.github.willrieske.spellcraft.config.TeamMoveMode;
 import io.github.willrieske.spellcraft.evoking.BoundVex;
 import io.github.willrieske.spellcraft.evoking.TeamMoves;
 import io.github.willrieske.spellcraft.spell.rules.TeamMove;
+import io.github.willrieske.spellcraft.spell.rules.TeamMoveRules;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -31,6 +32,10 @@ final class BoundVexTeamMoveTriggerGameTests {
 
     /** Registers the tests. */
     static void registerAll() {
+        FangGameTests.addPadded(
+                SHARED,
+                "team_move_trigger_present_summoner_with_no_vexes_leaves_no_record",
+                BoundVexTeamMoveTriggerGameTests::presentSummonerWithNoVexesLeavesNoRecord);
         FangGameTests.addPadded(
                 SHARED,
                 "team_move_trigger_cooling_shield_starts_nothing",
@@ -753,8 +758,28 @@ final class BoundVexTeamMoveTriggerGameTests {
     }
 
     /**
+     * When the setting is automatic and the summoner is present with no vexes at all, should a scan start no move and
+     * leave the summoner with no record (the scan clock lives apart from the record).
+     *
+     * <p>Method under test: {@code TeamMoves.tick}: the scan clock without a record
+     */
+    static void presentSummonerWithNoVexesLeavesNoRecord(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = FangGameTests.caster(helper, NORTH);
+        foe(helper, EntityTypes.RAVAGER, beside(helper));
+
+        // Act
+        TeamMoves.tick(player);
+
+        // Assert
+        helper.assertTrue(TeamMoves.running(player).isEmpty(), "no move starts without vexes");
+        helper.assertFalse(TeamMoves.hasRecord(player), "and the scan created no record");
+        helper.succeed();
+    }
+
+    /**
      * When a Shield ended a moment ago and a new husk of 40 health stands in the guard area, should the scan start
-     * nothing before the cooldown is over (a Shield cools like every kind).
+     * nothing before the cooldown is over (a Shield cools like every kind), and the move start once it is over.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: a cooling Shield is not ready
      */
@@ -773,12 +798,20 @@ final class BoundVexTeamMoveTriggerGameTests {
         helper.startSequence()
                 .thenExecuteAfter(TeamMoves.SCAN_INTERVAL, () -> TeamMoves.tick(player))
                 .thenExecute(() -> helper.assertTrue(TeamMoves.running(player).isEmpty(), "nothing starts yet"))
+                .thenExecute(() -> {
+                    TeamMoves.age(player, TeamMoveRules.COOLDOWN_TICKS);
+                    TeamMoves.tick(player);
+                    helper.assertValueEqual(
+                            TeamMoves.running(player),
+                            Optional.of(TeamMove.SHIELD),
+                            "it starts once the cooldown is over");
+                })
                 .thenSucceed();
     }
 
     /**
      * When a Multishot ended a moment ago and a husk with attack damage 6 hunts a free vex, should the scan start
-     * nothing before the cooldown is over.
+     * nothing before the cooldown is over, and the move start once it is over.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: a cooling Multishot is not ready
      */
@@ -800,12 +833,20 @@ final class BoundVexTeamMoveTriggerGameTests {
         helper.startSequence()
                 .thenExecuteAfter(TeamMoves.SCAN_INTERVAL, () -> TeamMoves.tick(player))
                 .thenExecute(() -> helper.assertTrue(TeamMoves.running(player).isEmpty(), "nothing starts yet"))
+                .thenExecute(() -> {
+                    TeamMoves.age(player, TeamMoveRules.COOLDOWN_TICKS);
+                    TeamMoves.tick(player);
+                    helper.assertValueEqual(
+                            TeamMoves.running(player),
+                            Optional.of(TeamMove.MULTISHOT),
+                            "it starts once the cooldown is over");
+                })
                 .thenSucceed();
     }
 
     /**
      * When an Evader ended a moment ago and the summoner is hurt again, should the scan start nothing before the
-     * cooldown is over.
+     * cooldown is over, and the move start once it is over.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: a cooling Evader is not ready
      */
@@ -824,6 +865,14 @@ final class BoundVexTeamMoveTriggerGameTests {
         helper.startSequence()
                 .thenExecuteAfter(TeamMoves.SCAN_INTERVAL, () -> TeamMoves.tick(player))
                 .thenExecute(() -> helper.assertTrue(TeamMoves.running(player).isEmpty(), "nothing starts yet"))
+                .thenExecute(() -> {
+                    TeamMoves.age(player, TeamMoveRules.COOLDOWN_TICKS);
+                    TeamMoves.tick(player);
+                    helper.assertValueEqual(
+                            TeamMoves.running(player),
+                            Optional.of(TeamMove.EVADER),
+                            "it starts once the cooldown is over");
+                })
                 .thenSucceed();
     }
 }
