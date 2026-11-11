@@ -34,10 +34,10 @@ public final class RangedGearGoal extends Goal {
     public static final int SHOT_INTERVAL = 40;
 
     /** How close to the line of an arrow a friend's middle may be before the vex holds its fire (spec §4.3). */
-    public static final double LINE_CLEARANCE = 1.0;
+    public static final double LINE_CLEARANCE = VexShots.LINE_CLEARANCE;
 
     /** How close to its target a friend may be before the vex holds back a splash potion (spec §4.3). */
-    public static final double SPLASH_CLEARANCE = 4.0;
+    public static final double SPLASH_CLEARANCE = VexShots.SPLASH_CLEARANCE;
 
     private final BoundVex vex;
 

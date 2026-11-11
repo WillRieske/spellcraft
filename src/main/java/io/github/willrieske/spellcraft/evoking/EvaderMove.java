@@ -18,12 +18,13 @@ import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The Evader (Parts 6-7 spec section 4.3). Each member circles the ward at 2 blocks, spread evenly, the circle turning
- * 6 degrees a tick ({@link #tick}). The guard ({@link #guard}) runs once a tick for the whole record: the nearest
- * member shoves any hostile whose box comes within 3 blocks of the ward's (knockback 2 away from the ward, no damage,
- * each hostile at most once per 20 ticks) and reverses any projectile within 2 blocks of the ward that flies toward it
- * and was not shot from the summoner's side (not a large fireball: Part 5's return owns those). The reversed
- * projectile's new owner is the vex, so it is never deflected twice and the friendly-fire backstop covers it.
+ * The Evader (Parts 6-7 spec §4.3). Each member circles the ward at 2 blocks, spread evenly, the circle turning 6
+ * degrees a tick ({@link #tick}). The guard ({@link #guard}) runs once a tick for the whole record: the nearest member
+ * shoves any hostile whose box comes within 3 blocks of the ward's (knockback 2 away from the ward, no damage, each
+ * hostile at most once per 20 ticks) and reverses any projectile within 2 blocks of the ward (or about to be, after its
+ * next step) that flies toward it and was not shot from the summoner's side (not a large fireball: Part 5's return owns
+ * those). The reversed projectile's new owner is the vex, so it is never deflected twice and the friendly-fire backstop
+ * covers it.
  */
 final class EvaderMove {
     /** How far from the ward's middle a member circles. */
@@ -41,6 +42,12 @@ final class EvaderMove {
     /** A projectile whose box is within this many blocks of the ward's box is deflected. */
     static final double DEFLECT_RANGE = 2.0;
 
+    /**
+     * The farthest a projectile is expected to travel in a tick (a full-draw player arrow moves 3 blocks): the guard
+     * looks this far past the deflection range, so a shot that would cross the range between two samples is caught.
+     */
+    static final double SHOT_STEP = 4.0;
+
     /** The deflection power: 2.0 is a full reversal. */
     static final double DEFLECT_POWER = 2.0;
 
@@ -52,12 +59,6 @@ final class EvaderMove {
 
     /** Steering: the push that cancels the drag of a vex's flight (it keeps 0.91 of its speed a tick). */
     private static final double DRAG_FEED_FORWARD = 0.1;
-
-    /** The push a vex gets toward its wanted point at speed 1.0, per tick (the move control's {@code 0.05}). */
-    private static final double VEX_PUSH_PER_SPEED = 0.05;
-
-    /** Steering: how far ahead of the member, in the push's direction, the wanted point is set (over a body's size). */
-    private static final double STEER_REACH = 2.0;
 
     private EvaderMove() {}
 
@@ -81,24 +82,20 @@ final class EvaderMove {
         Vec3 spot = ringSpot(slot, count, elapsed);
         Vec3 next = ringSpot(slot, count, elapsed + 1);
         Vec3 after = ringSpot(slot, count, elapsed + 2);
-        Vec3 spotVelocity = next.subtract(spot).add(ward.getDeltaMovement());
+        Vec3 spotVelocity = next.subtract(spot).add(ward.getKnownMovement());
         Vec3 spotAcceleration = after.subtract(next.scale(2.0)).add(spot);
         Vec3 velocity = vex.getDeltaMovement();
         // A vex only accelerates toward its wanted point (0.05 a tick at normal speed) and coasts, so a plain
         // "fly to the spot" overshoots and circles wide. Steer instead: track the spot's place and velocity, and
-        // feed forward the spot's own acceleration and the drag (a vex keeps 0.91 of its speed each tick).
+        // feed forward the spot's own acceleration and the drag (a vex keeps 0.91 of its speed each tick). The ward's
+        // own motion is its known movement: a player's delta movement stays near zero on the server.
         Vec3 push = middle.add(spot)
                 .subtract(vex.position())
                 .scale(STEER_POSITION_GAIN)
                 .add(spotVelocity.subtract(velocity).scale(STEER_VELOCITY_GAIN))
                 .add(spotAcceleration)
                 .add(spotVelocity.scale(DRAG_FEED_FORWARD));
-        double strength = push.length();
-        Vec3 direction = strength < 1.0E-6 ? Vec3.ZERO : push.scale(1.0 / strength);
-        TeamFlight.flyTo(
-                vex,
-                vex.position().add(direction.scale(STEER_REACH)),
-                Math.min(TeamFlight.NORMAL, strength / VEX_PUSH_PER_SPEED));
+        TeamFlight.steer(vex, push);
         TeamFlight.lookAt(vex, ward);
     }
 
@@ -118,7 +115,7 @@ final class EvaderMove {
     static void guard(ServerPlayer owner, TeamMoves.Move record, long now) {
         ServerLevel level = owner.level();
         LivingEntity ward = TeamMoves.subjectOf(level, record);
-        if (ward == null) {
+        if (ward == null || !ward.isAlive()) {
             return;
         }
         List<BoundVex> members = TeamMoves.members(level, record);
@@ -142,10 +139,10 @@ final class EvaderMove {
         }
         for (Projectile projectile : level.getEntitiesOfClass(
                 Projectile.class,
-                ward.getBoundingBox().inflate(DEFLECT_RANGE),
+                ward.getBoundingBox().inflate(DEFLECT_RANGE + SHOT_STEP),
                 shot -> shot.isAlive()
                         && !(shot instanceof LargeFireball)
-                        && TeamFlight.boxGap(shot, ward) <= DEFLECT_RANGE
+                        && reaches(shot, ward)
                         && approaches(shot, ward)
                         && !onTheirSide(owner, shot.getOwner()))) {
             BoundVex member = TeamMoves.nearest(members, projectile.position());
@@ -164,6 +161,22 @@ final class EvaderMove {
                 0.0F);
         member.playSound(SoundEvents.SHIELD_BLOCK.value(), 1.0F, 1.0F);
         member.swingForAttack(InteractionHand.MAIN_HAND);
+    }
+
+    /**
+     * Whether the projectile is within {@link #DEFLECT_RANGE} of the ward's box, or will be after its next step: the
+     * segment from where it is to where it goes next crosses the box inflated by that range. A fast arrow (3 blocks a
+     * tick) can otherwise jump from outside the range to the ward between two samples.
+     */
+    private static boolean reaches(Projectile shot, LivingEntity ward) {
+        if (TeamFlight.boxGap(shot, ward) <= DEFLECT_RANGE) {
+            return true;
+        }
+        Vec3 from = shot.position();
+        return ward.getBoundingBox()
+                .inflate(DEFLECT_RANGE)
+                .clip(from, from.add(shot.getDeltaMovement()))
+                .isPresent();
     }
 
     /** Whether the projectile's velocity points toward the ward's middle. */

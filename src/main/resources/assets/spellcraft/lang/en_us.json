@@ -24,6 +24,11 @@
   "message.spellcraft.team_move_running": "Your vexes are already in a team move",
   "message.spellcraft.team_move_cooling": "That team move is not ready yet",
   "message.spellcraft.team_move_unavailable": "Not enough vexes, or no enemy for that move",
+  "message.spellcraft.team_move_selected": "Team move: %s",
+  "team_move.spellcraft.shield": "Shield",
+  "team_move.spellcraft.multishot": "Multishot",
+  "team_move.spellcraft.evader": "Evader",
+  "team_move.spellcraft.raid": "Raid",
 
   "spellcraft.configuration.title": "Spellcraft Configs",
   "spellcraft.configuration.section.spellcraft.server.toml": "Spellcraft Server Configs",
@@ -45,10 +50,5 @@
   "key.spellcraft.fangs_y": "Evoking: Fangs",
   "key.spellcraft.vexes": "Evoking: Summon Vexes",
   "key.spellcraft.team_move_cycle": "Evoking: Next Team Move",
-  "key.spellcraft.team_move_go": "Evoking: Team Move!",
-  "message.spellcraft.team_move_selected": "Team move: %s",
-  "team_move.spellcraft.shield": "Shield",
-  "team_move.spellcraft.multishot": "Multishot",
-  "team_move.spellcraft.evader": "Evader",
-  "team_move.spellcraft.raid": "Raid"
+  "key.spellcraft.team_move_go": "Evoking: Team Move!"
 }

@@ -8,7 +8,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * A Shield member's part (Parts 6-7 spec section 4.1), each on its own 40-tick bash clock that starts ready. Farther
+ * A Shield member's part (Parts 6-7 spec §4.1), each on its own 40-tick bash clock that starts ready. Farther
  * than 7 blocks from the enemy it flies in at half speed; within 7 and ready it lunges at normal speed and, within 1.5
  * blocks of the enemy's box, bashes: 4 damage as a mob attack from the vex (so mercy, the backstop and End crits
  * apply), knockback 1.5 away from the vex, the shield-block sound at the enemy, a swing. A lunge that has not landed

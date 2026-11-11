@@ -30,8 +30,8 @@ final class Jobs {
     private Jobs() {}
 
     /**
-     * Whether {@code vex} is in the middle of one of the four jobs (a repair, a cure, a bribe, a crystal): a vex mid-job
-     * finishes it and is not free for a team move (Parts 6-7 spec section 2.2).
+     * Whether {@code vex} is in the middle of one of the four jobs (a repair, a cure, a bribe, a crystal): a vex
+     * mid-job finishes it and is not free for a team move (Parts 6-7 spec §2.2).
      *
      * @param vex a Bound Vex
      * @return true while it holds a live claim in any job
@@ -91,7 +91,8 @@ final class Jobs {
         }
 
         /**
-         * Whether {@code holder} holds a live claim on any subject. The map is keyed by subject, so this scans the values.
+         * Whether {@code holder} holds a live claim on any subject. The map is keyed by subject, so this scans the
+         * values.
          *
          * @param holder a Bound Vex
          * @return true while one of its claims is live

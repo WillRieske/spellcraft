@@ -21,6 +21,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.Vex;
+import net.minecraft.world.entity.projectile.FireworkRocketEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerExplosion;
 import net.minecraft.world.level.portal.TeleportTransition;
@@ -194,12 +195,23 @@ public final class BoundVexEvents {
         ServerPlayer owner = vex.summoner().orElse(null);
         LivingEntity victim = event.getEntity();
         if (owner != null) {
-            if (spares(vex, owner, victim)) {
+            if (spares(vex, owner, victim) || sparesFromRocket(event.getSource(), vex, owner, victim)) {
                 event.setCanceled(true);
             }
         } else if (!vex.equals(event.getSource().getDirectEntity()) && sparesWithoutOwner(vex, victim)) {
             event.setCanceled(true);
         }
+    }
+
+    /**
+     * Whether {@code victim} is spared a firework rocket's blast fired by {@code vex} (the Raid's rockets, Parts 6-7
+     * spec §4.4): the blast reaches 5 blocks, so beyond the usual sparing ({@link #spares}) it hurts only what the vex
+     * may hunt ({@link BoundVex#huntable}) and fight, and not the farm animals and neutral mobs around the enemy.
+     */
+    private static boolean sparesFromRocket(
+            DamageSource source, BoundVex vex, ServerPlayer owner, LivingEntity victim) {
+        return source.getDirectEntity() instanceof FireworkRocketEntity
+                && !(BoundVex.huntable(owner.getUUID(), victim) && vex.isPrey(victim));
     }
 
     /**

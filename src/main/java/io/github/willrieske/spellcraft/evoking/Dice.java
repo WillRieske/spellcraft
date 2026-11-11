@@ -5,12 +5,12 @@ import java.util.Deque;
 import net.minecraft.util.RandomSource;
 
 /**
- * The scriptable dice of the team moves (Parts 6-7 spec section 5, "Dice"): the same shape as the bribe's per-vex dice,
+ * The scriptable dice of the team moves (Parts 6-7 spec §5, "Dice"): the same shape as the bribe's per-vex dice,
  * but global, because the vexes a roll is for are chosen at the start. In play every roll is the random source's; a
  * GameTest scripts rolls with {@link #script} and must {@link #unscript} (a test that scripts one die runs in an
  * environment of its own, since the script is shared). {@code TeamMoves.clear()} (server stop) calls
- * {@link #unscript} on every instance, so a leaked script cannot outlive a world. Part 7 adds its dice (the Caster
- * roll, scroll mobs, the Mirror confusion) as more instances beside {@link #RAID_KIT}.
+ * {@link #unscript} on {@link #RAID_KIT}, so a leaked script cannot outlive a world. Part 7 adds its dice (the Caster
+ * roll, scroll mobs, the Mirror confusion) as more instances beside it, and {@code clear()} must name each.
  *
  * <p>Not {@code ScrollDraw.Dice}: that one is a per-vex roll function; this one is a global scriptable source.
  */

@@ -5,25 +5,24 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * The Raid (Parts 6-7 spec section 4.4). Gather, 40 ticks: the 12 members take the cells of a 3 x 4 grid, 1.5 blocks
- * apart, centered 8 blocks from the enemy toward the summoner, rows facing the enemy, at the enemy's eye height, each
- * flying there at normal speed and looking at the enemy. Charge, to the end: melee members fly at the enemy and hit it
- * with {@code doHurtTarget} when their box meets its box, each on a 20-tick attack clock (the charge goal has none; a
- * member pressed against the enemy would hit every tick); rocket members (a crossbow in the main hand) keep 8 blocks
- * (hold between 7 and 9) and every 40 ticks, with line of sight and no friend in the way, fire a rocket. A rocketeer
- * does not count its fellow members as friends in the way (the roster is passed to
- * {@code VexShots.friendInTheWay}): once one melee member sits in the enemy's box, every rocketeer would otherwise
- * hold fire for the rest of the move. The summoner, allies and Bound Vexes outside the roster still hold its fire. The
- * blast's damage source names the vex, so the friendly-fire backstop spares the summoner and everything the vex may
- * not fight. A Raid whose roster falls below 12 continues.
+ * The Raid (Parts 6-7 spec §4.4). Gather, 40 ticks: the 12 members take the cells of a 3 x 4 grid, 1.5 blocks apart,
+ * centered 8 blocks from the enemy toward the summoner, rows facing the enemy, at the enemy's eye height, each flying
+ * there at normal speed and looking at the enemy. Charge, to the end: melee members fly at the enemy and hit it with
+ * {@code doHurtTarget} when their box meets its box, each on a 20-tick attack clock (the charge goal has none; a member
+ * pressed against the enemy would hit every tick); rocket members (the kit's main-hand item is a crossbow, noted at the
+ * start) keep 8 blocks (hold between 7 and 9) and every 40 ticks, with line of sight and no friend in the way, fire a
+ * rocket. A rocketeer does not count its fellow members as friends in the way (the roster is passed to
+ * {@code VexShots.friendInTheWay}): once one melee member sits in the enemy's box, every rocketeer would otherwise hold
+ * fire for the rest of the move. The summoner, allies and Bound Vexes outside the roster still hold its fire. The
+ * blast's damage source names the vex, so the friendly-fire backstop spares the summoner and everything the vex may not
+ * fight. A Raid whose roster falls below 12 continues.
  */
 public final class RaidMove {
     /** Ticks the gather lasts before the charge. */
-    static final int GATHER_TICKS = 40;
+    public static final int GATHER_TICKS = 40;
 
     /** How far from the enemy, toward the summoner, the grid is centered. */
     static final double GRID_DISTANCE = 8.0;
@@ -51,12 +50,6 @@ public final class RaidMove {
 
     /** Settling: how strongly a member is pushed to match the enemy's velocity, per block a tick of difference. */
     private static final double SETTLE_VELOCITY_GAIN = 0.3;
-
-    /** The push a vex gets toward its wanted point at speed 1.0, per tick (the move control's {@code 0.05}). */
-    private static final double VEX_PUSH_PER_SPEED = 0.05;
-
-    /** Settling: how far ahead of the member, in the push's direction, the wanted point is set. */
-    private static final double SETTLE_REACH = 2.0;
 
     private RaidMove() {}
 
@@ -108,7 +101,7 @@ public final class RaidMove {
         if (record.phase == TeamMoves.Phase.GATHER) {
             Vec3 summoner = vex.summoner().map(Entity::position).orElse(vex.position());
             TeamFlight.flyTo(vex, cell(enemy.getEyePosition(), summoner, member.cell), TeamFlight.NORMAL);
-        } else if (vex.getMainHandItem().getItem() instanceof CrossbowItem) {
+        } else if (member.rocketeer) {
             rocketeer(vex, record, member, enemy, now);
         } else {
             charger(vex, member, enemy, level, now);
@@ -143,12 +136,7 @@ public final class RaidMove {
         Vec3 enemyStep = enemy.position().subtract(enemy.xOld, enemy.yOld, enemy.zOld);
         Vec3 push = gap.scale(SETTLE_POSITION_GAIN)
                 .add(enemyStep.subtract(vex.getDeltaMovement()).scale(SETTLE_VELOCITY_GAIN));
-        double strength = push.length();
-        Vec3 direction = strength < 1.0E-6 ? Vec3.ZERO : push.scale(1.0 / strength);
-        TeamFlight.flyTo(
-                vex,
-                vex.position().add(direction.scale(SETTLE_REACH)),
-                Math.min(TeamFlight.NORMAL, strength / VEX_PUSH_PER_SPEED));
+        TeamFlight.steer(vex, push);
     }
 
     /**

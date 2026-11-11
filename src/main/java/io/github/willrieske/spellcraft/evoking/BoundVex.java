@@ -138,8 +138,8 @@ public class BoundVex extends Vex {
 
     /**
      * The team move this vex takes part in, {@link TeamMove#NONE} when it takes part in none (Parts 6-7 spec section
-     * 2.1). Server-only: not synced and not saved, because nothing on the client reads it and a vex that loads, or comes
-     * through a portal, is a new entity whose kit {@code readAdditionalSaveData} has already dismissed.
+     * 2.1). Server-only: not synced and not saved, because nothing on the client reads it and a vex that loads, or
+     * comes through a portal, is a new entity whose kit {@code readAdditionalSaveData} has already dismissed.
      */
     private TeamMove teamMove = TeamMove.NONE;
 
@@ -619,8 +619,8 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * Marks the vex as a member of {@code move} ({@link TeamMove#NONE} frees it). {@link TeamMoves} is the only caller in
-     * play; the GameTests mark vexes directly.
+     * Marks the vex as a member of {@code move} ({@link TeamMove#NONE} frees it). {@link TeamMoves} is the only caller
+     * in play; the GameTests mark vexes directly.
      *
      * @param move the move
      */
@@ -643,8 +643,8 @@ public class BoundVex extends Vex {
     }
 
     /**
-     * {@link #huntable(LivingEntity)} for a summoner that need not have a vex at hand: the team-move scan and request ask
-     * it for the summoner alone.
+     * {@link #huntable(LivingEntity)} for a summoner that need not have a vex at hand: the team-move scan and request
+     * ask it for the summoner alone.
      *
      * @param summoner the summoner's UUID, or null for a vex nobody summoned
      * @param target the candidate
@@ -656,6 +656,19 @@ public class BoundVex extends Vex {
                 && target.getExistingData(AllyAttachments.SUMMONER)
                         .filter(mark -> !mark.equals(summoner))
                         .isEmpty();
+    }
+
+    /**
+     * Whether {@code target} could be the enemy of a team move of {@code summoner}: alive, {@link #huntable} and
+     * {@link #isPrey}. The team-move scan and the manual request share it.
+     *
+     * @param level the summoner's level
+     * @param summoner the summoner's UUID
+     * @param target the candidate
+     * @return whether a team move may be fought against it
+     */
+    static boolean isSubject(ServerLevel level, UUID summoner, LivingEntity target) {
+        return target.isAlive() && huntable(summoner, target) && isPrey(level, summoner, target);
     }
 
     /**

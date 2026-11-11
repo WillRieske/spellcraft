@@ -5,7 +5,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
 
 /**
- * A Bound Vex's part in a team move (Parts 6-7 spec section 2.5). Priority 1 on {@code MOVE} and {@code LOOK}: above
+ * A Bound Vex's part in a team move (Parts 6-7 spec §2.5). Priority 1 on {@code MOVE} and {@code LOOK}: above
  * the job, charge, ranged and follow goals, below the flee and dodge goals (0) and the rescue (-1), which pause it.
  * While {@link TeamMoves#membership} lists the vex it keeps the kit on ({@link TeamMoveKits#restore}: when anything
  * dismisses a kit slot, such as a preempted job goal's own {@code stop}, the kit is conjured again). Its {@code stop}

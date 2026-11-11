@@ -12,6 +12,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.projectile.FireworkRocketEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
@@ -29,8 +30,8 @@ import net.minecraft.world.phys.Vec3;
 /**
  * What a Bound Vex launches (Evoking II Part 3 spec §4.3). {@link #launch} shoots a copy of the item in its main hand,
  * never the item itself, so nothing is used up (spec §4.5); {@link #volley} and {@link #rocket} (Parts 6-7 spec §4.2,
- * §4.4) load and fire the conjured crossbow itself, which is Unbreakable and whose charge {@code performShooting}
- * empties. The aim and the spawn follow the skeleton ({@code
+ * §4.4) fire from the conjured crossbow, which is Unbreakable: the volley loads it and shoots through it, the rocket
+ * only plays its sound. The aim and the spawn follow the skeleton ({@code
  * AbstractSkeleton.performRangedAttack}) for arrows and the witch ({@code Witch.performRangedAttack}) for potions,
  * through the two {@code Projectile.spawnProjectileUsingShoot} helpers (docs/api-notes.md §22).
  */
@@ -61,6 +62,12 @@ final class VexShots {
 
     /** Rocket inaccuracy: a rocket is aimed tightly, since its one explosion does the damage. */
     static final float ROCKET_INACCURACY = 1.0F;
+
+    /** How close to the line of an arrow a friend's middle may be before the vex holds its fire (Part 3 spec §4.3). */
+    static final double LINE_CLEARANCE = 1.0;
+
+    /** How close to its target a friend may be before the vex holds back a splash potion (Part 3 spec §4.3). */
+    static final double SPLASH_CLEARANCE = 4.0;
 
     private VexShots() {}
 
@@ -124,18 +131,32 @@ final class VexShots {
     }
 
     /**
-     * One rocket with one explosion, fired through the crossbow (Parts 6-7 spec §4.4); a rocket with none does no
-     * damage.
+     * One rocket with one explosion (Parts 6-7 spec §4.4); a rocket with none does no damage. The crossbow in the main
+     * hand is the kit item and the sound; the rocket itself is spawned the way {@link #shootArrow} spawns an arrow,
+     * aimed straight at {@link #aimPoint}. {@code CrossbowItem.performShooting} with a target would lift the aim by a
+     * fifth of the flat distance for an arrow's drop, and a rocket shot at an angle has no gravity, so it would fly
+     * that lifted line over a short enemy.
      */
     static void rocket(BoundVex vex, LivingEntity at) {
-        ItemStack weapon = vex.getMainHandItem();
-        if (!(vex.level() instanceof ServerLevel level) || !(weapon.getItem() instanceof CrossbowItem crossbow)) {
+        if (!(vex.level() instanceof ServerLevel level)
+                || !(vex.getMainHandItem().getItem() instanceof CrossbowItem)) {
             return;
         }
         ItemStack rocket = new ItemStack(Items.FIREWORK_ROCKET);
         rocket.set(DataComponents.FIREWORKS, new Fireworks(1, List.of(FireworkExplosion.DEFAULT)));
-        weapon.set(DataComponents.CHARGED_PROJECTILES, ChargedProjectiles.ofNonEmpty(List.of(rocket)));
-        crossbow.performShooting(level, vex, InteractionHand.MAIN_HAND, weapon, ROCKET_SPEED, ROCKET_INACCURACY, at);
+        FireworkRocketEntity entity =
+                new FireworkRocketEntity(level, rocket, vex, vex.getX(), vex.getEyeY() - 0.15F, vex.getZ(), true);
+        Vec3 aim = aimPoint(at);
+        Projectile.spawnProjectileUsingShoot(
+                entity,
+                level,
+                rocket,
+                aim.x - entity.getX(),
+                aim.y - entity.getY(),
+                aim.z - entity.getZ(),
+                ROCKET_SPEED,
+                ROCKET_INACCURACY);
+        vex.playSound(SoundEvents.CROSSBOW_SHOOT, 1.0F, 1.0F);
     }
 
     /** What a pillager's crossbow uses: {@code 14 - difficulty * 4}. */
@@ -145,10 +166,12 @@ final class VexShots {
 
     /**
      * Whether a friend (the summoner, an ally of the summoner, or another Bound Vex of the same summoner; never the
-     * vex itself or its target) stands where the shot would hurt it (Part 3 spec §4.3 "Friendly fire"): for an arrow, a
-     * friend whose bounding-box center is within {@link RangedGearGoal#LINE_CLEARANCE} of the segment from the vex's
-     * eyes to the point the arrow is aimed at ({@link #aimPoint}: the target's lower body, not its eyes); for a thrown
-     * potion, a friend within {@link RangedGearGoal#SPLASH_CLEARANCE} of the target.
+     * vex itself or its target) stands where the shot would hurt it (Part 3 spec §4.3 "Friendly fire"): for an arrow,
+     * a friend whose bounding-box center is within {@link #LINE_CLEARANCE} of the segment from the vex's eyes to the
+     * point the arrow is aimed at ({@link #aimPoint}: the target's lower body, not its eyes); for a thrown potion, a
+     * friend within {@link #SPLASH_CLEARANCE} of the target. Only the center line is checked: a Multishot volley fans
+     * out to +-10 degrees, so a friend 1.2 to 1.5 blocks off the line at 7 blocks can stand in a flank arrow's path;
+     * the friendly-fire backstop cancels that damage, so such an arrow is wasted, not harmful.
      */
     static boolean friendInTheWay(BoundVex vex, LivingEntity target) {
         return friendInTheWay(vex, target, Set.of());
@@ -166,9 +189,7 @@ final class VexShots {
         boolean thrown = VexGear.kindOf(vex.getMainHandItem()) == VexGear.Kind.THROWABLE;
         Vec3 from = vex.getEyePosition();
         Vec3 to = aimPoint(target);
-        AABB box = thrown
-                ? target.getBoundingBox().inflate(RangedGearGoal.SPLASH_CLEARANCE + 2.0)
-                : new AABB(from, to).inflate(4.0);
+        AABB box = thrown ? target.getBoundingBox().inflate(SPLASH_CLEARANCE + 2.0) : new AABB(from, to).inflate(4.0);
         return !vex.level()
                 .getEntitiesOfClass(LivingEntity.class, box, friend -> {
                     if (friend.equals(vex) || friend.equals(target) || !friend.isAlive()) {
@@ -185,9 +206,8 @@ final class VexShots {
                         return false;
                     }
                     return thrown
-                            ? friend.distanceTo(target) <= RangedGearGoal.SPLASH_CLEARANCE
-                            : lineDistance(friend.getBoundingBox().getCenter(), from, to)
-                                    <= RangedGearGoal.LINE_CLEARANCE;
+                            ? friend.distanceTo(target) <= SPLASH_CLEARANCE
+                            : lineDistance(friend.getBoundingBox().getCenter(), from, to) <= LINE_CLEARANCE;
                 })
                 .isEmpty();
     }

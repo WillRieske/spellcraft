@@ -13,7 +13,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 
 /**
- * The automatic triggers of the team moves (Parts 6-7 spec section 2.3). One scan, every
+ * The automatic triggers of the team moves (Parts 6-7 spec §2.3). One scan, every
  * {@link TeamMoves#SCAN_INTERVAL} ticks per summoner, while no move runs. Candidates are hostiles that are huntable and
  * prey for the summoner and whose feet are inside the guard area of at least one following vex. In order the first move
  * that can start wins: Raid, Shield, Multishot (each against the nearest candidate that earns it), then Evader.
@@ -85,10 +85,7 @@ final class TeamMoveTriggers {
             for (LivingEntity entity : level.getEntitiesOfClass(
                     LivingEntity.class,
                     vex.guardArea(),
-                    candidate -> candidate.isAlive()
-                            && vex.inGuardArea(candidate)
-                            && BoundVex.huntable(owner.getUUID(), candidate)
-                            && BoundVex.isPrey(level, owner.getUUID(), candidate))) {
+                    candidate -> vex.inGuardArea(candidate) && BoundVex.isSubject(level, owner.getUUID(), candidate))) {
                 found.putIfAbsent(entity.getUUID(), entity);
             }
         }

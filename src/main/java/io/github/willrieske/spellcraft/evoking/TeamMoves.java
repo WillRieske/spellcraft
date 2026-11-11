@@ -1,5 +1,6 @@
 package io.github.willrieske.spellcraft.evoking;
 
+import com.mojang.logging.LogUtils;
 import io.github.willrieske.spellcraft.Spellcraft;
 import io.github.willrieske.spellcraft.config.ServerConfig;
 import io.github.willrieske.spellcraft.config.TeamMoveMode;
@@ -24,6 +25,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -31,27 +33,32 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
 
 /**
- * Team moves of a summoner's Bound Vexes (Parts 6-7 spec section 2): the free-vex test, the per-summoner record, the
+ * Team moves of a summoner's Bound Vexes (Parts 6-7 spec §2): the free-vex test, the per-summoner record, the
  * start and tick of a move (with the automatic trigger scan on the tick), and the manual request with its answers.
- * The Shield, Multishot, Evader and Raid parts run through {@code TeamMoveGoal} and one class per move.
+ * The Shield, Multishot, Evader and Raid parts run through {@code TeamMoveGoal} and one class per move. {@code Member}
+ * carries the per-move fields of all of them (the Shield's stage and lunge clock, the Raid's cell and role), so a new
+ * move adds its own there rather than a second state class.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class TeamMoves {
-    /** A vex farther than this from its summoner is not free (spec section 2.2). */
+    private static final Logger LOGGER = LogUtils.getLogger();
+
+    /** A vex farther than this from its summoner is not free (spec §2.2). */
     public static final double FREE_RANGE = 32.0;
 
-    /** The scan for triggers runs once every this many ticks (spec section 2.3). */
+    /** The scan for triggers runs once every this many ticks (spec §2.3). */
     public static final int SCAN_INTERVAL = 10;
 
-    /** How far from the summoner an ally may be and still be warded (spec section 2.3). */
+    /** How far from the summoner an ally may be and still be warded (spec §2.3). */
     private static final double WARD_RANGE = 16.0;
 
     private TeamMoves() {}
 
     /**
-     * Whether {@code vex} may join a move of {@code owner} (spec section 2.2): alive, theirs, in their level, within
+     * Whether {@code vex} may join a move of {@code owner} (spec §2.2): alive, theirs, in their level, within
      * {@link #FREE_RANGE} blocks of them, following (not staying), in no move, in no job ({@link Jobs#busy}) and not
      * the player's rescuer.
      *
@@ -86,7 +93,7 @@ public final class TeamMoves {
     /** Lang key prefix of the overlay message each start shows: {@code ...team_move_shield} and so on. */
     public static final String MESSAGE_PREFIX = "message.spellcraft.team_move_";
 
-    /** The Raid's two phases (spec section 4.4). */
+    /** The Raid's two phases (spec §4.4). */
     enum Phase {
         /** The members fly to their cells. */
         GATHER,
@@ -112,6 +119,9 @@ public final class TeamMoves {
         /** The kit this member conjured, kept so a put-back gives the same items. */
         final Map<EquipmentSlot, ItemStack> kit;
 
+        /** Whether the kit's main-hand item is a crossbow: a Raid rocketeer, fixed at the start. */
+        final boolean rocketeer;
+
         /** The game time of the member's next bash, shot or attack; 0 means ready. */
         long nextAction;
 
@@ -124,6 +134,8 @@ public final class TeamMoves {
         Member(int cell, Map<EquipmentSlot, ItemStack> kit) {
             this.cell = cell;
             this.kit = kit;
+            this.rocketeer = kit.get(EquipmentSlot.MAINHAND) != null
+                    && kit.get(EquipmentSlot.MAINHAND).getItem() instanceof CrossbowItem;
         }
     }
 
@@ -154,7 +166,7 @@ public final class TeamMoves {
         /** Per move kind, the game time its cooldown ends. */
         final EnumMap<TeamMove, Long> cooldownEnd = new EnumMap<>(TeamMove.class);
 
-        /** The game time of the next automatic trigger scan (spec section 2.3). */
+        /** The game time of the next automatic trigger scan (spec §2.3). */
         long nextScan;
 
         /** Hostiles the Evader has shoved, by UUID, to the game time until which each may not be shoved again. */
@@ -204,7 +216,7 @@ public final class TeamMoves {
     /**
      * Starts {@code move} for {@code owner} against {@code subject} (the enemy; for an Evader, the ward), if the
      * summoner is here (alive, not a spectator), the subject is alive in the summoner's level, no move runs, the kind
-     * is not cooling and the free vexes fill a roster (spec sections 2.2, 2.4). Every kit is built before anything is
+     * is not cooling and the free vexes fill a roster (spec §§2.2, 2.4). Every kit is built before anything is
      * marked. Each member gets the mark, the target (not for an Evader) and its kit (given gear goes to the stash);
      * the summoner gets the overlay message. This is the one method the scan, the request and the GameTests start a
      * move through.
@@ -251,11 +263,16 @@ public final class TeamMoves {
             TeamMoveKits.conjure(vex, member.kit);
         }
         owner.sendOverlayMessage(Component.translatable(MESSAGE_PREFIX + move.id()));
+        LOGGER.debug(
+                "Team move {} started for {}: {} members",
+                move.id(),
+                owner.getName().getString(),
+                roster.size());
         return true;
     }
 
     /**
-     * The roster of a move (spec section 2.2): Shield and Evader take the free vexes nearest the enemy or ward,
+     * The roster of a move (spec §2.2): Shield and Evader take the free vexes nearest the enemy or ward,
      * Multishot the vex the enemy hunts (else the free vex nearest the enemy) and the two nearest that one, Raid every
      * free vex. The list is ordered: Shield, Evader and Raid nearest the enemy or ward first, Multishot the anchor
      * first and then nearest the anchor first. {@code Move.add} gives each member the cell of its place in this order.
@@ -324,14 +341,14 @@ public final class TeamMoves {
     }
 
     /**
-     * One step for {@code owner} (spec section 2.5): drops roster members that are gone or no longer marked, and ends
+     * One step for {@code owner} (spec §2.5): drops roster members that are gone or no longer marked, and ends
      * the move when its roster is empty, the summoner is absent, the enemy or ward is gone or beyond 48 blocks, the
      * Evader's ward is healed, or the time limit is up. A summoner in another level ends the move without a check of
      * its own: the members are in the old level (pruned and released) or are new copies marked NONE (pruned), and the
      * enemy is not found in the summoner's level. Public so GameTests can step a mock player, which gets no player
      * tick. A summoner with no record is left alone: stepping never creates one.
      *
-     * <p>Then, in AUTOMATIC mode with no move running, runs the trigger scan on its 10-tick clock (spec section 2.3).
+     * <p>Then, in AUTOMATIC mode with no move running, runs the trigger scan on its 10-tick clock (spec §2.3).
      * The record is created only when a scan is due, so a manual-mode or absent summoner gets none.
      *
      * @param owner the summoner
@@ -341,8 +358,9 @@ public final class TeamMoves {
         Move record = STATES.get(owner.getUUID());
         if (record != null && record.active()) {
             prune(owner, record);
-            if (shouldEnd(owner, record, now)) {
-                end(owner, record, now);
+            String reason = endReason(owner, record, now);
+            if (reason != null) {
+                end(owner, record, now, reason);
             } else {
                 advance(owner, record, now);
             }
@@ -381,8 +399,17 @@ public final class TeamMoves {
     /** Lang key of the answer when no roster or no subject fits. */
     public static final String UNAVAILABLE_KEY = "message.spellcraft.team_move_unavailable";
 
-    /** The manual request looks for an enemy this far from the summoner (spec section 3.4). */
+    /** The manual request looks for an enemy this far from the summoner (spec §3.4). */
     public static final double REQUEST_RANGE = 16.0;
+
+    /**
+     * The fewest ticks between two handled requests of one summoner: a request scans 16 blocks for an enemy and may
+     * answer on the action bar, so a modified client that floods the packet is ignored in between (spec §3.4).
+     */
+    public static final int REQUEST_INTERVAL = 10;
+
+    /** The game time of each summoner's last handled request, by UUID. Transient, like {@link #STATES}. */
+    private static final Map<UUID, Long> LAST_REQUEST = new HashMap<>();
 
     /** What a team-move request did. Only {@code STARTED} starts a move. */
     public enum Answer {
@@ -401,7 +428,8 @@ public final class TeamMoves {
     }
 
     /**
-     * Handles one team-move request from the K key (spec section 3.4). It ignores a dead or spectating sender and does
+     * Handles one team-move request from the K key (spec §3.4). It ignores a dead or spectating sender, and a
+     * request fewer than {@link #REQUEST_INTERVAL} ticks after the sender's last handled one (silently), and does
      * not need the Evoking effect (the vexes outlive it, and automatic moves do not need it either). Then the first
      * that applies is the answer, shown on the action bar: automatic mode; a move already running; the kind cooling;
      * no roster or no subject (the nearest hostile within {@link #REQUEST_RANGE} blocks that is huntable, prey and fits
@@ -415,6 +443,12 @@ public final class TeamMoves {
         if (move == TeamMove.NONE || !isPresent(owner)) {
             return Answer.IGNORED;
         }
+        long now = owner.level().getGameTime();
+        Long last = LAST_REQUEST.get(owner.getUUID());
+        if (last != null && now >= last && now - last < REQUEST_INTERVAL) {
+            return Answer.IGNORED;
+        }
+        LAST_REQUEST.put(owner.getUUID(), now);
         if (ServerConfig.teamMoveMode() == TeamMoveMode.AUTOMATIC) {
             return refuse(owner, Answer.AUTOMATIC, AUTOMATIC_KEY);
         }
@@ -422,7 +456,7 @@ public final class TeamMoves {
         if (record != null && record.active()) {
             return refuse(owner, Answer.RUNNING, RUNNING_KEY);
         }
-        if (record != null && record.cooling(move, owner.level().getGameTime())) {
+        if (record != null && record.cooling(move, now)) {
             return refuse(owner, Answer.COOLING, COOLING_KEY);
         }
         LivingEntity subject = subjectFor(owner, move);
@@ -448,10 +482,8 @@ public final class TeamMoves {
                 .getEntitiesOfClass(
                         LivingEntity.class,
                         owner.getBoundingBox().inflate(REQUEST_RANGE),
-                        enemy -> enemy.isAlive()
-                                && enemy.distanceTo(owner) <= REQUEST_RANGE
-                                && BoundVex.huntable(owner.getUUID(), enemy)
-                                && BoundVex.isPrey(level, owner.getUUID(), enemy)
+                        enemy -> enemy.distanceTo(owner) <= REQUEST_RANGE
+                                && BoundVex.isSubject(level, owner.getUUID(), enemy)
                                 && TeamMoveRules.fits(move, enemy.getMaxHealth(), attackDamage(enemy)))
                 .stream()
                 .min(Comparator.comparingDouble(owner::distanceToSqr))
@@ -465,7 +497,7 @@ public final class TeamMoves {
     }
 
     /**
-     * The one an Evader would protect (spec section 2.3): the summoner, or a living ally within 16 blocks of them,
+     * The one an Evader would protect (spec §2.3): the summoner, or a living ally within 16 blocks of them,
      * below half health. Never a mob carrying a summoner mark (a Bound Vex or an image). The lowest health fraction
      * wins; the summoner wins ties.
      */
@@ -491,7 +523,7 @@ public final class TeamMoves {
                 .orElse(null);
     }
 
-    /** Whether the summoner can lead a move: alive and not a spectator (spec section 2.3). */
+    /** Whether the summoner can lead a move: alive and not a spectator (spec §2.3). */
     static boolean isPresent(ServerPlayer owner) {
         return owner.isAlive() && !owner.isSpectator();
     }
@@ -528,22 +560,36 @@ public final class TeamMoves {
     }
 
     /**
-     * Whether the move is over (spec section 2.5): no members, an absent summoner, the time limit, the subject gone,
-     * dead or beyond 48 blocks, or an Evader's ward healed to half health.
+     * Why the move is over (spec §2.5), or null while it goes on: no members, an absent summoner, the time
+     * limit, the subject gone, dead or beyond 48 blocks, or an Evader's ward healed to half health.
      */
-    private static boolean shouldEnd(ServerPlayer owner, Move record, long now) {
-        if (record.roster.isEmpty() || !isPresent(owner) || now >= TeamMoveRules.endsAt(record.move, record.start)) {
-            return true;
+    private static @Nullable String endReason(ServerPlayer owner, Move record, long now) {
+        if (record.roster.isEmpty()) {
+            return "no members left";
+        }
+        if (!isPresent(owner)) {
+            return "summoner absent";
+        }
+        if (now >= TeamMoveRules.endsAt(record.move, record.start)) {
+            return "time limit";
         }
         LivingEntity living = subjectOf(owner.level(), record);
         if (living == null || !living.isAlive() || TeamMoveRules.tooFar(living.distanceToSqr(owner))) {
-            return true;
+            return "subject gone";
         }
-        return record.move == TeamMove.EVADER && !TeamMoveRules.needsGuard(living.getHealth(), living.getMaxHealth());
+        return record.move == TeamMove.EVADER && !TeamMoveRules.needsGuard(living.getHealth(), living.getMaxHealth())
+                ? "ward healed"
+                : null;
     }
 
     /** Ends the move: every remaining member's kit goes, its mark clears, and the kind's 30-second cooldown starts. */
-    private static void end(ServerPlayer owner, Move record, long now) {
+    private static void end(ServerPlayer owner, Move record, long now, String reason) {
+        LOGGER.debug(
+                "Team move {} ended for {}: {} ({} members)",
+                record.move.id(),
+                owner.getName().getString(),
+                reason,
+                record.roster.size());
         releaseRoster(owner.level(), record);
         record.finish(now + TeamMoveRules.COOLDOWN_TICKS);
     }
@@ -608,6 +654,7 @@ public final class TeamMoves {
             record.start -= ticks;
             record.cooldownEnd.replaceAll((kind, end) -> end - ticks);
         }
+        LAST_REQUEST.computeIfPresent(owner.getUUID(), (id, time) -> time - ticks);
     }
 
     /**
@@ -640,6 +687,7 @@ public final class TeamMoves {
     @SubscribeEvent
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer owner) {
+            LAST_REQUEST.remove(owner.getUUID());
             Move record = STATES.remove(owner.getUUID());
             if (record != null && record.active()) {
                 releaseRoster(owner.level(), record);
@@ -650,6 +698,7 @@ public final class TeamMoves {
     /** Forgets every record and any scripted Raid dice (single-player loads one server per world in the same JVM). */
     static void clear() {
         STATES.clear();
+        LAST_REQUEST.clear();
         Dice.RAID_KIT.unscript();
     }
 

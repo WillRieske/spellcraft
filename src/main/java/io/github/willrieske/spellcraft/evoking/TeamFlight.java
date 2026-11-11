@@ -5,7 +5,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Flying and looking for the team moves: the vex's own move control, as the charge goal uses it (spec section 4).
+ * Flying and looking for the team moves: the vex's own move control, as the charge goal uses it (spec §4).
  * Public so the GameTests can check {@link #boxGap} and {@link #ringPoint}; {@code flyTo}, {@code lookAt} and the
  * speed constants stay package-private.
  */
@@ -16,11 +16,28 @@ public final class TeamFlight {
     /** Half of {@link #NORMAL}. */
     static final double HALF = 0.5;
 
+    /** The push a vex gets toward its wanted point at speed 1.0, per tick (the move control's {@code 0.05}). */
+    private static final double VEX_PUSH_PER_SPEED = 0.05;
+
+    /** How far ahead of the vex, in the push's direction, {@link #steer} sets the wanted point (over a body's size). */
+    private static final double STEER_REACH = 2.0;
+
     private TeamFlight() {}
 
     /** Orders the vex to fly to {@code spot} at {@code speed}; a vex has no gravity and clips through blocks. */
     static void flyTo(BoundVex vex, Vec3 spot, double speed) {
         vex.getMoveControl().setWantedPosition(spot.x, spot.y, spot.z, speed);
+    }
+
+    /**
+     * Pushes the vex by {@code push} blocks a tick: a vex only accelerates toward its wanted point (0.05 a tick at
+     * normal speed) and coasts, so the wanted point is set {@link #STEER_REACH} blocks ahead in the push's direction,
+     * at the speed whose acceleration is the push's strength (at most {@link #NORMAL}).
+     */
+    static void steer(BoundVex vex, Vec3 push) {
+        double strength = push.length();
+        Vec3 direction = strength < 1.0E-6 ? Vec3.ZERO : push.scale(1.0 / strength);
+        flyTo(vex, vex.position().add(direction.scale(STEER_REACH)), Math.min(NORMAL, strength / VEX_PUSH_PER_SPEED));
     }
 
     /** Turns the vex's head toward {@code target}'s eyes. */

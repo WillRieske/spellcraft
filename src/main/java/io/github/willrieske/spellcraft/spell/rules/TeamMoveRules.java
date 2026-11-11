@@ -180,7 +180,7 @@ public final class TeamMoveRules {
      * @param slot the member's place in the roster
      * @param count how many members there are
      * @param ticksSinceStart ticks since the move began
-     * @return the angle in degrees, in {@code [0, 360)} (for {@code ticksSinceStart >= 0})
+     * @return the angle in degrees, in {@code [0, 360)}
      * @throws IllegalArgumentException if {@code count} is not positive, or {@code slot} is negative or not below
      *     {@code count}
      */
@@ -189,6 +189,7 @@ public final class TeamMoveRules {
             throw new IllegalArgumentException(
                     "slot " + slot + " is outside 0.." + (count - 1) + " (count " + count + ")");
         }
-        return (FULL_TURN * slot / count + ORBIT_DEGREES_PER_TICK * ticksSinceStart) % FULL_TURN;
+        double degrees = FULL_TURN * slot / count + ORBIT_DEGREES_PER_TICK * ticksSinceStart;
+        return degrees - FULL_TURN * Math.floor(degrees / FULL_TURN);
     }
 }

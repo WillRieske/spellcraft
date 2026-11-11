@@ -16,7 +16,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantments;
 
 /**
- * What each team move conjures (Parts 6-7 spec section 4): the kit of a member, how to put it back after another item
+ * What each team move conjures (Parts 6-7 spec §4): the kit of a member, how to put it back after another item
  * took the hand, and how to take it away. Every kit item is unbreakable.
  */
 final class TeamMoveKits {
