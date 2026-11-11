@@ -3,7 +3,7 @@ package io.github.willrieske.spellcraft.infinity;
 import io.github.willrieske.spellcraft.Spellcraft;
 import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.spell.PlayerModes;
-import io.github.willrieske.spellcraft.spell.rules.InfinityAbilities;
+import io.github.willrieske.spellcraft.spell.rules.GrantedAbilities;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Abilities;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -41,27 +41,26 @@ public final class InfinityAbilitySync {
     // CREATIVE_FLIGHT-attribute flight that we neither grant nor revoke.
     public static void sync(ServerPlayer player) {
         Abilities abilities = player.getAbilities();
-        InfinityAbilities.Action action = InfinityAbilities.decide(new InfinityAbilities.State(
+        GrantedAbilities.Plan plan = GrantedAbilities.decide(new GrantedAbilities.State(
                 PlayerModes.of(player),
                 player.hasEffect(ModEffects.INFINITY),
+                false,
                 player.getData(InfinityAttachments.GRANTED),
+                false,
                 abilities.mayfly,
-                abilities.instabuild));
-        switch (action) {
-            case GRANT -> {
-                abilities.mayfly = true;
-                abilities.instabuild = true;
-                player.setData(InfinityAttachments.GRANTED, true);
-                player.onUpdateAbilities();
-            }
-            case REVOKE -> {
-                // The mode's defaults; survival and adventure also stop flight.
-                player.gameMode().updatePlayerAbilities(abilities);
-                player.setData(InfinityAttachments.GRANTED, false);
-                player.onUpdateAbilities();
-            }
-            case RELEASE -> player.setData(InfinityAttachments.GRANTED, false);
-            case NONE -> {}
+                abilities.instabuild,
+                abilities.flying));
+        if (plan.reset()) {
+            // The mode's defaults; survival and adventure also stop flight.
+            player.gameMode().updatePlayerAbilities(abilities);
+        }
+        abilities.mayfly |= plan.mayfly();
+        abilities.instabuild |= plan.instabuild();
+        if (plan.infinityMarked() != player.getData(InfinityAttachments.GRANTED)) {
+            player.setData(InfinityAttachments.GRANTED, plan.infinityMarked());
+        }
+        if (plan.changesAbilities()) {
+            player.onUpdateAbilities();
         }
     }
 }
