@@ -370,8 +370,8 @@ final class CasterSpellGameTests {
      */
     static void raidCastsMirror(GameTestHelper helper) {
         // Arrange
-        RaidScene scene = startedRaid(helper, false);
         long start = helper.getLevel().getGameTime();
+        RaidScene scene = startedRaid(helper, false);
 
         // Act & Assert
         helper.startSequence()

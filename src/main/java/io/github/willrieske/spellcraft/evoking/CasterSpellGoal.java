@@ -43,6 +43,9 @@ final class CasterSpellGoal extends Goal {
     /** Whether the cast has landed or been given up, so the goal can end. */
     private boolean done;
 
+    /** Whether the scroll has been dismissed for this cast, so it is dismissed at most once. */
+    private boolean dismissed;
+
     /**
      * Creates the goal for one vex (it only runs while the vex {@code isCaster()}).
      *
@@ -67,6 +70,7 @@ final class CasterSpellGoal extends Goal {
     public void start() {
         ticks = 0;
         done = false;
+        dismissed = false;
         if (spell == null) {
             return;
         }
@@ -124,13 +128,17 @@ final class CasterSpellGoal extends Goal {
 
     /** Takes the conjured scroll out of the main hand (the stashed item comes back) and ends the casting look. */
     private void dismissScroll() {
+        if (dismissed) {
+            return;
+        }
+        dismissed = true;
         vex.dismiss(EquipmentSlot.MAINHAND);
         ScrollCasting.windDown(vex);
     }
 
     @Override
     public void stop() {
-        // Idempotent: the normal end already dismissed the scroll in finish(); an interruption comes only here
+        // The normal end already dismissed the scroll in finish() (dismissScroll runs once); an interruption comes here
         dismissScroll();
         spell = null;
         subject = null;
@@ -138,6 +146,8 @@ final class CasterSpellGoal extends Goal {
 
     /** Picks the spell and subject for this scan, or false when nothing is worth casting. */
     private boolean choose() {
+        spell = null;
+        subject = null;
         ServerPlayer owner = vex.summoner().orElse(null);
         if (owner == null) {
             return false;
