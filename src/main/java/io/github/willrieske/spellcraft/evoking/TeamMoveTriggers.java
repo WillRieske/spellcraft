@@ -1,16 +1,16 @@
 package io.github.willrieske.spellcraft.evoking;
 
+import io.github.willrieske.spellcraft.spell.rules.GuardArea;
 import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import io.github.willrieske.spellcraft.spell.rules.TeamMoveRules;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.phys.AABB;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The automatic triggers of the team moves (Parts 6-7 spec §2.3). One scan, every
@@ -30,10 +30,10 @@ final class TeamMoveTriggers {
      * Looks for a trigger and starts the first move that can start.
      *
      * @param owner the summoner, present
-     * @param record their record, no move running
+     * @param record their record, or null when they have none yet; no move runs
      * @param now the game time
      */
-    static void scan(ServerPlayer owner, TeamMoves.Move record, long now) {
+    static void scan(ServerPlayer owner, TeamMoves.@Nullable Move record, long now) {
         List<BoundVex> followers = owner.level()
                 .getEntitiesOfClass(
                         BoundVex.class,
@@ -42,7 +42,7 @@ final class TeamMoveTriggers {
         if (followers.isEmpty()) {
             return;
         }
-        List<BoundVex> free = TeamMoves.freeVexes(owner);
+        List<BoundVex> free = TeamMoves.freeVexes(owner, followers);
         boolean raidReady = ready(record, TeamMove.RAID, free.size(), now);
         boolean shieldReady = ready(record, TeamMove.SHIELD, free.size(), now);
         boolean multishotReady = ready(record, TeamMove.MULTISHOT, free.size(), now);
@@ -73,23 +73,23 @@ final class TeamMoveTriggers {
     }
 
     /** Whether {@code move} could start: not cooling and enough free vexes. */
-    private static boolean ready(TeamMoves.Move record, TeamMove move, int free, long now) {
-        return !record.cooling(move, now) && TeamMoveRules.rosterSize(move, free) > 0;
+    private static boolean ready(TeamMoves.@Nullable Move record, TeamMove move, int free, long now) {
+        return (record == null || !record.cooling(move, now)) && TeamMoveRules.rosterSize(move, free) > 0;
     }
 
     /** The hostiles in any follower's guard area, nearest the summoner first, each once. */
     private static List<LivingEntity> candidates(ServerPlayer owner, List<BoundVex> followers) {
         ServerLevel level = owner.level();
-        Map<UUID, LivingEntity> found = new LinkedHashMap<>();
-        for (BoundVex vex : followers) {
-            for (LivingEntity entity : level.getEntitiesOfClass(
-                    LivingEntity.class,
-                    vex.guardArea(),
-                    candidate -> vex.inGuardArea(candidate) && BoundVex.isSubject(level, owner.getUUID(), candidate))) {
-                found.putIfAbsent(entity.getUUID(), entity);
-            }
-        }
-        return found.values().stream()
+        // A follower is within FREE_RANGE of the summoner's box, and its guard area reaches HALF_WIDTH beyond it (the
+        // extra block covers the follower's own box).
+        AABB reach = owner.getBoundingBox().inflate(TeamMoves.FREE_RANGE + GuardArea.HALF_WIDTH + 1.0);
+        return level
+                .getEntitiesOfClass(
+                        LivingEntity.class,
+                        reach,
+                        candidate -> BoundVex.isSubject(level, owner.getUUID(), candidate)
+                                && followers.stream().anyMatch(vex -> vex.inGuardArea(candidate)))
+                .stream()
                 .sorted(Comparator.comparingDouble(owner::distanceToSqr))
                 .toList();
     }

@@ -70,7 +70,8 @@ import org.jspecify.annotations.Nullable;
  * spec §2): {@link #scanDue} (the clock), {@link #inGuardArea} (the box), {@link #takesTarget}, {@link #keepsTarget}
  * and {@link #huntable}.
  * Without a summoner online, alive, in its level and not spectating it idles. The summoner is the
- * {@link AllyAttachments#SUMMONER} mark, so {@code Allies}, {@code GolemMercy} and the Trailing flame already treat it as the summoner's.
+ * {@link AllyAttachments#SUMMONER} mark, so {@code Allies}, {@code GolemMercy} and the Trailing flame already treat it
+ * as the summoner's.
  */
 public class BoundVex extends Vex {
     /** Synced: whether the vex holds its post instead of following (spec §3.3). */
@@ -107,7 +108,9 @@ public class BoundVex extends Vex {
     /** The return flight's speed when the vex is farther than {@link #POST_NEAR} from the post point. */
     private static final double POST_SPEED = 0.7;
 
-    /** The return flight's speed within {@link #POST_NEAR} of the post point: slow enough that a pass cannot overshoot. */
+    /**
+     * The return flight's speed within {@link #POST_NEAR} of the post point: slow enough that a pass cannot overshoot.
+     */
     private static final double POST_APPROACH_SPEED = 0.25;
 
     /** The distance from the post point inside which the return flight uses {@link #POST_APPROACH_SPEED}. */
@@ -511,7 +514,8 @@ public class BoundVex extends Vex {
      * Whether a target is worth <em>taking</em> (spec §3.4; Part 3 spec §4.3): the test every target goal's pick runs.
      * In this vex's level (a summoner's memory can name a mob it left behind in another dimension, whose raw
      * coordinates may line up), alive, attackable by this vex ({@code Mob.canAttack}: false for a creative or spectator
-     * player, an invulnerable mob or a ghast, the targets {@code setTarget} would not hold), still prey, and, following,
+     * player, an invulnerable mob or a ghast, the targets {@code setTarget} would not hold), still prey, and,
+     * following,
      * within {@link GuardArea#REACH} ({@link #withinReach}, whatever the vex holds), or, staying, inside the stay area
      * ({@link #inGuardArea}, Part 3 spec §2.3). The alive clause is a cheap guard: {@code canAttack} already implies it
      * for a living target ({@code LivingEntity.canBeSeenByAnyone}). {@link #keepsTarget} is the same test with a wider

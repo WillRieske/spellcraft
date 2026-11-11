@@ -37,7 +37,8 @@ public final class EvokingKeys {
 
     /**
      * Default Y (scancode 28; no vanilla binding uses it, docs/api-notes.md §20). Named {@code fangs_y} rather than
-     * {@code fangs} so a saved {@code options.txt} from round one, which pinned the old name to F, falls back to the new
+     * {@code fangs} so a saved {@code options.txt} from round one, which pinned the old name to F, falls back to the
+     * new
      * default: vanilla stores bindings by mapping name.
      */
     public static final KeyMapping FANGS = new KeyMapping(
@@ -142,11 +143,11 @@ public final class EvokingKeys {
             }
         }
         while (TEAM_MOVE_GO.consumeClick()) {
+            if (TEAM_MOVE_GO.same(swap)) {
+                shared++;
+            }
             if (player != null) {
                 ClientPacketDistributor.sendToServer(EvokingRequest.teamMove(selected));
-                if (TEAM_MOVE_GO.same(swap)) {
-                    shared++;
-                }
             }
         }
         return shared;

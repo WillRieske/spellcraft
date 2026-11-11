@@ -8,17 +8,22 @@ import net.minecraft.world.phys.Vec3;
 /**
  * A Multishot member's part (Parts 6-7 spec §4.2): stay on its own slot on an arc round the enemy, {@link #HOLD} blocks
  * out (25 degrees a slot, centered on the enemy-to-summoner direction), so the shooters do not stand in each other's
- * lines of fire: a member more than {@link #SLOT_TOLERANCE} sideways from its slot flies to it, one nearer holds,
- * looking at the enemy. Every 40 ticks, with line of sight and no friend in the way, it fires a volley of three arrows
- * from the conjured crossbow. The roster's other members are not friends in the way (the slots keep them off each
- * other's lines; a Bound Vex outside the roster, the summoner and allies still hold the fire).
+ * lines of fire: a member more than {@link #SLOT_TOLERANCE} sideways from its slot flies to it, one more than
+ * {@link #SLOT_HEIGHT_TOLERANCE} above or below it (and sideways in tolerance) flies to the slot's height only, one
+ * nearer holds, looking at the enemy. Every 40 ticks, with line of sight and
+ * no friend in the way, it fires a volley of three arrows from the conjured crossbow. The roster's other members are
+ * not friends in the way (the slots keep them off each other's lines; a Bound Vex outside the roster, the summoner and
+ * allies still hold the fire).
  */
 final class MultishotMove {
     /** The distance of a member's slot from the enemy. */
     static final double HOLD = 7.0;
 
-    /** A member farther than this many blocks from its slot, sideways (a vex bobs up and down), flies to it. */
+    /** A member farther than this many blocks from its slot, sideways, flies to it. */
     static final double SLOT_TOLERANCE = 1.0;
+
+    /** A member farther than this many blocks above or below its slot flies to the slot's height (a vex bobs). */
+    static final double SLOT_HEIGHT_TOLERANCE = 3.0;
 
     /** Ticks between one member's volleys. */
     static final int SHOT_INTERVAL = 40;
@@ -38,8 +43,12 @@ final class MultishotMove {
         int slot = Math.max(0, record.roster.indexOf(vex.getUUID()));
         Vec3 toward = vex.summoner().map(ServerPlayer::position).orElse(vex.position());
         Vec3 spot = slotSpot(enemy, toward, slot, record.roster.size());
-        if (vex.position().subtract(spot).horizontalDistance() > SLOT_TOLERANCE) {
+        Vec3 off = vex.position().subtract(spot);
+        if (off.horizontalDistance() > SLOT_TOLERANCE) {
             TeamFlight.flyTo(vex, spot, TeamFlight.NORMAL);
+        } else if (Math.abs(off.y) > SLOT_HEIGHT_TOLERANCE) {
+            // In tolerance sideways: correct the height alone, so the member does not swing sideways for it
+            TeamFlight.flyTo(vex, new Vec3(vex.getX(), spot.y, vex.getZ()), TeamFlight.NORMAL);
         }
         long now = level.getGameTime();
         if (now >= member.nextAction

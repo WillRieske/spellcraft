@@ -90,6 +90,18 @@ public final class TeamMoves {
                         BoundVex.class, owner.getBoundingBox().inflate(FREE_RANGE), vex -> isFree(vex, owner));
     }
 
+    /**
+     * The free vexes among {@code vexes}, a list the caller already fetched within {@link #FREE_RANGE} of
+     * {@code owner}: the same test as {@link #freeVexes(ServerPlayer)}, without a second query.
+     *
+     * @param owner the summoner
+     * @param vexes Bound Vexes found near the summoner
+     * @return those of them that are free, in the order given
+     */
+    static List<BoundVex> freeVexes(ServerPlayer owner, List<BoundVex> vexes) {
+        return vexes.stream().filter(vex -> isFree(vex, owner)).toList();
+    }
+
     /** Lang key prefix of the overlay message each start shows: {@code ...team_move_shield} and so on. */
     public static final String MESSAGE_PREFIX = "message.spellcraft.team_move_";
 
@@ -140,7 +152,7 @@ public final class TeamMoves {
     }
 
     /**
-     * One summoner's state: the running move and the memory that outlives it (cooldowns, the scan clock). Named
+     * One summoner's state: the running move and the memory that outlives it (the cooldowns). Named
      * {@code Move}, not {@code Record}, which would hide {@code java.lang.Record} inside {@code TeamMoves}.
      */
     static final class Move {
@@ -165,9 +177,6 @@ public final class TeamMoves {
 
         /** Per move kind, the game time its cooldown ends. */
         final EnumMap<TeamMove, Long> cooldownEnd = new EnumMap<>(TeamMove.class);
-
-        /** The game time of the next automatic trigger scan (spec §2.3). */
-        long nextScan;
 
         /** Hostiles the Evader has shoved, by UUID, to the game time until which each may not be shoved again. */
         final Map<UUID, Long> shoved = new HashMap<>();
@@ -212,6 +221,12 @@ public final class TeamMoves {
 
     /** Every summoner's record, by UUID. Transient, like {@code EvokingCaster}'s map. */
     private static final Map<UUID, Move> STATES = new HashMap<>();
+
+    /**
+     * Per summoner, the game time of the next automatic trigger scan (spec §2.3). Kept apart from the record so a
+     * present summoner who never starts a move gets no record.
+     */
+    private static final Map<UUID, Long> NEXT_SCAN = new HashMap<>();
 
     /**
      * Starts {@code move} for {@code owner} against {@code subject} (the enemy; for an Evader, the ward), if the
@@ -349,7 +364,8 @@ public final class TeamMoves {
      * tick. A summoner with no record is left alone: stepping never creates one.
      *
      * <p>Then, in AUTOMATIC mode with no move running, runs the trigger scan on its 10-tick clock (spec §2.3).
-     * The record is created only when a scan is due, so a manual-mode or absent summoner gets none.
+     * The scan clock is kept apart from the record and {@link #start} creates the record, so a summoner who only
+     * waits for a trigger (or is in manual mode, or absent) gets none.
      *
      * @param owner the summoner
      */
@@ -368,10 +384,9 @@ public final class TeamMoves {
         if ((record == null || !record.active())
                 && ServerConfig.teamMoveMode() == TeamMoveMode.AUTOMATIC
                 && isPresent(owner)) {
-            Move scanning = record != null ? record : STATES.computeIfAbsent(owner.getUUID(), id -> new Move());
-            if (now >= scanning.nextScan) {
-                scanning.nextScan = now + SCAN_INTERVAL;
-                TeamMoveTriggers.scan(owner, scanning, now);
+            if (now >= NEXT_SCAN.getOrDefault(owner.getUUID(), 0L)) {
+                NEXT_SCAN.put(owner.getUUID(), now + SCAN_INTERVAL);
+                TeamMoveTriggers.scan(owner, record, now);
             }
         }
     }
@@ -643,7 +658,19 @@ public final class TeamMoves {
     }
 
     /**
-     * Makes the running move and every cooldown {@code ticks} older; for GameTests, never called in play.
+     * Whether {@code owner} has a record at all (a record exists once a move has started for them); for GameTests,
+     * never called in play.
+     *
+     * @param owner the summoner
+     * @return true when a record exists
+     */
+    public static boolean hasRecord(ServerPlayer owner) {
+        return STATES.containsKey(owner.getUUID());
+    }
+
+    /**
+     * Makes the running move and every cooldown {@code ticks} older and makes the next automatic scan due at once; for
+     * GameTests, never called in play.
      *
      * @param owner the summoner
      * @param ticks how much older the move and the cooldowns become
@@ -655,6 +682,7 @@ public final class TeamMoves {
             record.cooldownEnd.replaceAll((kind, end) -> end - ticks);
         }
         LAST_REQUEST.computeIfPresent(owner.getUUID(), (id, time) -> time - ticks);
+        NEXT_SCAN.remove(owner.getUUID());
     }
 
     /**
@@ -688,6 +716,7 @@ public final class TeamMoves {
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer owner) {
             LAST_REQUEST.remove(owner.getUUID());
+            NEXT_SCAN.remove(owner.getUUID());
             Move record = STATES.remove(owner.getUUID());
             if (record != null && record.active()) {
                 releaseRoster(owner.level(), record);
@@ -699,6 +728,7 @@ public final class TeamMoves {
     static void clear() {
         STATES.clear();
         LAST_REQUEST.clear();
+        NEXT_SCAN.clear();
         Dice.RAID_KIT.unscript();
     }
 

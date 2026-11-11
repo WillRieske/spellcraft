@@ -35,7 +35,8 @@ import org.jspecify.annotations.Nullable;
  * taken. It can be taken if it is alive, not converting, not already {@code NoAI} (a map-made statue is left alone),
  * carries no cure mark (the mark is what keeps a second vex off a subject: a claim counts only while the mark is
  * there). It must also meet one more condition: either the vex has no target, or the zombie villager's own target is
- * the summoner or an ally (an attacker is stopped even mid-fight). The vex claims it, freezes it ({@code setNoAi(true)}) and gives it the cure mark
+ * the summoner or an ally (an attacker is stopped even mid-fight). The vex claims it, freezes it ({@code
+ * setNoAi(true)}) and gives it the cure mark
  * ({@link AllyAttachments#CURE}). The vex then flies to within {@link Jobs#REACH} of the zombie villager's head (at
  * most {@link Jobs#APPROACH_LIMIT} ticks), feeds it a golden apple for {@link #APPLE_TICKS} ticks (the eat sound and
  * crumbs), turns its head away and throws the cure potion at its feet for {@link #POTION_TICKS} ticks, and then begins
