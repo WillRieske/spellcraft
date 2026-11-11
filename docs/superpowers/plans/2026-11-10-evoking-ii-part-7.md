@@ -6,7 +6,7 @@
 
 **Goal:** One Bound Vex in three is a robed **Caster** that never fights and casts the two new spells on you; **Mirror** (13 copies of you, 6 minutes) and **Ghostrail** (fly through walls unhurt, 4 minutes, a white-smoke trail) are new scrolls anyone can scribe and read; evokers, vindicators and pillagers sometimes carry one and use it on themselves; and a villager a monster kills leaves a **ghost** that comes to help a player in need.
 
-**Architecture:** Six pure classes in `spell.rules` (`GhostrailDuration`, `GrantedAbilities`, `GhostRecords`, `GhostNeed`, `MirrorRule`, `CasterRules`) hold every number and choice. The spells follow the framework recipe (`SpellDeclarations` + `Spells` + effect + scroll) and put what a spell does in its **effect** (`MirrorEffect.onEffectAdded` spawns the images; `Ghostrail` is driven per tick), so a scroll, a Caster, a mob, a ghost and `/effect give` all behave the same through one `Spells.cast`. `MirrorImage` and `VillagerGhost` are non-saved-AI `LivingEntity` subclasses; the client draws images and the ghost with stand-in entities and a translucent villager renderer. One common Mixin (`PlayerGhostrailMixin`) lets a Ghostrail player pass through blocks, because no event reaches `Player.noPhysics`.
+**Architecture:** Six pure classes in `spell.rules` (`GhostrailDuration`, `GrantedAbilities`, `GhostRecords`, `GhostNeed`, `MirrorRule`, `CasterRules`) hold the rules and the numbers of the spells and of the Caster and the ghost's need; a few numbers live next to the code that uses them (the scroll mobs' odds, drop chance and Ghostrail cooldown in `ScrollMobs`, the ghost's 48-block reach, 64-block leash and 200-tick quiet limit in `VillagerGhosts` and `VillagerGhost`, the ghost's 16-block "enemy near" radius reused from `CasterRules.RANGE`), and `ScrollCasting` is the one place for what every cast that is not a player's hand shares (durations, cooldowns, the wind-up's look, the landing). The spells follow the framework recipe (`SpellDeclarations` + `Spells` + effect + scroll) and put what a spell does in its **effect** (`MirrorEffect.onEffectAdded` spawns the images; `Ghostrail` is driven per tick), so a scroll, a Caster, a mob, a ghost and `/effect give` all behave the same through one `Spells.cast`. `MirrorImage` and `VillagerGhost` are non-saved-AI `LivingEntity` subclasses; the client draws images and the ghost with stand-in entities and a translucent villager renderer. One common Mixin (`PlayerGhostrailMixin`) lets a Ghostrail player pass through blocks, because no event reaches `Player.noPhysics`.
 
 **Tech Stack:** Minecraft 26.3, NeoForge 26.3.0.23-beta, Java 25, JUnit 5 + jqwik + AssertJ (pure core), NeoForge GameTests (server rules), Python 3 stdlib + `unittest` (the icon and robe scripts).
 
@@ -20,16 +20,16 @@
 - Pure core (`spell.rules`): no `net.minecraft`/NeoForge imports (ArchUnit rule 2). TDD (RED test first); jqwik properties for invariants; `./gradlew pitest` after changing it and update `docs/mutation-testing.md` (Task 15).
 - Error Prone runs with `-Werror`; suppress only with `@SuppressWarnings("<Check>")` plus a comment saying why (Mixin handlers: `UnusedMethod`; `Abilities#mayfly`: `deprecation`; `EnumOrdinal` where an ordinal is the wire value).
 - Compare entities with `equals`, never `==`/`!=` (`Entity` overrides `equals`; `ReferenceEquality` fails the build).
-- Javadoc on every class, method, field and constant (private ones too), lines <= 120 columns; American spelling; plain words. `spotlessApply` does not wrap comments.
+- Javadoc on every class, method, field and constant (private ones too), lines <= 120 columns; American spelling; plain words. `spotlessApply` does not wrap comments, so re-wrap any comment line of a snippet that runs past 120 columns before you commit it. The snippets leave some Javadoc out (enum constants, record components with `@param`, constructors, overrides, event-handler `@param`s, private fields and constants, test helpers); it is still required in the code you commit. Every test (JUnit and GameTest) gets a When/should Javadoc and a `<p>Method under test:` line.
 - Tests follow `~/.claude/development-methodology.md` § Conventions, *Unit test style* (When/should docs, `// Arrange` / `// Act` / `// Assert`, `@Nested` per method, one-line form for one-statement tests). Mirror `TeamMoveRulesTest` / `TeamMoveRulesPropertiesTest` (unit and properties) and `BoundVexTeamMoveRosterGameTests` (GameTests). Python tests: a docstring `When ..., <function> should ....` and a `Function under test:` line.
 - Never claim a visual or feel behavior works: add playtest items (Task 15) instead. Visual items are Will's.
 - **Never bump the version, never create a tag.** (The release to 1.3.0 happens after the branch review, outside this plan.) No branch switching, no merging, no pushing.
 - Never run `git checkout`/`git restore`/`git stash` on a file with uncommitted work. Stage and commit in two separate commands. Conventional commit messages (gitlint), no attribution lines. Commit before dispatching a subagent in the same checkout.
 - Every vanilla or NeoForge call is checked against `C:\dev\spellcraft\build\mc-src` and `build\nf-src` (extract per CLAUDE.md "Minecraft sources" if missing) before use. `docs/api-notes.md` §26 (Task 1) records what was verified; where this plan's snippet disagrees with the sources, the sources win and the as-built note says so. The snippets leave out imports, and some private Javadoc, to stay short; the code you commit has both, and removes imports a change leaves unused.
-- GameTests: inner loop `./gradlew runGameTestServer "-PgameTests=spellcraft:<prefix>_*"`; before each task's commit, the full `./gradlew runGameTestServer` **twice** (flakiness), expecting `All M required tests passed` both times, where M is the previous task's total plus the tests this task registers (count the new `addPadded(`/`add(` lines in `git diff --cached`; write M in the commit's as-built note). The baseline is **650** (Part 6's final total); Task 1 re-measures it and writes it into the last bullet of `docs/api-notes.md` §26. The "Expected" totals in each task assume the counts in that task's registration list; recount if you add or drop a test.
+- GameTests: inner loop `./gradlew runGameTestServer "-PgameTests=spellcraft:<prefix>_*"`; before each task's commit, the full `./gradlew runGameTestServer` **twice** (flakiness), expecting `All M required tests passed` both times, where M is the previous task's total plus the tests this task registers (count the new `addPadded(`/`add(` lines in `git diff --cached`; write M in the commit's as-built note). The baseline is **650** (Part 6's final total); Task 1 re-measures it and writes it into the last bullet of `docs/api-notes.md` §26. The planned chain, from that baseline, is 650, 657 (Task 3), 676, 683, 694, 713, 728, 743, 757, 767, 782 (Task 12); Tasks 1, 2, 13, 14 and 15 add no GameTest and say "the total the previous task recorded". Each task's "Expected" number assumes the counts in that task's registration list; recount if you add or drop a test.
 - GameTest practices that already cost time here: place mobs by absolute `setPos` with no gravity; never `GameTestHelper.onEachTick` (use `BoundVexTestSupport.everyTick`); `thenWaitUntil(N, …)` demands an exact delay, so wait with `thenWaitUntil(() -> …)` or `thenExecuteAfter`; a mock player is never ticked or moved by the server (call `Ghostrail.tick(player)`, `VillagerGhosts.step(player)`, `TeamMoves.tick(player)` by hand, or every tick through `BoundVexTestSupport.everyTick`; reach the Mixin through `ServerPlayer.doTick()`, which is public); a mock player's effects never count down (end an effect with `removeEffect`); void damage is tested with `hurtServer(level, level.damageSources().fellOutOfWorld(), amount)`. Limits and pauses count game ticks.
 - **The three Part 6 GameTest traps still apply:** (1) a vex within 16 blocks of its summoner follows it through a dimension change, so create vexes after `BoundVexWorldTestSupport.room(...)`; (2) a mob with no AI never moves from knockback, so assert velocity, not position; (3) the framework's barrier shell (min-1 to max+1 of the 3x3x3 box) blocks line of sight, so a test that needs `hasLineOfSight` keeps everyone above it (`TeamMoveTestSupport.hangPoint`, y >= 5).
-- **Registering a GameTest class.** Each class has `static void registerAll()` with one line per test, `FangGameTests.addPadded(SHARED, "<prefix>_<name>", Class::method);` (`addPadded(SHARED, name, 200, Class::method)` for a sequence test that needs more than the default body ticks; another environment name for a test that mutates global state), and its call goes into the static block of `SpellcraftGameTests` after the previous Part 7 class (the first goes after `BoundVexTeamMoveRaidGameTests.registerAll()`). A test's registered name is its prefix plus the method name in snake case. Lang keys: append each task's keys directly after the previous task's in `en_us.json`, and spell every key in full.
+- **Registering a GameTest class.** Each class has `static void registerAll()` with one line per test, `FangGameTests.addPadded(SHARED, "<prefix>_<name>", Class::method);` (`addPadded(SHARED, name, 200, Class::method)` for a sequence test that needs more than the default body ticks; another environment name for a test that mutates global state), and its call goes into the static block of `SpellcraftGameTests` after the previous Part 7 class (the first goes after `BoundVexTeamMoveRaidGameTests.registerAll()`). A test's registered name is its prefix plus the method name in snake case (Tasks 8-10 follow this exactly; Tasks 3-7 and 11-12 use longer descriptive names, so always select by the prefix, and recount if a name changes). Lang keys: append each task's keys directly after the previous task's in `en_us.json`, and spell every key in full.
 - **Global dice and batches.** Batches (one per environment name) run one after another; tests inside one batch run at the same time. `Dice` instances are global, so a test that scripts one runs in the environment named for it (`caster_dice`, `scroll_mob_dice`, `mirror_dice`; a statistical test with real dice in `caster_dice_real`), scripts **immediately before the one synchronous call that consumes the roll** (`VexSummons.summon`, `finalizeSpawn`, `Mob.setTarget`), and unscripts in a `finally` (`Dice.unscriptAll()`).
 - **Existing tests that summon through `VexSummons.summon` (the V key) now roll the Caster dice for real** (1 in 3). Task 8 greps for them and scripts a plain vex wherever a test relies on a fighting vex.
 - Numbers below are requirements copied from the spec. Do not round or "improve" them.
@@ -40,7 +40,7 @@
 |---|---|
 | `spell/rules/GhostrailDuration.java`, `GrantedAbilities.java`, `GhostRecords.java`, `GhostNeed.java`, `MirrorRule.java`, `CasterRules.java` (new) | The pure core (spec §6.2, §7.2, §7.3, §8, §9, §11) |
 | `spell/rules/InfinityAbilities.java` (deleted) and its two tests | Replaced by `GrantedAbilities` (the Infinity rows move to `GrantedAbilitiesTest`) |
-| `spell/rules/SpellDeclarations.java`, `spell/Spells.java`, `spell/ModItems.java`, `spell/SpellScrollItem.java` | `MIRROR` and `GHOSTRAIL`; `Spells.cast(LivingEntity, Spell, int)` |
+| `spell/rules/SpellDeclarations.java`, `spell/Spells.java`, `spell/ModItems.java`, `spell/SpellScrollItem.java` | `MIRROR` and `GHOSTRAIL`; `Spells.cast(LivingEntity, Spell, int)` and `Spells.refusedFor(LivingEntity, Spell)` (the one creative refusal for casters that are not scrolls) |
 | `effect/ModEffects.java`, `MirrorEffect.java`, `GhostrailEffect.java` (new) | The two effects and the `casting_scroll` marker effect |
 | `particle/ModParticles.java` | `CASTING_SCROLL` |
 | `evoking/Dice.java` | `CASTER_ROLL`, `SCROLL_MOB`, `MIRROR_CONFUSION`, `unscriptAll()` |
@@ -48,7 +48,7 @@
 | `evoking/Ghostrail.java`, `EvokingAttachments.java` (new) | The per-tick driver, damage cancel, trail, end; the saved marks and cooldowns |
 | `mixin/PlayerGhostrailMixin.java`, `resources/spellcraft.mixins.json` | The one Mixin |
 | `infinity/AbilitySync.java` (renamed from `InfinityAbilitySync`), `infinity/InfinityAttachments.java` | The shared abilities sync; the Ghostrail granted mark |
-| `evoking/BoundVex.java`, `VexSummons.java`, `CasterGoal.java`, `CasterSpellGoal.java` (new), `TeamMoves.java`, `TeamMoveKits.java`, `RaidMove.java`, `VexRescues.java` | The Caster; the Raid's Caster rules; no rescue for a Ghostrail carrier |
+| `evoking/BoundVex.java`, `VexSummons.java`, `CasterGoal.java`, `CasterSpellGoal.java`, `ScrollCasting.java` (new), `TeamMoves.java`, `TeamMoveKits.java`, `TeamMoveTriggers.java`, `RaidMove.java`, `VexRescues.java` | The Caster; the shared cast pieces; the Raid's Caster rules; no rescue for a Ghostrail carrier |
 | `evoking/ScrollMobs.java`, `GhostrailChaseGoal.java` (new) | Mobs that carry scrolls |
 | `evoking/VillagerGhost.java`, `VillagerGhosts.java` (new), `ModEntities.java` | The ghost, its records, its spawner |
 | `spell/Allies.java`, `spell/GolemMercy.java` | `Allies.isPlayersSide` moves out of `GolemMercy` |
@@ -56,7 +56,7 @@
 | `scripts/robe_texture.py`, `scripts/test_robe_texture.py` (new), `scripts/spell_icons.py`, `scripts/test_spell_icons.py` | The robe texture; the two new glyphs |
 | `assets/spellcraft/{lang,items,models,textures}` | Names, item definitions, icons, robe texture |
 | `gametest/ScrollTestSupport.java` (new) | Shared helpers: scenes, hostiles, ticking |
-| `gametest/{SpellScroll,Mirror,MirrorConfusion,Caster,CasterSpell,Ghostrail,GhostrailMob,ScrollMob,VillagerGhost}GameTests.java` (new), `InfinityAbilityGameTests`, `ScribingGameTests` (edited) | Part 7 GameTests |
+| `gametest/{SpellScroll,Mirror,MirrorConfusion,GhostrailFlight,Ghostrail,Caster,CasterSpell,ScrollMob,VillagerGhost}GameTests.java` (new), `InfinityAbilityGameTests`, `ScribingGameTests`, `BoundVexLavaGameTests`, `BoundVexDrowningGameTests`, `BoundVexVoidGameTests` (edited) | Part 7 GameTests (mob-carrier Ghostrail tests live in `GhostrailGameTests`) |
 | `src/test/…/SpellAssetsTest.java`, `SpellDeclarationsTest`, `CastRulesTest` | The assets and rules of the two spells |
 | `README.md`, `CLAUDE.md`, `neoforge.mods.toml`, `docs/api-notes.md` §26, `docs/playtest-checklist.md`, `docs/mutation-testing.md`, the parent spec's inline notes | Docs |
 
@@ -72,11 +72,11 @@ All Java paths are under `src/main/java/io/github/willrieske/spellcraft/`; unit 
 
 - [ ] **Step 1: Take the baseline**
 
-Check `build/mc-src` and `build/nf-src` exist (extract them per CLAUDE.md "Minecraft sources" if not). Run `./gradlew build` then `./gradlew runGameTestServer` once, both in the background (a cold build takes 5-15 min; `build` also warms the Gradle cache so the commit gate's own `build` fits in 300 s). Expected: green; note the `All N required tests passed` number `N` (650 expected). Write it into the last bullet of §26 (Step 2) before the commit.
+Check `build/mc-src` and `build/nf-src` exist (extract them per CLAUDE.md "Minecraft sources" if not). Run `./gradlew build` and then `./gradlew runGameTestServer` once, one after the other in a single background command (two Gradle runs at once block on the build lock and can fail on the `run/` directory; a cold build takes 5-15 min; `build` also warms the Gradle cache so the commit gate's own `build` fits in 300 s). Expected: green; note the `All N required tests passed` number `N` (650 expected). Write it into the last bullet of §26 (Step 2) before the commit.
 
 - [ ] **Step 2: Verify the facts and write `docs/api-notes.md` §26**
 
-Check each line below in the sources (`Grep` the quoted names in `build/mc-src` and `build/nf-src`; keep or correct the cited line). They were read once while writing this plan; confirm them. If a line is wrong, write what the sources say and tell the coordinator which later task is affected. Lines marked **(verify)** were not read to the end: read them now.
+Check each line below in the sources (`Grep` the quoted names in `build/mc-src` and `build/nf-src`; keep or correct the cited line). They were read once while writing this plan; confirm them. If a line is wrong, write what the sources say and tell the coordinator which later task is affected. Every fact below was checked once already; no `(verify)` marker may reach the committed note, so if a check disagrees, write the corrected fact in the note's own words.
 
 ```markdown
 ## 26. Evoking II, Part 7: Casters, Mirror, Ghostrail, scroll mobs, villager ghosts (Evoking II Part 7, Task 1)
@@ -89,21 +89,34 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   (`world/entity/LivingEntity.java:1050-1057`) only when the entity had no such effect (`effect == null`), after the instance is
   already in `activeEffects`. An existing effect goes through `effect.update` and `onEffectUpdated` instead. `forceAddEffect`
   (`:1085`) and a reload from a save (`:832-836`, `activeEffects.put`) never call the `MobEffect` hook. So a scroll, a Caster, a mob
-  and `/effect give` all start Mirror through `addEffect`, and a relog mid-effect does not spawn a second set. The client also calls
-  `addEffect`'s path when the effect packet arrives, so the hook must test `level().isClientSide()`.
-- **Player.noPhysics.** `Player.tick` (`world/entity/player/Player.java:240`) runs `net.neoforged.neoforge.event.EventHooks.firePlayerTickPre(this)`
-  and then `this.noPhysics = this.isSpectator();` (**line 242 in this build**; the spec says 243, the NeoForge patch shifts it). That is the
-  first `isSpectator()` call (ordinal 0); `Player.isSpectator()` is abstract, so the Mixin target owner is `Player`. `Entity.noPhysics`
+  and `/effect give` all start Mirror through `addEffect`, and a relog mid-effect does not spawn a second set. The client never reaches
+  that hook: `ClientPacketListener.java:1832` calls `forceAddEffect`, which reaches only `LivingEntity.onEffectAdded(instance, source)`
+  (`LivingEntity.java:1116`, a server-only body). The `isClientSide()` test in `MirrorEffect.onEffectAdded` is therefore a harmless
+  guard, not a necessity; build no client behavior on a client-side hook call.
+- **Death and removal.** A dead *player's* effects are NOT cleared (they stay until the respawn), so an effect-based "the caster is
+  gone" check never fires for a player on the death screen; Mirror needs a `LivingDeathEvent` handler for players. A *mob's*
+  `LivingEntity.remove(reason)` (`LivingEntity.java:742-745`) calls `triggerOnDeathMobEffects` (`:760`, which calls
+  `MobEffect.onMobRemoved(ServerLevel, LivingEntity, int, Entity.RemovalReason)`, `MobEffect.java:113`, then clears the effects) only for
+  `KILLED` and `DISCARDED`; `UNLOADED_TO_CHUNK` (`Entity.java:4421`) skips it. A removed mob is also no longer found by
+  `server.getEntities().get(uuid)`.
+- **Player.noPhysics.** `Player.tick()` (`world/entity/player/Player.java:241`) runs `net.neoforged.neoforge.event.EventHooks.firePlayerTickPre(this)`
+  (`:242`) and then `this.noPhysics = this.isSpectator();` (`:243`, the spec's number is right). That is the first `isSpectator()` call
+  in `tick()` (ordinal 0; the second is the `if (this.isSpectator() || this.isPassenger())` on `:244`). `Player.isSpectator()` is
+  concrete (`:1721`, `return this.gameMode() == GameType.SPECTATOR`), and the Mixin owner is `Player`. `Entity.noPhysics`
   is a public field (`world/entity/Entity.java:253`). `Entity.isInWall()` returns false while `noPhysics` (`:2321-2323`), so a Ghostrail
-  carrier is never "in a wall"; the Casters and ghosts test the effect first.
+  carrier is never "in a wall"; the Casters and ghosts test the effect first. `Entity.isAffectedByBlocks()` (`:1030`) is
+  `!noPhysics`, so a Ghostrail carrier also triggers no block effects (portals, pressure plates, cobweb, honey, powder snow); this is
+  a playtest item (Task 15).
 - **Target changes.** `LivingChangeTargetEvent(LivingEntity, @Nullable LivingEntity, ILivingTargetType)`
   (`event/entity/living/LivingChangeTargetEvent.java:40`): `getNewAboutToBeSetTarget()` `:51`, `setNewAboutToBeSetTarget` `:60`,
   `getTargetType()` `:67`; the two stock types are `LivingTargetType.MOB_TARGET` (`Mob.setTarget`) and `BEHAVIOR_TARGET`
-  (`:91-100`). Cancelling keeps the old target. `TargetGoal` re-sets its target every tick (`TargetGoal.java:70`) **(verify)**, so Mirror
+  (`:91-100`). Cancelling keeps the old target. `TargetGoal` re-sets its target every tick (`TargetGoal.java:70`), so Mirror
   rolls only when the new target differs from `mob.getTarget()`.
 - **Spawn equipment.** `FinalizeSpawnEvent(Mob, …)` (`event/entity/living/FinalizeSpawnEvent.java:55`) fires before `Mob.finalizeSpawn`
-  runs vanilla's `populateDefaultEquipmentSlots` (`world/entity/Mob.java:992`) **(verify the order in `Mob.finalizeSpawn` and in
-  `Evoker`, `Vindicator` and `Pillager`: none fills the offhand)**. `Mob.setDropChance(EquipmentSlot, float)` (`Mob.java:1137`). **(verify)** which call posts the event: NeoForge's `EventHooks.finalizeMobSpawn` does; `Mob.finalizeSpawn` itself does not, so the scroll-mob GameTests call the hook.
+  runs vanilla's `populateDefaultEquipmentSlots` (`world/entity/Mob.java:992`). `Mob.finalizeSpawn` never fills equipment, and `Vindicator`
+  and `Pillager` set only `MAINHAND`, so an offhand scroll survives. `Mob.setDropChance(EquipmentSlot, float)` (`Mob.java:1137`).
+  NeoForge's `EventHooks.finalizeMobSpawn` (`EventHooks.java:334`) posts the event; `Mob.finalizeSpawn` is deprecated and does not, so the
+  scroll-mob GameTests call the hook (a direct `finalizeSpawn` call fails the `-Werror` build).
   `Mob.dropCustomDeathLoot` (`Mob.java:920-944`) drops a slot's item only when `killedByPlayer || preserved`, with probability
   `dropChance` raised by Looting (`processEquipmentDropChance`), so a 0.5 offhand chance is "half of player kills".
 - **Saved data.** `SavedDataType<T>(Identifier, Supplier<T>, Codec<T>)` (`world/level/saveddata/SavedDataType.java:14-19`) and
@@ -113,10 +126,12 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   `EntityType.Builder.noSave()` (`EntityType.java:609`), `.noLootTable()` `:648`. A `LivingEntity` subclass needs `getMainArm()`
   (`LivingEntity.java:3536`, the only abstract method) and attributes from `EntityAttributeCreationEvent` with
   `LivingEntity.createLivingAttributes()` (`:346`). `Entity.shouldBeSaved()` (`Entity.java:4125`), `isPickable`, `isAttackable` (`:3097`),
-  `LivingEntity.isInvulnerableTo(ServerLevel, DamageSource)` (`:4214`), `getDefaultDimensions(Pose)` (protected, `Entity.java:3917`).
-  `LivingEntity.serverAiStep()` (`:3336`) runs each tick for a server-side non-`Mob` living entity: `aiStep` calls it when
-  `isEffectiveAi() && !isClientSide()` (`:3181`), and `isEffectiveAi()` is `isLocalInstanceAuthoritative()` (`Entity.java:3754`)
-  **(verify it is true for a server-side non-player `LivingEntity`)**; `xxa`/`zza` (`:257`, `:259`) drive `travel`.
+  `LivingEntity.isInvulnerableTo(ServerLevel, DamageSource)` (`:4214`). `Entity` has only `getDimensions(Pose)` (`:3848`), which
+  `LivingEntity` makes `final` (`LivingEntity.java:3913`); a subclass overrides `LivingEntity.getDefaultDimensions(Pose)` (protected,
+  `LivingEntity.java:3917`), never `getDimensions`. `LivingEntity.serverAiStep()` (`:3336`) runs each tick for a server-side non-`Mob`
+  living entity: `aiStep` calls it when `isEffectiveAi() && !isClientSide()` (`:3181`), and `isEffectiveAi()` is
+  `isLocalInstanceAuthoritative()` (`Entity.java:3754`), true server-side when no passenger controls the entity; `xxa`/`zza`
+  (`:257`, `:259`) drive `travel`.
 - **Goals.** `GoalSelector.tick` (`world/entity/ai/goal/GoalSelector.java:66-90`) stops a goal that cannot continue or is preempted
   (`stop()`) before it starts the new one (`start()`), so a preempted `CasterSpellGoal.stop()` runs before the Raid goal's `start()`.
 - **Damage and effects.** `DamageTypes.GENERIC_KILL` and `FELL_OUT_OF_WORLD` (`world/damagesource/DamageTypes.java:24,58`);
@@ -125,13 +140,13 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   `ParticleTypes.WHITE_SMOKE`, `POOF`, `ENTITY_EFFECT`. `SoundEvents.EVOKER_PREPARE_SUMMON` `:614`, `EVOKER_CAST_SPELL` `:608`, `VEX_DEATH` `:1675`.
   `ServerPlayer.doTick()` is public (`server/level/ServerPlayer.java:668`).
 - **Client: the vex.** `VexModel.createBodyLayer()` is `LayerDefinition.create(mesh, 32, 32)`
-  (`client/model/monster/vex/VexModel.java:67`): the robe texture is 32 x 32. The arms (`right_arm`, `left_arm`) are private fields; reach
+  (`client/model/monster/vex/VexModel.java:71`; `createBodyLayer` is `:33`): the robe texture is 32 x 32. The arms (`right_arm`, `left_arm`) are private fields; reach
   them by `root().getChild("body").getChild("right_arm")`. `LivingEntityRenderer.model` is protected and not final
   (`client/renderer/entity/LivingEntityRenderer.java:45`), so `BoundVexRenderer` can swap in a `BoundVexModel` after `super(context)`.
   `VexRenderer` builds its model in `super(...)` (`VexRenderer.java:22`). `RenderTypes.entityCutout(Identifier)` `:604`,
-  `entityTranslucent(Identifier)` `:652` (`client/renderer/rendertype/RenderTypes.java`); there is no `entityCutoutNoCull`.
+  `entityTranslucent(Identifier)` `:652` (`client/renderer/rendertype/RenderTypes.java`); there is no `entityCutoutNoCull`; `entityCutoutZOffset(Identifier)` `:612` draws an overlay without z-fighting.
   `LivingEntityRenderer.getModelTint(S)` `:119` and `getRenderType(S, boolean, boolean, boolean)` `:125` are overridable.
-  `RenderLayer.renderColoredCutoutModel` (`RenderLayer.java:43`) always uses `entityCutout`; for alpha use
+  `RenderLayer.renderColoredCutoutModel` (`RenderLayer.java:39`) always uses `entityCutout`; for alpha use
   `submitNodeCollector.submitModel(model, state, poseStack, RenderTypes.entityTranslucent(texture), light, overlay, argb, null, outline)`.
 - **Client: villager.** `VillagerProfessionLayer` (`client/renderer/entity/layers/VillagerProfessionLayer.java`) keeps `getIdentifier`,
   `getHatData` and the caches private/instance-bound and draws with `renderColoredCutoutModel`; the ghost needs its own copy that draws
@@ -141,12 +156,23 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   profile is a synced `ResolvableProfile` set through `entity.setComponent(DataComponents.PROFILE, profile)` (`Entity.java:4306` →
   `Mannequin.applyImplicitComponent` `:167`); `ResolvableProfile.createResolved(GameProfile)` `:57`, `createUnresolved(UUID)` `:65`;
   `EntityDataSerializers.RESOLVABLE_PROFILE` `:146` and `STRING` `:58`. The description label is drawn through the render state's name
-  tag: clear `state.nameTag` on the extracted state **(verify the field name in `EntityRenderState`)**.
-  `EntityRenderDispatcher.extractEntity(entity, partialTicks)` `:128` returns a state; `submit(state, camera, x, y, z, poseStack, collector)`
+  tag and its below-name line: clear **both** `state.nameTag` and `state.scoreText` (`EntityRenderState.java:33-34`) on the extracted state;
+  `EntityRenderer.extractNameTags` sets `scoreText = entity.belowNameDisplay()` within 10 blocks (`EntityRenderer.java:272`) and
+  `submitNameDisplay` draws it (`:131-135`). `ClientMannequin.setSkin` runs only inside `ClientMannequin.tick()`, and a stand-in that is
+  never added to the level is never ticked, so the stand-in's own skin stays `DEFAULT_SKIN` forever: after `extractEntity`, for an
+  `AvatarRenderState` set `state.skin = Minecraft.getInstance().playerSkinRenderCache().getOrDefault(profile).playerSkin()`
+  (`PlayerSkinRenderCache.getOrDefault` `:63`, `RenderInfo.playerSkin()` `:104`, `Minecraft.playerSkinRenderCache()` `:3013`; it
+  returns the resolved skin or the default on each call, and the dispatcher picks the renderer from `state.skin.model()`). Do not tick the
+  stand-in: `LivingEntity.tick` pushes nearby entities client-side. For the copied animation state, `hurtTime`, `hurtDuration`,
+  `deathTime`, `yBodyRotO`, `yHeadRotO`, `walkAnimation`, `xOld/yOld/zOld`, `xo/yo/zo` and `tickCount` are public
+  (`LivingEntity.java:239-249`, `Entity.java:225-255`); `EntityType.create(Level, EntitySpawnReason)` exists (`EntityType.java:343`),
+  as do `EntityTypes.MANNEQUIN` and `EntityTypes.PLAYER`; `Entity.setComponent` is public (`Entity.java:4306`), so no access transformer
+  is needed. `EntityRenderDispatcher.extractEntity(entity, partialTicks)` `:128` returns a state; `submit(state, camera, x, y, z, poseStack, collector)`
   `:143` translates by `x, y, z` plus the renderer's offset, so the image renderer, which is already translated to the image, passes 0, 0, 0.
 - **Casting look.** `CastingState` reads `LivingEntity.DATA_EFFECT_PARTICLES` (the existing AT line); an effect shows in that list when its
   instance is `visible` and the effect has a particle (`MobEffect` constructor with a `ParticleOptions` function, as `CastingEffect`).
-  `ClientLevel.entitiesForRendering()` **(verify; the plan's CastingParticles loop needs every living entity in render range)**.
+  `ClientLevel.entitiesForRendering()` (`ClientLevel.java:465`) returns `Iterable<Entity>`, so the `CastingParticles` loop over every
+  living entity in render range filters with `instanceof LivingEntity`.
 - **Test seams.** Batches run one after another; tests inside a batch run at the same time (`SpellcraftGameTests.register`).
 - **Baseline.** `./gradlew runGameTestServer`: `All <N> required tests passed` on <date> (Part 6 ended at 650). Every Part 7 gate is this number plus the tests registered so far.
 ```
@@ -201,6 +227,17 @@ class GhostrailDurationTest {
             assertThat(GhostrailDuration.of(kind)).isEqualTo(expected);
         }
     }
+
+    /**
+     * When the constants are read, they should be the spec's numbers: 4800 ticks for a player, 40 for a hostile mob.
+     *
+     * <p>Method under test: the constants of {@link GhostrailDuration}
+     */
+    @Test
+    void constantsAreTheSpecsNumbers() {
+        assertThat(GhostrailDuration.PLAYER_TICKS).isEqualTo(4800);
+        assertThat(GhostrailDuration.HOSTILE_TICKS).isEqualTo(40);
+    }
 }
 ```
 
@@ -236,6 +273,20 @@ class GhostNeedTest {
     }
 
     @Nested
+    class BelowHalf {
+        /**
+         * When health is below half of the maximum, belowHalf should be true; at exactly half, false.
+         *
+         * <p>Method under test: {@link GhostNeed#belowHalf(float, float)}
+         */
+        @ParameterizedTest
+        @CsvSource({"9.9,20,true", "10,20,false", "0,20,true", "20,20,false"})
+        void followsTheSpec(float health, float max, boolean expected) {
+            assertThat(GhostNeed.belowHalf(health, max)).isEqualTo(expected);
+        }
+    }
+
+    @Nested
     class BelowQuarter {
         /**
          * When health is below a quarter of the maximum, belowQuarter should be true; at exactly a quarter, false.
@@ -247,6 +298,17 @@ class GhostNeedTest {
         void followsTheSpec(float health, float max, boolean expected) {
             assertThat(GhostNeed.belowQuarter(health, max)).isEqualTo(expected);
         }
+    }
+
+    /**
+     * When the constants are read, they should be the spec's numbers: a crowd is three hostiles within 8 blocks.
+     *
+     * <p>Method under test: the constants of {@link GhostNeed}
+     */
+    @Test
+    void constantsAreTheSpecsNumbers() {
+        assertThat(GhostNeed.CROWD).isEqualTo(3);
+        assertThat(GhostNeed.CROWD_RANGE).isEqualTo(8.0);
     }
 }
 ```
@@ -292,6 +354,8 @@ class MirrorRuleTest {
         assertThat(MirrorRule.CONFUSION_BOUND).isEqualTo(14);
         assertThat(MirrorRule.LIFE_TICKS).isEqualTo(7200);
         assertThat(MirrorRule.DURATION_TICKS).isEqualTo(7200);
+        assertThat(MirrorRule.WANDER_RADIUS).isEqualTo(6.0);
+        assertThat(MirrorRule.CONFUSION_RANGE).isEqualTo(16.0);
     }
 }
 ```
@@ -374,6 +438,7 @@ class CasterRulesTest {
         assertThat(CasterRules.MIRROR_COOLDOWN_TICKS).isEqualTo(7200);
         assertThat(CasterRules.GHOSTRAIL_COOLDOWN_TICKS).isEqualTo(4800);
         assertThat(CasterRules.RANGE).isEqualTo(16.0);
+        assertThat(CasterRules.MIRROR_HOSTILES).isEqualTo(2);
     }
 }
 ```
@@ -510,13 +575,8 @@ class GhostRecordsPropertiesTest {
 
 ```java
 class GrantedAbilitiesTest {
+    /** The plan that changes nothing and keeps no mark. */
     private static final Plan NOTHING = new Plan(false, false, false, false, false, false);
-
-    private static State state(
-            PlayerMode mode, boolean infinity, boolean ghostrail, boolean infinityMarked, boolean ghostrailMarked,
-            boolean mayfly, boolean instabuild, boolean flying) {
-        return new State(mode, infinity, ghostrail, infinityMarked, ghostrailMarked, mayfly, instabuild, flying);
-    }
 
     @Nested
     class Decide {
@@ -530,10 +590,12 @@ class GrantedAbilitiesTest {
         @MethodSource("infinityRows")
         void infinityRowsKeepTheirMeaning(
                 PlayerMode mode, boolean infinity, boolean marked, boolean mayfly, boolean instabuild, Plan expected) {
-            assertThat(GrantedAbilities.decide(state(mode, infinity, false, marked, false, mayfly, instabuild, false)))
+            assertThat(GrantedAbilities.decide(
+                            new State(mode, infinity, false, marked, false, mayfly, instabuild, false)))
                     .isEqualTo(expected);
         }
 
+        /** The rows of the old Infinity table: mode, active, marked, mayfly, instabuild and the expected plan. */
         static Stream<Arguments> infinityRows() {
             Plan grant = new Plan(false, true, true, false, true, false);
             Plan hold = new Plan(false, false, false, false, true, false);
@@ -568,10 +630,11 @@ class GrantedAbilitiesTest {
         @ParameterizedTest(name = "{0} marked={1} mayfly={2} flying={3} -> {4}")
         @MethodSource("ghostrailRows")
         void ghostrailRows(PlayerMode mode, boolean marked, boolean mayfly, boolean flying, Plan expected) {
-            assertThat(GrantedAbilities.decide(state(mode, false, true, false, marked, mayfly, false, flying)))
+            assertThat(GrantedAbilities.decide(new State(mode, false, true, false, marked, mayfly, false, flying)))
                     .isEqualTo(expected);
         }
 
+        /** The Ghostrail rows: mode, marked, mayfly, flying and the expected plan. */
         static Stream<Arguments> ghostrailRows() {
             return Stream.of(
                     Arguments.of(PlayerMode.SURVIVAL, false, false, false, new Plan(false, true, false, true, false, true)),
@@ -593,7 +656,7 @@ class GrantedAbilitiesTest {
         @Test
         void ghostrailEndingKeepsInfinitys() {
             // Arrange
-            State s = state(PlayerMode.SURVIVAL, true, false, true, true, true, true, true);
+            State s = new State(PlayerMode.SURVIVAL, true, false, true, true, true, true, true);
             // Act & Assert
             assertThat(GrantedAbilities.decide(s)).isEqualTo(new Plan(true, true, true, false, true, false));
         }
@@ -606,7 +669,7 @@ class GrantedAbilitiesTest {
         @Test
         void infinityEndingKeepsGhostrails() {
             // Arrange
-            State s = state(PlayerMode.SURVIVAL, false, true, true, true, true, true, true);
+            State s = new State(PlayerMode.SURVIVAL, false, true, true, true, true, true, true);
             // Act & Assert
             assertThat(GrantedAbilities.decide(s)).isEqualTo(new Plan(true, true, false, true, false, true));
         }
@@ -619,7 +682,7 @@ class GrantedAbilitiesTest {
         @Test
         void bothAtOnce() {
             assertThat(GrantedAbilities.decide(
-                            state(PlayerMode.SURVIVAL, true, true, false, false, false, false, false)))
+                            new State(PlayerMode.SURVIVAL, true, true, false, false, false, false, false)))
                     .isEqualTo(new Plan(false, true, true, true, true, true));
         }
 
@@ -632,7 +695,7 @@ class GrantedAbilitiesTest {
         @Test
         void endingInCreativeResetsToCreative() {
             assertThat(GrantedAbilities.decide(
-                            state(PlayerMode.CREATIVE, false, false, false, true, true, true, true)))
+                            new State(PlayerMode.CREATIVE, false, false, false, true, true, true, true)))
                     .isEqualTo(new Plan(true, false, false, false, false, false));
         }
 
@@ -688,6 +751,9 @@ class GrantedAbilitiesPropertiesTest {
                 mayfly || p.mayfly(), instabuild || p.instabuild(), flying || p.flying());
     }
 
+    /**
+     * Whether the game mode leaves abilities to granted sources (survival and adventure, not creative or spectator).
+     */
     private static boolean granting(PlayerMode mode) {
         return mode == PlayerMode.SURVIVAL || mode == PlayerMode.ADVENTURE;
     }
@@ -729,23 +795,71 @@ class GrantedAbilitiesPropertiesTest {
         }
     }
 
-    /**
-     * For any state in creative or spectator, a player who could fly before should still fly after: those modes' own
-     * abilities are never taken away.
-     *
-     * <p>Method under test: {@link GrantedAbilities#decide(State)}
-     */
-    @Property
-    void creativeAndSpectatorKeepFlight(
-            @ForAll("flyingModes") PlayerMode mode, @ForAll boolean infinity, @ForAll boolean ghostrail,
-            @ForAll boolean iMark, @ForAll boolean gMark, @ForAll boolean instabuild, @ForAll boolean flying) {
-        State s = new State(mode, infinity, ghostrail, iMark, gMark, true, instabuild, flying);
-        assertThat(after(s, GrantedAbilities.decide(s)).mayfly()).isTrue();
-    }
+    /** Properties that bind {@code decide} itself for the two game modes that own their abilities. */
+    // jqwik refuses static @Group classes, so ClassCanBeStatic cannot apply.
+    @Group
+    @SuppressWarnings("ClassCanBeStatic")
+    class CreativeAndSpectator {
+        /** The two game modes whose abilities the game mode owns. */
+        @Provide
+        Arbitrary<PlayerMode> ownModes() {
+            return Arbitraries.of(PlayerMode.CREATIVE, PlayerMode.SPECTATOR);
+        }
 
-    @Provide
-    Arbitrary<PlayerMode> flyingModes() {
-        return Arbitraries.of(PlayerMode.CREATIVE, PlayerMode.SPECTATOR);
+        /**
+         * For any creative or spectator state (any flags, any marks), decide should never set mayfly, instabuild or
+         * flying: those modes' own abilities are never granted over.
+         *
+         * <p>Method under test: {@link GrantedAbilities#decide(State)}
+         */
+        @Property
+        void neverSetsAFlag(
+                @ForAll("ownModes") PlayerMode mode, @ForAll boolean infinity, @ForAll boolean ghostrail,
+                @ForAll boolean iMark, @ForAll boolean gMark, @ForAll boolean mayfly, @ForAll boolean instabuild,
+                @ForAll boolean flying) {
+            // Arrange
+            State s = new State(mode, infinity, ghostrail, iMark, gMark, mayfly, instabuild, flying);
+            // Act
+            Plan p = GrantedAbilities.decide(s);
+            // Assert
+            assertThat(p.mayfly() || p.instabuild() || p.flying()).isFalse();
+        }
+
+        /**
+         * For any creative or spectator state with neither mark set, decide should do nothing at all (the plan is
+         * exactly {@code NOTHING}): it never resets what it did not grant.
+         *
+         * <p>Method under test: {@link GrantedAbilities#decide(State)}
+         */
+        @Property
+        void doesNothingWithoutAMark(
+                @ForAll("ownModes") PlayerMode mode, @ForAll boolean infinity, @ForAll boolean ghostrail,
+                @ForAll boolean mayfly, @ForAll boolean instabuild, @ForAll boolean flying) {
+            // Arrange
+            State s = new State(mode, infinity, ghostrail, false, false, mayfly, instabuild, flying);
+            // Act & Assert
+            assertThat(GrantedAbilities.decide(s)).isEqualTo(new Plan(false, false, false, false, false, false));
+        }
+
+        /**
+         * For a creative or spectator player who starts with the game mode's own abilities and any marks, applying the
+         * plan should leave mayfly set, and instabuild too in creative.
+         *
+         * <p>Method under test: {@link GrantedAbilities#decide(State)}
+         */
+        @Property
+        void keepsItsOwnAbilities(
+                @ForAll("ownModes") PlayerMode mode, @ForAll boolean infinity, @ForAll boolean ghostrail,
+                @ForAll boolean iMark, @ForAll boolean gMark) {
+            // Arrange
+            boolean creative = mode == PlayerMode.CREATIVE;
+            State s = new State(mode, infinity, ghostrail, iMark, gMark, true, creative, !creative);
+            // Act
+            State result = after(s, GrantedAbilities.decide(s));
+            // Assert
+            assertThat(result.mayfly()).isTrue();
+            assertThat(result.instabuild()).isEqualTo(creative);
+        }
     }
 
     /**
@@ -776,7 +890,16 @@ Expected: FAIL to compile (the classes do not exist).
 /** How long a Ghostrail lasts for each kind of carrier (Parts 6-7 spec §7.3, "Durations"). */
 public final class GhostrailDuration {
     /** What kind of thing carries the effect. */
-    public enum Kind { PLAYER, BOUND_VEX, HOSTILE_MOB, VILLAGER_GHOST }
+    public enum Kind {
+        /** A player (4 minutes). */
+        PLAYER,
+        /** A Bound Vex (4 minutes). */
+        BOUND_VEX,
+        /** A hostile mob that cast it on itself (2 seconds). */
+        HOSTILE_MOB,
+        /** A villager ghost (until the ghost is gone). */
+        VILLAGER_GHOST
+    }
 
     /** Ticks for a player or a Bound Vex (4 minutes). */
     public static final int PLAYER_TICKS = 4800;
@@ -893,7 +1016,14 @@ public final class MirrorRule {
 /** The Caster's numbers and tests (Parts 6-7 spec §6.2). */
 public final class CasterRules {
     /** What the Caster does about its distance from its target. */
-    public enum Approach { BACK_OFF, CLOSE_IN, HOLD }
+    public enum Approach {
+        /** Closer than {@link #KEEP_MIN}: move away. */
+        BACK_OFF,
+        /** Farther than {@link #KEEP_MAX}: move closer. */
+        CLOSE_IN,
+        /** Between the two: stay. */
+        HOLD
+    }
 
     /** Nearest the Caster stays to its target. */
     public static final double KEEP_MIN = 4.0;
@@ -983,15 +1113,27 @@ public final class GhostRecords {
 ```java
 /**
  * Which creative-style abilities Infinity and Ghostrail should hold (Parts 6-7 spec §7.3; formerly
- * {@code InfinityAbilities}). Infinity grants {@code mayfly} and {@code instabuild}; Ghostrail grants {@code mayfly} and
- * {@code flying}. {@code invulnerable} is deliberately absent. A source's "mark" records that it, not vanilla or another
- * mod, set the flags, so a revoke is never applied twice.
+ * {@code InfinityAbilities}). Infinity grants {@code mayfly} and {@code instabuild}; Ghostrail grants
+ * {@code mayfly} and {@code flying}. {@code invulnerable} is deliberately absent. A source's "mark" records that
+ * it, not vanilla or another mod, set the flags, so a revoke is never applied twice.
  */
 public final class GrantedAbilities {
-    /** Everything the decision reads. */
+    /**
+     * Everything the decision reads.
+     *
+     * @param mode the player's game mode
+     * @param infinity whether the Infinity effect is active
+     * @param ghostrail whether the Ghostrail effect is active
+     * @param infinityMarked whether Infinity set the flags it holds
+     * @param ghostrailMarked whether Ghostrail set the flags it holds
+     * @param mayfly the player's current {@code mayfly} flag
+     * @param instabuild the player's current {@code instabuild} flag
+     * @param flying the player's current {@code flying} flag
+     */
     public record State(
             PlayerMode mode, boolean infinity, boolean ghostrail, boolean infinityMarked, boolean ghostrailMarked,
             boolean mayfly, boolean instabuild, boolean flying) {
+        /** Refuses a missing game mode. */
         public State {
             Objects.requireNonNull(mode, "mode");
         }
@@ -1000,6 +1142,13 @@ public final class GrantedAbilities {
     /**
      * What to do, in this order: reset to the game mode's abilities if {@code reset}; set {@code mayfly},
      * {@code instabuild} and {@code flying} true where they say so; store the two marks.
+     *
+     * @param reset whether to reset to the game mode's own abilities first
+     * @param mayfly whether to set {@code mayfly}
+     * @param instabuild whether to set {@code instabuild}
+     * @param flying whether to set {@code flying}
+     * @param infinityMarked the Infinity mark to store
+     * @param ghostrailMarked the Ghostrail mark to store
      */
     public record Plan(
             boolean reset, boolean mayfly, boolean instabuild, boolean flying, boolean infinityMarked,
@@ -1055,7 +1204,9 @@ public static void sync(ServerPlayer player) {
     }
     abilities.mayfly |= plan.mayfly();
     abilities.instabuild |= plan.instabuild();
-    player.setData(InfinityAttachments.GRANTED, plan.infinityMarked());
+    if (plan.infinityMarked() != player.getData(InfinityAttachments.GRANTED)) {
+        player.setData(InfinityAttachments.GRANTED, plan.infinityMarked());
+    }
     if (plan.changesAbilities()) {
         player.onUpdateAbilities();
     }
@@ -1069,7 +1220,7 @@ Expected: PASS, including `ArchitectureTest.spellRulesCoreIsPure` and the unchan
 
 - [ ] **Step 5: Gates and commit**
 
-Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice. Expected: `All 650 required tests passed` both times (no GameTest was added; the Infinity ability tests prove the adapter kept the old behavior).
+Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice. Expected: `All N required tests passed` both times, where N is the baseline Task 1 recorded (no GameTest was added; the Infinity ability tests prove the adapter kept the old behavior).
 
 ```bash
 git add src
@@ -1082,10 +1233,10 @@ git commit -m "feat(spells): pure core for Casters, Mirror, Ghostrail and villag
 
 **Files:**
 
-- Modify: `spell/rules/SpellDeclarations.java`, `spell/Spells.java`, `spell/ModItems.java`, `spell/SpellScrollItem.java`, `effect/ModEffects.java`, `particle/ModParticles.java`, `Spellcraft.java` (no change expected), `scripts/spell_icons.py`, `scripts/test_spell_icons.py`
+- Modify: `spell/rules/SpellDeclarations.java`, `spell/Spells.java`, `spell/ModItems.java`, `spell/SpellScrollItem.java`, `effect/ModEffects.java`, `particle/ModParticles.java`, `scripts/spell_icons.py`, `scripts/test_spell_icons.py`
 - Create: `effect/MirrorEffect.java`, `effect/GhostrailEffect.java` (empty hooks for now), `assets/spellcraft/items/mirror_scroll.json`, `ghostrail_scroll.json`, `models/item/mirror_scroll.json`, `ghostrail_scroll.json`, the four generated PNGs
 - Modify: `assets/spellcraft/lang/en_us.json`, `gametest/ScribingGameTests.java`, `gametest/SpellcraftGameTests.java`
-- Create: `gametest/SpellScrollGameTests.java`
+- Create: `gametest/SpellScrollGameTests.java`, `gametest/ScrollTestSupport.java` (only `plainPlayer` and `floor` for now; Task 4 adds the rest)
 - Test: `src/test/…/spell/rules/SpellDeclarationsTest.java`, `CastRulesTest.java`, `SpellAssetsTest.java`
 
 **Interfaces:**
@@ -1093,35 +1244,30 @@ git commit -m "feat(spells): pure core for Casters, Mirror, Ghostrail and villag
 - Consumes: Task 2 (`MirrorRule.DURATION_TICKS`, `GhostrailDuration.PLAYER_TICKS`).
 - Produces:
   - `SpellDeclarations.MIRROR` (`mirror`, `SpellTier.AMAZING`, `Recast.REFUSE`, dispellable `true`, redundantInCreative `false`) and `GHOSTRAIL` (`ghostrail`, `EXTREME`, `REFUSE`, dispellable `true`, redundantInCreative `true`); `ALL = [UPSIDE_DOWN, INFINITY, TRAILING, EVOKING, MIRROR, GHOSTRAIL]`.
-  - `Spells.MIRROR`, `Spells.GHOSTRAIL`, `Spells.ALL` in that order; `static boolean Spells.cast(LivingEntity target, Spell spell, int ticks)` (adds `new MobEffectInstance(spell.effect(), ticks, 0, false, false, true)`; returns `addEffect`'s result).
+  - `Spells.MIRROR`, `Spells.GHOSTRAIL`, `Spells.ALL` in that order; `static boolean Spells.cast(LivingEntity target, Spell spell, int ticks)` (adds `new MobEffectInstance(spell.effect(), ticks, 0, false, false, true)`; returns `addEffect`'s result); `static boolean Spells.refusedFor(LivingEntity target, Spell spell)` (the one creative refusal for casters that are not scrolls: a creative or spectator `Player` and a spell whose rules say `redundantInCreative`; Tasks 9 and 12 call it, the scroll keeps using `CastRules`).
   - `ModEffects.MIRROR`, `ModEffects.GHOSTRAIL`, `ModEffects.CASTING_SCROLL` (all `DeferredHolder<MobEffect, MobEffect>`); `ModParticles.CASTING_SCROLL`; `ModItems.MIRROR_SCROLL`, `ModItems.GHOSTRAIL_SCROLL`.
-  - `MirrorEffect extends MobEffect` (color `0xE066FF`, `BENEFICIAL`) and `GhostrailEffect extends MobEffect` (color `0xDDE6FF`, `BENEFICIAL`), both with an `onEffectAdded` override that calls `super` and is otherwise empty until Tasks 4 and 6.
+  - `MirrorEffect extends MobEffect` (color `0xE066FF`, `BENEFICIAL`) and `GhostrailEffect extends MobEffect` (color `0xDDE6FF`, `BENEFICIAL`), both with an `onEffectAdded` override that calls `super` and is otherwise empty until Task 4 (Mirror's images) and Task 7 (Ghostrail's start).
 
-Read `SpellDeclarationsTest` and `CastRulesTest` first: add a row per spell in each existing table (do not rewrite the files).
+Read `SpellDeclarationsTest` and `CastRulesTest` first; edit them as below (do not rewrite the files).
 
 - [ ] **Step 1: Write the failing tests**
 
-In `SpellDeclarationsTest`, add the rows for the two new spells to whatever table asserts each declaration's name, tier, recast, dispellable and redundant flags (copy the shape of the Evoking row), and make `ALL`'s expected order `[UPSIDE_DOWN, INFINITY, TRAILING, EVOKING, MIRROR, GHOSTRAIL]`:
+`SpellDeclarationsTest` has no table: it has one `@Test` per spell plus `declaresEverySpellWithItsTier`, whose `containsExactly` lists the four spells. Extend that `containsExactly` to `UPSIDE_DOWN, INFINITY, TRAILING, EVOKING, MIRROR, GHOSTRAIL`, add `assertThat(SpellDeclarations.MIRROR.tier()).isEqualTo(SpellTier.AMAZING)` and `GHOSTRAIL.tier()` `EXTREME` (with `isTop()` true) there, and add one test per new spell in the shape of `evokingRefusesARecastIsDispellableAndCastsInCreative` (When/should Javadoc, `Method under test: {@link SpellDeclarations#MIRROR}`):
 
-```java
-// name, tier, recast, dispellable, redundantInCreative
-"mirror,    AMAZING,  REFUSE, true, false",
-"ghostrail, EXTREME,  REFUSE, true, true",
-```
+- `mirrorRefusesARecastIsDispellableAndCastsInCreative`: name `mirror`, recast `REFUSE`, dispellable true, `redundantInCreative` false.
+- `ghostrailRefusesARecastIsDispellableAndIsRedundantInCreative`: name `ghostrail`, recast `REFUSE`, dispellable true, `redundantInCreative` true.
 
-In `CastRulesTest.decidesEveryCase` add, for `SpellDeclarations.MIRROR` and `GHOSTRAIL`, the rows the table already has for `EVOKING` (a REFUSE, dispellable, not-redundant spell) and `INFINITY` (REFUSE, not dispellable in the old table, redundant) adjusted for the flags above:
+In `CastRulesTest.decidesEveryCase`, the CSV rows go through a `switch (spell)` whose `default` throws `unknown spell in the CSV`, so first add two `case` arms (`case "MIRROR" -> SpellDeclarations.MIRROR;` and `case "GHOSTRAIL" -> SpellDeclarations.GHOSTRAIL;`), then add 16 rows per spell (4 modes x sneaking x active, in the file's `SPELL, sneaking, active, MODE, OUTCOME` order and spacing). The expected values follow `CastRules`:
 
-- Mirror: not active, any mode, not sneaking: `CAST`; sneaking, not active: `CAST`; active, not sneaking: `REFUSE`; active, sneaking: `DISPEL`; creative, not active: `CAST` (not redundant).
-- Ghostrail: survival not active: `CAST`; active, not sneaking: `REFUSE`; active, sneaking: `DISPEL` (dispellable); creative, not active: `REFUSE` (redundant in creative).
+- Mirror (not redundant, dispellable, refuses a recast): not active, any mode, either sneaking value: `CAST`; active and not sneaking: `REFUSE`; active and sneaking: `DISPEL`. Mirror never refuses a first cast.
+- Ghostrail (redundant in creative, dispellable, refuses a recast): every `CREATIVE` row (all eight) is `REFUSE` (the creative refusal wins before the recast rules); every other mode behaves like Mirror (`CAST`, `REFUSE`, `DISPEL`).
 
-Copy the exact row syntax of the file's existing rows (it parameterizes `Caster(sneaking, hasEffect, mode)`); if the file already has a generic loop over `SpellDeclarations.ALL`, add only the expectation lines the loop needs.
-
-In `SpellAssetsTest` add (it iterates `ALL`, so the existing tests now cover both spells' scroll, effect icon, item definition and names), plus:
+In `SpellAssetsTest` add (it iterates `ALL`, so the existing tests now cover both spells' scroll, effect icon, item definition and names), plus this version of the test, which names only what exists after this task:
 
 ```java
 /**
- * When the Part 7 entities, the casting effect and the two item scrolls are named in the lang file, should every key
- * exist: a missing one would show a raw key in game.
+ * When the casting effect is named in the lang file, should its key exist: a missing one would show a raw key in
+ * game. Tasks 4 and 12 add the entity keys to this test as their entities arrive.
  *
  * <p>Method under test: the lang file against the Part 7 names
  */
@@ -1130,19 +1276,16 @@ void part7NamesAreEnglish() throws IOException {
     // Arrange
     String lang = Files.readString(ASSETS.resolve("lang/en_us.json"));
     // Act & Assert
-    assertThat(lang)
-            .contains("\"entity.spellcraft.mirror_image\"")
-            .contains("\"entity.spellcraft.villager_ghost\"")
-            .contains("\"effect.spellcraft.casting_scroll\"");
+    assertThat(lang).contains("\"effect.spellcraft.casting_scroll\"");
 }
 ```
 
-(This test fails until Task 4 and Task 11 add the entity keys; so add only the `effect.spellcraft.casting_scroll` line now and add the two entity lines in the tasks that add the entities. Say so in the commit.)
+Task 4 appends `.contains("\"entity.spellcraft.mirror_image\"")` and Task 12 appends `.contains("\"entity.spellcraft.villager_ghost\"")` (and both reword the Javadoc's first sentence to name the keys it then checks). The two item scrolls are covered by the existing `ALL` loop. Say so in the commit.
 
-In `scripts/test_spell_icons.py` the existing tests loop over `icons.SPELLS`, so they cover the two new glyphs; add one test that the six spells have six distinct ink colors:
+In `scripts/test_spell_icons.py` the existing tests (`test_i1` to `test_i7`) loop over `icons.SPELLS`, so they cover the two new glyphs; add one test that the six spells have six distinct ink colors:
 
 ```python
-def test_i9_every_spell_has_its_own_ink(self):
+def test_i8_every_spell_has_its_own_ink(self):
     """When the six spells are listed, SPELLS should give each its own ink color.
 
     Function under test: :data:`spell_icons.SPELLS`
@@ -1152,7 +1295,32 @@ def test_i9_every_spell_has_its_own_ink(self):
     self.assertEqual([spell.id for spell in icons.SPELLS][-2:], ["mirror", "ghostrail"])
 ```
 
-`SpellScrollGameTests` (registered in this task; seven tests, all `SpellcraftGameTests.add(SHARED, …)` with the default 20-tick limit; no padding needed, no mobs):
+`ScrollTestSupport` (created here with the two helpers these tests need; Task 4 adds the rest):
+
+```java
+/** Helpers of the Part 7 GameTests: players, floors, images and hostiles. */
+final class ScrollTestSupport {
+    private ScrollTestSupport() {}
+
+    /** A survival player at {@link FangGameTests#STAND} (the padded box is loaded), without the Evoking effect. */
+    static ServerPlayer plainPlayer(GameTestHelper helper) {
+        ServerPlayer player = FangGameTests.caster(helper, FangGameTests.NORTH);
+        player.removeEffect(ModEffects.EVOKING);
+        return player;
+    }
+
+    /** Lays stone under the square of {@code radius} blocks around the standing spot (the padded box is air). */
+    static void floor(GameTestHelper helper, int radius) {
+        for (int dz = -radius; dz <= radius; dz++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                helper.setBlock(FangGameTests.FEET.offset(dx, -1, dz), Blocks.STONE);
+            }
+        }
+    }
+}
+```
+
+`SpellScrollGameTests` (registered in this task; seven tests). **The four Mirror tests and the two Ghostrail tests that use a player register through `FangGameTests.addPadded(SHARED, …)`** and take their player from `plainPlayer(helper)` over a `floor(helper, 6)` (a `MockPlayers.inLevel` player is never moved, so it would sit at the world's random spawn point; once Task 4 lands, each Mirror cast there would leave 13 ticking images that no test bound clears, stacking up with every other unmoved mock player; in the padded box they sit inside the test's own bounds, which the framework clears). The mob test needs no padding:
 
 ```java
 /** GameTests of the Mirror and Ghostrail scrolls and of {@code Spells.cast} (Parts 6-7 spec §7.1, §10). */
@@ -1160,23 +1328,24 @@ public final class SpellScrollGameTests {
     private SpellScrollGameTests() {}
 
     static void registerAll() {
-        SpellcraftGameTests.add(SHARED, "spell_scroll_mirror_gives_the_effect_for_7200_ticks", SpellScrollGameTests::mirrorScroll);
-        SpellcraftGameTests.add(SHARED, "spell_scroll_ghostrail_gives_the_effect_for_4800_ticks", SpellScrollGameTests::ghostrailScroll);
-        SpellcraftGameTests.add(SHARED, "spell_scroll_mirror_is_refused_while_active", SpellScrollGameTests::mirrorRefusedWhileActive);
-        SpellcraftGameTests.add(SHARED, "spell_scroll_mirror_sneak_cast_dispels", SpellScrollGameTests::mirrorSneakDispels);
-        SpellcraftGameTests.add(SHARED, "spell_scroll_ghostrail_is_refused_in_creative", SpellScrollGameTests::ghostrailRefusedInCreative);
-        SpellcraftGameTests.add(SHARED, "spell_scroll_mirror_is_allowed_in_creative", SpellScrollGameTests::mirrorAllowedInCreative);
+        FangGameTests.addPadded(SHARED, "spell_scroll_mirror_gives_the_effect_for_7200_ticks", SpellScrollGameTests::mirrorScroll);
+        FangGameTests.addPadded(SHARED, "spell_scroll_ghostrail_gives_the_effect_for_4800_ticks", SpellScrollGameTests::ghostrailScroll);
+        FangGameTests.addPadded(SHARED, "spell_scroll_mirror_is_refused_while_active", SpellScrollGameTests::mirrorRefusedWhileActive);
+        FangGameTests.addPadded(SHARED, "spell_scroll_mirror_sneak_cast_dispels", SpellScrollGameTests::mirrorSneakDispels);
+        FangGameTests.addPadded(SHARED, "spell_scroll_ghostrail_is_refused_in_creative", SpellScrollGameTests::ghostrailRefusedInCreative);
+        FangGameTests.addPadded(SHARED, "spell_scroll_mirror_is_allowed_in_creative", SpellScrollGameTests::mirrorAllowedInCreative);
         SpellcraftGameTests.add(SHARED, "spell_cast_helper_applies_any_spell_to_a_mob", SpellScrollGameTests::castHelperOnAMob);
     }
 ```
 
-with these bodies (`GameTestSupport.hold`, `useHeld`, `requireEffect` exist; read their signatures and `InfinityGameTests` for the exact mock-player pattern, and copy it):
+with these bodies (`GameTestSupport.hold`, `useHeld`, `requireEffect` exist; read their signatures and `InfinityGameTests` for the exact mock-player pattern, and copy it; the creative tests take `plainPlayer(helper)` and then call `player.setGameMode(GameType.CREATIVE)`):
 
 ```java
 /** When a survival player reads a Mirror scroll, should they get Mirror for 7200 ticks and the scroll be used up. */
 static void mirrorScroll(GameTestHelper helper) {
     // Arrange
-    ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+    ServerPlayer player = plainPlayer(helper);
+    floor(helper, 6);
     GameTestSupport.hold(player, new ItemStack(ModItems.MIRROR_SCROLL.get(), 2));
     // Act
     GameTestSupport.useHeld(helper, player);
@@ -1188,7 +1357,7 @@ static void mirrorScroll(GameTestHelper helper) {
 }
 ```
 
-`ghostrailScroll` is the same with `GHOSTRAIL_SCROLL`, `ModEffects.GHOSTRAIL` and `GhostrailDuration.PLAYER_TICKS`. `mirrorRefusedWhileActive`: add `Spells.cast(player, Spells.MIRROR, 100)` first, `useHeld`, then assert the scroll count did not change, the action bar shows `SpellScrollItem.REFUSED_KEY` (`GameTestSupport.assertActionBarKey`). `mirrorSneakDispels`: effect on, `player.setShiftKeyDown(true)`, `useHeld`: the effect is gone, one scroll used. `ghostrailRefusedInCreative` and `mirrorAllowedInCreative`: `GameType.CREATIVE`; refused keeps the scroll and gives no effect; allowed gives the effect. `castHelperOnAMob`:
+`ghostrailScroll` is the same with `GHOSTRAIL_SCROLL`, `ModEffects.GHOSTRAIL` and `GhostrailDuration.PLAYER_TICKS`. Each of the other padded tests starts with `plainPlayer(helper)` and `floor(helper, 6)` the same way. `mirrorRefusedWhileActive`: add `Spells.cast(player, Spells.MIRROR, 100)` first, `useHeld`, then assert the scroll count did not change, the action bar shows `SpellScrollItem.REFUSED_KEY` (`GameTestSupport.assertActionBarKey`). `mirrorSneakDispels`: effect on, `player.setShiftKeyDown(true)`, `useHeld`: the effect is gone, one scroll used. `ghostrailRefusedInCreative` and `mirrorAllowedInCreative`: `GameType.CREATIVE`; refused keeps the scroll and gives no effect; allowed gives the effect. `castHelperOnAMob`:
 
 ```java
 /** When Spells.cast is called on a zombie with 40 ticks, should the zombie carry that spell's effect for 40 ticks. */
@@ -1206,7 +1375,7 @@ static void castHelperOnAMob(GameTestHelper helper) {
 }
 ```
 
-`ScribingGameTests`: in `zeroPercent`, the lower pool now holds Upside-Down, Trailing, Evoking **and Mirror**: add `helper.assertTrue(lowerPool.contains(ModItems.MIRROR_SCROLL.get()), "the lower pool holds Mirror");`, add `ModItems.MIRROR_SCROLL.get()` to the `drawsOnly(helper, List.of(0, 0, 0), …)` list, and change the Javadoc ("every non-extreme spell (Upside-Down, Trailing, Evoking and Mirror)"). The loop `poolSize = 1; for (pick...)` already walks the whole pool. In `hundredPercent`: `drawsOnly(helper, List.of(100, 100, 100), ModItems.INFINITY_SCROLL.get(), ModItems.GHOSTRAIL_SCROLL.get());` (the top tier now holds two spells). Grep the file for any other place that expects only the Infinity scroll (`INFINITY_SCROLL`) and accept both.
+`ScribingGameTests`: in `zeroPercent`, the lower pool now holds Upside-Down, Trailing, Evoking **and Mirror**: add `helper.assertTrue(lowerPool.contains(ModItems.MIRROR_SCROLL.get()), "the lower pool holds Mirror");`, add `ModItems.MIRROR_SCROLL.get()` to the `drawsOnly(helper, List.of(0, 0, 0), …)` list, and change the Javadoc ("every non-extreme spell (Upside-Down, Trailing, Evoking and Mirror)"). The loop `poolSize = 1; for (pick...)` already walks the whole pool. In `hundredPercent` (the top tier now holds two spells), copy `zeroPercent`'s reachability loop: run the same `FixedPick` loop with `List.of(100, 100, 100)` over `Scribing.candidates()`, assert that both `ModItems.INFINITY_SCROLL.get()` and `ModItems.GHOSTRAIL_SCROLL.get()` are reached and that the pool size is 2, then call `drawsOnly(helper, List.of(100, 100, 100), ModItems.INFINITY_SCROLL.get(), ModItems.GHOSTRAIL_SCROLL.get())` for the in-menu path. (A single random draw accepting either scroll would pass about half the time for an implementation that never draws Ghostrail, and always for a pool bug that returns only Infinity; the loop closes that.) Grep the file for any other place that expects only the Infinity scroll (`INFINITY_SCROLL`) and accept both.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -1248,10 +1417,10 @@ public static final Spell GHOSTRAIL = new Spell(
 public static final List<Spell> ALL = List.of(UPSIDE_DOWN, INFINITY, TRAILING, EVOKING, MIRROR, GHOSTRAIL);
 
 /**
- * Puts {@code spell}'s effect on {@code target} for {@code ticks}: no particles, the icon shown. What a spell does when
- * it starts lives in its effect (Mirror's images in {@code MirrorEffect.onEffectAdded}), so a scroll, a Caster, a mob, a
- * ghost and {@code /effect give} behave alike. The cast rules (creative refusal, recast) are the scroll's; other
- * casters check "no effect yet" themselves.
+ * Puts {@code spell}'s effect on {@code target} for {@code ticks}: no particles, the icon shown. What a spell does
+ * when it starts lives in its effect (Mirror's images in {@code MirrorEffect.onEffectAdded}), so a scroll, a Caster,
+ * a mob, a ghost and {@code /effect give} behave alike. This method applies no rules: a scroll's rules (recast,
+ * dispel) are {@code CastRules}'; other casters check "no effect yet" themselves and ask {@link #refusedFor} first.
  *
  * @param target who gets the effect
  * @param spell the spell
@@ -1260,6 +1429,22 @@ public static final List<Spell> ALL = List.of(UPSIDE_DOWN, INFINITY, TRAILING, E
  */
 public static boolean cast(LivingEntity target, Spell spell, int ticks) {
     return target.addEffect(new MobEffectInstance(spell.effect(), ticks, 0, false, false, true));
+}
+
+/**
+ * Whether a caster that is not a scroll (a Caster Vex, a villager ghost) must not cast {@code spell} on
+ * {@code target}: the target is a creative or spectator player and the spell is redundant in creative (Ghostrail:
+ * creative players already fly). The scroll's own refusal is {@code CastRules}'; this is the one predicate for every
+ * other caster, so Tasks 9 and 12 cannot diverge.
+ *
+ * @param target who would get the effect
+ * @param spell the spell
+ * @return true if the cast must be skipped
+ */
+public static boolean refusedFor(LivingEntity target, Spell spell) {
+    return target instanceof Player player
+            && (player.isCreative() || player.isSpectator())
+            && spell.rules().redundantInCreative();
 }
 ```
 
@@ -1281,7 +1466,10 @@ public static final DeferredHolder<MobEffect, MobEffect> MIRROR = MOB_EFFECTS.re
 /** Strength of Ghostrail. {@code Ghostrail} runs it every tick; the Mixin lets a player through blocks. */
 public static final DeferredHolder<MobEffect, MobEffect> GHOSTRAIL = MOB_EFFECTS.register("ghostrail", GhostrailEffect::new);
 
-/** On a non-player caster for the 20 ticks a scroll cast keeps the hands lit; carries {@code ModParticles.CASTING_SCROLL}. */
+/**
+ * On a non-player caster for the 20 ticks a scroll cast keeps the hands lit; carries {@code
+ * ModParticles.CASTING_SCROLL}.
+ */
 public static final DeferredHolder<MobEffect, MobEffect> CASTING_SCROLL =
         MOB_EFFECTS.register("casting_scroll", () -> new CastingEffect(ModParticles.CASTING_SCROLL));
 ```
@@ -1307,7 +1495,7 @@ public final class MirrorEffect extends MobEffect {
 }
 ```
 
-`GhostrailEffect` is the same with color `0xDDE6FF` and a Javadoc pointing at Task 6.
+`GhostrailEffect` is the same with color `0xDDE6FF` and a Javadoc pointing at Task 7 (where `onEffectAdded` calls `Ghostrail.begin`); give both constructors a Javadoc.
 
 `scripts/spell_icons.py`: append two spells to `SPELLS`; first draw, then check the "glyph lands on the paper" test passes (it fails loudly if a pixel is off the sheet; adjust the `origin`, not the sheet):
 
@@ -1375,7 +1563,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Gates and commit**
 
-Run: `./gradlew spotlessApply build`, `./gradlew runData`, `./gradlew runGameTestServer` twice. Expected: `All 657 required tests passed` both times (650 + 7).
+Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (`runData` is not needed here: this task adds nothing it can check). Expected: `All 657 required tests passed` both times (the baseline of Task 1 plus the 7 tests registered here).
 
 ```bash
 git add src scripts
@@ -1386,8 +1574,8 @@ git commit -m "feat(spells): Mirror and Ghostrail scrolls, effects, icons and Sp
 
 **Files:**
 
-- Create: `evoking/MirrorImage.java`, `evoking/MirrorImages.java`, `gametest/ScrollTestSupport.java`, `gametest/MirrorGameTests.java`
-- Modify: `evoking/ModEntities.java`, `evoking/Dice.java`, `evoking/TeamMoves.java` (`clear`), `effect/MirrorEffect.java`, `assets/spellcraft/lang/en_us.json`, `gametest/SpellcraftGameTests.java`, `src/test/…/SpellAssetsTest.java`
+- Create: `evoking/MirrorImage.java`, `evoking/MirrorImages.java`, `gametest/MirrorGameTests.java`
+- Modify: `gametest/ScrollTestSupport.java` (Task 3 created it), `evoking/ModEntities.java`, `evoking/Dice.java`, `evoking/TeamMoves.java` (`clear`), `effect/MirrorEffect.java`, `assets/spellcraft/lang/en_us.json`, `gametest/SpellcraftGameTests.java`, `src/test/…/SpellAssetsTest.java`
 
 **Interfaces:**
 
@@ -1396,34 +1584,20 @@ git commit -m "feat(spells): Mirror and Ghostrail scrolls, effects, icons and Sp
   - `Dice.CASTER_ROLL`, `Dice.SCROLL_MOB`, `Dice.MIRROR_CONFUSION` (public static final `Dice` instances) and `static void Dice.unscriptAll()` (unscripts every instance, `RAID_KIT` included); `TeamMoves.clear()` calls it instead of `Dice.RAID_KIT.unscript()`.
   - `ModEntities.MIRROR_IMAGE` (`DeferredHolder<EntityType<?>, EntityType<MirrorImage>>`, id `spellcraft:mirror_image`, `MobCategory.MISC`, `sized(0.6F, 1.8F)`, `clientTrackingRange(8)`, `noLootTable()`); attributes `MAX_HEALTH` 10 and `MOVEMENT_SPEED` 0.25 in `onAttributes`.
   - `MirrorImage extends LivingEntity` (public final): `Optional<UUID> casterId()`, `EntityType<?> copiedType()`, `ResolvableProfile profile()` (the player's profile, else `Mannequin.DEFAULT_PROFILE`), `int lifeTicks()`, `void setLifeTicks(int)`, `void bind(LivingEntity caster)` (server side: sets the caster id, the copied type and profile, copies both hands, and for a `Player` caster the summoner mark), `void poof()` (POOF particles, no sound, `discard`). Saved: `caster`, `life_ticks`, `copied_type`, `profile`.
-  - `MirrorImages` (public final): `static List<MirrorImage> of(ServerLevel level, UUID caster)` (live images of that caster in that level, any distance), `static void spawn(LivingEntity carrier)` (13 images, after `poofAll`), `static void poofAll(LivingEntity carrier)`, `static void afterEnd(ServerLevel level, UUID caster, MirrorImage ending)` (removes the carrier's Mirror effect when no other live image of it remains).
-  - `MirrorEffect.onEffectAdded` calls `MirrorImages.spawn(mob)` on a server level.
-  - `gametest/ScrollTestSupport` (package-private, all static): `ServerPlayer plainPlayer(GameTestHelper)` (a survival mock player at `FangGameTests.STAND` after the padding wait, Evoking removed), `void floor(GameTestHelper, int radius)` (stone under the square of that radius around `FangGameTests.FEET`), `List<MirrorImage> images(LivingEntity carrier)`, `Vec3 at(GameTestHelper, double dx, double dy, double dz)` (absolute, from `FangGameTests.STAND`), `<T extends Mob> T foeAt(GameTestHelper, EntityType<T>, Vec3 absolute)` (= `TeamMoveTestSupport.foe`).
+  - `MirrorImages` (public final, `@EventBusSubscriber`): `static List<MirrorImage> of(ServerLevel level, UUID caster)` (live images of that caster in that level, any distance), `static void spawn(LivingEntity carrier)` (13 images, after `poofAll`; never inside a block), `static void poofAll(LivingEntity carrier)`, `static void afterEnd(ServerLevel level, UUID caster, MirrorImage ending)` (removes the carrier's Mirror effect when no other live image of it remains), and the `LivingDeathEvent` handler `onDeath` (poofs a dying carrier's images).
+  - `MirrorEffect.onEffectAdded` calls `MirrorImages.spawn(mob)` on a server level; `MirrorEffect.onMobRemoved` calls `MirrorImages.poofAll(mob)`.
+  - `gametest/ScrollTestSupport` (package-private, all static): Task 3 created `ServerPlayer plainPlayer(GameTestHelper)` (a survival mock player at `FangGameTests.STAND` after the padding wait, Evoking removed) and `void floor(GameTestHelper, int radius)` (stone under the square of that radius around `FangGameTests.FEET`); this task adds `List<MirrorImage> images(LivingEntity carrier)`, `Vec3 at(GameTestHelper, double dx, double dy, double dz)` (absolute, from `FangGameTests.STAND`), `<T extends Mob> T foeAt(GameTestHelper, EntityType<T>, Vec3 absolute)` (= `TeamMoveTestSupport.foe`) and `Husk hostileAt(GameTestHelper, Vec3 absolute)` (= `foeAt(helper, EntityTypes.HUSK, at)`: a frozen hostile that does not burn in daylight, unlike a zombie; Tasks 5, 7, 9 and 12 use it).
 
 - [ ] **Step 1: Write the failing tests**
 
-`ScrollTestSupport`:
+Adding the Mirror images changes what the Task 3 tests in `SpellScrollGameTests` (`spell_scroll_*`) do: each Mirror cast there now spawns 13 ticking images. They are already padded and take their player from `plainPlayer` over a floor (Task 3), so the images stay inside each test's own bounds; confirm that by running `./gradlew runGameTestServer "-PgameTests=spellcraft:spell_scroll_*"` in Step 4.
+
+Add to `ScrollTestSupport` (beside `plainPlayer` and `floor`, which Task 3 created):
 
 ```java
 /** Helpers of the Part 7 GameTests: players, floors, images and hostiles. */
 final class ScrollTestSupport {
-    private ScrollTestSupport() {}
-
-    /** A survival player at {@link FangGameTests#STAND} (the padded box is loaded), without the Evoking effect. */
-    static ServerPlayer plainPlayer(GameTestHelper helper) {
-        ServerPlayer player = FangGameTests.caster(helper, FangGameTests.NORTH);
-        player.removeEffect(ModEffects.EVOKING);
-        return player;
-    }
-
-    /** Lays stone under the square of {@code radius} blocks around the standing spot (the padded box is air). */
-    static void floor(GameTestHelper helper, int radius) {
-        for (int dz = -radius; dz <= radius; dz++) {
-            for (int dx = -radius; dx <= radius; dx++) {
-                helper.setBlock(FangGameTests.FEET.offset(dx, -1, dz), Blocks.STONE);
-            }
-        }
-    }
+    // ... plainPlayer and floor from Task 3 stay as they are ...
 
     /** The live images of {@code carrier} in its level. */
     static List<MirrorImage> images(LivingEntity carrier) {
@@ -1438,6 +1612,11 @@ final class ScrollTestSupport {
     /** A mob with no AI and no gravity at {@code at}, discarded when the test ends. */
     static <T extends Mob> T foeAt(GameTestHelper helper, EntityType<T> type, Vec3 at) {
         return TeamMoveTestSupport.foe(helper, type, at);
+    }
+
+    /** A frozen husk (hostile, and unlike a zombie it does not burn in daylight) at {@code at}. */
+    static Husk hostileAt(GameTestHelper helper, Vec3 at) {
+        return foeAt(helper, EntityTypes.HUSK, at);
     }
 }
 ```
@@ -1455,11 +1634,17 @@ static void registerAll() {
     FangGameTests.addPadded(SHARED, "mirror_images_poof_when_the_effect_is_removed", MirrorGameTests::poofOnRemove);
     FangGameTests.addPadded(SHARED, "mirror_images_poof_when_all_effects_are_cleared", MirrorGameTests::poofOnClearAll);
     FangGameTests.addPadded(SHARED, "mirror_images_poof_on_their_own_life_when_the_caster_is_gone", MirrorGameTests::poofOnOwnLife);
+    FangGameTests.addPadded(SHARED, "mirror_images_poof_when_a_mob_carrier_is_killed", MirrorGameTests::poofWhenAMobCarrierIsKilled);
+    FangGameTests.addPadded(SHARED, "mirror_images_poof_when_a_player_carrier_dies", MirrorGameTests::poofWhenAPlayerCarrierDies);
     FangGameTests.addPadded(SHARED, "mirror_the_last_image_dying_removes_the_effect", MirrorGameTests::lastImageRemovesTheEffect);
     FangGameTests.addPadded(SHARED, "mirror_image_saves_and_loads", MirrorGameTests::savesAndLoads);
     FangGameTests.addPadded(SHARED, "mirror_image_without_a_caster_discards_itself", MirrorGameTests::discardsWithNoCaster);
     FangGameTests.addPadded(SHARED, "mirror_images_wander_near_the_caster", 200, MirrorGameTests::wanderNearTheCaster);
+    FangGameTests.addPadded(SHARED, "mirror_an_idle_image_faces_where_the_caster_faces", MirrorGameTests::idleImageFacesTheCaster);
     FangGameTests.addPadded(SHARED, "mirror_a_second_cast_makes_no_extra_images", MirrorGameTests::secondCastMakesNoExtras);
+    FangGameTests.addPadded(SHARED, "mirror_images_never_spawn_inside_blocks", MirrorGameTests::tunnelKeepsImagesOutOfWalls);
+    // Scripts every die, so it runs in an environment of its own (Dice is global).
+    SpellcraftGameTests.add("dice_unscript", "dice_unscript_all_clears_every_die", MirrorGameTests::unscriptAllClearsEveryDie);
 }
 ```
 
@@ -1550,7 +1735,9 @@ static void mobImagesHaveNoMark(GameTestHelper helper) {
     helper.succeed();
 }
 
-/** When an image takes lethal damage, should it die and leave no item and no experience orb, its hands' items included. */
+/**
+ * When an image takes lethal damage, should it die and leave no item and no experience orb, its hands' items included.
+ */
 static void diesWithNoDrops(GameTestHelper helper) {
     // Arrange
     ServerPlayer player = plainPlayer(helper);
@@ -1597,7 +1784,10 @@ static void poofOnClearAll(GameTestHelper helper) {
             .thenSucceed();
 }
 
-/** When the caster is gone from the level, should each image still end when its own life runs out. */
+/**
+ * When the caster is removed without dying (unloaded with its chunk), should each image still end when its own life
+ * runs out. (A killed or discarded mob takes its images with it: {@code poofWhenAMobCarrierIsKilled}.)
+ */
 static void poofOnOwnLife(GameTestHelper helper) {
     // Arrange
     plainPlayer(helper);
@@ -1605,13 +1795,46 @@ static void poofOnOwnLife(GameTestHelper helper) {
     Evoker evoker = foeAt(helper, EntityTypes.EVOKER, at(helper, 0.0, 0.0, 0.0));
     Spells.cast(evoker, Spells.MIRROR, MirrorRule.DURATION_TICKS);
     List<MirrorImage> images = images(evoker);
-    // Act
-    evoker.discard();
+    // Act: UNLOADED_TO_CHUNK skips LivingEntity.triggerOnDeathMobEffects, so MirrorEffect.onMobRemoved does not run
+    evoker.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+    helper.assertTrue(images.stream().allMatch(MirrorImage::isAlive), "the images outlive an unloaded carrier");
     images.forEach(image -> image.setLifeTicks(3));
     // Assert
     helper.startSequence()
             .thenWaitUntil(() -> helper.assertTrue(images.stream().noneMatch(MirrorImage::isAlive), "all ended"))
             .thenSucceed();
+}
+
+/** When a mob carrier is killed (removed with the KILLED reason), should all its images poof at once. */
+static void poofWhenAMobCarrierIsKilled(GameTestHelper helper) {
+    // Arrange
+    plainPlayer(helper);
+    floor(helper, 6);
+    Evoker evoker = foeAt(helper, EntityTypes.EVOKER, at(helper, 0.0, 0.0, 0.0));
+    Spells.cast(evoker, Spells.MIRROR, MirrorRule.DURATION_TICKS);
+    helper.assertValueEqual(images(evoker).size(), MirrorRule.IMAGES, "thirteen to start with");
+    // Act
+    evoker.remove(Entity.RemovalReason.KILLED);
+    // Assert
+    helper.assertTrue(images(evoker).isEmpty(), "the images went with their carrier");
+    helper.succeed();
+}
+
+/** When a player carrier dies (its effects stay until the respawn), should all its images poof at once. */
+static void poofWhenAPlayerCarrierDies(GameTestHelper helper) {
+    // Arrange
+    ServerPlayer player = plainPlayer(helper);
+    floor(helper, 6);
+    Spells.cast(player, Spells.MIRROR, MirrorRule.DURATION_TICKS);
+    helper.assertValueEqual(images(player).size(), MirrorRule.IMAGES, "thirteen to start with");
+    ServerLevel level = helper.getLevel();
+    // Act
+    player.hurtServer(level, level.damageSources().genericKill(), 1000.0F);
+    // Assert
+    helper.assertFalse(player.isAlive(), "the player died");
+    helper.assertTrue(player.hasEffect(ModEffects.MIRROR), "vanilla keeps a dead player's effects");
+    helper.assertTrue(images(player).isEmpty(), "the images did not wait for the effect to go");
+    helper.succeed();
 }
 
 /** When the images die one by one, should the effect stay until the last one dies and then go. */
@@ -1663,24 +1886,102 @@ static void discardsWithNoCaster(GameTestHelper helper) {
             .thenSucceed();
 }
 
-/** When 140 ticks pass over a floor, should every image still be within 8 blocks of the carrier, with less life. */
+/**
+ * When 140 ticks pass over a floor, should every image still be within 8 blocks of the carrier, with less life, and
+ * at least 3 of the 13 should have walked at least a block from where they started (an image that never moves, whatever
+ * the cause, fails this).
+ */
 static void wanderNearTheCaster(GameTestHelper helper) {
     // Arrange
     ServerPlayer player = plainPlayer(helper);
     floor(helper, 12);
     Spells.cast(player, Spells.MIRROR, MirrorRule.DURATION_TICKS);
+    Map<MirrorImage, Vec3> starts = new HashMap<>();
+    images(player).forEach(image -> starts.put(image, image.position()));
     // Act & Assert
     helper.startSequence()
             .thenExecuteAfter(140, () -> {
+                int moved = 0;
                 for (MirrorImage image : images(player)) {
                     helper.assertTrue(image.distanceTo(player) <= MirrorRule.WANDER_RADIUS + 2.0, "within reach");
                     helper.assertTrue(image.lifeTicks() < MirrorRule.LIFE_TICKS, "its life counts down");
+                    Vec3 start = starts.get(image);
+                    double dx = image.getX() - start.x;
+                    double dz = image.getZ() - start.z;
+                    if (dx * dx + dz * dz >= 1.0) {
+                        moved++;
+                    }
                 }
+                helper.assertTrue(moved >= 3, "at least 3 of 13 walked a block, got " + moved);
             })
             .thenSucceed();
 }
 
-/** When Mirror is removed and cast again in the same tick, should exactly 13 images exist (the old set poofs at once). */
+/** When an image has arrived at its wander target, should it face the way the caster faces. */
+static void idleImageFacesTheCaster(GameTestHelper helper) {
+    // Arrange
+    ServerPlayer player = plainPlayer(helper);
+    floor(helper, 6);
+    Spells.cast(player, Spells.MIRROR, MirrorRule.DURATION_TICKS);
+    MirrorImage image = images(player).get(0);
+    player.setYRot(90.0F);
+    // Act: the image's target is where it already stands, so it has "arrived"
+    image.setWanderTo(image.position());
+    // Assert
+    helper.startSequence()
+            .thenExecuteAfter(3, () -> helper.assertValueEqual(image.getYRot(), 90.0F, "faces where the caster faces"))
+            .thenSucceed();
+}
+
+/**
+ * When Mirror is cast in a one-wide stone tunnel, should all 13 images exist, none inside a block, and still all 13
+ * after 20 ticks (an image in a block takes wall damage and dies).
+ */
+static void tunnelKeepsImagesOutOfWalls(GameTestHelper helper) {
+    // Arrange: solid stone around the standing spot, with only a one-wide corridor (two high) along z
+    ServerPlayer player = plainPlayer(helper);
+    for (int dz = -6; dz <= 6; dz++) {
+        for (int dx = -6; dx <= 6; dx++) {
+            for (int dy = -1; dy <= 3; dy++) {
+                boolean corridor = dx == 0 && (dy == 0 || dy == 1);
+                helper.setBlock(FangGameTests.FEET.offset(dx, dy, dz), corridor ? Blocks.AIR : Blocks.STONE);
+            }
+        }
+    }
+    // Act
+    Spells.cast(player, Spells.MIRROR, MirrorRule.DURATION_TICKS);
+    // Assert
+    helper.assertValueEqual(images(player).size(), MirrorRule.IMAGES, "thirteen images");
+    helper.assertTrue(images(player).stream().noneMatch(MirrorImage::isInWall), "none starts inside a block");
+    helper.startSequence()
+            .thenExecuteAfter(20, () -> {
+                helper.assertValueEqual(images(player).size(), MirrorRule.IMAGES, "still thirteen: none took wall damage");
+                helper.assertTrue(images(player).stream().noneMatch(MirrorImage::isInWall), "none is inside a block");
+            })
+            .thenSucceed();
+}
+
+/**
+ * When every die is scripted with a roll that is out of range for its bound and {@code Dice.unscriptAll()} runs,
+ * should each die answer from the real random source (a leaked script would throw).
+ */
+static void unscriptAllClearsEveryDie(GameTestHelper helper) {
+    // Arrange
+    RandomSource random = helper.getLevel().getRandom();
+    List<Dice> dice = List.of(Dice.RAID_KIT, Dice.CASTER_ROLL, Dice.SCROLL_MOB, Dice.MIRROR_CONFUSION);
+    dice.forEach(die -> die.script(5));
+    // Act
+    Dice.unscriptAll();
+    // Assert
+    for (Dice die : dice) {
+        helper.assertValueEqual(die.below(random, 1), 0, "no script is left: the only roll below 1 is 0");
+    }
+    helper.succeed();
+}
+
+/**
+ * When Mirror is removed and cast again in the same tick, should exactly 13 images exist (the old set poofs at once).
+ */
 static void secondCastMakesNoExtras(GameTestHelper helper) {
     // Arrange
     ServerPlayer player = plainPlayer(helper);
@@ -1695,7 +1996,7 @@ static void secondCastMakesNoExtras(GameTestHelper helper) {
 }
 ```
 
-Add `"entity.spellcraft.mirror_image": "Mirror Image",` to the lang file (after `"entity.spellcraft.bound_vex"`) and the matching `.contains("\"entity.spellcraft.mirror_image\"")` line to `SpellAssetsTest.part7NamesAreEnglish` (Task 3 added the test).
+Add `"entity.spellcraft.mirror_image": "Mirror Image",` to the lang file (after `"entity.spellcraft.bound_vex"`) and the matching `.contains("\"entity.spellcraft.mirror_image\"")` line to `SpellAssetsTest.part7NamesAreEnglish` (Task 3 added the test with one line; reword its Javadoc to "casting effect and the Mirror image").
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -1703,7 +2004,7 @@ Run: `./gradlew compileJava` (expected: FAIL, `MirrorImage`/`ModEntities.MIRROR_
 
 - [ ] **Step 3: Write the implementation**
 
-`Dice` (append beside `RAID_KIT`; the class doc's "Part 7 adds its dice" sentence becomes a fact):
+`Dice` (append beside `RAID_KIT`). Rewrite the class Javadoc's last two sentences, from "{@code TeamMoves.clear()} (server stop) calls {@link #unscript} on {@link #RAID_KIT}" on, to: "{@link #unscriptAll} names every instance, and {@code TeamMoves.clear()} (server stop) calls it, so a leaked script cannot outlive a world. A new die must be added to {@link #unscriptAll}; the GameTest {@code dice_unscript_all_clears_every_die} fails when one is forgotten." The first users of the new dice are Tasks 5 (`MIRROR_CONFUSION`), 8 (`CASTER_ROLL`) and 10 (`SCROLL_MOB`), which test them; `MirrorGameTests.unscriptAllClearsEveryDie` (Step 1) covers the shared `unscriptAll`.
 
 ```java
 /** The Caster roll at each summon: a roll of 0 in {@code [0, 3)} makes a Caster (1 in 3). */
@@ -1753,10 +2054,10 @@ event.put(
 ```java
 /**
  * One of the thirteen copies a Mirror makes (Parts 6-7 spec §7.2). A {@code LivingEntity}, not a mob: health 10, no
- * attack, no pathfinding. It wanders within {@link MirrorRule#WANDER_RADIUS} blocks of its caster by walking at a random
- * point and jumping one block, lives {@link MirrorRule#LIFE_TICKS} ticks of its own, and poofs when its caster is loaded
- * in its level and no longer has Mirror. For a player caster it carries the player's summoner mark, so {@code Allies}
- * treat it as the player's own. The client draws it as a stand-in of {@link #copiedType()} (Task 14).
+ * attack, no pathfinding. It wanders within {@link MirrorRule#WANDER_RADIUS} blocks of its caster by walking at a
+ * random point and jumping one block, lives {@link MirrorRule#LIFE_TICKS} ticks of its own, and poofs when its caster
+ * is loaded in its level and no longer has Mirror. For a player caster it carries the player's summoner mark, so {@code
+ * Allies} treat it as the player's own. The client draws it as a stand-in of {@link #copiedType()} (Task 14).
  */
 public final class MirrorImage extends LivingEntity {
     /** Synced: the registry id of the type the image copies, e.g. {@code minecraft:player}. */
@@ -1767,21 +2068,45 @@ public final class MirrorImage extends LivingEntity {
     private static final EntityDataAccessor<ResolvableProfile> PROFILE =
             SynchedEntityData.defineId(MirrorImage.class, EntityDataSerializers.RESOLVABLE_PROFILE);
 
+    /** Save key of the caster's UUID. */
     private static final String CASTER_TAG = "caster";
+
+    /** Save key of the ticks left of the image's own life. */
     private static final String LIFE_TAG = "life_ticks";
+
+    /** Save key of the copied entity type's registry id. */
     private static final String TYPE_TAG = "copied_type";
+
+    /** Save key of the player profile. */
     private static final String PROFILE_TAG = "profile";
+
+    /** Fewest ticks an image keeps one wander target (it idles there once it arrives). */
     private static final int WANDER_MIN_TICKS = 60;
+
+    /** Extra ticks, at most, on top of {@link #WANDER_MIN_TICKS}. */
     private static final int WANDER_SPREAD_TICKS = 61;
+
+    /** The speed an image walks at, as {@code setSpeed} takes it. */
     private static final float WALK_SPEED = 0.1F;
 
     /** The caster's UUID, or null for an image nobody made (it discards itself on its first tick). */
     private @Nullable UUID casterId;
 
+    /** Ticks left of this image's own life. */
     private int lifeTicks = MirrorRule.LIFE_TICKS;
+
+    /** Ticks until the image picks a new wander target. */
     private int wanderTicks;
+
+    /** The point the image is walking to (idling at, once there), or null before its first pick. */
     private @Nullable Vec3 wanderTo;
 
+    /**
+     * Creates an image (the entity type's factory; also used when a save is loaded).
+     *
+     * @param type the entity type
+     * @param level the level
+     */
     public MirrorImage(EntityType<? extends MirrorImage> type, Level level) {
         super(type, level);
     }
@@ -1793,31 +2118,62 @@ public final class MirrorImage extends LivingEntity {
         entityData.define(PROFILE, Mannequin.DEFAULT_PROFILE);
     }
 
-    /** @return the caster's UUID, if this image has one */
+    /**
+     * The caster this image copies.
+     *
+     * @return the caster's UUID, if this image has one
+     */
     public Optional<UUID> casterId() {
         return Optional.ofNullable(casterId);
     }
 
-    /** @return the type this image copies; the player when the id is unknown */
+    /**
+     * The type this image looks like.
+     *
+     * @return the type this image copies; the player when the id is unknown
+     */
     public EntityType<?> copiedType() {
         return BuiltInRegistries.ENTITY_TYPE
                 .getOptional(Identifier.tryParse(entityData.get(COPIED_TYPE)))
                 .orElse(EntityTypes.PLAYER);
     }
 
-    /** @return the skin profile of a player caster, else the default profile */
+    /**
+     * The skin this image wears.
+     *
+     * @return the skin profile of a player caster, else the default profile
+     */
     public ResolvableProfile profile() {
         return entityData.get(PROFILE);
     }
 
-    /** @return the ticks left of this image's own life */
+    /**
+     * How long this image still lives on its own.
+     *
+     * @return the ticks left of this image's own life
+     */
     public int lifeTicks() {
         return lifeTicks;
     }
 
-    /** Sets the ticks left of this image's own life (tests shorten it). */
+    /**
+     * Sets the ticks left of this image's own life (tests shorten it).
+     *
+     * @param ticks the new number of ticks left
+     */
     public void setLifeTicks(int ticks) {
         lifeTicks = ticks;
+    }
+
+    /**
+     * Sends the image to walk to {@code point} (a test hook: setting the image's own position makes it idle there,
+     * facing where its caster faces, until the next pick).
+     *
+     * @param point the new wander target
+     */
+    public void setWanderTo(Vec3 point) {
+        wanderTo = point;
+        wanderTicks = WANDER_MIN_TICKS;
     }
 
     /**
@@ -1856,15 +2212,14 @@ public final class MirrorImage extends LivingEntity {
         return HumanoidArm.RIGHT;
     }
 
-    /** Images overlap each other and the carrier freely: an image never pushes anything. */
+    /**
+     * Images are not pushable: they overlap each other and the carrier freely, nothing shoves them, and they do not
+     * count toward {@code MAX_ENTITY_CRAMMING}. (Overriding {@code doPush} and {@code push} is not enough: a player's
+     * {@code doPush(image)} calls {@code image.push(player)}, which moves both.)
+     */
     @Override
-    protected void doPush(Entity entity) {}
-
-    @Override
-    public void push(Entity entity) {
-        if (!(entity instanceof MirrorImage)) {
-            super.push(entity);
-        }
+    public boolean isPushable() {
+        return false;
     }
 
     @Override
@@ -1900,7 +2255,8 @@ public final class MirrorImage extends LivingEntity {
                 ? found
                 : null;
         Vec3 center = caster != null ? caster.position() : position();
-        if (wanderTo == null || --wanderTicks <= 0 || position().distanceToSqr(wanderTo) < 1.0) {
+        // A new target only when the timer runs out: an image that has arrived idles (facing the caster) until then.
+        if (wanderTo == null || --wanderTicks <= 0) {
             double angle = random.nextDouble() * Math.PI * 2.0;
             double radius = random.nextDouble() * MirrorRule.WANDER_RADIUS;
             wanderTo = center.add(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius);
@@ -1970,7 +2326,11 @@ public final class MirrorImage extends LivingEntity {
 `MirrorImages`:
 
 ```java
-/** Spawning, ending and the confusion of Mirror images (Parts 6-7 spec §7.2). Task 5 adds the confusion handler. */
+/**
+ * Spawning, ending and the confusion of Mirror images (Parts 6-7 spec §7.2). The death handler is here; Task 5 adds the
+ * confusion handler beside it (same class, same annotation).
+ */
+@EventBusSubscriber(modid = Spellcraft.MODID)
 public final class MirrorImages {
     private MirrorImages() {}
 
@@ -1989,8 +2349,10 @@ public final class MirrorImages {
 
     /**
      * Spawns {@link MirrorRule#IMAGES} images of {@code carrier} on its ring cells ({@link VexRing}, Chebyshev 2 to 3):
-     * standable cells first in a random order, then any other cell whose box is free, then the carrier's own spot.
-     * Images the carrier still has are poofed first, so a recast in the tick after a removal never doubles the set.
+     * standable cells first in a random order, then any other cell where an image's box is free of blocks, then the
+     * carrier's own spot for every image that is left (a tunnel has few free cells; the carrier's spot is free by
+     * definition). An image is never placed inside a block, so none takes wall damage on its first ticks. Images the
+     * carrier still has are poofed first, so a recast in the tick after a removal never doubles the set.
      *
      * @param carrier whoever just got the Mirror effect
      */
@@ -2000,6 +2362,7 @@ public final class MirrorImages {
         }
         poofAll(carrier);
         BlockPos feet = carrier.blockPosition();
+        EntityDimensions size = carrier.getType().getDimensions();
         List<BlockPos> cells = new ArrayList<>();
         for (int i = 0; i < VexRing.COUNT; i++) {
             VexRing.Offset offset = VexRing.offset(i);
@@ -2008,7 +2371,10 @@ public final class MirrorImages {
         Collections.shuffle(cells, new java.util.Random(level.getRandom().nextLong()));
         List<BlockPos> ordered = new ArrayList<>();
         cells.stream().filter(cell -> StandableSpots.standable(level, cell)).forEach(ordered::add);
-        cells.stream().filter(cell -> !ordered.contains(cell)).forEach(ordered::add);
+        cells.stream()
+                .filter(cell -> !ordered.contains(cell))
+                .filter(cell -> level.noBlockCollision(null, size.makeBoundingBox(Vec3.atBottomCenterOf(cell))))
+                .forEach(ordered::add);
         for (int i = 0; i < MirrorRule.IMAGES; i++) {
             MirrorImage image = ModEntities.MIRROR_IMAGE.get().create(level, EntitySpawnReason.MOB_SUMMONED);
             if (image == null) {
@@ -2033,6 +2399,22 @@ public final class MirrorImages {
     }
 
     /**
+     * A carrier that dies takes its images with it. A dead player's effects are not cleared (vanilla keeps them until
+     * the respawn), so the images' own "caster lost Mirror" check would never fire; a mob's effects are cleared only
+     * when it is removed ({@code MirrorEffect.onMobRemoved}), which comes up to 20 ticks after the death. Lowest
+     * priority and not called for a cancelled event, so a totem or another mod that cancels the death keeps the images.
+     *
+     * @param event the death of any living entity
+     */
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public static void onDeath(LivingDeathEvent event) {
+        LivingEntity dying = event.getEntity();
+        if (dying.hasEffect(ModEffects.MIRROR)) {
+            poofAll(dying);
+        }
+    }
+
+    /**
      * Called when an image dies or runs out of life: when no other live image of the caster remains and the caster is
      * loaded in {@code level}, its Mirror effect goes, so "no images" and "no effect" are one thing.
      *
@@ -2049,18 +2431,30 @@ public final class MirrorImages {
 }
 ```
 
-`MirrorEffect.onEffectAdded`:
+`MirrorEffect.onEffectAdded` and `onMobRemoved`:
 
 ```java
 @Override
 public void onEffectAdded(LivingEntity mob, int amplifier) {
     super.onEffectAdded(mob, amplifier);
-    // The effect packet reaches clients through addEffect too: only the server spawns images.
+    // The client never reaches this hook (the effect packet goes through forceAddEffect); the test is a guard.
     if (mob.level() instanceof ServerLevel) {
         MirrorImages.spawn(mob);
     }
 }
+
+/**
+ * A mob carrier that is killed or discarded loses its effects in {@code LivingEntity.remove}, which calls this hook
+ * (api-notes §26): its images go with it. A carrier removed any other way (unloaded) keeps them until their own life
+ * ends, as the spec says.
+ */
+@Override
+public void onMobRemoved(ServerLevel level, LivingEntity mob, int amplifier, Entity.RemovalReason reason) {
+    MirrorImages.poofAll(mob);
+}
 ```
+
+A killed *player* keeps its effects until the respawn, so `MirrorImages.onDeath` (above) poofs a dying carrier's images; the two handlers overlap for a mob (death, then removal) and both are idempotent.
 
 `TeamMoves.clear()`: replace `Dice.RAID_KIT.unscript();` with `Dice.unscriptAll();`.
 
@@ -2068,11 +2462,11 @@ Add `MirrorGameTests.registerAll();` after `SpellScrollGameTests.registerAll();`
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:mirror_*"` and `./gradlew test`. Expected: PASS. If `mirror_images_stand_on_the_ring` finds fewer than 13 distinct cells, read `VexRing.offset` (the ring has 40 cells, so 13 distinct always exist).
+Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:mirror_*"`, `"-PgameTests=spellcraft:spell_scroll_*"` (the Task 3 tests now spawn images) and `"-PgameTests=spellcraft:dice_*"`, and `./gradlew test`. Expected: PASS. If `mirror_images_stand_on_the_ring` finds fewer than 13 distinct cells, read `VexRing.offset` (the ring has 40 cells, and the shell of the test box takes 16 of them, so 13 distinct always exist there).
 
 - [ ] **Step 5: Gates and commit**
 
-Run: `./gradlew spotlessApply build`, `./gradlew runData`, `./gradlew runGameTestServer` twice. Expected: `All 671 required tests passed` both times (657 + 14).
+Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (`runData` is not needed: nothing here is client code it can check). Expected: `All 676 required tests passed` both times (the Task 3 total plus the 19 tests registered here: the 14 `mirror_*` tests of the first list, `mirror_images_poof_when_a_mob_carrier_is_killed`, `mirror_images_poof_when_a_player_carrier_dies`, `mirror_an_idle_image_faces_where_the_caster_faces`, `mirror_images_never_spawn_inside_blocks` and `dice_unscript_all_clears_every_die`).
 
 ```bash
 git add src
@@ -2091,13 +2485,14 @@ git commit -m "feat(evoking): Mirror images that copy the caster and end with th
 **Interfaces:**
 
 - Consumes: Task 4 (`MirrorImages.of`, `Dice.MIRROR_CONFUSION`, `MirrorRule.redirects/CONFUSION_BOUND/CONFUSION_RANGE`).
-- Produces: `MirrorImages.onChangeTarget(LivingChangeTargetEvent)` (`@SubscribeEvent`; `MirrorImages` becomes `@EventBusSubscriber(modid = Spellcraft.MODID)`).
+- Produces: `MirrorImages.onChangeTarget(LivingChangeTargetEvent)` (`@SubscribeEvent`; `MirrorImages` is already `@EventBusSubscriber(modid = Spellcraft.MODID)` since Task 4, which added its death handler).
 
 - [ ] **Step 1: Write the failing tests**
 
-`MirrorConfusionGameTests` (javadoc: `/** GameTests of the Mirror confusion (Parts 6-7 spec §7.2: 13 of 14, any mob, never a golem onto a player's images). */`). Tests that script the die register in the environment `mirror_dice` (one batch); the ones that cannot roll register in `SHARED`. Each scripts **immediately before** the call that consumes it and unscripts in a `finally`.
+`MirrorConfusionGameTests` (javadoc: `/** GameTests of the Mirror confusion (Parts 6-7 spec §7.2: 13 of 14, any mob, never a golem onto a player's images). */`). Tests that script the die register in the environment `mirror_dice` (one batch); the ones that cannot roll register in `SHARED`. Each scripts **immediately before** the call that consumes it and unscripts in a `finally`. Every test in this class (and in Tasks 7-12) gets a When/should Javadoc **and** a `<p>Method under test:` line, as in Task 2's tests; the Javadoc shown on a body below is its When/should part. The mobs here are `Husk`s from `ScrollTestSupport.hostileAt` (Task 4): a husk is a `Zombie` that does not burn in daylight, so a frozen foe lives out the test. In the prose below, every `zombie`, `zombieA` and `zombieB` is such a husk.
 
 ```java
+/** The dice environment of the Mirror tests: one batch, since the confusion die is global. */
 private static final String DICE = "mirror_dice";
 
 static void registerAll() {
@@ -2112,9 +2507,9 @@ static void registerAll() {
 ```
 
 ```java
-/** A player with Mirror and a zombie (no AI, no gravity) beside them; the zombie is returned. */
-private static Zombie zombie(GameTestHelper helper) {
-    return foeAt(helper, EntityTypes.ZOMBIE, at(helper, 4.0, 0.0, 0.0));
+/** A frozen husk (no AI, no gravity) 4 blocks from the standing spot. */
+private static Husk zombie(GameTestHelper helper) {
+    return hostileAt(helper, at(helper, 4.0, 0.0, 0.0));
 }
 
 /**
@@ -2126,7 +2521,7 @@ static void redirects(GameTestHelper helper) {
     ServerPlayer player = plainPlayer(helper);
     floor(helper, 6);
     Spells.cast(player, Spells.MIRROR, MirrorRule.DURATION_TICKS);
-    Zombie zombie = zombie(helper);
+    Husk zombie = zombie(helper);
     // Act
     try {
         Dice.MIRROR_CONFUSION.script(0);
@@ -2149,7 +2544,7 @@ static void redirects(GameTestHelper helper) {
 
 `farImagesDoNotCount`: cast; for each image `image.setPos(image.getX() + 20.0, image.getY(), image.getZ())` (the images are more than 16 blocks from the carrier); script `0`; `zombie.setTarget(player)`; assert the target equals the player; `finally unscriptAll()`.
 
-`golemAndPlayer`: `IronGolem golem = foeAt(helper, EntityTypes.IRON_GOLEM, at(helper, 4.0, 0.0, 0.0))`; cast on the player; script `0`; `golem.setTarget(player)`; assert the target equals the player (a golem is never redirected onto a player's images).
+`golemAndPlayer`: `IronGolem golem = foeAt(helper, EntityTypes.IRON_GOLEM, at(helper, 4.0, 0.0, 0.0))` (a golem is not a hostile `Enemy`, so `foeAt` with its type, not `hostileAt`); cast on the player; script `0`; `golem.setTarget(player)`; assert the target equals the player (a golem is never redirected onto a player's images).
 
 `golemAndEvoker`: an evoker carrier at `at(helper, 0, 0, 0)` with `Spells.cast(evoker, Spells.MIRROR, …)`; script `0`; `golem.setTarget(evoker)`; assert the golem's target is a `MirrorImage` whose `casterId` is the evoker's UUID (a golem going for an evoker with images is fooled too).
 
@@ -2161,18 +2556,20 @@ Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:mirror_confusion_*"`. 
 
 - [ ] **Step 3: Write the implementation**
 
-Add to `MirrorImages` (annotate the class `@EventBusSubscriber(modid = Spellcraft.MODID)`):
+Add to `MirrorImages` (the class is already annotated `@EventBusSubscriber(modid = Spellcraft.MODID)`):
 
 ```java
 /**
- * Confusion (spec §7.2; amends the parent §9.3 to any mob): when a mob is about to pick a carrier that has live images
- * within {@link MirrorRule#CONFUSION_RANGE} of it, the new target is replaced, with probability 13/14, by a random one of
- * those images. Skipped when the new target is already an image, when it is the mob's current target (a target goal
- * re-sets its target every tick, and each re-set fires this event; rolling on those would redirect almost every mob),
- * when the mob already targets an image, and for an iron golem going for a player (the images carry the player's
- * mark, which {@code GolemMercy} refuses as a golem's target). The roll is taken only for an eligible change, so a
- * scripted GameTest roll is never spent on a skipped one. Brain mobs that write their target without this event are
- * not confused (accepted).
+ * Confusion (spec §7.2; amends the parent §9.3 to any mob): when a mob is about to pick a carrier that has live
+ * images within {@link MirrorRule#CONFUSION_RANGE} of the carrier, the new target is replaced, with probability 13/14,
+ * by a random one of those images. Skipped when the new target has no Mirror effect (this event fires for every
+ * target change of every mob in the world, and finding images walks every entity in the level, so the cheap
+ * effect test comes first; "no images alive" and "no Mirror effect" are the same thing), when the new target is
+ * already an image, when it is the mob's current target (a target goal re-sets its target every tick, and each
+ * re-set fires this event; rolling on those would redirect almost every mob), when the mob already targets an
+ * image, and for an iron golem going for a player (the images carry the player's mark, which {@code GolemMercy}
+ * refuses as a golem's target). The roll is taken only for an eligible change, so a scripted GameTest roll is never
+ * spent on a skipped one. Brain mobs that write their target without this event are not confused (accepted).
  *
  * @param event the change-target event for any living entity
  */
@@ -2180,6 +2577,7 @@ Add to `MirrorImages` (annotate the class `@EventBusSubscriber(modid = Spellcraf
 public static void onChangeTarget(LivingChangeTargetEvent event) {
     LivingEntity carrier = event.getNewAboutToBeSetTarget();
     if (carrier == null
+            || !carrier.hasEffect(ModEffects.MIRROR)
             || carrier instanceof MirrorImage
             || !(event.getEntity() instanceof Mob mob)
             || !(carrier.level() instanceof ServerLevel level)
@@ -2207,7 +2605,7 @@ Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:mirror_*"`. Expected: 
 
 - [ ] **Step 5: Gates and commit**
 
-Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 678 required tests passed` both times (671 + 7).
+Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 683 required tests passed` both times (the Task 4 total plus the 7 `mirror_confusion_*` tests). No GameTest uses a real target goal to show that the same-target re-set does not re-roll (the reason for the `carrier.equals(mob.getTarget())` guard): Task 15's playtest list has an item for it.
 
 ```bash
 git add src
@@ -2219,8 +2617,8 @@ git commit -m "feat(evoking): Mirror confuses a mob that picks the carrier 13 ti
 **Files:**
 
 - Create: `mixin/PlayerGhostrailMixin.java`, `gametest/GhostrailFlightGameTests.java`
-- Modify: `src/main/resources/spellcraft.mixins.json`, `infinity/InfinityAttachments.java`, `Spellcraft.java` (no change expected), `gametest/SpellcraftGameTests.java`
-- Rename: `infinity/InfinityAbilitySync.java` to `infinity/AbilitySync.java` (`git mv`); update `effect/InfinityEffect.java`, `effect/ModEffects.java` (Javadoc), `gametest/InfinityAbilityGameTests.java`, `gametest/InfinityDeathGameTests.java`
+- Modify: `src/main/resources/spellcraft.mixins.json`, `infinity/InfinityAttachments.java`, `gametest/SpellcraftGameTests.java`
+- Rename: `infinity/InfinityAbilitySync.java` to `infinity/AbilitySync.java` (`git mv`); update its four referencing files: `effect/InfinityEffect.java`, `effect/ModEffects.java` (Javadoc), `gametest/InfinityAbilityGameTests.java`, `gametest/InfinityDeathGameTests.java`
 
 **Interfaces:**
 
@@ -2231,13 +2629,14 @@ git commit -m "feat(evoking): Mirror confuses a mob that picks the carrier 13 ti
 
 - [ ] **Step 1: Write the failing tests**
 
-`GhostrailFlightGameTests` (javadoc `/** GameTests of a Ghostrail player's physics and flight (Parts 6-7 spec §7.3). */`; no padding, no mobs: `SpellcraftGameTests.add(SHARED, name, body)`; the class is `@SuppressWarnings("deprecation")` with the same comment as `InfinityAbilityGameTests`, because every test reads `Abilities#mayfly`). A helper `private static ServerPlayer player(GameTestHelper helper, GameType mode)` = `MockPlayers.inLevel(helper, mode)` then `MockPlayers.moveIntoTest(helper, player)`.
+`GhostrailFlightGameTests` (javadoc `/** GameTests of a Ghostrail player's physics and flight (Parts 6-7 spec §7.3). */`; no mobs. Tests that run a full player tick through `doTick()` register through `FangGameTests.addPadded(SHARED, …)`, because `ServerPlayer.doTick` (`ServerPlayer.java:670`) runs `super.tick()` only when `!isSpectator() || !touchingUnloadedChunk()`, and an unpadded structure forces only its own chunks, so near a chunk edge the tick (and with it `noPhysics`) can be skipped; the rest use `SpellcraftGameTests.add(SHARED, name, body)`. No existing test calls `doTick()` on a mock player, so the first padded test is its probe: if `doTick()` throws for a mock player (read the stack trace), run the same assertion through `player.tick()` after `FangGameTests.loadPadding(helper)` and say so in the as-built note. The class is `@SuppressWarnings("deprecation")` with the same comment as `InfinityAbilityGameTests`, because every test reads `Abilities#mayfly`). A helper `private static ServerPlayer player(GameTestHelper helper, GameType mode)` = `MockPlayers.inLevel(helper, mode)` then `MockPlayers.moveIntoTest(helper, player)`.
 
 ```java
 static void registerAll() {
-    SpellcraftGameTests.add(SHARED, "ghostrail_flight_player_gets_no_physics_through_the_mixin", GhostrailFlightGameTests::noPhysicsThroughTheMixin);
-    SpellcraftGameTests.add(SHARED, "ghostrail_flight_no_effect_means_physics", GhostrailFlightGameTests::noEffectMeansPhysics);
-    SpellcraftGameTests.add(SHARED, "ghostrail_flight_spectator_still_has_no_physics", GhostrailFlightGameTests::spectatorStillHasNoPhysics);
+    FangGameTests.addPadded(SHARED, "ghostrail_flight_player_gets_no_physics_through_the_mixin", GhostrailFlightGameTests::noPhysicsThroughTheMixin);
+    FangGameTests.addPadded(SHARED, "ghostrail_flight_no_effect_means_physics", GhostrailFlightGameTests::noEffectMeansPhysics);
+    FangGameTests.addPadded(SHARED, "ghostrail_flight_spectator_still_has_no_physics", GhostrailFlightGameTests::spectatorStillHasNoPhysics);
+    FangGameTests.addPadded(SHARED, "ghostrail_flight_player_on_stone_stays_aloft_and_passes_through_it", GhostrailFlightGameTests::staysAloftOverStone);
     SpellcraftGameTests.add(SHARED, "ghostrail_flight_grants_mayfly_and_flying", GhostrailFlightGameTests::grantsFlight);
     SpellcraftGameTests.add(SHARED, "ghostrail_flight_flying_is_reasserted_each_sync", GhostrailFlightGameTests::reassertsFlying);
     SpellcraftGameTests.add(SHARED, "ghostrail_flight_ending_revokes_the_flight", GhostrailFlightGameTests::endingRevokes);
@@ -2273,7 +2672,9 @@ static void noEffectMeansPhysics(GameTestHelper helper) {
 }
 ```
 
-`spectatorStillHasNoPhysics`: `GameType.SPECTATOR`, `doTick()`, `noPhysics` true (the `original ||` half). `grantsFlight`: cast, `AbilitySync.sync(player)`, assert `abilities.mayfly && abilities.flying && !abilities.instabuild`. `reassertsFlying`: cast, sync, `abilities.flying = false`, sync, assert `flying`. `endingRevokes`: cast, sync, `removeEffect(GHOSTRAIL)`, sync: assert `!mayfly && !flying`. `endingKeepsInfinity`: cast Infinity (`Spells.cast(player, Spells.INFINITY, Spell.INFINITE.getAsInt())`) and Ghostrail, sync; remove Ghostrail; sync: assert `mayfly && instabuild && !flying`. `infinityEndingKeepsGhostrail`: both, sync; remove Infinity; sync: assert `mayfly && flying && !instabuild`. `markIsSaved`: cast Ghostrail, sync, then read the saved player the way `InfinityAbilityGameTests.grantedMarkSurvivesSave` reads the Infinity mark (read it first and copy its pattern) and assert the `ghostrail_granted` mark is saved true; also assert `player.getData(InfinityAttachments.GHOSTRAIL_GRANTED)` is true. `creativeKeepsFlight`: `GameType.CREATIVE`; cast Ghostrail (as a command would); sync: assert `mayfly` and `instabuild` still true and `!` any change in `flying` handling (creative owns it); remove Ghostrail; sync: `mayfly` still true.
+`spectatorStillHasNoPhysics`: `GameType.SPECTATOR`, `doTick()`, `noPhysics` true (the `original ||` half). `grantsFlight`: cast, `AbilitySync.sync(player)`, assert `abilities.mayfly && abilities.flying && !abilities.instabuild`. `reassertsFlying`: cast, sync, `abilities.flying = false`, sync, assert `flying`. `endingRevokes`: cast, sync, `removeEffect(GHOSTRAIL)`, sync: assert `!mayfly && !flying`. `endingKeepsInfinity`: cast Infinity (`Spells.cast(player, Spells.INFINITY, Spell.INFINITE.getAsInt())`) and Ghostrail, sync; remove Ghostrail; sync: assert `mayfly && instabuild && !flying`. `infinityEndingKeepsGhostrail`: both, sync; remove Infinity; sync: assert `mayfly && flying && !instabuild`. `markIsSaved`: cast Ghostrail, sync, then read the saved player the way `InfinityAbilityGameTests.grantedMarkSurvivesSave` reads the Infinity mark (read it first and copy its pattern) and assert the `ghostrail_granted` mark is saved true; also assert `player.getData(InfinityAttachments.GHOSTRAIL_GRANTED)` is true. `creativeKeepsFlight`: `GameType.CREATIVE`; cast Ghostrail (as a command would); set `abilities.flying = false` first, then sync: assert `mayfly` and `instabuild` still true and `flying` still **false** (sync must not force flying on a creative player: creative owns its flags); remove Ghostrail; sync: `mayfly` still true.
+
+`staysAloftOverStone` (padded; the spec's "a player on stone given Ghostrail and stepped 20 ticks keeps its `y`", and the order the Mixin and the sync depend on): `ServerPlayer player = player(helper, GameType.SURVIVAL)` on `ScrollTestSupport.floor(helper, 6)`; record `double y = player.getY()`; cast Ghostrail; run one `player.doTick()` and assert `noPhysics` is true (the Mixin: `Player.tick` assigns `noPhysics` at its top, before the sync) and `abilities.flying` is true (the sync sets it in the Post event of the same tick); then `helper.startSequence().thenExecuteFor(19, player::doTick)`, `thenExecute` assert `getY()` equals `y` exactly, `flying` and `mayfly` still true, `noPhysics` true. Last, `player.move(MoverType.SELF, new Vec3(0.0, -1.5, 0.0))` and assert `getY()` fell by 1.5 (a `noPhysics` move ignores the stone floor; an ordinary player would stop on it). A mock player is not simulated by the server, so the unchanged `y` shows only that nothing in the Mixin or the sync moves the player; the `move` call is what proves the pass-through, and the `flying` assertions are why `AbilitySync` re-asserts it (without flight, `noPhysics` skips collision and a real player sinks).
 
 Add `GhostrailFlightGameTests.registerAll();` after `MirrorConfusionGameTests.registerAll();`.
 
@@ -2283,19 +2684,26 @@ Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:ghostrail_flight_*"`. 
 
 - [ ] **Step 3: Write the implementation**
 
-`git mv` the sync to `AbilitySync.java`, rename the class, and update its three callers and Javadoc references (`InfinityAbilityGameTests`, `InfinityDeathGameTests`, the `InfinityEffect` and `ModEffects` comments). New body:
+`git mv` the sync to `AbilitySync.java`, rename the class, and update its references in the four files (`InfinityAbilityGameTests`, `InfinityDeathGameTests`, the `InfinityEffect` and `ModEffects` comments and calls). New body:
 
 ```java
 /**
- * Keeps each player's creative-style abilities in line with Infinity and Ghostrail, every server tick (Parts 6-7 spec
- * §7.3; formerly {@code InfinityAbilitySync}). Vanilla's abilities packet syncs the client, which then opens the
- * creative inventory by itself (docs/api-notes.md §11). The decision is the pure {@link GrantedAbilities}.
+ * Keeps each player's creative-style abilities in line with Infinity and Ghostrail, every server tick (Parts 6-7
+ * spec §7.3; formerly {@code InfinityAbilitySync}). Vanilla's abilities packet syncs the client, which then opens the
+ * creative inventory by itself (docs/api-notes.md §11). The decision is the pure {@link GrantedAbilities}. This
+ * class is the one driver of the sync: {@code Ghostrail.tick} (Task 7) does not call it, and the two do not depend
+ * on each other's order in the Post event (a GameTest that steps {@code Ghostrail.tick} by hand and needs the
+ * abilities settled calls {@link #sync} itself).
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class AbilitySync {
     private AbilitySync() {}
 
-    /** Syncs the abilities of every server-side player after each tick. */
+    /**
+     * Syncs the abilities of every server-side player after each tick.
+     *
+     * @param event the player's post-tick event
+     */
     @SubscribeEvent
     public static void onPlayerTick(PlayerTickEvent.Post event) {
         if (event.getEntity() instanceof ServerPlayer player) {
@@ -2304,8 +2712,8 @@ public final class AbilitySync {
     }
 
     /**
-     * Applies one {@link GrantedAbilities} plan: a reset to the game mode's abilities when a source ended, the grants of
-     * what is still active, both marks. Public so GameTests can run one sync without waiting for a tick.
+     * Applies one {@link GrantedAbilities} plan: a reset to the game mode's abilities when a source ended, the
+     * grants of what is still active, both marks. Public so GameTests can run one sync without waiting for a tick.
      *
      * @param player the player to sync
      */
@@ -2333,11 +2741,17 @@ public final class AbilitySync {
             abilities.instabuild = true;
         }
         if (plan.flying()) {
-            // noPhysics skips collision, so a player who is not flying would sink through the floor (as in spectator mode)
+            // noPhysics skips collision, so a player who is not flying would sink through the floor
+            // (as in spectator mode)
             abilities.flying = true;
         }
-        player.setData(InfinityAttachments.GRANTED, plan.infinityMarked());
-        player.setData(InfinityAttachments.GHOSTRAIL_GRANTED, plan.ghostrailMarked());
+        // Write a mark only when it changes (the old sync did the same; this runs for every player every tick).
+        if (plan.infinityMarked() != player.getData(InfinityAttachments.GRANTED)) {
+            player.setData(InfinityAttachments.GRANTED, plan.infinityMarked());
+        }
+        if (plan.ghostrailMarked() != player.getData(InfinityAttachments.GHOSTRAIL_GRANTED)) {
+            player.setData(InfinityAttachments.GHOSTRAIL_GRANTED, plan.ghostrailMarked());
+        }
         if (plan.changesAbilities()) {
             player.onUpdateAbilities();
         }
@@ -2349,8 +2763,10 @@ public final class AbilitySync {
 
 ```java
 /**
- * True while Ghostrail (not vanilla, Infinity or another mod) set the player's {@code mayfly} and {@code flying}. Saved,
- * so a relog mid-effect does not leave {@code mayfly} on for good. Not copied on death, as {@link #GRANTED}.
+ * True while Ghostrail (not vanilla, Infinity or another mod) set the player's {@code mayfly} and {@code flying}.
+ * Saved, so a relog mid-effect does not leave {@code mayfly} on for good. Not copied on death, as {@link #GRANTED}.
+ * Not the same as {@code EvokingAttachments.GHOSTRAIL_MARK} (Task 7): that one records the carrier's original
+ * {@code noGravity}, for every kind of carrier; this one records only who set the abilities flags, for players.
  */
 public static final DeferredHolder<AttachmentType<?>, AttachmentType<Boolean>> GHOSTRAIL_GRANTED =
         ATTACHMENT_TYPES.register(
@@ -2364,14 +2780,24 @@ public static final DeferredHolder<AttachmentType<?>, AttachmentType<Boolean>> G
 
 ```java
 /**
- * Lets a Ghostrail player pass through blocks. {@code Player.tick} sets {@code noPhysics} from {@code isSpectator()} on
- * both sides ({@code LocalPlayer.tick} reaches it; the effect is synced), and no event reaches that assignment, so
- * this wraps the first {@code isSpectator()} call (ordinal 0: the line {@code this.noPhysics = this.isSpectator()}).
- * The server then accepts the moves ({@code ServerGamePacketListenerImpl} skips its "moved wrongly" check for
- * {@code noPhysics}). {@code require = 1}: a moved call fails startup loudly.
+ * Lets a Ghostrail player pass through blocks. {@code Player.tick} sets {@code noPhysics} from {@code isSpectator()}
+ * on both sides ({@code LocalPlayer.tick} reaches it; the effect is synced), and no event reaches that assignment,
+ * so this wraps the first {@code isSpectator()} call in {@code tick()} (ordinal 0: the statement
+ * {@code this.noPhysics = this.isSpectator()}, api-notes §26). The server then accepts the moves
+ * ({@code ServerGamePacketListenerImpl} skips its "moved wrongly" check for {@code noPhysics}). {@code require = 1}:
+ * a moved call fails startup loudly. The handler is one expression (the original answer or the effect), so there is
+ * no logic to share.
  */
 @Mixin(Player.class)
 abstract class PlayerGhostrailMixin {
+    /**
+     * Wraps the first {@code isSpectator()} call of {@code Player.tick}: true for a spectator (the original answer)
+     * or for a player with Ghostrail.
+     *
+     * @param player the ticking player
+     * @param original the original call
+     * @return whether {@code noPhysics} should be set this tick
+     */
     @WrapOperation(
             method = "tick",
             at = @At(
@@ -2395,7 +2821,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Gates and commit**
 
-Run: `./gradlew spotlessApply build`, `./gradlew runData`, `./gradlew runGameTestServer` twice. Expected: `All 688 required tests passed` both times (678 + 10).
+Run: `./gradlew spotlessApply build`, then `./gradlew runGameTestServer` twice (`runData` is not needed: the Mixin is common code that the GameTest server loads, and nothing here is client code). Expected: `All 694 required tests passed` both times (the Task 5 total plus the 11 `ghostrail_flight_*` tests: the 10 of the list and `ghostrail_flight_player_on_stone_stays_aloft_and_passes_through_it`).
 
 ```bash
 git add src
@@ -2413,14 +2839,14 @@ git commit -m "feat(ghostrail): players pass through blocks and fly; one abiliti
 
 **Interfaces:**
 
-- Consumes: Task 6 (`AbilitySync.sync`), `StandableSpots.standable(Level, BlockPos)`.
+- Consumes: Task 6 (`AbilitySync.sync`, called by the tests only), Task 4 (`ScrollTestSupport.hostileAt`), `StandableSpots.standable(Level, BlockPos)`.
 - Produces:
   - `EvokingAttachments` (public final): `ATTACHMENT_TYPES` (`DeferredRegister<AttachmentType<?>>`), `GHOSTRAIL_MARK` (`AttachmentType<Boolean>`, saved, id `ghostrail_mark`: its presence means "this carrier has Ghostrail running"; its value is the carrier's original `NoGravity`), `GHOSTRAIL_START` (`AttachmentType<BlockPos>`, **not** saved, id `ghostrail_start`: the standable spot the effect began at; read with `getExistingData`), `MOB_MIRROR_READY` and `MOB_GHOSTRAIL_READY` (`AttachmentType<Long>`, saved, ids `mob_mirror_ready` and `mob_ghostrail_ready`: the game time the cooldown ends; Task 10 uses them).
-  - `Ghostrail` (public final): `static void begin(LivingEntity carrier)` (called by `GhostrailEffect.onEffectAdded` on a server level: sets the mark from `carrier.isNoGravity()` and, if the block is standable, the start spot); `static void tick(LivingEntity carrier)` (public so GameTests step it: the flight sync for a `ServerPlayer`, a missing mark re-set while the effect is on, the mob-carrier hold, the trail, and the end when the mark is set with no effect); `static boolean flies(LivingEntity carrier)` (`carrier instanceof Vex`; Task 12 adds `|| carrier instanceof VillagerGhost`); events `onPlayerTick`, `onEntityTick`, `onIncomingDamage`.
+  - `Ghostrail` (public final): `static void begin(LivingEntity carrier)` (called by `GhostrailEffect.onEffectAdded` on a server level: sets the mark from `carrier.isNoGravity()` only when no mark is set yet, so an effect removed and cast again before the end ran keeps the original value, and, if the block is standable, the start spot); `static void tick(LivingEntity carrier)` (public so GameTests step it: a missing mark re-set while the effect is on, the mob-carrier hold, the trail, and the end when the mark is set with no effect; for a carrier that is no longer alive it only clears the mark and gives gravity back, no push-out; it does **not** sync a player's abilities: `AbilitySync` is the one driver of that, and a GameTest that needs it calls `AbilitySync.sync` itself); `static boolean flies(LivingEntity carrier)` (`carrier instanceof Vex`; Task 12 adds `|| carrier instanceof VillagerGhost`); events `onPlayerTick`, `onEntityTick`, `onIncomingDamage`.
 
 - [ ] **Step 1: Write the failing tests**
 
-`GhostrailGameTests` (javadoc `/** GameTests of Ghostrail's damage rule, trail, ending and mob carriers (Parts 6-7 spec §7.3, §10). */`; tests that place a player or a zombie in the padding register through `FangGameTests.addPadded(SHARED, …)`; helper `plain(helper)` = `ScrollTestSupport.plainPlayer`):
+`GhostrailGameTests` (javadoc `/** GameTests of Ghostrail's damage rule, trail, ending and mob carriers (Parts 6-7 spec §7.3, §10). */`; tests that place a player or a hostile mob in the padding register through `FangGameTests.addPadded(SHARED, …)`; the one test that reads a constant registers through `SpellcraftGameTests.add(SHARED, …)`; the bodies call `ScrollTestSupport.plainPlayer` as `plainPlayer(helper)`; every mob below is a `Husk` from `hostileAt` (a zombie burns in daylight), and a `Husk` is a `Zombie`):
 
 ```java
 static void registerAll() {
@@ -2435,24 +2861,33 @@ static void registerAll() {
     FangGameTests.addPadded(SHARED, "ghostrail_mob_carrier_gets_no_physics_and_no_gravity", GhostrailGameTests::mobGetsNoPhysics);
     FangGameTests.addPadded(SHARED, "ghostrail_mob_carrier_gets_its_gravity_back_at_the_end", GhostrailGameTests::mobGetsGravityBack);
     FangGameTests.addPadded(SHARED, "ghostrail_mob_carrier_keeps_an_original_no_gravity", GhostrailGameTests::mobKeepsOriginalNoGravity);
+    FangGameTests.addPadded(SHARED, "ghostrail_mob_carrier_recast_before_the_end_keeps_the_original_gravity", GhostrailGameTests::recastKeepsTheOriginal);
+    FangGameTests.addPadded(SHARED, "ghostrail_dead_carrier_is_not_pushed_out_of_the_stone", GhostrailGameTests::deadCarrierIsNotPushed);
     FangGameTests.addPadded(SHARED, "ghostrail_vex_carrier_is_left_alone", GhostrailGameTests::vexIsLeftAlone);
-    FangGameTests.addPadded(SHARED, "ghostrail_infinite_duration_is_vanillas", GhostrailGameTests::infiniteIsVanillas);
+    SpellcraftGameTests.add(SHARED, "ghostrail_infinite_duration_is_vanillas", GhostrailGameTests::infiniteIsVanillas);
     FangGameTests.addPadded(SHARED, "ghostrail_mob_mark_is_saved", GhostrailGameTests::mobMarkIsSaved);
 }
 ```
 
 ```java
-/** When a Ghostrail player takes 5 damage from a generic source, should their health not change. */
+/**
+ * When a player takes 5 damage from a generic source, should their health drop without Ghostrail (the control) and
+ * not change with it.
+ */
 static void damageIsCancelled(GameTestHelper helper) {
     // Arrange
     ServerPlayer player = plainPlayer(helper);
-    Spells.cast(player, Spells.GHOSTRAIL, GhostrailDuration.PLAYER_TICKS);
-    float before = player.getHealth();
     ServerLevel level = helper.getLevel();
+    float full = player.getHealth();
+    player.hurtServer(level, level.damageSources().generic(), 5.0F);
+    helper.assertValueEqual(player.getHealth(), full - 5.0F, "control: without Ghostrail the hit lands");
+    player.setHealth(full);
+    player.invulnerableTime = 0; // the hit above started the invulnerability frames
+    Spells.cast(player, Spells.GHOSTRAIL, GhostrailDuration.PLAYER_TICKS);
     // Act
     player.hurtServer(level, level.damageSources().generic(), 5.0F);
     // Assert
-    helper.assertValueEqual(player.getHealth(), before, "no damage");
+    helper.assertValueEqual(player.getHealth(), full, "no damage");
     helper.succeed();
 }
 
@@ -2470,23 +2905,40 @@ static void killStillLands(GameTestHelper helper) {
 }
 ```
 
-`voidDamageStillLands` is the same with `level.damageSources().fellOutOfWorld()`. `trailIsSent`: cast; `GameTestSupport.drainShown(player)` once to empty the queue; `player.setPos(player.getX() + 1.0, ...)`? the trail is at the previous position, so no move is needed (`xOld` is the position at the start of the tick; set `player.xo = player.getX() - 1.0` is not needed); call `Ghostrail.tick(player)`; assert `GameTestSupport.drainShown(player).particles()` contains `ParticleTypes.WHITE_SMOKE` (read `GameTestSupport.Shown` and `drainShown` for the exact accessor names).
+`voidDamageStillLands` is the same with `level.damageSources().fellOutOfWorld()`. `trailIsSent`: cast; `GameTestSupport.drainShown(player)` once to empty the queue; call `Ghostrail.tick(player)` (the trail is drawn at the previous position, so no move is needed); assert `GameTestSupport.drainShown(player).particles()` contains `ParticleTypes.WHITE_SMOKE` (read `GameTestSupport.Shown` and `drainShown` for the exact accessor names).
+
+The ending tests that build stone share one helper, which sets the blocks with flag `Block.UPDATE_CLIENTS` (2: no neighbor updates, no drops) and puts air back when the test ends (a padded test clears only its own padded box, and these cubes can reach past it):
 
 ```java
-/** When Ghostrail ends with the player's box inside stone, should they move to a free spot, fall distance 0, no mayfly. */
+/** Fills the box between two relative corners with stone; puts air back when the test ends. */
+private static void stoneBox(GameTestHelper helper, BlockPos from, BlockPos to) {
+    ServerLevel level = helper.getLevel();
+    List<BlockPos> filled = new ArrayList<>();
+    for (BlockPos pos : BlockPos.betweenClosed(helper.absolutePos(from), helper.absolutePos(to))) {
+        BlockPos fixed = pos.immutable();
+        level.setBlock(fixed, Blocks.STONE.defaultBlockState(), Block.UPDATE_CLIENTS);
+        filled.add(fixed);
+    }
+    GameTestSupport.whenDone(helper, () -> filled.forEach(pos -> level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS)));
+}
+```
+
+```java
+/**
+ * When Ghostrail ends with the player's box inside stone, should they move to a free spot, fall distance 0, no mayfly.
+ */
 static void endingInStone(GameTestHelper helper) {
-    // Arrange: a 7 x 7 x 7 block of stone with the player's feet in the middle of it, over a floor
+    // Arrange: a 7 x 7 x 7 block of stone with the player's feet in it, over a floor
     ServerPlayer player = plainPlayer(helper);
     ServerLevel level = helper.getLevel();
-    for (BlockPos pos : BlockPos.betweenClosed(
-            helper.absolutePos(FangGameTests.FEET.offset(-3, -1, -3)), helper.absolutePos(FangGameTests.FEET.offset(3, 5, 3)))) {
-        level.setBlock(pos, Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
-    }
+    stoneBox(helper, FangGameTests.FEET.offset(-3, -1, -3), FangGameTests.FEET.offset(3, 5, 3));
     Spells.cast(player, Spells.GHOSTRAIL, GhostrailDuration.PLAYER_TICKS);
+    AbilitySync.sync(player);
     Ghostrail.tick(player);
     player.fallDistance = 12.0;
     // Act
     player.removeEffect(ModEffects.GHOSTRAIL);
+    AbilitySync.sync(player);
     Ghostrail.tick(player);
     // Assert
     helper.assertTrue(level.noCollision(player, player.getBoundingBox()), "the player's box is free");
@@ -2497,14 +2949,14 @@ static void endingInStone(GameTestHelper helper) {
 }
 ```
 
-(The padded box is air, so the stone cube is a pocket; the cube's blocks need no cleanup, the framework clears the padded box. If a standable spot is found outside the cube the player ends up standing on the floor stone or in mid-air; both pass.)
+(The padded box is air, so the stone cube is a pocket. If a standable spot is found outside the cube the player ends up standing on the floor stone or in mid-air; both pass.)
 
-`endingInTheOpen`: cast, tick, remove, tick: the position is unchanged (`player.position()` equal to the position before the removal) and `fallDistance` is 0. `endingGoesToTheStartSpot`: the player stands at the standing spot over a floor (`floor(helper, 3)`), Ghostrail is cast (the start spot is recorded: assert `player.getExistingData(EvokingAttachments.GHOSTRAIL_START)` is present and equals the player's block), then the player is moved 12 blocks up and a 19 x 19 x 19 stone cube is set around the new position (so nothing within 8 blocks is free), the effect is removed and `Ghostrail.tick` runs: assert the player's block equals the start spot. `endingStaysWithNoStartSpot`: the same but the cast happens inside the stone (no start spot recorded: assert `getExistingData(GHOSTRAIL_START)` is empty) and the player's position is unchanged after the end. `mobGetsNoPhysics`: a zombie from `ScrollTestSupport.foeAt`; `Spells.cast(zombie, Spells.GHOSTRAIL, GhostrailDuration.HOSTILE_TICKS)`; `Ghostrail.tick(zombie)`; assert `zombie.noPhysics && zombie.isNoGravity()`. `mobGetsGravityBack`: a zombie with `setNoGravity(false)`: cast, tick, `zombie.removeAllEffects()` (the `/effect clear` path: the effect is gone but the mark remains), tick: assert `!noPhysics && !isNoGravity()` and `!zombie.hasData(EvokingAttachments.GHOSTRAIL_MARK)`. `mobKeepsOriginalNoGravity`: the zombie starts with `setNoGravity(true)` (`foeAt` already sets it): after the end `isNoGravity()` is still true and `noPhysics` is false. `vexIsLeftAlone`: a `BoundVex` (from `BoundVexTestSupport.unmarkedVex`) given Ghostrail: after `Ghostrail.tick(vex)` its `noPhysics` is unchanged (false between ticks) and, after the end, `isNoGravity()` equals its value before. `infiniteIsVanillas`: `helper.assertValueEqual(GhostrailDuration.INFINITE, MobEffectInstance.INFINITE_DURATION, "the sentinel")`. `mobMarkIsSaved`: a zombie with Ghostrail: `((Zombie) GameTestSupport.reloaded(level, zombie)).hasData(EvokingAttachments.GHOSTRAIL_MARK)` is true.
+`endingInTheOpen`: cast, tick, remove, tick: the position is unchanged (`player.position()` equal to the position before the removal) and `fallDistance` is 0. `endingGoesToTheStartSpot`: the player stands at the standing spot over a floor (`floor(helper, 3)`), Ghostrail is cast (the start spot is recorded: assert `player.getExistingData(EvokingAttachments.GHOSTRAIL_START)` is present and equals the player's block), then the player is moved 6 blocks up (`MockPlayers.moveTo(helper, player, FangGameTests.STAND.add(0, 6, 0), yaw)`) and a stone cube of half-width 8 (17 x 17 x 17: every block within `Ghostrail.SEARCH_RADIUS` of the player is stone, so nothing within 8 blocks is free, and the cube's top, 8 above the moved player, stays inside the padded box, whose top is 13 above the 3-tall structure) is set with `stoneBox` around the new position, the effect is removed and `Ghostrail.tick` runs: assert the player's block equals the start spot. `endingStaysWithNoStartSpot`: the same but the cast happens inside the stone (no start spot recorded: assert `getExistingData(GHOSTRAIL_START)` is empty) and the player's position is unchanged after the end. `mobGetsNoPhysics`: a husk from `ScrollTestSupport.hostileAt`; `Spells.cast(husk, Spells.GHOSTRAIL, GhostrailDuration.HOSTILE_TICKS)`; `Ghostrail.tick(husk)`; assert `husk.noPhysics && husk.isNoGravity()`. `mobGetsGravityBack`: a husk with `setNoGravity(false)`: cast, tick, `husk.removeAllEffects()` (the `/effect clear` path: the effect is gone but the mark remains), tick: assert `!noPhysics && !isNoGravity()` and `!husk.hasData(EvokingAttachments.GHOSTRAIL_MARK)`. `mobKeepsOriginalNoGravity`: the husk starts with `setNoGravity(true)` (`foeAt` already sets it): after the end `isNoGravity()` is still true and `noPhysics` is false. `recastKeepsTheOriginal`: a husk with `setNoGravity(false)`: cast, tick (the hold sets `noGravity`), `removeEffect`, cast again **before** any tick (the mark is still set; `begin` must not overwrite the stored `false` with the hold's `true`), tick, `removeEffect`, tick: assert `!isNoGravity()` (gravity is restored). `deadCarrierIsNotPushed`: a husk inside a stone pocket (`stoneBox` around it) with Ghostrail, ticked once; kill it with `husk.hurtServer(level, level.damageSources().genericKill(), 1000.0F)` (a kill still lands through Ghostrail); tick again: assert its position is unchanged (a corpse is not teleported), `!hasData(GHOSTRAIL_MARK)` and `!noPhysics`. `vexIsLeftAlone`: a `BoundVex` (from `BoundVexTestSupport.unmarkedVex`) given Ghostrail: after `Ghostrail.tick(vex)` its `noPhysics` is unchanged (false between ticks) and, after the end, `isNoGravity()` equals its value before. `infiniteIsVanillas`: `helper.assertValueEqual(GhostrailDuration.INFINITE, MobEffectInstance.INFINITE_DURATION, "the sentinel")` (a pure constant comparison, so it registers through `SpellcraftGameTests.add`, with no padding). `mobMarkIsSaved`: a husk with Ghostrail: `((Husk) GameTestSupport.reloaded(level, husk)).hasData(EvokingAttachments.GHOSTRAIL_MARK)` is true.
 
 Add three no-rescue tests to the existing classes (each is one registered line plus one method; they call the class's own private helpers, so they live in those classes):
 
-- `BoundVexLavaGameTests`: `lavaPullNotForAGhostrailCarrier` = `lavaPullNotForTheUnhurt(helper, player -> Spells.cast(player, Spells.GHOSTRAIL, GhostrailDuration.PLAYER_TICKS), false)`; registered as `bound_vex_world_lava_pull_not_for_a_ghostrail_carrier` (copy the prefix of the neighboring registrations).
-- `BoundVexDrowningGameTests`: `drowningNotForAGhostrailCarrier` = `drowningNotFor(helper, player -> Spells.cast(player, Spells.GHOSTRAIL, GhostrailDuration.PLAYER_TICKS), false, VexRescues.LOW_AIR - 1)`; registered like its neighbors (`padded(...)`), name `bound_vex_world_drowning_not_for_a_ghostrail_carrier`.
+- `BoundVexLavaGameTests`: no new method; the registration inlines the lambda, as its neighbors `..._not_for_fire_resistance` and `..._not_for_creative` do: `padded("bound_vex_world_lava_pull_not_for_a_ghostrail_carrier", helper -> lavaPullNotForTheUnhurt(helper, player -> Spells.cast(player, Spells.GHOSTRAIL, GhostrailDuration.PLAYER_TICKS), false));`.
+- `BoundVexDrowningGameTests`: `drowningNotForAGhostrailCarrier` = `drowningNotFor(helper, player -> Spells.cast(player, Spells.GHOSTRAIL, GhostrailDuration.PLAYER_TICKS), false, VexRescues.LOW_AIR - 1)` (a method, like its neighbors `drowningNotForCreative` and `drowningNotForPassengers`); registered with `padded(...)`, name `bound_vex_world_drowning_not_for_a_ghostrail_carrier`.
 - `BoundVexVoidGameTests`: `voidCatchNotForAGhostrailCarrier`: arrange like `voidCatch` (a `voidPlayer`, `endVoid`, a platform ten blocks east, a `voidVex`), then in the sequence step: `Spells.cast(player, Spells.GHOSTRAIL, GhostrailDuration.PLAYER_TICKS)`, `dropTo(player, column(slot, end.getMinY() - BELOW_FLOOR))`, `VexRescues.tick(player)`, `assertStillThere(helper, player, column(slot, end.getMinY() - BELOW_FLOOR), "no void catch for a Ghostrail carrier")`. Read `voidCatch` and its neighbors first and copy the arrange lines and registration style exactly.
 
 Add `GhostrailGameTests.registerAll();` after `GhostrailFlightGameTests.registerAll();`.
@@ -2520,13 +2972,15 @@ Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:ghostrail_*"` (FAIL: `
 ```java
 /** Entity data of Part 7's spells (Parts 6-7 spec §7.3, §8). */
 public final class EvokingAttachments {
+    /** The register of these attachment types; the mod constructor adds it to the mod event bus. */
     public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES =
             DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, Spellcraft.MODID);
 
     /**
-     * Present on a carrier while Ghostrail runs; the value is the carrier's own {@code NoGravity} from before. Saved, so a
-     * reload mid-effect still ends it properly, and its presence with no effect is how the end is noticed after expiry,
-     * milk or {@code /effect clear}. Read with {@code getExistingData}/{@code hasData}.
+     * Present on a carrier while Ghostrail runs; the value is the carrier's own {@code NoGravity} from before. Saved,
+     * so a reload mid-effect still ends it properly, and its presence with no effect is how the end is noticed after
+     * expiry, milk or {@code /effect clear}. Read with {@code getExistingData}/{@code hasData}. Not the player's
+     * {@code InfinityAttachments.GHOSTRAIL_GRANTED}, which records who set the abilities flags.
      */
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<Boolean>> GHOSTRAIL_MARK =
             ATTACHMENT_TYPES.register(
@@ -2560,8 +3014,10 @@ public final class EvokingAttachments {
 ```java
 /**
  * The per-tick driver of Ghostrail (Parts 6-7 spec §7.3). The player's physics are the Mixin's and the flight is
- * {@link AbilitySync}'s; this runs the rest: no damage (but {@code /kill} and the void still land), the white-smoke trail,
- * the hold on a mob carrier ({@code noPhysics}, no gravity), and the end (push out of blocks, give gravity back).
+ * {@link AbilitySync}'s (the one driver of the abilities sync); this runs the rest: no damage (but {@code /kill} and
+ * the void still land), the white-smoke trail, the hold on a mob carrier ({@code noPhysics}, no gravity), and the
+ * end (push out of blocks, give gravity back). Nothing here depends on the order of the two Post-tick handlers:
+ * the end only moves the carrier and never touches abilities.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class Ghostrail {
@@ -2574,8 +3030,8 @@ public final class Ghostrail {
     private Ghostrail() {}
 
     /**
-     * Whether {@code carrier} flies through blocks by itself: a Vex ({@code Vex.noPhysics} is true only inside its own tick,
-     * so the flag cannot be the test).
+     * Whether {@code carrier} flies through blocks by itself: a Vex ({@code Vex.noPhysics} is true only inside its own
+     * tick, so the flag cannot be the test). Task 12 adds the villager ghost, and updates this Javadoc with it.
      *
      * @param carrier any living entity
      * @return true when Ghostrail must not touch its physics
@@ -2586,12 +3042,16 @@ public final class Ghostrail {
 
     /**
      * Notes that Ghostrail began on {@code carrier} (the effect's {@code onEffectAdded}): the mark with its original
-     * {@code NoGravity}, and the block it stands in if that is a standable spot.
+     * {@code NoGravity} (only when no mark is set yet: if the effect was removed and cast again before the end ran,
+     * the hold has already set {@code noGravity}, and the stored original must survive), and the block it stands in
+     * if that is a standable spot.
      *
      * @param carrier the new carrier, on a server level
      */
     public static void begin(LivingEntity carrier) {
-        carrier.setData(EvokingAttachments.GHOSTRAIL_MARK, carrier.isNoGravity());
+        if (!carrier.hasData(EvokingAttachments.GHOSTRAIL_MARK)) {
+            carrier.setData(EvokingAttachments.GHOSTRAIL_MARK, carrier.isNoGravity());
+        }
         if (StandableSpots.standable(carrier.level(), carrier.blockPosition())) {
             carrier.setData(EvokingAttachments.GHOSTRAIL_START, carrier.blockPosition());
         } else {
@@ -2608,11 +3068,16 @@ public final class Ghostrail {
         if (!(carrier.level() instanceof ServerLevel level)) {
             return;
         }
-        if (carrier instanceof ServerPlayer player) {
-            AbilitySync.sync(player);
-        }
         boolean has = carrier.hasEffect(ModEffects.GHOSTRAIL);
         boolean marked = carrier.hasData(EvokingAttachments.GHOSTRAIL_MARK);
+        if (!carrier.isAlive()) {
+            // A killed carrier keeps its effects until it is removed (a player until the respawn): clear the mark and
+            // give gravity back, but never teleport a corpse
+            if (marked) {
+                end(level, carrier, false);
+            }
+            return;
+        }
         if (has) {
             if (!marked) {
                 // The effect came back from a save or a forced add, which skip the hook
@@ -2633,19 +3098,23 @@ public final class Ghostrail {
                     0.1,
                     0.0);
         } else if (marked) {
-            end(level, carrier);
+            end(level, carrier, true);
         }
     }
 
-    /** Ends Ghostrail on {@code carrier}: gravity back, out of the blocks, no fall to come. */
-    private static void end(ServerLevel level, LivingEntity carrier) {
+    /**
+     * Ends Ghostrail on {@code carrier}: gravity back, out of the blocks (when {@code moveOut}), no fall to come.
+     */
+    private static void end(ServerLevel level, LivingEntity carrier, boolean moveOut) {
         boolean originalNoGravity = carrier.getExistingData(EvokingAttachments.GHOSTRAIL_MARK).orElse(false);
         carrier.removeData(EvokingAttachments.GHOSTRAIL_MARK);
         if (!(carrier instanceof Player) && !flies(carrier)) {
             carrier.noPhysics = false;
             carrier.setNoGravity(originalNoGravity);
         }
-        pushOut(level, carrier);
+        if (moveOut) {
+            pushOut(level, carrier);
+        }
         carrier.removeData(EvokingAttachments.GHOSTRAIL_START);
         carrier.fallDistance = 0.0;
     }
@@ -2694,6 +3163,10 @@ public final class Ghostrail {
         return level.noCollision(carrier, box);
     }
 
+    /**
+     * Moves {@code carrier} to {@code spot}: a player through the full teleport (it syncs the client), a mob by
+     * position.
+     */
     private static void teleport(ServerLevel level, LivingEntity carrier, Vec3 spot) {
         if (carrier instanceof ServerPlayer player) {
             player.teleportTo(level, spot.x, spot.y, spot.z, Set.of(), player.getYRot(), player.getXRot(), false);
@@ -2702,7 +3175,11 @@ public final class Ghostrail {
         }
     }
 
-    /** Drives every server player's Ghostrail after its tick. */
+    /**
+     * Drives every server player's Ghostrail after its tick.
+     *
+     * @param event the player's post-tick event
+     */
     @SubscribeEvent
     public static void onPlayerTick(PlayerTickEvent.Post event) {
         if (event.getEntity() instanceof ServerPlayer player) {
@@ -2710,7 +3187,11 @@ public final class Ghostrail {
         }
     }
 
-    /** Drives every non-player carrier (an entity that holds the saved mark) after its tick. */
+    /**
+     * Drives every non-player carrier (an entity that holds the saved mark) after its tick.
+     *
+     * @param event the entity's post-tick event
+     */
     @SubscribeEvent
     public static void onEntityTick(EntityTickEvent.Post event) {
         if (event.getEntity() instanceof LivingEntity living
@@ -2721,8 +3202,8 @@ public final class Ghostrail {
     }
 
     /**
-     * Cancels every hit on a carrier except {@code /kill} and the void, so a ghost that dives under the world still dies
-     * there.
+     * Cancels every hit on a carrier except {@code /kill} and the void, so a carrier that dives under the world
+     * still dies there.
      *
      * @param event the incoming-damage event
      */
@@ -2738,7 +3219,7 @@ public final class Ghostrail {
 }
 ```
 
-(Check in the sources: `Level.noCollision(Entity, AABB)`, `EntityDimensions.makeBoundingBox(Vec3)`, `Entity.removeData`, `Entity.teleportTo(double, double, double)` and the `ServerPlayer.teleportTo` overload used by `MockPlayers`; `Pose` for a non-living entity; adjust names to what the sources say.)
+(Verified against the sources: `CollisionGetter.noCollision(Entity, AABB)`, `EntityDimensions.makeBoundingBox(Vec3)`, `IAttachmentHolder.removeData(AttachmentType)`, `Entity.teleportTo(double, double, double)` and the `Entity`/`ServerPlayer.teleportTo(ServerLevel, double, double, double, Set<Relative>, float, float, boolean)` overload that `MockPlayers` uses; the carrier is always a `LivingEntity`, so `carrier.getPose()` exists.)
 
 `GhostrailEffect.onEffectAdded`:
 
@@ -2768,7 +3249,7 @@ Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:ghostrail_*"`, then `"
 
 - [ ] **Step 5: Gates and commit**
 
-Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 705 required tests passed` both times (688 + 17).
+Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 713 required tests passed` both times (the Task 6 total plus 19: the 16 `ghostrail_*` tests of the list in `GhostrailGameTests` and the 3 no-rescue tests).
 
 ```bash
 git add src
@@ -2792,9 +3273,9 @@ git commit -m "feat(ghostrail): no damage, a smoke trail, a safe ending and mob 
   - `BoundVex.isCaster()` / `setCaster(boolean)` (public; `CASTER` is a synced boolean, saved as `caster`); `long mirrorReadyAt()`, `void setMirrorReadyAt(long)`, `long ghostrailReadyAt()`, `void setGhostrailReadyAt(long)` (public; game times, saved as `mirror_ready` and `ghostrail_ready`, 0 means ready).
   - `CasterGoal` (package-private final, priority 3, flags `MOVE` and `LOOK`): with a live target, keeps `CasterRules.KEEP_MIN` to `KEEP_MAX` blocks from it. `ChargeGoal` and `RangedGearGoal` do not run for a Caster.
   - `VexSummons.summon` rolls `Dice.CASTER_ROLL.below(random, CasterRules.CASTER_ONE_IN) == 0` for each new vex.
-  - `TeamMoves.isFree(BoundVex, ServerPlayer)` is false for a Caster; new `TeamMoves.isFree(BoundVex, ServerPlayer, boolean forRaid)` is true for a Caster when `forRaid`; `TeamMoves.freeVexes(ServerPlayer, boolean forRaid)` and the package-private `freeVexes(ServerPlayer, List<BoundVex>, boolean forRaid)`; the Raid roster takes Casters.
-  - `TeamMoveKits.kit(TeamMove, ServerLevel, RandomSource, boolean caster)` (the three-argument form delegates with `false`): a Raid kit for a Caster is the Mirror scroll in the main hand (`ModItems.scrollFor(Spells.MIRROR)`), a shield in the off hand, and head, chest and legs of one armor material from **one** `Dice.RAID_KIT` roll (the Part 6 comment `// Part 7: a Caster rolls only the armor...` becomes this code).
-  - `ScrollTestSupport.casterVex(GameTestHelper, ServerPlayer, Vec3 absolute)` (a parked Caster: `BoundVexTestSupport.noTargets(boundVex(...))` with `setCaster(true)` at that position).
+  - `TeamMoves.isFree(BoundVex, ServerPlayer)` is false for a Caster; new `TeamMoves.isFree(BoundVex, ServerPlayer, boolean forRaid)` is true for a Caster when `forRaid`; `TeamMoves.freeVexes(ServerPlayer)` (kept: Part 6 tests call it) and `freeVexes(ServerPlayer, boolean forRaid)`, and the package-private list form `freeVexes(ServerPlayer, List<BoundVex>, boolean forRaid)` **replaces** the two-argument list form (its only caller, `TeamMoveTriggers.scan`, passes the flag); the Raid roster takes Casters.
+  - `TeamMoveKits.kit(TeamMove, ServerLevel, RandomSource, boolean caster)` **replaces** the three-argument form (its only caller, `TeamMoves.start`, passes `vex.isCaster()`): a Raid kit for a Caster is the Mirror scroll in the main hand (`ModItems.scrollFor(Spells.MIRROR)`), a shield in the off hand, and head, chest and legs of one armor material from **one** `Dice.RAID_KIT` roll (the Part 6 comment `// Part 7: a Caster rolls only the armor...` becomes this code).
+  - `ScrollTestSupport.casterVex(GameTestHelper, ServerPlayer, Vec3 absolute)` (a parked Caster: `BoundVexTestSupport.noTargets(boundVex(...))`, then `BoundVexTestSupport.pauseFollowing(vex)` so the follow goal does not pull it toward the player, with `setCaster(true)` at that position; tests place it clearly inside `GuardPosture.WIDE_LIMIT` (4.0) of the player or well outside it, never exactly on the limit); `ScrollTestSupport.raidScene(GameTestHelper)` and its `RaidScene(player, husk, caster)` record (below).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2802,21 +3283,26 @@ Add to `CasterRulesTest.constantsAreTheSpecsNumbers`: `assertThat(CasterRules.CA
 
 `CasterGameTests` (javadoc `/** GameTests of the Caster flag, its roll and its goal (Parts 6-7 spec §6.1, §6.2). */`; vexes sit in the padding, so `FangGameTests.addPadded`; the scripted-roll tests register in `caster_dice`, the real-dice statistics in `caster_dice_real`):
 
+Each registered name is `caster_` plus the method name in snake case (the rule of the preamble), so the inner-loop selector `spellcraft:caster_*` finds every one.
+
 ```java
 static void registerAll() {
     FangGameTests.addPadded("caster_dice", "caster_scripted_roll_makes_a_caster", CasterGameTests::scriptedRollMakesACaster);
     FangGameTests.addPadded("caster_dice", "caster_scripted_roll_makes_a_plain_vex", CasterGameTests::scriptedRollMakesAPlainVex);
     FangGameTests.addPadded(SHARED, "caster_flag_survives_save_and_load", CasterGameTests::flagSurvivesSaveAndLoad);
-    FangGameTests.addPadded(SHARED, "caster_summoned_by_command_is_not_a_caster", CasterGameTests::commandVexIsNotACaster);
-    FangGameTests.addPadded("caster_dice_real", "caster_share_of_real_summons_is_about_a_third", CasterGameTests::shareIsAboutAThird);
-    FangGameTests.addPadded(SHARED, "caster_with_a_target_never_hurts_it", CasterGameTests::neverHurtsItsTarget);
-    FangGameTests.addPadded(SHARED, "caster_keeps_four_to_six_blocks_from_its_target", 200, CasterGameTests::keepsItsDistance);
-    FangGameTests.addPadded(SHARED, "caster_backs_off_when_too_close", 200, CasterGameTests::backsOff);
-    FangGameTests.addPadded(SHARED, "caster_with_a_bow_never_shoots", CasterGameTests::neverShoots);
-    FangGameTests.addPadded(SHARED, "caster_control_a_plain_vex_charges_with_a_sword", 200, CasterGameTests::plainVexCharges);
-    FangGameTests.addPadded(SHARED, "caster_control_a_plain_vex_shoots_with_a_bow", 200, CasterGameTests::plainVexShoots);
-    FangGameTests.addPadded(SHARED, "caster_is_not_free_for_an_ordinary_move", CasterGameTests::notFreeForOrdinaryMoves);
-    FangGameTests.addPadded(SHARED, "caster_is_free_for_a_raid", CasterGameTests::freeForARaid);
+    FangGameTests.addPadded(SHARED, "caster_command_vex_is_not_a_caster", CasterGameTests::commandVexIsNotACaster);
+    FangGameTests.addPadded("caster_dice_real", "caster_share_is_about_a_third", CasterGameTests::shareIsAboutAThird);
+    FangGameTests.addPadded(SHARED, "caster_never_hurts_its_target", CasterGameTests::neverHurtsItsTarget);
+    FangGameTests.addPadded(SHARED, "caster_keeps_its_distance", 200, CasterGameTests::keepsItsDistance);
+    FangGameTests.addPadded(SHARED, "caster_backs_off", 200, CasterGameTests::backsOff);
+    FangGameTests.addPadded(SHARED, "caster_never_shoots", CasterGameTests::neverShoots);
+    FangGameTests.addPadded(SHARED, "caster_plain_vex_charges", 200, CasterGameTests::plainVexCharges);
+    FangGameTests.addPadded(SHARED, "caster_plain_vex_shoots", 200, CasterGameTests::plainVexShoots);
+    FangGameTests.addPadded(SHARED, "caster_not_free_for_ordinary_moves", CasterGameTests::notFreeForOrdinaryMoves);
+    FangGameTests.addPadded(SHARED, "caster_free_for_a_raid", CasterGameTests::freeForARaid);
+    FangGameTests.addPadded(SHARED, "caster_counts_toward_a_raid_trigger", CasterGameTests::countsTowardARaidTrigger);
+    // Scripts Dice.RAID_KIT, so it runs in the environment Part 6's Raid tests use for the same die.
+    FangGameTests.addPadded("team_move_dice", "caster_raid_kit", 300, CasterGameTests::raidKit);
 }
 ```
 
@@ -2844,7 +3330,30 @@ static void scriptedRollMakesACaster(GameTestHelper helper) {
 
 (`isCaster()` reads the synced data, so these asserts prove the flag the client sees.)
 
-`scriptedRollMakesAPlainVex`: script `1`: `summon(level, player, 1)` returns a vex with `isCaster()` false. `flagSurvivesSaveAndLoad`: a vex from `BoundVexTestSupport.boundVex`, `setCaster(true)`, `setMirrorReadyAt(5000L)`, `setGhostrailReadyAt(6000L)`; `BoundVex copy = (BoundVex) GameTestSupport.reloaded(level, vex)`: `copy.isCaster()` and both ready times kept. `commandVexIsNotACaster`: `BoundVexTestSupport.unmarkedVex` is not a Caster. `shareIsAboutAThird`: with real dice, summon 100 batches of 3 (300 vexes; discard them all at the end), count Casters, assert `count` is within `[59, 141]` (five standard deviations of 300 at 1/3 is 41). `neverHurtsItsTarget`: a player, a Caster at the hang point (`ScrollTestSupport.casterVex`) and a frozen `Husk` (from `TeamMoveTestSupport.foe(helper, EntityTypes.HUSK, hang.add(1.0, 0.0, 0.0))`), `vex.setTarget(husk)`; for 60 ticks (`helper.startSequence().thenExecuteFor(60, check)`) the husk's health equals its maximum. `keepsItsDistance`: the husk at the hang point, the Caster 9 blocks east, `setTarget(husk)`; `thenWaitUntil(() -> helper.assertTrue(distance >= 3.5 && distance <= 6.5, "in the band"))`, then `thenExecuteFor(20, ...)` asserts the same band holds. `backsOff`: the Caster 2 blocks from the husk: `thenWaitUntil` distance `>= 3.5`. `neverShoots`: the Caster holds `Items.BOW`, the husk is 5 blocks away, 120 ticks: the husk's health is unchanged and `level.getEntitiesOfClass(AbstractArrow.class, vex.getBoundingBox().inflate(20.0))` is empty. `plainVexCharges` (control): the same scene with a plain vex (`BoundVexTestSupport.noTargets(boundVex(...))`, its iron sword) and `setTarget(husk)`: `thenWaitUntil(() -> helper.assertTrue(husk.getHealth() < husk.getMaxHealth(), "a plain vex hurts it"))`. `plainVexShoots` (control): the plain vex holds `Items.BOW` at 5 blocks: `thenWaitUntil` an `AbstractArrow` exists within 20 blocks or the husk is hurt. `notFreeForOrdinaryMoves`: three frozen plain vexes and one Caster: `TeamMoves.isFree(caster, player)` is false, `TeamMoves.freeVexes(player).size()` is 3, and `TeamMoves.start(player, TeamMove.SHIELD, husk)` takes only the three. `freeForARaid`: `TeamMoves.isFree(caster, player, true)` is true and `TeamMoves.freeVexes(player, true)` has 4.
+`scriptedRollMakesAPlainVex`: script `1`: `summon(level, player, 1)` returns a vex with `isCaster()` false. `flagSurvivesSaveAndLoad`: a vex from `BoundVexTestSupport.boundVex`, `setCaster(true)`, `setMirrorReadyAt(5000L)`, `setGhostrailReadyAt(6000L)`; `BoundVex copy = (BoundVex) GameTestSupport.reloaded(level, vex)`: `copy.isCaster()` and both ready times kept. `commandVexIsNotACaster`: `BoundVexTestSupport.unmarkedVex` is not a Caster. `shareIsAboutAThird`: with real dice, summon 100 batches of 3 (300 vexes; discard them all at the end), count Casters, assert `count` is within `[59, 141]` (five standard deviations of 300 at 1/3 is 41). `neverHurtsItsTarget`: a player, a Caster at the hang point (`ScrollTestSupport.casterVex`) and a frozen `Husk` (from `TeamMoveTestSupport.foe(helper, EntityTypes.HUSK, hang.add(1.0, 0.0, 0.0))`), `vex.setTarget(husk)`; for 60 ticks (`helper.startSequence().thenExecuteFor(60, check)`) the husk's health equals its maximum. `keepsItsDistance`: the husk at the hang point, the Caster 9 blocks east (and, like every Caster in these scenes, parked through `casterVex`, so `FollowSummonerGoal` is paused), `setTarget(husk)`; `thenWaitUntil(() -> helper.assertTrue(distance >= 3.5 && distance <= 6.5, "in the band"))` (the test's own tick limit, 200, is the time bound), then `thenExecuteFor(20, ...)` asserts a wider band, `distance >= 3.0 && distance <= 7.0`, holds: the goal steers with a spring and damping (below), so it settles, but the assertion allows for the last of the coast. `backsOff`: the Caster 2 blocks from the husk: `thenWaitUntil` distance `>= 3.5`. `countsTowardARaidTrigger` (the `TeamMoveTriggers.scan` change): copy `BoundVexTeamMoveTriggerGameTests.ravagerWithTwelveRaids` with 11 frozen plain vexes plus one Caster (`casterVex`, which `isFree(…, true)` counts), a ravager beside, `TeamMoves.tick(player)`: assert `TeamMoves.running(player)` is `Optional.of(TeamMove.RAID)`, the roster has 12 and contains the Caster, and the Caster's main hand holds the Mirror scroll; its control is the same scene without the Caster (11 free: a Shield starts, not a Raid), asserted first. `raidKit` (environment `team_move_dice`): `RaidScene scene = raidScene(helper)` (below), `Dice.RAID_KIT.script(new int[23])` immediately before `TeamMoves.start(player, TeamMove.RAID, husk)` in the same call (11 ordinary members take 2 rolls each and the Caster takes 1: all zero is a sword and netherite), `finally Dice.unscriptAll()`; assert `start` returned true, the Caster's main hand is the Mirror scroll, its off hand a shield, and head, chest and legs are netherite; and an ordinary member passes `TeamMoveTestSupport.assertRaidGear`.
+
+`ScrollTestSupport` also gets the Raid scene that this task's `raidKit` and Task 9's Raid tests share:
+
+```java
+/** A summoner, a Raid-sized husk and twelve flying vexes, the first of which is a Caster; nothing is started yet. */
+record RaidScene(ServerPlayer player, Husk husk, BoundVex caster) {}
+
+/**
+ * Builds a Raid scene: a plain player, {@code TeamMoveTestSupport.bigHusk} beside the hang point with its health
+ * raised to 1000 (the netherite swordsmen would otherwise kill the 40-health husk in the first volley and end the move
+ * before a test can look at the Caster), twelve vexes from {@code flyingVexes}, the first made a Caster.
+ */
+static RaidScene raidScene(GameTestHelper helper) {
+    ServerPlayer player = plainPlayer(helper);
+    Vec3 hang = TeamMoveTestSupport.hangPoint(helper);
+    Husk husk = TeamMoveTestSupport.bigHusk(helper, TeamMoveTestSupport.beside(helper));
+    TeamMoveTestSupport.setBase(husk, Attributes.MAX_HEALTH, 1000.0);
+    husk.setHealth(1000.0F);
+    List<BoundVex> vexes = TeamMoveTestSupport.flyingVexes(helper, player, 12, hang);
+    vexes.get(0).setCaster(true);
+    return new RaidScene(player, husk, vexes.get(0));
+}
+``` `neverShoots`: the Caster holds `Items.BOW`, the husk is 5 blocks away, 120 ticks: the husk's health is unchanged and `level.getEntitiesOfClass(AbstractArrow.class, vex.getBoundingBox().inflate(20.0))` is empty. `plainVexCharges` (control): the same scene with a plain vex (`BoundVexTestSupport.noTargets(boundVex(...))`, its iron sword) and `setTarget(husk)`: `thenWaitUntil(() -> helper.assertTrue(husk.getHealth() < husk.getMaxHealth(), "a plain vex hurts it"))`. `plainVexShoots` (control): the plain vex holds `Items.BOW` at 5 blocks: `thenWaitUntil` an `AbstractArrow` exists within 20 blocks or the husk is hurt. `notFreeForOrdinaryMoves`: three frozen plain vexes and one Caster: `TeamMoves.isFree(caster, player)` is false, `TeamMoves.freeVexes(player).size()` is 3, and `TeamMoves.start(player, TeamMove.SHIELD, husk)` takes only the three. `freeForARaid`: `TeamMoves.isFree(caster, player, true)` is true and `TeamMoves.freeVexes(player, true)` has 4.
 
 Add `CasterGameTests.registerAll();` after `GhostrailGameTests.registerAll();` in `SpellcraftGameTests`.
 
@@ -2900,16 +3409,22 @@ goalSelector.addGoal(3, new CasterGoal(this));
 
 ```java
 /**
- * A Caster with a target keeps {@link CasterRules#KEEP_MIN} to {@link CasterRules#KEEP_MAX} blocks from it, looking at it,
- * and never melees or shoots (Parts 6-7 spec §6.2). Priority 3: above the follow goal, below the team move, job and
+ * A Caster with a target keeps {@link CasterRules#KEEP_MIN} to {@link CasterRules#KEEP_MAX} blocks from it, looking at
+ * it, and never melees or shoots (Parts 6-7 spec §6.2). Priority 3: above the follow goal, below the team move, job and
  * casting goals.
  */
 final class CasterGoal extends Goal {
     /** The distance the Caster flies to when it has to move: the middle of the band. */
     private static final double HOLD_DISTANCE = (CasterRules.KEEP_MIN + CasterRules.KEEP_MAX) / 2.0;
 
+    /** The Caster this goal flies. */
     private final BoundVex vex;
 
+    /**
+     * Creates the goal for one vex (it only runs while the vex {@code isCaster()}).
+     *
+     * @param vex the vex
+     */
     CasterGoal(BoundVex vex) {
         this.vex = vex;
         setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK));
@@ -2933,13 +3448,23 @@ final class CasterGoal extends Goal {
             return;
         }
         TeamFlight.lookAt(vex, target);
-        if (CasterRules.approach(vex.distanceTo(target)) != CasterRules.Approach.HOLD) {
-            Vec3 spot = TeamFlight.ringPoint(target.position(), vex.position(), HOLD_DISTANCE, target.getEyeY());
+        Vec3 spot = TeamFlight.ringPoint(target.position(), vex.position(), HOLD_DISTANCE, target.getEyeY());
+        Vec3 gap = spot.subtract(vex.position());
+        boolean hold = CasterRules.approach(vex.distanceTo(target)) == CasterRules.Approach.HOLD;
+        if (!hold && gap.length() > SETTLE_RANGE) {
             TeamFlight.flyTo(vex, spot, TeamFlight.NORMAL);
+            return;
         }
+        // A vex only accelerates toward its wanted point and coasts, so a plain "fly to the spot" overshoots the
+        // band: near the spot (or inside the band) the push is a spring to the spot, none when holding, with
+        // damping on the vex's own velocity, as RaidMove.closeIn does.
+        Vec3 spring = hold ? Vec3.ZERO : gap.scale(SETTLE_POSITION_GAIN);
+        TeamFlight.steer(vex, spring.subtract(vex.getDeltaMovement().scale(SETTLE_VELOCITY_GAIN)));
     }
 }
 ```
+
+with, beside `HOLD_DISTANCE`, the three constants (each with a Javadoc line): `SETTLE_RANGE = 3.0` (inside this distance from the spot the push is a spring), `SETTLE_POSITION_GAIN = 0.06` and `SETTLE_VELOCITY_GAIN = 0.3` (the values `RaidMove` uses for the same job).
 
 `VexSummons.summon`, after `vex.finalizeSpawn(...)`:
 
@@ -2948,6 +3473,8 @@ if (Dice.CASTER_ROLL.below(random, CasterRules.CASTER_ONE_IN) == 0) {
     vex.setCaster(true);
 }
 ```
+
+Also give the `BoundVex` constants (`CASTER_TAG`, `MIRROR_READY_TAG`, `GHOSTRAIL_READY_TAG`) a one-line Javadoc each (every constant, private ones too).
 
 `TeamMoves`: rename the body of `isFree(vex, owner)` into the three-argument form and delegate:
 
@@ -2973,15 +3500,11 @@ public static boolean isFree(BoundVex vex, ServerPlayer owner, boolean forRaid) 
 }
 ```
 
-(remove the `// Part 7: and not a Caster ...` comment), and the same split for `freeVexes`: `freeVexes(owner)` = `freeVexes(owner, false)`; `freeVexes(owner, forRaid)` queries with `vex -> isFree(vex, owner, forRaid)`; the package-private list form takes `forRaid` too (keep a two-argument overload for existing callers). In `start`: `chooseRoster(move, freeVexes(owner, move == TeamMove.RAID), subject)` and `TeamMoveKits.kit(move, level, vex.getRandom(), vex.isCaster())`. In `TeamMoveTriggers.scan`: compute `List<BoundVex> raidFree = TeamMoves.freeVexes(owner, followers, true);` and use `raidFree.size()` only for `raidReady`; every other readiness and `targetsFreeVex` keep the Caster-free list.
+(remove the `// Part 7: and not a Caster ...` comment), and the same split for `freeVexes`: `freeVexes(owner)` = `freeVexes(owner, false)` (kept: Part 6 tests call it); `freeVexes(owner, forRaid)` queries with `vex -> isFree(vex, owner, forRaid)`; the package-private list form **becomes** `freeVexes(owner, vexes, forRaid)` (change its signature; its only caller is `scan`, so no two-argument overload stays behind). In `start`: `chooseRoster(move, freeVexes(owner, move == TeamMove.RAID), subject)` and `TeamMoveKits.kit(move, level, vex.getRandom(), vex.isCaster())`. In `TeamMoveTriggers.scan`: `List<BoundVex> free = TeamMoves.freeVexes(owner, followers, false);` and `List<BoundVex> raidFree = TeamMoves.freeVexes(owner, followers, true);`, and use `raidFree.size()` only for `raidReady`; every other readiness and `targetsFreeVex` keep the Caster-free list (`countsTowardARaidTrigger` pins this).
 
-`TeamMoveKits`: replace `kit(move, level, random)` with a delegating overload and add the Caster form; split the armor out of `raid`:
+`TeamMoveKits`: change `kit(move, level, random)` into the form with a `caster` flag (no three-argument overload stays: `TeamMoves.start` is its only caller); split the armor out of `raid`:
 
 ```java
-static Map<EquipmentSlot, ItemStack> kit(TeamMove move, ServerLevel level, RandomSource random) {
-    return kit(move, level, random, false);
-}
-
 static Map<EquipmentSlot, ItemStack> kit(TeamMove move, ServerLevel level, RandomSource random, boolean caster) {
     Map<EquipmentSlot, ItemStack> kit = new EnumMap<>(EquipmentSlot.class);
     switch (move) {
@@ -3023,15 +3546,15 @@ private static void armor(Map<EquipmentSlot, ItemStack> kit, boolean netherite) 
 }
 ```
 
-`raid()` keeps its main-hand and off-hand rolls and ends with `armor(kit, Dice.RAID_KIT.below(random, 2) == 0)` (its comment `// Part 7: ...` goes). The scroll is not made unbreakable (a scroll has no durability). `RaidMove.tick` and the Caster's gather come in Task 9; until then a Caster in a Raid is a charging melee member: that is why Task 9 follows at once. (The Raid roster tests of Task 9 prove the roster; no Task 8 test starts a Raid with a Caster.)
+`raid()` keeps its main-hand and off-hand rolls and ends with `armor(kit, Dice.RAID_KIT.below(random, 2) == 0)` (its comment `// Part 7: ...` goes). The scroll is not made unbreakable (a scroll has no durability). `RaidMove.tick` and the Caster's gather come in Task 9; until then a Caster in a Raid is a charging melee member: that is why Task 9 follows at once. (Task 8's only Raid-with-a-Caster test, `countsTowardARaidTrigger`, asserts the roster and the kit right after the start, before any member acts.)
 
-Find the existing tests that summon through the V key and rely on a fighting vex:
+Find the existing tests that summon through `VexSummons.summon`, directly or through the V key's request, and rely on a fighting vex:
 
 ```bash
-git grep -n "VexSummons.summon\|EvokingCaster.request\|summonVexes\|requestVexes" -- src/main/java/io/github/willrieske/spellcraft/gametest
+git grep -n "VexSummons.summon\|EvokerSpell.VEXES" -- src/main/java/io/github/willrieske/spellcraft/gametest
 ```
 
-For each test that summons and then needs the vex to fight, hold gear, follow or count on a plain vex (read it), script a plain vex around the summon: `Dice.CASTER_ROLL.script(1, 1, 1)` immediately before and `Dice.unscriptAll()` in a `finally` after, and register the test in the environment `caster_dice` (a test in `SHARED` must not script). A test that only counts vexes or checks messages needs nothing. Note the tests you changed in the commit message.
+(The known hits are `BoundVexCapGameTests` and `BoundVexFollowGameTests`; `EvokingCaster.request` for fangs is not a summon.) Read each hit. A test that calls `VexSummons.summon` itself is synchronous: if it then needs the vex to fight, hold gear, follow or count on a plain vex, script a plain vex around the call, `Dice.CASTER_ROLL.script(1, 1, 1)` immediately before and `Dice.unscriptAll()` in a `finally` after, and register the test in the environment `caster_dice` (a test in `SHARED` must not script). A test that summons through `EvokingCaster.request` is asynchronous: the roll happens inside a later `EvokingCaster.tick`, so there is no "immediately before" to script; if such a test needs a plain vex, call `vex.setCaster(false)` on the vexes as soon as they exist. A test that only counts vexes or checks messages needs nothing (the cap tests are of this kind). Note the tests you changed in the commit message.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
@@ -3039,7 +3562,7 @@ Run: `./gradlew test`, `./gradlew runGameTestServer "-PgameTests=spellcraft:cast
 
 - [ ] **Step 5: Gates and commit**
 
-Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 718 required tests passed` both times (705 + 13).
+Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 728 required tests passed` both times (the Task 7 total plus the 15 `caster_*` tests registered in `CasterGameTests`).
 
 ```bash
 git add src
@@ -3052,61 +3575,64 @@ git commit -m "feat(evoking): Casters, one vex in three, that keep their distanc
 
 **Files:**
 
-- Create: `evoking/CasterSpellGoal.java`, `gametest/CasterSpellGameTests.java`
-- Modify: `evoking/BoundVex.java` (register the goal), `evoking/TeamMoves.java` (`Member.casterDone`), `evoking/RaidMove.java`, `gametest/SpellcraftGameTests.java`, `gametest/ScrollTestSupport.java`
+- Create: `evoking/CasterSpellGoal.java`, `evoking/ScrollCasting.java`, `gametest/CasterSpellGameTests.java`
+- Modify: `evoking/BoundVex.java` (register the goal), `evoking/TeamMoves.java` (`Member.casterDone`), `evoking/RaidMove.java`, `gametest/SpellcraftGameTests.java`
 
 **Interfaces:**
 
-- Consumes: Task 3 (`Spells.cast`, `ModEffects.CASTING_SCROLL`, `ModItems.scrollFor`), Task 4 (`MirrorImages`), Task 8 (`isCaster`, ready times, `CasterRules`).
+- Consumes: Task 3 (`Spells.cast`, `Spells.refusedFor`, `ModEffects.CASTING_SCROLL`, `ModItems.scrollFor`), Tasks 4-7 (`MirrorImages`, `Ghostrail`; the Ghostrail casts need Task 7's effect hook and Task 6's flight), Task 8 (`isCaster`, ready times, `CasterRules`, `ScrollTestSupport.casterVex/raidScene`), Task 4 (`ScrollTestSupport.hostileAt`).
 - Produces:
-  - `CasterSpellGoal` (public final, priority 2, flags `MOVE` and `LOOK`, no target needed): picks a spell and subject, holds a conjured scroll of the spell in the main hand for `CasterRules.WIND_UP_TICKS` while carrying `ModEffects.CASTING_SCROLL` (visible particles, no icon), plays `EVOKER_PREPARE_SUMMON` at the start and `EVOKER_CAST_SPELL` at the end, applies the spell at the end if the subject still qualifies, then sets the cooldown. An interruption dismisses the scroll and spends nothing.
+  - `ScrollCasting` (public final, all static; the one home of the pieces every non-player cast shares, used by this task, Task 10 and Task 12): `int ticksFor(Spell, GhostrailDuration.Kind)` (Mirror `MirrorRule.DURATION_TICKS`; Ghostrail `GhostrailDuration.of(kind)`); `long cooldownFor(Spell)` (Mirror `CasterRules.MIRROR_COOLDOWN_TICKS`, Ghostrail `CasterRules.GHOSTRAIL_COOLDOWN_TICKS`); `void windUp(LivingEntity caster)` (adds `ModEffects.CASTING_SCROLL` for `CasterRules.WIND_UP_TICKS`, visible particles, no icon, and plays `EVOKER_PREPARE_SUMMON`); `void windDown(LivingEntity caster)` (removes it); `boolean land(LivingEntity caster, LivingEntity subject, Spell spell, GhostrailDuration.Kind kind)` (false when `Spells.refusedFor(subject, spell)`; else `Spells.cast(subject, spell, ticksFor(spell, kind))`, `EVOKER_CAST_SPELL` from the caster when it was added; returns whether the effect was added).
+  - `CasterSpellGoal` (public final, priority 2, flags `MOVE` and `LOOK`, no target needed): picks a spell and subject (never Ghostrail for a creative or spectator player: `Spells.refusedFor`), holds a conjured scroll of the spell in the main hand for `CasterRules.WIND_UP_TICKS` while carrying `ModEffects.CASTING_SCROLL`, applies the spell at the end if the subject still qualifies, dismisses the scroll and removes the casting effect right there, then sets the cooldown. An interruption dismisses the scroll and spends nothing.
   - `TeamMoves.Member.casterDone` (package-private mutable boolean).
-  - `RaidMove.tick`: a Caster member flies to its cell, casts Mirror on the summoner once at the start of the gather if the summoner has none (ignoring and then setting its Mirror cooldown), then holds its cell with an empty conjured main hand.
+  - `RaidMove.tick`: a Caster member flies to its cell, casts Mirror on the summoner once at the start of the gather if the summoner has none (ignoring and then setting its Mirror cooldown), holds the scroll through the gather and, when the charge starts, empties its conjured main hand and holds its cell.
 
 - [ ] **Step 1: Write the failing tests**
-
-`ScrollTestSupport` gains `static Husk hostileAt(GameTestHelper, Vec3 absolute)` (= `TeamMoveTestSupport.foe(helper, EntityTypes.HUSK, at)`).
 
 `CasterSpellGameTests` (javadoc `/** GameTests of a Caster's casting and of a Caster in a Raid (Parts 6-7 spec §6.2). */`). A scene helper:
 
 ```java
-/** A summoner, a parked Caster at the hang point holding a golden sword, and {@code hostiles} husks 2 blocks from it. */
+/** A summoner, a parked Caster 3 blocks above them holding a golden sword, and {@code hostiles} husks beside it. */
 private static Scene scene(GameTestHelper helper, int hostiles) {
     ServerPlayer player = plainPlayer(helper);
     floor(helper, 3);
-    Vec3 hang = TeamMoveTestSupport.hangPoint(helper);
-    BoundVex caster = casterVex(helper, player, hang);
+    // 3 blocks above the standing spot: clearly inside GuardPosture.WIDE_LIMIT (4.0), and above the barrier shell
+    Vec3 perch = at(helper, 0.0, 3.0, 0.0);
+    BoundVex caster = casterVex(helper, player, perch);
     caster.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.GOLDEN_SWORD));
     for (int i = 0; i < hostiles; i++) {
-        hostileAt(helper, hang.add(i == 0 ? 2.0 : -2.0, 0.0, 0.0));
+        hostileAt(helper, perch.add(i == 0 ? 2.0 : -2.0, 0.0, 0.0));
     }
     return new Scene(player, caster);
 }
 
+/** The cast scene's summoner and Caster. */
 private record Scene(ServerPlayer player, BoundVex caster) {}
 ```
 
-(`TeamMoveTestSupport.hangPoint` is above the barrier shell; the player stands about 3 blocks below it, so both are within 16 blocks of each other.) Registration (all `FangGameTests.addPadded(SHARED, name, 200, …)` except the Raid ones, which register in `"team_move_dice"` because they script `Dice.RAID_KIT`):
+(`casterVex` pauses `FollowSummonerGoal`, so nothing pulls the Caster off its perch. The Caster is 3 blocks above the player, inside the 16-block range of every cast rule.) Registration (all `FangGameTests.addPadded(SHARED, name, 200, …)` except the Raid ones, which register in `"team_move_dice"` because they script `Dice.RAID_KIT`; each name is `caster_` plus the method name in snake case):
 
 ```java
 static void registerAll() {
-    FangGameTests.addPadded(SHARED, "caster_casts_mirror_after_the_wind_up", 200, CasterSpellGameTests::castsMirror);
-    FangGameTests.addPadded(SHARED, "caster_wind_up_holds_a_scroll_and_shows_the_casting_effect", 200, CasterSpellGameTests::windUpLook);
-    FangGameTests.addPadded(SHARED, "caster_gives_back_the_item_it_stashed", 200, CasterSpellGameTests::givesTheItemBack);
-    FangGameTests.addPadded(SHARED, "caster_cooldown_blocks_a_second_mirror", 200, CasterSpellGameTests::cooldownBlocksASecond);
-    FangGameTests.addPadded(SHARED, "caster_casts_no_mirror_for_one_hostile", 200, CasterSpellGameTests::oneHostileIsNotEnough);
-    FangGameTests.addPadded(SHARED, "caster_casts_ghostrail_on_a_summoner_at_a_quarter_health", 200, CasterSpellGameTests::ghostrailOnTheHurtSummoner);
-    FangGameTests.addPadded(SHARED, "caster_casts_ghostrail_on_a_hurt_sibling_vex", 200, CasterSpellGameTests::ghostrailOnAHurtVex);
-    FangGameTests.addPadded(SHARED, "caster_casts_ghostrail_on_a_summoner_in_a_wall", 200, CasterSpellGameTests::ghostrailInAWall);
-    FangGameTests.addPadded(SHARED, "caster_interrupted_wind_up_spends_no_cooldown", 200, CasterSpellGameTests::interruptionSpendsNothing);
-    FangGameTests.addPadded(SHARED, "caster_two_casters_only_one_cast_lands", 200, CasterSpellGameTests::twoCastersOneCast);
-    FangGameTests.addPadded("team_move_dice", "caster_raid_roster_takes_a_caster", 300, CasterSpellGameTests::raidTakesACaster);
-    FangGameTests.addPadded("team_move_dice", "caster_raid_kit_is_a_scroll_a_shield_and_armor", 300, CasterSpellGameTests::raidKit);
-    FangGameTests.addPadded("team_move_dice", "caster_raid_casts_mirror_in_the_gather", 300, CasterSpellGameTests::raidCastsMirror);
-    FangGameTests.addPadded("team_move_dice", "caster_raid_skips_the_cast_when_the_summoner_has_mirror", 300, CasterSpellGameTests::raidSkipsTheCast);
-    FangGameTests.addPadded("team_move_dice", "caster_raid_caster_holds_its_cell", 300, CasterSpellGameTests::raidHoldsItsCell);
+    FangGameTests.addPadded(SHARED, "caster_casts_mirror", 200, CasterSpellGameTests::castsMirror);
+    FangGameTests.addPadded(SHARED, "caster_wind_up_look", 200, CasterSpellGameTests::windUpLook);
+    FangGameTests.addPadded(SHARED, "caster_gives_the_item_back", 200, CasterSpellGameTests::givesTheItemBack);
+    FangGameTests.addPadded(SHARED, "caster_cooldown_blocks_a_second", 200, CasterSpellGameTests::cooldownBlocksASecond);
+    FangGameTests.addPadded(SHARED, "caster_one_hostile_is_not_enough", 200, CasterSpellGameTests::oneHostileIsNotEnough);
+    FangGameTests.addPadded(SHARED, "caster_ghostrail_on_the_hurt_summoner", 200, CasterSpellGameTests::ghostrailOnTheHurtSummoner);
+    FangGameTests.addPadded(SHARED, "caster_ghostrail_on_a_hurt_vex", 200, CasterSpellGameTests::ghostrailOnAHurtVex);
+    FangGameTests.addPadded(SHARED, "caster_ghostrail_in_a_wall", 200, CasterSpellGameTests::ghostrailInAWall);
+    FangGameTests.addPadded(SHARED, "caster_no_ghostrail_for_a_creative_summoner", 200, CasterSpellGameTests::noGhostrailForCreative);
+    FangGameTests.addPadded(SHARED, "caster_interruption_spends_nothing", 200, CasterSpellGameTests::interruptionSpendsNothing);
+    FangGameTests.addPadded(SHARED, "caster_two_casters_one_cast", 200, CasterSpellGameTests::twoCastersOneCast);
+    FangGameTests.addPadded("team_move_dice", "caster_raid_casts_mirror", 300, CasterSpellGameTests::raidCastsMirror);
+    FangGameTests.addPadded("team_move_dice", "caster_raid_skips_the_cast", 300, CasterSpellGameTests::raidSkipsTheCast);
+    FangGameTests.addPadded("team_move_dice", "caster_raid_holds_its_cell", 300, CasterSpellGameTests::raidHoldsItsCell);
+    FangGameTests.addPadded("team_move_dice", "caster_raid_caster_never_attacks", 300, CasterSpellGameTests::raidCasterNeverAttacks);
 }
 ```
+
+(Task 8's `caster_counts_toward_a_raid_trigger` and `caster_raid_kit` already prove that a Caster joins the Raid roster and gets its kit; they are not repeated here.)
 
 ```java
 /**
@@ -3181,7 +3707,9 @@ static void interruptionSpendsNothing(GameTestHelper helper) {
 
 `twoCastersOneCast`: `scene(helper, 2)` plus a second Caster from `casterVex` at `hang.add(0.0, 0.0, 1.0)`; wait until the summoner has Mirror, then `thenExecuteAfter(60, …)`: `images(player).size() == 13` (only one set) and exactly one of the two Casters has `mirrorReadyAt() > 0`.
 
-Raid tests. A helper builds the scene: a player, a `TeamMoveTestSupport.bigHusk` at `TeamMoveTestSupport.beside(helper)`, `TeamMoveTestSupport.flyingVexes(helper, player, 12, hang)` and the first vex made a Caster with `setCaster(true)`, `Dice.RAID_KIT.script(new int[23])` (11 ordinary members take 2 rolls each, the Caster takes 1: all zero is a sword and netherite), the move started with `TeamMoves.start(player, TeamMove.RAID, husk)` in the same call, `finally Dice.unscriptAll()`, and `TeamMoveTestSupport.stepEveryTick(helper, player)`. `raidTakesACaster`: `start` returns true and `TeamMoves.roster(player)` contains the Caster. `raidKit`: the Caster's main hand is the Mirror scroll, its off hand a shield, and head, chest and legs are netherite (script 0). `raidCastsMirror`: wait until `player.hasEffect(MIRROR)` (within 5 ticks, no 20-tick wind-up), then the Caster's main hand is empty and still conjured, and `mirrorReadyAt() > 0`. `raidSkipsTheCast`: `Spells.cast(player, Spells.MIRROR, 7200)` first; after 10 ticks the Caster's main hand is empty and `mirrorReadyAt() == 0` and `images(player).size() == 13` (no second set). `raidHoldsItsCell`: after 150 ticks (the gather is 40) the Caster is within 2 blocks of `RaidMove.cell(husk.getEyePosition(), player.position(), TeamMoves.roster(player).indexOf(caster))` and its main hand is empty.
+`noGhostrailForCreative` (`Spells.refusedFor`, the one creative refusal of Part 7): `scene(helper, 0)`, `scene.player().setGameMode(GameType.CREATIVE)` and `scene.player().setHealth(4.0F)` (below a quarter: the emergency is real); `thenExecuteAfter(80, …)` asserts the player has no Ghostrail, the Caster's `ghostrailReadyAt()` is still 0 and its main hand is still the golden sword. Its control is `ghostrailOnTheHurtSummoner`, the same scene in survival.
+
+Raid tests. Each starts from `ScrollTestSupport.raidScene(helper)` (Task 8: a player, a 1000-health big husk beside the hang point, twelve flying vexes, the first a Caster; the husk's health is raised because eleven netherite swordsmen would kill the Part 6 husk, which has 40 health, in the first volley, and `TeamMoves.endReason` "subject gone" would end the move and dismiss the kits before the test looks at the Caster), `Dice.RAID_KIT.script(new int[23])` (11 ordinary members take 2 rolls each, the Caster takes 1: all zero is a sword and netherite) immediately before `TeamMoves.start(player, TeamMove.RAID, husk)` in the same call, `finally Dice.unscriptAll()`, and then `TeamMoveTestSupport.stepEveryTick(helper, player)`. `raidCastsMirror`: wait until `player.hasEffect(MIRROR)` (within 5 ticks, no 20-tick wind-up), then assert `mirrorReadyAt() > 0` and that the Caster's main hand **still** holds the Mirror scroll (it holds it through the gather); after the gather (`thenWaitUntil` the main hand is empty, at most 60 ticks) the slot is empty and still conjured. `raidSkipsTheCast`: `Spells.cast(player, Spells.MIRROR, 7200)` first; after 10 ticks the Caster's main hand still holds the scroll, `mirrorReadyAt() == 0` and `images(player).size() == 13` (no second set). `raidHoldsItsCell`: after 150 ticks (the gather is 40) the husk is still alive (assert it, so the scene cannot silently end the move), the Caster is within 2 blocks of `RaidMove.cell(husk.getEyePosition(), player.position(), TeamMoves.roster(player).indexOf(caster))` and its main hand is empty. `raidCasterNeverAttacks` (the spec's "a Caster never fights", in a Raid, where the other eleven members do): `helper.startSequence().thenExecuteFor(150, …)` asserts every tick that `TeamFlight.boxGap(caster, husk) >= 1.0` (a member in the charge flies into the enemy's box to hit it; the Caster holds its grid cell outside it), and that the other members did reach the husk at least once (`husk.getHealth() < husk.getMaxHealth()` at the end), so the scene really is a charge.
 
 Add `CasterSpellGameTests.registerAll();` after `CasterGameTests.registerAll();`.
 
@@ -3191,25 +3719,116 @@ Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:caster_*"`. Expected: 
 
 - [ ] **Step 3: Write the implementation**
 
+`ScrollCasting` (the shared pieces; Tasks 10 and 12 call it too):
+
+```java
+/**
+ * What every cast that is not a player's hand shares (Parts 6-7 spec §6.2, §8, §9): how long a spell lasts for each
+ * kind of subject, how long its cooldown is, the wind-up's look and sounds, and the landing. A Caster Vex, a scroll
+ * mob and a villager ghost call these, so a number or a sound changes in one place.
+ */
+public final class ScrollCasting {
+    private ScrollCasting() {}
+
+    /**
+     * Ticks {@code spell} lasts on a subject of {@code kind}: Mirror always {@link MirrorRule#DURATION_TICKS},
+     * Ghostrail {@link GhostrailDuration#of}.
+     *
+     * @param spell Mirror or Ghostrail
+     * @param kind what carries the effect
+     * @return the duration in ticks
+     */
+    public static int ticksFor(Spell spell, GhostrailDuration.Kind kind) {
+        return spell.equals(Spells.GHOSTRAIL) ? GhostrailDuration.of(kind) : MirrorRule.DURATION_TICKS;
+    }
+
+    /**
+     * Ticks before the same caster may cast {@code spell} again (a Caster Vex and a villager ghost; a scroll mob's
+     * Ghostrail has its own shorter one).
+     *
+     * @param spell Mirror or Ghostrail
+     * @return the cooldown in ticks
+     */
+    public static long cooldownFor(Spell spell) {
+        return spell.equals(Spells.GHOSTRAIL) ? CasterRules.GHOSTRAIL_COOLDOWN_TICKS : CasterRules.MIRROR_COOLDOWN_TICKS;
+    }
+
+    /**
+     * Starts a wind-up on {@code caster}: the casting effect (visible particles, no icon) for
+     * {@link CasterRules#WIND_UP_TICKS} and the prepare sound.
+     *
+     * @param caster whoever winds up
+     */
+    public static void windUp(LivingEntity caster) {
+        caster.addEffect(new MobEffectInstance(
+                ModEffects.CASTING_SCROLL, CasterRules.WIND_UP_TICKS, 0, false, true, false));
+        caster.playSound(SoundEvents.EVOKER_PREPARE_SUMMON, 1.0F, 1.0F);
+    }
+
+    /**
+     * Ends the wind-up's look.
+     *
+     * @param caster whoever wound up
+     */
+    public static void windDown(LivingEntity caster) {
+        caster.removeEffect(ModEffects.CASTING_SCROLL);
+    }
+
+    /**
+     * Lands {@code spell} on {@code subject}: refused for a creative or spectator player when the spell is redundant
+     * there ({@link Spells#refusedFor}); otherwise cast for {@link #ticksFor}, with the cast sound from the caster
+     * when the effect was added.
+     *
+     * @param caster whoever casts (the sound comes from it)
+     * @param subject who gets the effect
+     * @param spell Mirror or Ghostrail
+     * @param kind what the subject is, for Ghostrail's duration
+     * @return whether the effect was added
+     */
+    public static boolean land(LivingEntity caster, LivingEntity subject, Spell spell, GhostrailDuration.Kind kind) {
+        if (Spells.refusedFor(subject, spell) || !Spells.cast(subject, spell, ticksFor(spell, kind))) {
+            return false;
+        }
+        caster.playSound(SoundEvents.EVOKER_CAST_SPELL, 1.0F, 1.0F);
+        return true;
+    }
+}
+```
+
 `CasterSpellGoal`:
 
 ```java
 /**
  * A Caster casts a scroll on its summoner (Parts 6-7 spec §6.2): Ghostrail first when the summoner, or a sibling vex
  * within {@link CasterRules#RANGE} blocks, is in an emergency; else Mirror when the summoner is near, has none and at
- * least {@link CasterRules#MIRROR_HOSTILES} hostiles stand in the Caster's guard area. Each spell has its own cooldown,
- * saved on the vex. The cast takes {@link CasterRules#WIND_UP_TICKS} ticks, holding a conjured scroll of the spell in the
- * main hand (the given item is stashed) with the casting effect on; at the end the spell lands if the subject still
- * qualifies. A flee, a rescue or a team move that preempts the goal dismisses the scroll and spends nothing. Priority 2,
- * beside the job goals, and needs no target.
+ * least {@link CasterRules#MIRROR_HOSTILES} hostiles stand in the Caster's guard area. Each spell has its own
+ * cooldown, saved on the vex. The cast takes {@link CasterRules#WIND_UP_TICKS} ticks, holding a conjured scroll of the
+ * spell in the main hand (the given item is stashed) with the casting effect on; at the end the spell lands if the
+ * subject still qualifies, and the scroll and the effect go at that moment. A flee, a rescue or a team move that
+ * preempts the goal dismisses the scroll and spends nothing. Ghostrail is never cast on a creative or spectator
+ * player ({@link Spells#refusedFor}). Priority 2, beside the job goals, and needs no target.
  */
 public final class CasterSpellGoal extends Goal {
+    /** The Caster this goal belongs to. */
     private final BoundVex vex;
+
+    /** The spell chosen for the cast in progress, or null. */
     private @Nullable Spell spell;
+
+    /** Who the cast in progress is for, or null. */
     private @Nullable LivingEntity subject;
+
+    /** Ticks into the wind-up. */
     private int ticks;
+
+    /** Whether the cast has landed or been given up, so the goal can end. */
     private boolean done;
 
+    /**
+     * Creates the goal for one vex (it only runs while the vex {@code isCaster()}).
+     *
+     * @param vex the vex
+     */
     CasterSpellGoal(BoundVex vex) {
         this.vex = vex;
         setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK));
@@ -3233,8 +3852,7 @@ public final class CasterSpellGoal extends Goal {
             return;
         }
         vex.conjure(EquipmentSlot.MAINHAND, ModItems.scrollFor(spell));
-        vex.addEffect(new MobEffectInstance(ModEffects.CASTING_SCROLL, CasterRules.WIND_UP_TICKS, 0, false, true, false));
-        vex.playSound(SoundEvents.EVOKER_PREPARE_SUMMON, 1.0F, 1.0F);
+        ScrollCasting.windUp(vex);
     }
 
     @Override
@@ -3252,44 +3870,51 @@ public final class CasterSpellGoal extends Goal {
         }
     }
 
-    /** The end of the wind-up: cast if the subject still qualifies, then start the cooldown; either way the goal ends. */
+    /**
+     * The end of the wind-up: cast if the subject still qualifies, then start the cooldown; either way the goal ends.
+     * The scroll and the casting effect go here, not only in {@link #stop()}: the goal selector calls {@code stop()}
+     * one or two ticks after {@code done} is set (only on even {@code tickCount + id} ticks), and a test or a player
+     * watching right after the spell lands must not see a scroll still in hand.
+     */
     private void finish() {
         done = true;
         LivingEntity target = subject;
         Spell chosen = spell;
-        if (target == null || chosen == null) {
-            return;
+        if (target != null && chosen != null && stillQualifies(target, chosen)) {
+            GhostrailDuration.Kind kind =
+                    target instanceof Player ? GhostrailDuration.Kind.PLAYER : GhostrailDuration.Kind.BOUND_VEX;
+            if (ScrollCasting.land(vex, target, chosen, kind)) {
+                long readyAt = vex.level().getGameTime() + ScrollCasting.cooldownFor(chosen);
+                if (chosen.equals(Spells.MIRROR)) {
+                    vex.setMirrorReadyAt(readyAt);
+                } else {
+                    vex.setGhostrailReadyAt(readyAt);
+                }
+            }
         }
-        long now = vex.level().getGameTime();
-        boolean stillQualifies = target.isAlive()
+        dismissScroll();
+    }
+
+    /** Whether {@code target} is still worth the spell at the end of the wind-up. */
+    private boolean stillQualifies(LivingEntity target, Spell chosen) {
+        return target.isAlive()
                 && target.level().equals(vex.level())
                 && target.distanceTo(vex) <= CasterRules.RANGE
                 && !target.hasEffect(chosen.effect());
-        if (!stillQualifies) {
-            return;
-        }
-        Spells.cast(target, chosen, durationFor(chosen, target));
-        vex.playSound(SoundEvents.EVOKER_CAST_SPELL, 1.0F, 1.0F);
-        if (chosen.equals(Spells.MIRROR)) {
-            vex.setMirrorReadyAt(now + CasterRules.MIRROR_COOLDOWN_TICKS);
-        } else {
-            vex.setGhostrailReadyAt(now + CasterRules.GHOSTRAIL_COOLDOWN_TICKS);
-        }
+    }
+
+    /** Takes the conjured scroll out of the main hand (the stashed item comes back) and ends the casting look. */
+    private void dismissScroll() {
+        vex.dismiss(EquipmentSlot.MAINHAND);
+        ScrollCasting.windDown(vex);
     }
 
     @Override
     public void stop() {
-        vex.dismiss(EquipmentSlot.MAINHAND);
-        vex.removeEffect(ModEffects.CASTING_SCROLL);
+        // Idempotent: the normal end already dismissed the scroll in finish(); an interruption comes only here
+        dismissScroll();
         spell = null;
         subject = null;
-    }
-
-    /** Ticks a cast spell lasts on {@code target}: Ghostrail 4800 for a player or a vex, Mirror 7200. */
-    private static int durationFor(Spell chosen, LivingEntity target) {
-        return chosen.equals(Spells.GHOSTRAIL)
-                ? GhostrailDuration.of(target instanceof Player ? GhostrailDuration.Kind.PLAYER : GhostrailDuration.Kind.BOUND_VEX)
-                : MirrorRule.DURATION_TICKS;
     }
 
     /** Picks the spell and subject for this scan, or false when nothing is worth casting. */
@@ -3318,10 +3943,14 @@ public final class CasterSpellGoal extends Goal {
         return false;
     }
 
-    /** The summoner if it needs Ghostrail, else the neediest sibling vex in range, else null. */
+    /**
+     * The summoner if it needs Ghostrail (and {@link Spells#refusedFor} does not forbid it: a creative or spectator
+     * summoner flies already), else the neediest sibling vex in range, else null.
+     */
     private @Nullable LivingEntity emergency(ServerPlayer owner) {
         if (owner.distanceTo(vex) <= CasterRules.RANGE
                 && !owner.hasEffect(ModEffects.GHOSTRAIL)
+                && !Spells.refusedFor(owner, Spells.GHOSTRAIL)
                 && CasterRules.wantsGhostrail(owner.getHealth(), owner.getMaxHealth(), owner.isInWall(), true)) {
             return owner;
         }
@@ -3337,12 +3966,16 @@ public final class CasterSpellGoal extends Goal {
                 .orElse(null);
     }
 
-    /** How many hostiles this vex may hunt stand in its guard area. */
+    /**
+     * How many hostiles this vex may hunt stand in its guard area. The broad phase is {@code BoundVex.guardArea()},
+     * which is the stay box around the post for a staying Caster (13 x 13 x 7) and the box around the vex otherwise;
+     * a box inflated by a fixed amount around the vex would miss hostiles 5 to 6.5 blocks out in a stay box.
+     */
     private int hostilesInGuardArea() {
         return vex.level()
                 .getEntitiesOfClass(
                         LivingEntity.class,
-                        vex.getBoundingBox().inflate(GuardArea.HALF_WIDTH + 1.0),
+                        vex.guardArea(),
                         other -> other.isAlive() && vex.inGuardArea(other) && vex.huntable(other) && vex.isPrey(other))
                 .size();
     }
@@ -3358,11 +3991,11 @@ Register it in `BoundVex.registerGoals` beside the job goals: `goalSelector.addG
 boolean casterDone;
 ```
 
-`RaidMove.tick`: after `TeamFlight.lookAt(vex, enemy);` and `long now = level.getGameTime();`, replace the `// Part 7:` comment with:
+`RaidMove.tick`: delete the `// Part 7: a Caster only gathers, casts Mirror, then holds its cell` comment on the first line of the method, and insert, right after `long now = level.getGameTime();` (where `enemy` and `now` exist):
 
 ```java
 if (vex.isCaster()) {
-    casterTick(vex, member, enemy, now);
+    casterTick(vex, record, member, enemy, now);
     return;
 }
 ```
@@ -3371,24 +4004,27 @@ and add:
 
 ```java
 /**
- * A Caster in a Raid: it flies to its grid cell and holds it for the whole move. At the start of the gather it casts
- * Mirror on the summoner at once (no wind-up: the scroll is its gather kit) if the summoner has none, ignoring its own
- * Mirror cooldown and then setting it; either way its main hand is then an empty conjured slot.
+ * A Caster in a Raid: it flies to its grid cell and holds it for the whole move, and never attacks. At the start of
+ * the gather it casts Mirror on the summoner at once (no wind-up) if the summoner has none, ignoring its own Mirror
+ * cooldown and then setting it. It holds the scroll through the gather (spec §4.4: the scroll is its gather kit) and
+ * empties the conjured main hand only when the charge starts.
  */
-private static void casterTick(BoundVex vex, TeamMoves.Member member, LivingEntity enemy, long now) {
+private static void casterTick(
+        BoundVex vex, TeamMoves.Move record, TeamMoves.Member member, LivingEntity enemy, long now) {
     Vec3 summoner = vex.summoner().map(Entity::position).orElse(vex.position());
     TeamFlight.flyTo(vex, cell(enemy.getEyePosition(), summoner, member.cell), TeamFlight.NORMAL);
-    if (member.casterDone) {
-        return;
+    if (!member.casterDone) {
+        member.casterDone = true;
+        vex.summoner().filter(owner -> !owner.hasEffect(ModEffects.MIRROR)).ifPresent(owner -> {
+            if (ScrollCasting.land(vex, owner, Spells.MIRROR, GhostrailDuration.Kind.PLAYER)) {
+                vex.setMirrorReadyAt(now + ScrollCasting.cooldownFor(Spells.MIRROR));
+            }
+        });
     }
-    member.casterDone = true;
-    vex.summoner().filter(owner -> !owner.hasEffect(ModEffects.MIRROR)).ifPresent(owner -> {
-        Spells.cast(owner, Spells.MIRROR, MirrorRule.DURATION_TICKS);
-        vex.playSound(SoundEvents.EVOKER_CAST_SPELL, 1.0F, 1.0F);
-        vex.setMirrorReadyAt(now + CasterRules.MIRROR_COOLDOWN_TICKS);
-    });
-    member.kit.put(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
-    vex.conjure(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+    if (record.phase == TeamMoves.Phase.CHARGE && !vex.getMainHandItem().isEmpty()) {
+        member.kit.put(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+        vex.conjure(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+    }
 }
 ```
 
@@ -3400,7 +4036,7 @@ Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:caster_*"` and `"-Pgam
 
 - [ ] **Step 5: Gates and commit**
 
-Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 733 required tests passed` both times (718 + 15).
+Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 743 required tests passed` both times (the Task 8 total plus the 15 `caster_*` tests registered in `CasterSpellGameTests`).
 
 ```bash
 git add src
@@ -3418,38 +4054,40 @@ git commit -m "feat(evoking): Casters cast Mirror and Ghostrail, alone and in a 
 
 **Interfaces:**
 
-- Consumes: Task 4 (`Dice.SCROLL_MOB`), Task 7 (`EvokingAttachments.MOB_MIRROR_READY/MOB_GHOSTRAIL_READY`, `Ghostrail`), Task 3 (`Spells.cast`, `ModItems.scrollFor`).
+- Consumes: Task 4 (`Dice.SCROLL_MOB`), Task 7 (`EvokingAttachments.MOB_MIRROR_READY/MOB_GHOSTRAIL_READY`, `Ghostrail`), Task 3 (`Spells.cast`, `ModItems.scrollFor`), Task 9 (`ScrollCasting.ticksFor/cooldownFor/land`).
 - Produces:
-  - `ScrollMobs` (public final, `@EventBusSubscriber`): `onFinalizeSpawn(FinalizeSpawnEvent)` (an `Evoker` carries a scroll in the **offhand** 1 time in 4, a `Vindicator` or `Pillager` 1 in 10, Mirror or Ghostrail at even odds, offhand drop chance 0.5; the rolls are `Dice.SCROLL_MOB.below(random, 4 or 10)` and, for a carrier, `Dice.SCROLL_MOB.below(random, 2)` where 0 is Mirror), `onChangeTarget(LivingChangeTargetEvent)` (a mob with a Mirror or Ghostrail scroll in its offhand that goes from no target to a target casts at once if that spell's cooldown is over: Mirror on itself for 7200 ticks with a 7200-tick cooldown unless it has the effect; Ghostrail on itself for 40 ticks with a 600-tick cooldown; then `EVOKER_CAST_SPELL` and a burst of 10 purple `ENTITY_EFFECT` particles; the scroll is not used up), `onJoin(EntityJoinLevelEvent)` (installs the chase goal), `static void install(Mob mob)` (public, idempotent).
+  - `ScrollMobs` (public final, `@EventBusSubscriber`): `onFinalizeSpawn(FinalizeSpawnEvent)` (an `Evoker` carries a scroll in the **offhand** 1 time in 4, a `Vindicator` or `Pillager` 1 in 10, Mirror or Ghostrail at even odds, offhand drop chance 0.5; the rolls are `Dice.SCROLL_MOB.below(random, 4 or 10)` and, for a carrier, `Dice.SCROLL_MOB.below(random, 2)` where 0 is Mirror), `onChangeTarget(LivingChangeTargetEvent)` (a mob with a Mirror or Ghostrail scroll in its offhand that goes from no target to a target casts at once if that spell's cooldown is over: Mirror on itself for 7200 ticks with a 7200-tick cooldown unless it has the effect; Ghostrail on itself for 40 ticks with a 600-tick cooldown; both through `ScrollCasting.land` (so the durations, the cast sound and the cooldown of Mirror come from the one place) and then a burst of 10 purple `ENTITY_EFFECT` particles; the scroll is not used up), `onJoin(EntityJoinLevelEvent)` (installs the chase goal), `static void install(Mob mob)` (public, idempotent).
   - `GhostrailChaseGoal` (public final, goal priority 0, flag `MOVE`): while the mob has Ghostrail and a target it stops the navigation and sets its velocity straight at the target's middle at 0.3 blocks per tick.
 
 - [ ] **Step 1: Write the failing tests**
 
-Verify first how a spawn fires `FinalizeSpawnEvent` (`api-notes` §26 marked it): read `EventHooks.finalizeMobSpawn` in `build/nf-src` and call exactly that from the tests, not `Mob.finalizeSpawn` (which does not post the event).
+A spawn fires `FinalizeSpawnEvent` through `EventHooks.finalizeMobSpawn(mob, level, difficulty, spawnType, spawnData)` (`EventHooks.java:334`; it posts the event, then calls the deprecated `Mob.finalizeSpawn`): call exactly that from the tests, never `Mob.finalizeSpawn` itself (it does not post the event, and calling it directly fails the `-Werror` build).
 
-`ScrollMobGameTests` (javadoc `/** GameTests of the mobs that carry scrolls (Parts 6-7 spec §8) and the Ghostrail chase goal (§7.3). */`). Tests that script `Dice.SCROLL_MOB` register in the environment `private static final String DICE = "scroll_mob_dice";`; the rest in `SHARED`; all through `FangGameTests.addPadded`. Helpers: `private static <T extends Mob> T spawned(GameTestHelper helper, EntityType<T> type)` creates the mob with `type.create(level, EntitySpawnReason.SPAWNER)`, positions it with `setPos(at(helper, 4.0, 0.0, 0.0))`, calls `EventHooks.finalizeMobSpawn(...)` and adds it (`level.addFreshEntity`) with `noAi`, `whenDone(helper, mob::discard)`; `private static Evoker armed(GameTestHelper helper, Spell spell)` is a no-AI evoker from `foeAt` with `setItemSlot(OFFHAND, ModItems.scrollFor(spell))`.
+`ScrollMobGameTests` (javadoc `/** GameTests of the mobs that carry scrolls (Parts 6-7 spec §8) and the Ghostrail chase goal (§7.3). */`). Tests that script `Dice.SCROLL_MOB` register in the environment `private static final String DICE = "scroll_mob_dice";`; the rest in `SHARED`; all through `FangGameTests.addPadded`. Helpers: `private static <T extends Mob> T spawned(GameTestHelper helper, EntityType<T> type)` creates the mob with `type.create(level, EntitySpawnReason.SPAWNER)`, positions it with `setPos(at(helper, 4.0, 0.0, 0.0))`, calls `EventHooks.finalizeMobSpawn(...)` and adds it (`level.addFreshEntity`) with `noAi`, `whenDone(helper, mob::discard)`; `private static Evoker armed(GameTestHelper helper, Spell spell)` is a no-AI evoker from `foeAt(helper, EntityTypes.EVOKER, at(helper, 4.0, 0.0, 0.0))` (4 blocks east of the standing spot, so a test's player stands apart from it) with `setItemSlot(OFFHAND, ModItems.scrollFor(spell))`; a pillager variant in `castsGhostrail` is placed the same way.
 
 ```java
 static void registerAll() {
-    FangGameTests.addPadded(DICE, "scroll_mob_evoker_spawn_holds_a_scroll_in_the_offhand", ScrollMobGameTests::evokerSpawn);
-    FangGameTests.addPadded(DICE, "scroll_mob_offhand_drop_chance_is_half", ScrollMobGameTests::dropChanceIsHalf);
-    FangGameTests.addPadded(DICE, "scroll_mob_pillager_carries_ghostrail_when_the_dice_say_so", ScrollMobGameTests::pillagerGhostrail);
+    FangGameTests.addPadded(DICE, "scroll_mob_evoker_spawn", ScrollMobGameTests::evokerSpawn);
+    FangGameTests.addPadded(DICE, "scroll_mob_drop_chance_is_half", ScrollMobGameTests::dropChanceIsHalf);
+    FangGameTests.addPadded(DICE, "scroll_mob_pillager_ghostrail", ScrollMobGameTests::pillagerGhostrail);
     FangGameTests.addPadded(DICE, "scroll_mob_evoker_roll_is_one_in_four", ScrollMobGameTests::evokerRollIsOneInFour);
     FangGameTests.addPadded(DICE, "scroll_mob_pillager_roll_is_one_in_ten", ScrollMobGameTests::pillagerRollIsOneInTen);
-    FangGameTests.addPadded(SHARED, "scroll_mob_evoker_casts_mirror_on_taking_a_target", ScrollMobGameTests::castsMirror);
-    FangGameTests.addPadded(SHARED, "scroll_mob_does_not_cast_again_within_the_cooldown", ScrollMobGameTests::cooldownHolds);
-    FangGameTests.addPadded(SHARED, "scroll_mob_pillager_casts_ghostrail_for_40_ticks_with_a_30_second_cooldown", ScrollMobGameTests::castsGhostrail);
-    FangGameTests.addPadded(SHARED, "scroll_mob_without_a_scroll_casts_nothing", ScrollMobGameTests::noScrollNoCast);
-    FangGameTests.addPadded(SHARED, "scroll_mob_changing_from_one_target_to_another_does_not_recast", ScrollMobGameTests::noRecastOnASwitch);
-    FangGameTests.addPadded(SHARED, "scroll_mob_cast_sounds_and_bursts_and_keeps_the_scroll", ScrollMobGameTests::soundBurstAndScroll);
-    FangGameTests.addPadded(SHARED, "scroll_mob_cooldown_and_scroll_survive_a_save", ScrollMobGameTests::survivesASave);
-    FangGameTests.addPadded(SHARED, "scroll_mob_chase_goal_is_installed_on_join", ScrollMobGameTests::chaseGoalInstalled);
-    FangGameTests.addPadded(SHARED, "scroll_mob_chase_flies_through_a_wall_at_the_target", 200, ScrollMobGameTests::chasesThroughAWall);
+    FangGameTests.addPadded(SHARED, "scroll_mob_casts_mirror", ScrollMobGameTests::castsMirror);
+    FangGameTests.addPadded(SHARED, "scroll_mob_cooldown_holds", ScrollMobGameTests::cooldownHolds);
+    FangGameTests.addPadded(SHARED, "scroll_mob_casts_ghostrail", ScrollMobGameTests::castsGhostrail);
+    FangGameTests.addPadded(SHARED, "scroll_mob_no_scroll_no_cast", ScrollMobGameTests::noScrollNoCast);
+    FangGameTests.addPadded(SHARED, "scroll_mob_no_recast_on_a_switch", ScrollMobGameTests::noRecastOnASwitch);
+    FangGameTests.addPadded(SHARED, "scroll_mob_sound_burst_and_scroll", ScrollMobGameTests::soundBurstAndScroll);
+    FangGameTests.addPadded(SHARED, "scroll_mob_survives_a_save", ScrollMobGameTests::survivesASave);
+    FangGameTests.addPadded(SHARED, "scroll_mob_chase_goal_installed", ScrollMobGameTests::chaseGoalInstalled);
+    FangGameTests.addPadded(SHARED, "scroll_mob_chases_through_a_wall", 100, ScrollMobGameTests::chasesThroughAWall);
 }
 ```
 
 ```java
-/** When the dice roll 0 (carries) then 0 (Mirror) for an evoker, should it spawn with a Mirror scroll in its offhand. */
+/**
+ * When the dice roll 0 (carries) then 0 (Mirror) for an evoker, should it spawn with a Mirror scroll in its offhand.
+ */
 static void evokerSpawn(GameTestHelper helper) {
     // Arrange
     plainPlayer(helper);
@@ -3468,7 +4106,7 @@ static void evokerSpawn(GameTestHelper helper) {
 }
 ```
 
-`dropChanceIsHalf`: the same spawn: `evoker.getDropChances().byEquipment(EquipmentSlot.OFFHAND)` equals `0.5F`. `pillagerGhostrail`: script `0, 1`, spawn a `Pillager`: offhand is `GHOSTRAIL_SCROLL`. `evokerRollIsOneInFour`: script `3` (an evoker rolls a 4-sided die, so 3 is "no"): offhand empty. `pillagerRollIsOneInTen`: script `9`: a pillager's offhand is empty (a `Dice` scripted roll outside the bound throws, so the evoker test would throw for a 9 and the pillager test proves the 10-sided bound: also script `9` for an evoker inside `assertThatThrown`-style: `helper.assertTrue(thrown, …)` using try/catch of `IllegalStateException`).
+`dropChanceIsHalf`: the same spawn: `evoker.getDropChances().byEquipment(EquipmentSlot.OFFHAND)` equals `0.5F`. `pillagerGhostrail`: script `0, 1`, spawn a `Pillager`: offhand is `GHOSTRAIL_SCROLL`. `evokerRollIsOneInFour`: script `3` (the last side of the 4-sided die, so "no"): an evoker's offhand is empty; and `helper.assertValueEqual(ScrollMobs.EVOKER_ONE_IN, 4, "an evoker rolls a 4-sided die")`. `pillagerRollIsOneInTen`: script `9` (the last side of the 10-sided die): a pillager's offhand is empty; and `ScrollMobs.RAIDER_ONE_IN` equals 10. (The two constants are therefore `public`. A scripted roll outside the bound makes `Dice` throw, but whether that exception reaches the test through the event bus is not something to depend on, so no test relies on it.)
 
 ```java
 /** When an evoker with a Mirror scroll takes a target, should it get Mirror at once with 13 images of itself. */
@@ -3486,7 +4124,7 @@ static void castsMirror(GameTestHelper helper) {
 }
 ```
 
-`cooldownHolds`: after the cast, `evoker.setTarget(null)`, `evoker.removeEffect(ModEffects.MIRROR)`, `evoker.setTarget(player)` again: no Mirror (cooldown 7200). `castsGhostrail`: `armed`-style pillager with a Ghostrail scroll: after `setTarget(player)` the pillager's `getEffect(GHOSTRAIL).getDuration()` is `GhostrailDuration.HOSTILE_TICKS` and `getExistingData(EvokingAttachments.MOB_GHOSTRAIL_READY)` equals `level.getGameTime() + 600`. `noScrollNoCast`: a no-AI evoker with an empty offhand takes a target: no Mirror, no Ghostrail. `noRecastOnASwitch`: an armed evoker `setTarget(zombie)` (casts once), clear the effect, `setTarget(player)` with the old target non-null: no second cast (the effect stays absent). `soundBurstAndScroll`: a mock player near; `GameTestSupport.drainShown(player)` first; the evoker takes a target; the drain holds `SoundEvents.EVOKER_CAST_SPELL` and `ParticleTypes.ENTITY_EFFECT`, and the evoker's offhand is still the scroll. `survivesASave`: after a cast, `Evoker copy = (Evoker) GameTestSupport.reloaded(level, evoker)`: `copy.getExistingData(EvokingAttachments.MOB_MIRROR_READY)` equals the original's and its offhand is a Mirror scroll. `chaseGoalInstalled`: a `helper.spawn(EntityTypes.PILLAGER, ...)`'s `goalSelector.getAvailableGoals()` holds a `GhostrailChaseGoal` (join event), and an evoker and a vindicator too; a zombie has none.
+`cooldownHolds`: after the cast, `evoker.setTarget(null)`, `evoker.removeEffect(ModEffects.MIRROR)`, `evoker.setTarget(player)` again: no Mirror (cooldown 7200). `castsGhostrail`: `armed`-style pillager with a Ghostrail scroll: after `setTarget(player)` the pillager's `getEffect(GHOSTRAIL).getDuration()` is `GhostrailDuration.HOSTILE_TICKS` and `getExistingData(EvokingAttachments.MOB_GHOSTRAIL_READY)` equals `level.getGameTime() + 600`. `noScrollNoCast`: a no-AI evoker with an empty offhand takes a target: no Mirror, no Ghostrail. `noRecastOnASwitch`: an armed evoker `setTarget(husk)` (casts once, from no target to a target); then clear everything that could block a second cast **other than** the switch rule: `evoker.removeEffect(ModEffects.MIRROR)` and `evoker.setData(EvokingAttachments.MOB_MIRROR_READY, 0L)` (the 7200-tick cooldown would otherwise block it and the test could never fail); assert the first cast happened, then `evoker.setTarget(player)` with the old target (the husk) still set: no second cast (the effect stays absent). Without the `mob.getTarget() != null` guard in `onChangeTarget` this test fails. `soundBurstAndScroll`: a mock player near; `GameTestSupport.drainShown(player)` first; the evoker takes a target; the drain holds `SoundEvents.EVOKER_CAST_SPELL` and `ParticleTypes.ENTITY_EFFECT`, and the evoker's offhand is still the scroll. `survivesASave`: after a cast, `Evoker copy = (Evoker) GameTestSupport.reloaded(level, evoker)`: `copy.getExistingData(EvokingAttachments.MOB_MIRROR_READY)` equals the original's and its offhand is a Mirror scroll. `chaseGoalInstalled`: a `helper.spawn(EntityTypes.PILLAGER, ...)`'s `goalSelector.getAvailableGoals()` holds a `GhostrailChaseGoal` (join event), and an evoker and a vindicator too; a zombie has none.
 
 ```java
 /**
@@ -3499,8 +4137,10 @@ static void chasesThroughAWall(GameTestHelper helper) {
     player.setPermanentlyInvulnerable(true);
     GameTestSupport.whenDone(helper, () -> player.setPermanentlyInvulnerable(false));
     floor(helper, 12);
+    // A wall across the whole floor (z -12 to 12, 4 high): there is no ground beyond its ends and it is too high to
+    // jump, so a pillager that reaches the player has not walked around it
     for (int y = 0; y <= 3; y++) {
-        for (int z = -3; z <= 3; z++) {
+        for (int z = -12; z <= 12; z++) {
             helper.setBlock(FangGameTests.FEET.offset(5, y, z), Blocks.STONE);
         }
     }
@@ -3510,7 +4150,7 @@ static void chasesThroughAWall(GameTestHelper helper) {
     // Act
     Spells.cast(pillager, Spells.GHOSTRAIL, 400);
     pillager.setTarget(player);
-    // Assert
+    // Assert: 100 ticks is the test's limit; the chase covers the 8 blocks in about 30
     helper.startSequence()
             .thenWaitUntil(() -> helper.assertTrue(pillager.distanceTo(player) < 2.0, "the pillager reached the target"))
             .thenSucceed();
@@ -3529,33 +4169,37 @@ Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:scroll_mob_*"`. Expect
 
 ```java
 /**
- * Evokers, vindicators and pillagers that carry a Mirror or Ghostrail scroll and use it on themselves (Parts 6-7 spec §8).
- * The scroll sits in the offhand with a drop chance of 0.5, which vanilla honors only for a player's kill (Looting raises
- * it): that is the parent spec's "loot path for players". Vanilla's own equipment fills only the main hand and runs after
- * {@code FinalizeSpawnEvent}.
+ * Evokers, vindicators and pillagers that carry a Mirror or Ghostrail scroll and use it on themselves (Parts 6-7 spec
+ * §8). The scroll sits in the offhand with a drop chance of 0.5, which vanilla honors only for a player's kill (Looting
+ * raises it): that is the parent spec's "loot path for players". Vanilla's own equipment fills only the main hand and
+ * runs after {@code FinalizeSpawnEvent}.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class ScrollMobs {
     /** An evoker carries a scroll one time in this many. */
-    static final int EVOKER_ONE_IN = 4;
+    public static final int EVOKER_ONE_IN = 4;
 
     /** A vindicator or pillager carries a scroll one time in this many. */
-    static final int RAIDER_ONE_IN = 10;
+    public static final int RAIDER_ONE_IN = 10;
 
     /** The offhand drop chance of a carried scroll. */
     static final float DROP_CHANCE = 0.5F;
 
-    /** Ticks before a mob may cast Ghostrail on itself again (30 seconds). */
+    /** Ticks before a mob may cast Ghostrail on itself again (30 seconds; Mirror's is {@code ScrollCasting}'s). */
     static final int MOB_GHOSTRAIL_COOLDOWN_TICKS = 600;
 
     /** The cast's purple, the Evoker-spell color of {@code CastingParticles} for a scroll. */
     private static final int PURPLE = 0xFFB24CFF;
 
+    /** Particles in the cast's burst. */
     private static final int BURST = 10;
 
     private ScrollMobs() {}
 
-    /** The sides of the carry die for {@code mob}: 4 for an evoker, 10 for a vindicator or pillager, 0 for any other mob. */
+    /**
+     * The sides of the carry die for {@code mob}: 4 for an evoker, 10 for a vindicator or pillager, 0 for any other
+     * mob.
+     */
     private static int oneIn(Mob mob) {
         if (mob instanceof Evoker) {
             return EVOKER_ONE_IN;
@@ -3600,22 +4244,21 @@ public final class ScrollMobs {
         Spell spell = scroll.spell();
         if (spell.equals(Spells.MIRROR)
                 && !mob.hasEffect(ModEffects.MIRROR)
-                && CasterRules.ready(now, mob.getExistingData(EvokingAttachments.MOB_MIRROR_READY).orElse(0L))) {
-            Spells.cast(mob, Spells.MIRROR, MirrorRule.DURATION_TICKS);
-            mob.setData(EvokingAttachments.MOB_MIRROR_READY, now + CasterRules.MIRROR_COOLDOWN_TICKS);
+                && CasterRules.ready(now, mob.getExistingData(EvokingAttachments.MOB_MIRROR_READY).orElse(0L))
+                && ScrollCasting.land(mob, mob, Spells.MIRROR, GhostrailDuration.Kind.HOSTILE_MOB)) {
+            mob.setData(EvokingAttachments.MOB_MIRROR_READY, now + ScrollCasting.cooldownFor(Spells.MIRROR));
             burst(level, mob);
         } else if (spell.equals(Spells.GHOSTRAIL)
                 && !mob.hasEffect(ModEffects.GHOSTRAIL)
-                && CasterRules.ready(now, mob.getExistingData(EvokingAttachments.MOB_GHOSTRAIL_READY).orElse(0L))) {
-            Spells.cast(mob, Spells.GHOSTRAIL, GhostrailDuration.of(GhostrailDuration.Kind.HOSTILE_MOB));
+                && CasterRules.ready(now, mob.getExistingData(EvokingAttachments.MOB_GHOSTRAIL_READY).orElse(0L))
+                && ScrollCasting.land(mob, mob, Spells.GHOSTRAIL, GhostrailDuration.Kind.HOSTILE_MOB)) {
             mob.setData(EvokingAttachments.MOB_GHOSTRAIL_READY, now + MOB_GHOSTRAIL_COOLDOWN_TICKS);
             burst(level, mob);
         }
     }
 
-    /** The cast's sound and a burst of purple particles. */
+    /** A burst of purple particles (the cast sound came from {@link ScrollCasting#land}). */
     private static void burst(ServerLevel level, Mob mob) {
-        level.playSound(null, mob.blockPosition(), SoundEvents.EVOKER_CAST_SPELL, SoundSource.HOSTILE, 1.0F, 1.0F);
         level.sendParticles(
                 ColorParticleOption.create(ParticleTypes.ENTITY_EFFECT, PURPLE),
                 mob.getX(),
@@ -3661,17 +4304,24 @@ public final class ScrollMobs {
 
 ```java
 /**
- * While a scroll mob has Ghostrail and a target, flies straight at the target's middle at {@link #SPEED} blocks per tick
- * (Parts 6-7 spec §7.3). Pathfinding would walk around the wall Ghostrail is for, and {@code Mob.serverAiStep} overwrites
- * a wanted position set from outside the goals, so the goal stops the navigation and sets the velocity itself; the mob
- * has no gravity and no collision while it carries the effect ({@code Ghostrail.tick}), so it can rise and sink.
+ * While a scroll mob has Ghostrail and a target, flies straight at the target's middle at {@link #SPEED} blocks per
+ * tick (Parts 6-7 spec §7.3). Pathfinding would walk around the wall Ghostrail is for, and {@code Mob.serverAiStep}
+ * overwrites a wanted position set from outside the goals, so the goal stops the navigation and sets the velocity
+ * itself; the mob has no gravity and no collision while it carries the effect ({@code Ghostrail.tick}), so it can rise
+ * and sink.
  */
 public final class GhostrailChaseGoal extends Goal {
     /** Blocks per tick. */
     static final double SPEED = 0.3;
 
+    /** The mob that chases. */
     private final Mob mob;
 
+    /**
+     * Creates the goal for one mob (it only runs while the mob has Ghostrail and a target).
+     *
+     * @param mob the mob
+     */
     GhostrailChaseGoal(Mob mob) {
         this.mob = mob;
         setFlags(EnumSet.of(Goal.Flag.MOVE));
@@ -3712,7 +4362,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Gates and commit**
 
-Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 747 required tests passed` both times (733 + 14).
+Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 757 required tests passed` both times (the Task 9 total plus the 14 `scroll_mob_*` tests of `ScrollMobGameTests`).
 
 ```bash
 git add src
@@ -3724,32 +4374,39 @@ git commit -m "feat(evoking): evokers, vindicators and pillagers that carry scro
 **Files:**
 
 - Create: `evoking/VillagerGhosts.java` (records and the death hook; the spawner comes in Task 12), `gametest/VillagerGhostGameTests.java`
-- Modify: `spell/Allies.java`, `spell/GolemMercy.java`, `gametest/ScrollTestSupport.java`, `gametest/SpellcraftGameTests.java`, `assets/spellcraft/lang/en_us.json` (none yet)
+- Modify: `spell/Allies.java`, `spell/GolemMercy.java`, `gametest/ScrollTestSupport.java`, `gametest/SpellcraftGameTests.java`
 
 **Interfaces:**
 
-- Consumes: Task 2 (`GhostRecords`), `Allies`, `AllyAttachments.SUMMONER`.
+- Consumes: Task 2 (`GhostRecords`), Task 4 (`ScrollTestSupport`, which this task edits), `Allies`, `AllyAttachments.SUMMONER`.
 - Produces:
   - `Allies.isPlayersSide(DamageSource)` (public static; moved out of `GolemMercy`, which now calls it): the damage's causing entity is a `Player`, a tamed `Wolf`, or any entity carrying a summoner mark.
   - `VillagerGhosts` (public final, `extends SavedData`): `record Record(UUID id, BlockPos pos, VillagerData data, long mirrorReadyAt, long ghostrailReadyAt)` with `Record withMirrorReadyAt(long)` and `Record withGhostrailReadyAt(long)`; `static final Codec<VillagerGhosts> CODEC`; `static final SavedDataType<VillagerGhosts> TYPE` (id `spellcraft:villager_ghosts`); `static VillagerGhosts get(ServerLevel)`; `List<Record> records()` (oldest first); `void add(Record)` (applies `GhostRecords.add(…, GhostRecords.MAX)`, `setDirty`); `Optional<Record> find(UUID)`; `void remove(UUID)`; `void setMirrorReadyAt(UUID, long)`; `void setGhostrailReadyAt(UUID, long)` (each replaces the record and calls `setDirty`).
   - `VillagerGhosts.onDeath(LivingDeathEvent)` (`@SubscribeEvent`; the class is `@EventBusSubscriber`): a `Villager` whose killer (`source.getEntity()`) is an `Enemy` and `!Allies.isPlayersSide(source)` leaves a record (a villager a zombie then converts still does: the event fires before the conversion). A villager killed by lava, a fall, a cactus, a player, a golem or a Bound Vex leaves none (amends the parent §9.5).
-  - `ScrollTestSupport.sampleVillagerData(GameTestHelper)` (a spawned villager's `VillagerData`, the villager discarded) and `ScrollTestSupport.record(GameTestHelper, Vec3 absolute)` (adds a record there with the sample data, removes it again in `whenDone`, returns it).
+  - `ScrollTestSupport.sampleVillagerData(GameTestHelper)` (a fixed, **non-default** `VillagerData`: desert type, librarian profession, level 3; a fresh villager's data equals the codec's defaults, so a default sample could not catch a codec that drops a field) and `ScrollTestSupport.record(GameTestHelper, Vec3 absolute)` (adds a record there with the sample data, removes it again in `whenDone`, returns it).
 
 - [ ] **Step 1: Write the failing tests**
 
-`VillagerGhostGameTests` (javadoc `/** GameTests of the villager-ghost records (Parts 6-7 spec §9, §10) and, from Task 12, the ghosts. */`). Tests add records to one level-wide list, so each cleans its own records up (`ScrollTestSupport.record` does); the 33-deaths test runs in an environment of its own, `villager_ghost_records`.
+`VillagerGhostGameTests` (javadoc `/** GameTests of the villager-ghost records (Parts 6-7 spec §9, §10) and, from Task 12, the ghosts. */`). **Record budget:** the records live in one level-wide list capped at 32, and tests of one batch run at the same time, so a cap eviction would remove another test's record. The `SHARED` tests of this task keep at most three records alive at once (the kill test, the data test and the save test), and each cleans up its own records (`ScrollTestSupport.record` and `whenDone` do); the 33-deaths test and the conversion test run in environments of their own, `villager_ghost_records` and `villager_ghost_hard`, and Task 12 puts its tests in environments of their own too (`villager_ghost_help`, `villager_ghost_fade`), so the budget never nears 32.
 
 ```java
+/** The environment of the 33-deaths test: it fills the whole record list. */
 private static final String RECORDS = "villager_ghost_records";
 
+/** The environment of the conversion test: it raises the difficulty to Hard (a global setting). */
+private static final String HARD = "villager_ghost_hard";
+
 static void registerAll() {
-    FangGameTests.addPadded(SHARED, "villager_ghost_record_a_zombie_kill_writes_a_record", VillagerGhostGameTests::zombieKillWritesARecord);
+    FangGameTests.addPadded(SHARED, "villager_ghost_record_a_pillager_kill_writes_a_record", VillagerGhostGameTests::pillagerKillWritesARecord);
     FangGameTests.addPadded(SHARED, "villager_ghost_record_keeps_the_villagers_data", VillagerGhostGameTests::recordKeepsTheData);
     FangGameTests.addPadded(SHARED, "villager_ghost_record_none_for_a_player_kill", VillagerGhostGameTests::playerKillWritesNone);
     FangGameTests.addPadded(SHARED, "villager_ghost_record_none_for_a_bound_vex_kill", VillagerGhostGameTests::boundVexKillWritesNone);
+    FangGameTests.addPadded(SHARED, "villager_ghost_record_none_for_a_golem_kill", VillagerGhostGameTests::golemKillWritesNone);
     FangGameTests.addPadded(SHARED, "villager_ghost_record_none_for_lava", VillagerGhostGameTests::lavaWritesNone);
+    FangGameTests.addPadded(SHARED, "villager_ghost_record_none_for_a_fall", VillagerGhostGameTests::fallWritesNone);
     FangGameTests.addPadded(SHARED, "villager_ghost_records_survive_a_save", VillagerGhostGameTests::recordsSurviveASave);
     FangGameTests.addPadded(RECORDS, "villager_ghost_records_33_deaths_keep_32", 400, VillagerGhostGameTests::thirtyThreeDeaths);
+    FangGameTests.addPadded(HARD, "villager_ghost_record_survives_a_zombie_conversion", VillagerGhostGameTests::conversionStillLeavesARecord);
 }
 ```
 
@@ -3766,26 +4423,39 @@ private static Optional<VillagerGhosts.Record> recordAt(GameTestHelper helper, B
             .findFirst();
 }
 
-/** When a zombie kills a villager, should a record of the death be written at the villager's block. */
-static void zombieKillWritesARecord(GameTestHelper helper) {
-    // Arrange
-    plainPlayer(helper);
-    ServerLevel level = helper.getLevel();
-    Zombie zombie = foeAt(helper, EntityTypes.ZOMBIE, at(helper, 3.0, 0.0, 0.0));
+/**
+ * A no-AI villager of the non-default sample data in a test-owned spot, which removes the record at its spot when
+ * the test ends.
+ */
+private static Villager villager(GameTestHelper helper) {
     Villager villager = helper.spawn(EntityTypes.VILLAGER, new BlockPos(1, 2, 1));
     villager.setNoAi(true);
+    villager.setVillagerData(ScrollTestSupport.sampleVillagerData(helper));
     BlockPos pos = villager.blockPosition();
+    ServerLevel level = helper.getLevel();
     GameTestSupport.whenDone(helper, () -> recordAt(helper, pos)
             .ifPresent(record -> VillagerGhosts.get(level).remove(record.id())));
+    return villager;
+}
+
+/** When a pillager (an Enemy that is not a Zombie) kills a villager, should a record of the death be written there. */
+static void pillagerKillWritesARecord(GameTestHelper helper) {
+    // Arrange (the padded wrapper has already loaded the box; no player is needed)
+    ServerLevel level = helper.getLevel();
+    Pillager pillager = foeAt(helper, EntityTypes.PILLAGER, at(helper, 3.0, 0.0, 0.0));
+    Villager villager = villager(helper);
+    BlockPos pos = villager.blockPosition();
     // Act
-    kill(helper, villager, level.damageSources().mobAttack(zombie));
+    kill(helper, villager, level.damageSources().mobAttack(pillager));
     // Assert
     helper.assertTrue(recordAt(helper, pos).isPresent(), "a record at the death spot");
     helper.succeed();
 }
 ```
 
-`recordKeepsTheData`: the same, then `recordAt(helper, pos).orElseThrow().data()` equals `villager.getVillagerData()` (capture it before the kill). `playerKillWritesNone`: `kill(helper, villager, level.damageSources().playerAttack(player))` then no record at `pos`. `boundVexKillWritesNone`: a `BoundVexTestSupport.boundVex(helper, BoundVexTestSupport.AIR_SPOT, player)` is the killer: `level.damageSources().mobAttack(vex)`; no record. `lavaWritesNone`: `level.damageSources().lava()`; no record. `recordsSurviveASave`:
+(A zombie or husk is the wrong killer for the plain tests: `Zombie.killedEntity` converts a killed villager 50 % of the time on Normal, which spawns a live `ZombieVillager` that nothing discards. The conversion has its own test below.)
+
+`recordKeepsTheData`: the same, then `recordAt(helper, pos).orElseThrow().data()` equals `ScrollTestSupport.sampleVillagerData(helper)` (the non-default sample the villager was given; this fails for a record that stores the default, or a codec that drops type, profession or level). `playerKillWritesNone`: `kill(helper, villager, level.damageSources().playerAttack(player))` then no record at `pos`. `boundVexKillWritesNone`: a `BoundVexTestSupport.boundVex(helper, BoundVexTestSupport.AIR_SPOT, player)` is the killer (an `Enemy` that carries a summoner mark, so this is the test of `isPlayersSide`): `level.damageSources().mobAttack(vex)`; no record. `golemKillWritesNone`: an iron golem (`foeAt(helper, EntityTypes.IRON_GOLEM, …)`) is the killer; no record. `lavaWritesNone`: `level.damageSources().lava()`; no record. `fallWritesNone`: `level.damageSources().fall()`; no record. `conversionStillLeavesARecord` (environment `villager_ghost_hard`): set the server difficulty to Hard, saving the old one and restoring it in `whenDone`, as `BoundVexGearGameTests` does around line 371 (`server.setDifficulty(saved, true)`); a frozen husk (`hostileAt`) kills the villager with `mobAttack(husk)`; on Hard `Zombie.killedEntity` always converts it: assert that a `ZombieVillager` now exists near the spot (discard it in `whenDone`) **and** that a record exists at `pos` (the spec's "a villager a zombie then converts still leaves a record"). `recordsSurviveASave`:
 
 ```java
 /** When the records are encoded and decoded, should the same records come back, oldest first. */
@@ -3805,17 +4475,18 @@ static void recordsSurviveASave(GameTestHelper helper) {
 }
 ```
 
-`thirtyThreeDeaths`: in a loop of 33 iterations: spawn a no-AI villager, kill it with `mobAttack(zombie)`; remember each record id from `recordAt`; at the end assert `VillagerGhosts.get(level).records().size() == GhostRecords.MAX`, the first death's record is gone, the last is present; `whenDone` removes every id this test wrote.
+`thirtyThreeDeaths` (the killer is a frozen pillager, not a zombie): every villager spawns at the same block, so every record has the same `pos`, and a lookup by `pos` (`recordAt`) finds the **oldest** record at that spot, not the one just written. So after each of the 33 kills take the new record's id from the **tail** of the list, `VillagerGhosts.get(level).records().get(size - 1).id()`, and keep the 33 ids in order. At the end assert `records().size() == GhostRecords.MAX`, the first id is gone (`find(first)` is empty), the second is still present (the oldest kept) and the last is present (the newest is never evicted); `whenDone` removes every id this test wrote.
 
 `ScrollTestSupport` additions:
 
 ```java
-/** A spawned villager's data, for a record (the villager is discarded). */
+/** A fixed non-default villager look for a record: desert type, librarian profession, level 3. */
 static VillagerData sampleVillagerData(GameTestHelper helper) {
-    Villager villager = helper.spawn(EntityTypes.VILLAGER, new BlockPos(1, 2, 1));
-    VillagerData data = villager.getVillagerData();
-    villager.discard();
-    return data;
+    RegistryAccess registries = helper.getLevel().registryAccess();
+    return new VillagerData(
+            registries.lookupOrThrow(Registries.VILLAGER_TYPE).getOrThrow(VillagerType.DESERT),
+            registries.lookupOrThrow(Registries.VILLAGER_PROFESSION).getOrThrow(VillagerProfession.LIBRARIAN),
+            3);
 }
 
 /** Adds a record at {@code at} (absolute) and removes it when the test ends. */
@@ -3837,15 +4508,15 @@ Run: `./gradlew compileJava` (FAIL: `VillagerGhosts` does not exist).
 
 - [ ] **Step 3: Write the implementation**
 
-`Allies`: add (and delete the private copy from `GolemMercy`, whose three call sites become `Allies.isPlayersSide(...)`):
+`Allies`: add (and delete the private copy from `GolemMercy`, whose two call sites, `GolemMercy.java:36` and `:52`, become `Allies.isPlayersSide(...)`; the `Entity`, `Player`, `Wolf` and `DamageSource` imports there are then unused, and `spotlessApply` removes them):
 
 ```java
 /**
- * Whether the damage comes from a player's side: its causing entity is a player (a sword, or fangs through
- * {@code indirectMagic(fangs, caster)}), a tamed wolf (every tamed wolf is a player's, even while its owner is offline and
- * {@code getOwner()} cannot resolve it), or any mob carrying a summoner mark (round one's vexes, Bound Vexes from Part 2
- * on, Mirror images of a player). Lava, falls, other mobs and {@code /kill} are not. Shared by {@code GolemMercy} and the
- * villager-ghost records.
+ * Whether the damage comes from a player's side: its causing entity is a player (a sword, or fangs through {@code
+ * indirectMagic(fangs, caster)}), a tamed wolf (every tamed wolf is a player's, even while its owner is offline and
+ * {@code getOwner()} cannot resolve it), or any mob carrying a summoner mark (round one's vexes, Bound Vexes from Part
+ * 2 on, Mirror images of a player). Lava, falls, other mobs and {@code /kill} are not. Shared by {@code GolemMercy} and
+ * the villager-ghost records.
  *
  * @param source the damage
  * @return true if a player's side caused it
@@ -3862,14 +4533,15 @@ public static boolean isPlayersSide(DamageSource source) {
 
 ```java
 /**
- * The villager-ghost records of one level (Parts 6-7 spec §9): where a villager died to a monster, what it looked like and
- * when its two spells may be cast again. At most {@link GhostRecords#MAX} are kept; a new one drops the oldest. Saved with
- * the level; a ghost is the visit, the record is the memory. Task 12 adds the spawner.
+ * The villager-ghost records of one level (Parts 6-7 spec §9): where a villager died to a monster, what it looked like
+ * and when its two spells may be cast again. At most {@link GhostRecords#MAX} are kept; a new one drops the oldest.
+ * Saved with the level; a ghost is the visit, the record is the memory. Task 12 adds the spawner.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class VillagerGhosts extends SavedData {
     /** One note: a UUID, the death block, the villager's type, profession and level, and the two cooldown ends. */
     public record Record(UUID id, BlockPos pos, VillagerData data, long mirrorReadyAt, long ghostrailReadyAt) {
+        /** The save format of one record. */
         private static final Codec<Record> CODEC = RecordCodecBuilder.create(i -> i.group(
                         UUIDUtil.CODEC.fieldOf("id").forGetter(Record::id),
                         BlockPos.CODEC.fieldOf("pos").forGetter(Record::pos),
@@ -3898,12 +4570,15 @@ public final class VillagerGhosts extends SavedData {
     public static final SavedDataType<VillagerGhosts> TYPE =
             new SavedDataType<>(Spellcraft.id("villager_ghosts"), VillagerGhosts::new, CODEC);
 
+    /** The kept records, oldest first; replaced (never edited) on every change. */
     private List<Record> records;
 
+    /** An empty list: the type's factory for a level with no saved file. */
     private VillagerGhosts() {
         this(List.of());
     }
 
+    /** A list with the given records (the codec's constructor). */
     private VillagerGhosts(List<Record> records) {
         this.records = List.copyOf(records);
     }
@@ -3951,8 +4626,9 @@ public final class VillagerGhosts extends SavedData {
     }
 
     /**
-     * A villager that dies to a monster (an {@code Enemy} that is not on a player's side) leaves a record. The event fires
-     * before a zombie's conversion of the villager, which is why a villager a zombie then converts still leaves one.
+     * A villager that dies to a monster (an {@code Enemy} that is not on a player's side) leaves a record. The event
+     * fires before a zombie's conversion of the villager, which is why a villager a zombie then converts still leaves
+     * one.
      *
      * @param event the death event for any living entity
      */
@@ -3971,11 +4647,11 @@ public final class VillagerGhosts extends SavedData {
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:villager_ghost_*"`, `"-PgameTests=spellcraft:golem_*"` and `"-PgameTests=spellcraft:allies_*"` (the golem mercy tests must be unchanged). Expected: PASS.
+Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:villager_ghost_*"`, `"-PgameTests=spellcraft:golems_ii_*"`, `"-PgameTests=spellcraft:bound_vex_world_crit_*"` and `"-PgameTests=spellcraft:allies_*"` (the golem mercy tests, registered as `golems_ii_*` and `bound_vex_world_crit_keeps_golem_mercy`, must be unchanged; a selector that matches nothing fails the run). Expected: PASS.
 
 - [ ] **Step 5: Gates and commit**
 
-Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 754 required tests passed` both times (747 + 7).
+Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 767 required tests passed` both times (the Task 10 total plus the 10 `villager_ghost_record*` tests of this task).
 
 ```bash
 git add src
@@ -3993,48 +4669,55 @@ git commit -m "feat(evoking): villagers that monsters kill leave a saved record"
 
 **Interfaces:**
 
-- Consumes: Task 2 (`GhostNeed`, `CasterRules`), Task 3 (`Spells.cast`, `ModEffects.CASTING_SCROLL`), Task 7 (`Ghostrail`), Task 11 (`VillagerGhosts`).
+- Consumes: Task 2 (`GhostNeed`, `CasterRules`), Task 3 (`Spells.cast`, `Spells.refusedFor`), Task 7 (`Ghostrail`), Task 9 (`ScrollCasting`), Task 11 (`VillagerGhosts`), Task 4 (`ScrollTestSupport.hostileAt`).
 - Produces:
-  - `ModEntities.VILLAGER_GHOST` (`MISC`, `sized(0.6F, 1.95F)`, `clientTrackingRange(8)`, `noSave()`, `noLootTable()`); attributes `MAX_HEALTH` 20, `MOVEMENT_SPEED` 0.5.
-  - `VillagerGhost extends LivingEntity` (public final): synced `VillagerData` (`EntityDataSerializers.VILLAGER_DATA`); `VillagerData villagerData()`; `Optional<UUID> recordId()`; `Optional<UUID> helpedId()`; `void bind(VillagerGhosts.Record record, ServerPlayer player)`; `void fade()` (POOF particles, `VEX_DEATH` at volume 0.3, `discard`). Not saved (`shouldBeSaved` false), invulnerable, not attackable, not pickable, no gravity, no physics; moves by setting its own position toward the spot 2 blocks from the player at the player's eye height (at most its `MOVEMENT_SPEED` attribute in blocks per tick, easing in); carries an infinite Ghostrail from the spawn.
-  - `VillagerGhosts.step(ServerPlayer)` (public static; the body of the 20-tick check; `onPlayerTick` runs it when `player.tickCount % 20 == 0`): a living, non-spectating player with the Evoking effect who is **in need** (`GhostNeed.inNeed(health, max, hostiles)` with the hostiles within `GhostNeed.CROWD_RANGE` that are `huntable` and `isPrey` for them) and has **no ghost already helping** them gets a ghost at the nearest record in their level within 48 blocks whose chunk is loaded and which has no live ghost.
+  - `ModEntities.VILLAGER_GHOST` (`MISC`, `sized(0.6F, 1.95F)`, `clientTrackingRange(8)`, `updateInterval(1)` (the default of 3 ticks makes a ghost that moves by position every tick look steppy), `noSave()`, `noLootTable()`); attributes `MAX_HEALTH` 20, `MOVEMENT_SPEED` 0.5.
+  - `VillagerGhost extends LivingEntity` (public final): synced `VillagerData` (`EntityDataSerializers.VILLAGER_DATA`); `VillagerData villagerData()`; `Optional<UUID> recordId()`; `Optional<UUID> helpedId()`; `void bind(VillagerGhosts.Record record, ServerPlayer player)` (call it **after** the ghost is positioned: it casts Ghostrail, whose start-spot probe reads the block at the ghost's position); `void fade()` (POOF particles, `VEX_DEATH` at volume 0.3, `discard`). Not saved (`shouldBeSaved` false), invulnerable (`setPermanentlyInvulnerable(true)`, so vanilla's `canBeSeenAsEnemy` is false), not attackable (`isAttackable()` and `attackable()` both false: fangs, a vindicator or a wither must not target it), not pickable, no gravity, no physics; moves by setting its own position toward the spot 2 blocks from the player at the player's eye height (at most its `MOVEMENT_SPEED` attribute in blocks per tick, easing in; the spec said velocity, position is simpler for a no-physics entity and gives the same motion); carries an infinite Ghostrail from the spawn. Like any Ghostrail carrier it can still be removed by `/kill` and the void (the invulnerable flag does not stop `GENERIC_KILL`); the record stays.
+  - `VillagerGhosts.step(ServerPlayer)` (public static; the body of the 20-tick check; `onPlayerTick` runs it when `player.tickCount % 20 == 0`): a living, non-spectating player with the Evoking effect gets a ghost only when **all** hold, checked cheapest first: **at least one hostile** (`huntable` and `isPrey` for them) within `CasterRules.RANGE` of them (the ghost's own "still needed" test, so spawn and fade agree: a hurt player with no enemy near gets no ghost that would puff away at once); they are **in need** (`GhostNeed.inNeed(health, max, crowd)` with `crowd` the hostiles among those within `GhostNeed.CROWD_RANGE`); **no ghost is already helping** them; and a record exists in their level within 48 blocks, whose chunk is loaded and which has no live ghost (the nearest wins).
 
 - [ ] **Step 1: Write the failing tests**
 
-Add to `VillagerGhostGameTests.registerAll` (all `FangGameTests.addPadded(SHARED, name, 400, …)`: ghosts take up to 250 ticks):
+Add to `VillagerGhostGameTests.registerAll` (all `FangGameTests.addPadded(ENV, name, 400, …)`: ghosts take up to 250 ticks). The tests that fill the record list register in their own environments so the level-wide 32-record cap is never near (Task 11's budget note): the help tests in `HELP = "villager_ghost_help"`, the fade test in `FADE = "villager_ghost_fade"` (the 200-tick quiet rule counts any hostile within 16 blocks, and the shared batch's padding is only 13, so a neighbor's ravager near its box edge could keep the ghost alive past the test's budget):
 
 ```java
-FangGameTests.addPadded(SHARED, "villager_ghost_appears_for_a_player_in_need_near_a_record", 400, VillagerGhostGameTests::appears);
-FangGameTests.addPadded(SHARED, "villager_ghost_takes_the_villagers_look", 400, VillagerGhostGameTests::takesTheLook);
-FangGameTests.addPadded(SHARED, "villager_ghost_flies_to_the_player_and_casts_mirror", 400, VillagerGhostGameTests::castsMirror);
-FangGameTests.addPadded(SHARED, "villager_ghost_casts_ghostrail_first_when_both_apply", 400, VillagerGhostGameTests::ghostrailFirst);
-FangGameTests.addPadded(SHARED, "villager_ghost_fades_200_ticks_after_the_last_hostile_is_gone", 400, VillagerGhostGameTests::fades);
-FangGameTests.addPadded(SHARED, "villager_ghost_is_not_sent_to_a_player_not_in_need", 400, VillagerGhostGameTests::notForTheUnhurt);
-FangGameTests.addPadded(SHARED, "villager_ghost_is_not_sent_to_a_player_without_evoking", 400, VillagerGhostGameTests::notWithoutEvoking);
-FangGameTests.addPadded(SHARED, "villager_ghost_a_second_record_sends_no_second_ghost", 400, VillagerGhostGameTests::oneGhostPerPlayer);
-FangGameTests.addPadded(SHARED, "villager_ghost_is_not_sent_for_a_record_beyond_48_blocks", 400, VillagerGhostGameTests::tooFar);
-FangGameTests.addPadded(SHARED, "villager_ghost_cannot_be_hurt", 400, VillagerGhostGameTests::cannotBeHurt);
-FangGameTests.addPadded(SHARED, "villager_ghost_without_a_record_discards_itself", 400, VillagerGhostGameTests::noRecordNoGhost);
-FangGameTests.addPadded(SHARED, "villager_ghost_whose_record_was_dropped_discards_itself", 400, VillagerGhostGameTests::droppedRecord);
-FangGameTests.addPadded(SHARED, "villager_ghost_is_not_saved", 400, VillagerGhostGameTests::isNotSaved);
+FangGameTests.addPadded(HELP, "villager_ghost_appears_for_a_player_in_need_near_a_record", 400, VillagerGhostGameTests::appears);
+FangGameTests.addPadded(HELP, "villager_ghost_takes_the_villagers_look", 400, VillagerGhostGameTests::takesTheLook);
+FangGameTests.addPadded(HELP, "villager_ghost_flies_to_the_player_and_casts_mirror", 400, VillagerGhostGameTests::castsMirror);
+FangGameTests.addPadded(HELP, "villager_ghost_casts_ghostrail_first_when_both_apply", 400, VillagerGhostGameTests::ghostrailFirst);
+FangGameTests.addPadded(HELP, "villager_ghost_casts_no_ghostrail_for_a_creative_player", 400, VillagerGhostGameTests::noGhostrailForCreative);
+FangGameTests.addPadded(FADE, "villager_ghost_fades_200_ticks_after_the_last_hostile_is_gone", 400, VillagerGhostGameTests::fades);
+FangGameTests.addPadded(HELP, "villager_ghost_is_not_sent_to_a_player_not_in_need", 400, VillagerGhostGameTests::notForTheUnhurt);
+FangGameTests.addPadded(HELP, "villager_ghost_is_not_sent_to_a_hurt_player_with_no_hostile_near", 400, VillagerGhostGameTests::notForAHurtPlayerWithNoHostile);
+FangGameTests.addPadded(HELP, "villager_ghost_is_not_sent_to_a_player_without_evoking", 400, VillagerGhostGameTests::notWithoutEvoking);
+FangGameTests.addPadded(HELP, "villager_ghost_a_second_record_sends_no_second_ghost", 400, VillagerGhostGameTests::oneGhostPerPlayer);
+FangGameTests.addPadded(HELP, "villager_ghost_is_not_sent_for_a_record_beyond_48_blocks", 400, VillagerGhostGameTests::tooFar);
+FangGameTests.addPadded(HELP, "villager_ghost_cannot_be_hurt", 400, VillagerGhostGameTests::cannotBeHurt);
+FangGameTests.addPadded(HELP, "villager_ghost_is_no_target_for_fangs", 400, VillagerGhostGameTests::fangsIgnoreTheGhost);
+FangGameTests.addPadded(HELP, "villager_ghost_without_a_record_discards_itself", 400, VillagerGhostGameTests::noRecordNoGhost);
+FangGameTests.addPadded(HELP, "villager_ghost_whose_record_was_dropped_discards_itself", 400, VillagerGhostGameTests::droppedRecord);
 ```
 
-A scene helper (the player is in need by health, a frozen husk keeps the crowd rule's other half and the 200-tick fade from firing):
+(Both constants are `private static final String` with a Javadoc line each. The old `isNotSaved` test, which asserted that `shouldBeSaved()` returns a constant, is gone; `EntityType.noSave()` plus the constant need no test of their own.)
+
+A scene helper (the player is in need by health, a frozen husk is the hostile that lets the ghost come and keeps it from fading):
 
 ```java
-/** A player with Evoking at 40 % health, a husk 3 blocks away (keeps the ghost from fading) and a record 10 blocks east. */
-private static Scene scene(GameTestHelper helper, boolean husk) {
+/**
+ * A player with Evoking at 40 % health, optionally a frozen husk 3 blocks away (a hostile within the ghost's 16 blocks:
+ * without one no ghost is sent, and with one it does not fade) and optionally a record 10 blocks east. A test that
+ * needs the husk gone returns it from the scene and discards it.
+ */
+private static Scene scene(GameTestHelper helper, boolean husk, boolean record) {
     ServerPlayer player = FangGameTests.caster(helper, FangGameTests.NORTH);
     floor(helper, 14);
     player.setHealth(player.getMaxHealth() * 0.4F);
-    if (husk) {
-        hostileAt(helper, at(helper, 3.0, 0.0, 0.0));
-    }
-    VillagerGhosts.Record record = ScrollTestSupport.record(helper, at(helper, 10.0, 0.0, 0.0));
-    return new Scene(player, record);
+    Husk hostile = husk ? hostileAt(helper, at(helper, 3.0, 0.0, 0.0)) : null;
+    VillagerGhosts.Record near = record ? ScrollTestSupport.record(helper, at(helper, 10.0, 0.0, 0.0)) : null;
+    return new Scene(player, near, hostile);
 }
 
-private record Scene(ServerPlayer player, VillagerGhosts.Record record) {}
+/** The ghost scene's player, its record (null when not asked for) and its husk (null when not asked for). */
+private record Scene(ServerPlayer player, @Nullable VillagerGhosts.Record record, @Nullable Husk husk) {}
 
 /** The live ghosts for {@code record} in the test level. */
 private static List<VillagerGhost> ghosts(GameTestHelper helper, VillagerGhosts.Record record) {
@@ -4045,10 +4728,12 @@ private static List<VillagerGhost> ghosts(GameTestHelper helper, VillagerGhosts.
 ```
 
 ```java
-/** When a player in need has a record 10 blocks away, should one step spawn a ghost at the record helping that player. */
+/**
+ * When a player in need has a record 10 blocks away, should one step spawn a ghost at the record helping that player.
+ */
 static void appears(GameTestHelper helper) {
     // Arrange
-    Scene scene = scene(helper, true);
+    Scene scene = scene(helper, true, true);
     // Act
     VillagerGhosts.step(scene.player());
     // Assert
@@ -4060,7 +4745,7 @@ static void appears(GameTestHelper helper) {
 }
 ```
 
-`takesTheLook`: after a step, `ghosts.get(0).villagerData()` equals `scene.record().data()`. `castsMirror`: step, then `thenWaitUntil(() -> assertTrue(player.hasEffect(MIRROR)))`; then `ghost.distanceTo(player) <= 3.5`; and `VillagerGhosts.get(level).find(record.id()).orElseThrow().mirrorReadyAt() > level.getGameTime()` (the cooldown is saved on the record). `ghostrailFirst`: `player.setHealth(3.0F)` (below a quarter): after the step the first spell to land is Ghostrail: `thenWaitUntil(() -> assertTrue(player.hasEffect(GHOSTRAIL)))` and at that moment `!player.hasEffect(MIRROR)`; the record's `ghostrailReadyAt` is set. `fades`: `scene(helper, false)` (no hostile), step; `thenWaitUntil(() -> assertTrue(ghosts.get(0).isRemoved(), "the ghost faded"))` within the test's ticks, and the record is still kept: `VillagerGhosts.get(level).find(record.id()).isPresent()`. `notForTheUnhurt`: full health, no hostile: step, `ghosts(helper, record)` is empty. `notWithoutEvoking`: `player.removeEffect(ModEffects.EVOKING)`; step; none. `oneGhostPerPlayer`: a second record via `ScrollTestSupport.record(helper, at(helper, -10.0, 0.0, 0.0))`; step twice; the two records together have exactly one ghost. `tooFar`: a record 60 blocks away (`at(helper, 60.0, 0.0, 0.0)`, not the scene's): step; no ghost for it. `cannotBeHurt`: after a step, `ghost.hurtServer(level, level.damageSources().generic(), 5.0F)` returns false, `ghost.getHealth() == ghost.getMaxHealth()`, `!ghost.isPickable()`, `!ghost.isAttackable()`. `noRecordNoGhost`: `helper.spawn(ModEntities.VILLAGER_GHOST.get(), new BlockPos(1, 2, 1))`: `thenWaitUntil(ghost.isRemoved())`. `droppedRecord`: step, then `VillagerGhosts.get(level).remove(record.id())`: the ghost is removed within a few ticks. `isNotSaved`: `ghost.shouldBeSaved()` is false.
+`takesTheLook`: after a step, `ghosts.get(0).villagerData()` equals `scene.record().data()` (the non-default sample, so a ghost that kept the default look fails). `castsMirror`: step, then `thenWaitUntil(() -> assertTrue(player.hasEffect(MIRROR)))`; then `ghost.distanceTo(player) <= 3.5`; and `VillagerGhosts.get(level).find(record.id()).orElseThrow().mirrorReadyAt() > level.getGameTime()` (the cooldown is saved on the record). `ghostrailFirst`: `player.setHealth(3.0F)` (below a quarter): after the step the first spell to land is Ghostrail: `thenWaitUntil(() -> assertTrue(player.hasEffect(GHOSTRAIL)))` and at that moment `!player.hasEffect(MIRROR)`; the record's `ghostrailReadyAt` is set. `noGhostrailForCreative` (`Spells.refusedFor`, the one creative refusal of Part 7): the same scene with `player.setGameMode(GameType.CREATIVE)` and `setHealth(3.0F)`; the ghost comes and casts Mirror (the control: wait for `hasEffect(MIRROR)`), and by then the player has no Ghostrail and the record's `ghostrailReadyAt` is still 0. `fades`: `scene(helper, true, true)`, step (the ghost comes: the husk is a hostile within 16 blocks); then `scene.husk().discard()` and `thenWaitUntil(() -> assertTrue(ghost.isRemoved(), "the ghost faded"))` within the test's ticks (200 quiet ticks after the husk is gone), and the record is still kept: `VillagerGhosts.get(level).find(record.id()).isPresent()`. `notForTheUnhurt`: full health, a husk near (a hostile, but no crowd and no hurt): step, `ghosts(helper, record)` is empty. `notForAHurtPlayerWithNoHostile` (spawn and fade must agree): `scene(helper, false, true)` (40 % health, no hostile anywhere near): step; no ghost for the record, and none after another 100 ticks of stepping (`thenExecuteFor(100, () -> VillagerGhosts.step(player))`: the hurt player is not sent a ghost that would puff away and be re-sent). `notWithoutEvoking`: `player.removeEffect(ModEffects.EVOKING)`; step; none. `oneGhostPerPlayer`: a second record via `ScrollTestSupport.record(helper, at(helper, -10.0, 0.0, 0.0))`; step twice; the two records together have exactly one ghost. `tooFar`: `scene(helper, true, false)` (a hurt player, a husk, **no** record of the scene's own) and a record 60 blocks away (`ScrollTestSupport.record(helper, at(helper, 60.0, 0.0, 0.0))`): step; no ghost for it. (With the scene's own 10-block record in the world, nearest-record selection and one ghost per player would pass whatever `RANGE` is; with only the far record, deleting the range check makes the test fail.) A boundary pair (a record at about 40 blocks gets a ghost, one at about 56 does not) needs a chunk loaded that far out; add it only if `FangGameTests.loadPadding`'s reach allows, and say in the as-built note if it does not. `cannotBeHurt`: after a step, `ghost.hurtServer(level, level.damageSources().generic(), 5.0F)` returns false, `ghost.getHealth() == ghost.getMaxHealth()`, `!ghost.isPickable()`, `!ghost.isAttackable()` and `!ghost.attackable()`. `fangsIgnoreTheGhost`: after a step the ghost hovers 2 blocks from the Evoking player and is the only living thing near (the husk of the scene is removed first); `EvokingCaster.request(player, EvokerSpell.FANGS)` returns `Request.NO_TARGETS` (`Fangs.isTarget` is package-private; the request goes through it and counts any `canBeSeenAsEnemy() && attackable()` entity as a target, so a ghost that was targetable would start a cast). `noRecordNoGhost`: `helper.spawn(ModEntities.VILLAGER_GHOST.get(), new BlockPos(1, 2, 1))`: `thenWaitUntil(ghost.isRemoved())`. `droppedRecord`: step, then `VillagerGhosts.get(level).remove(record.id())`: the ghost is removed within a few ticks.
 
 Add `"entity.spellcraft.villager_ghost": "Villager Ghost",` to the lang file (after `"entity.spellcraft.mirror_image"`) and the `.contains("\"entity.spellcraft.villager_ghost\"")` line of `SpellAssetsTest.part7NamesAreEnglish`.
 
@@ -4082,7 +4767,11 @@ public static final DeferredHolder<EntityType<?>, EntityType<VillagerGhost>> VIL
                 "villager_ghost",
                 VillagerGhost::new,
                 MobCategory.MISC,
-                builder -> builder.sized(0.6F, 1.95F).clientTrackingRange(8).noSave().noLootTable());
+                builder -> builder.sized(0.6F, 1.95F)
+                        .clientTrackingRange(8)
+                        .updateInterval(1)
+                        .noSave()
+                        .noLootTable());
 
 // in onAttributes:
 event.put(
@@ -4093,7 +4782,7 @@ event.put(
                 .build());
 ```
 
-`Ghostrail.flies`: `return carrier instanceof Vex || carrier instanceof VillagerGhost;`.
+`Ghostrail.flies`: `return carrier instanceof Vex || carrier instanceof VillagerGhost;`, with its Javadoc updated to match: "Whether {@code carrier} flies through blocks by itself: a Vex or a villager ghost (a Vex's {@code noPhysics} is true only inside its own tick, so the flag cannot be the test; a ghost sets its own position and has no physics at all)."
 
 `VillagerGhost`:
 
@@ -4101,9 +4790,9 @@ event.put(
 /**
  * The spirit of a villager that a monster killed (Parts 6-7 spec §9). It floats to a player in need, casts Mirror or
  * Ghostrail on them with a 20-tick wind-up (the casting effect lights its hands; the villager model's arms are one
- * crossed part, so there is no arms-up pose), and fades when the fight is over, ready to come back next time. It flies by
- * setting its own position (no gravity, no collision), cannot be hurt, targeted or picked, and is never saved. It carries
- * an infinite Ghostrail from the spawn.
+ * crossed part, so there is no arms-up pose), and fades when the fight is over, ready to come back next time. It
+ * flies by setting its own position (no gravity, no collision), cannot be hurt, targeted or picked, and is never
+ * saved. It carries an infinite Ghostrail from the spawn.
  */
 public final class VillagerGhost extends LivingEntity {
     /** Synced: the villager's type, profession and level, for the look. */
@@ -4113,6 +4802,7 @@ public final class VillagerGhost extends LivingEntity {
     /** The distance from the player at which the ghost hovers, and from which it casts. */
     private static final double HOVER = 2.0;
 
+    /** How close to the player the ghost must be to start a cast. */
     private static final double CAST_RANGE = 3.0;
 
     /** How far from the player a ghost stays. */
@@ -4121,16 +4811,36 @@ public final class VillagerGhost extends LivingEntity {
     /** Ticks with no hostile near the player before the ghost fades. */
     private static final int QUIET_LIMIT = 200;
 
+    /** Ticks between two counts of the hostiles near the player (a 200-tick rule needs no finer count). */
+    private static final int HOSTILE_CHECK_TICKS = 5;
+
+    /** The record this ghost is the spirit of, or null for a ghost nobody sent (it discards itself). */
     private @Nullable UUID recordId;
+
+    /** The player this ghost helps. */
     private @Nullable UUID helped;
+
+    /** Ticks since a hostile was last near the player, counted in steps of {@link #HOSTILE_CHECK_TICKS}. */
     private int quietTicks;
+
+    /** Ticks into the wind-up of the cast in progress. */
     private int windUp;
+
+    /** The spell being wound up, or null. */
     private @Nullable Spell casting;
 
+    /**
+     * Creates a ghost (the entity type's factory). It is invulnerable from the start, so vanilla's
+     * {@code canBeSeenAsEnemy} is false for it.
+     *
+     * @param type the entity type
+     * @param level the level
+     */
     public VillagerGhost(EntityType<? extends VillagerGhost> type, Level level) {
         super(type, level);
         noPhysics = true;
         setNoGravity(true);
+        setPermanentlyInvulnerable(true);
     }
 
     @Override
@@ -4140,7 +4850,14 @@ public final class VillagerGhost extends LivingEntity {
     }
     // villagerData(), recordId(), helpedId() accessors with Javadoc
 
-    /** Makes this ghost the spirit of {@code record}, helping {@code player}; infinite Ghostrail from now on. */
+    /**
+     * Makes this ghost the spirit of {@code record}, helping {@code player}; infinite Ghostrail from now on. Call it
+     * **after** positioning the ghost ({@code snapTo}): the Ghostrail it casts probes the block at the ghost's
+     * position for a start spot, and an unpositioned entity sits at (0, 0, 0), which would load or generate that chunk.
+     *
+     * @param record the record the ghost is the spirit of
+     * @param player the player it comes to help
+     */
     public void bind(VillagerGhosts.Record record, ServerPlayer player) {
         recordId = record.id();
         helped = player.getUUID();
@@ -4158,18 +4875,15 @@ public final class VillagerGhost extends LivingEntity {
         return false;
     }
 
+    /** Not a target for anything: {@code Entity.isAttackable} (a player's attack) and {@code attackable} (mobs). */
     @Override
     public boolean isAttackable() {
         return false;
     }
 
+    /** Mobs and fangs ask this one ({@code LivingEntity.attackable}, a different method from {@code isAttackable}). */
     @Override
-    public boolean isInvulnerableTo(ServerLevel level, DamageSource source) {
-        return true;
-    }
-
-    @Override
-    public boolean hurtServer(ServerLevel level, DamageSource source, float damage) {
+    public boolean attackable() {
         return false;
     }
 
@@ -4200,7 +4914,10 @@ public final class VillagerGhost extends LivingEntity {
             fade();
             return;
         }
-        quietTicks = hostilesNear(level, player) == 0 ? quietTicks + 1 : 0;
+        if (tickCount % HOSTILE_CHECK_TICKS == 0) {
+            boolean quiet = VillagerGhosts.hostilesWithin(level, player, CasterRules.RANGE).isEmpty();
+            quietTicks = quiet ? quietTicks + HOSTILE_CHECK_TICKS : 0;
+        }
         if (quietTicks >= QUIET_LIMIT) {
             fade();
             return;
@@ -4236,6 +4953,7 @@ public final class VillagerGhost extends LivingEntity {
         VillagerGhosts.Record record = ghosts.find(recordId).orElseThrow();
         long now = level.getGameTime();
         if (!player.hasEffect(ModEffects.GHOSTRAIL)
+                && !Spells.refusedFor(player, Spells.GHOSTRAIL)
                 && CasterRules.ready(now, record.ghostrailReadyAt())
                 && CasterRules.wantsGhostrail(player.getHealth(), player.getMaxHealth(), player.isInWall(), true)) {
             casting = Spells.GHOSTRAIL;
@@ -4245,8 +4963,7 @@ public final class VillagerGhost extends LivingEntity {
             return;
         }
         windUp = 0;
-        addEffect(new MobEffectInstance(ModEffects.CASTING_SCROLL, CasterRules.WIND_UP_TICKS, 0, false, true, false));
-        playSound(SoundEvents.EVOKER_PREPARE_SUMMON, 1.0F, 1.0F);
+        ScrollCasting.windUp(this);
     }
 
     /** Counts the wind-up; at the end casts if the player still qualifies and writes the cooldown to the record. */
@@ -4256,31 +4973,18 @@ public final class VillagerGhost extends LivingEntity {
         }
         Spell spell = casting;
         casting = null;
-        removeEffect(ModEffects.CASTING_SCROLL);
+        ScrollCasting.windDown(this);
         if (spell == null || player.hasEffect(spell.effect())) {
             return;
         }
-        long now = level.getGameTime();
-        if (spell.equals(Spells.GHOSTRAIL)) {
-            Spells.cast(player, spell, GhostrailDuration.of(GhostrailDuration.Kind.PLAYER));
-            ghosts.setGhostrailReadyAt(recordId, now + CasterRules.GHOSTRAIL_COOLDOWN_TICKS);
-        } else {
-            Spells.cast(player, spell, MirrorRule.DURATION_TICKS);
-            ghosts.setMirrorReadyAt(recordId, now + CasterRules.MIRROR_COOLDOWN_TICKS);
+        if (ScrollCasting.land(this, player, spell, GhostrailDuration.Kind.PLAYER)) {
+            long readyAt = level.getGameTime() + ScrollCasting.cooldownFor(spell);
+            if (spell.equals(Spells.GHOSTRAIL)) {
+                ghosts.setGhostrailReadyAt(recordId, readyAt);
+            } else {
+                ghosts.setMirrorReadyAt(recordId, readyAt);
+            }
         }
-        playSound(SoundEvents.EVOKER_CAST_SPELL, 1.0F, 1.0F);
-    }
-
-    /** The hostiles ({@code huntable}, {@code isPrey}) within 16 blocks of {@code player}. */
-    private static int hostilesNear(ServerLevel level, ServerPlayer player) {
-        return level.getEntitiesOfClass(
-                        LivingEntity.class,
-                        player.getBoundingBox().inflate(CasterRules.RANGE),
-                        other -> other.isAlive()
-                                && other.distanceTo(player) <= CasterRules.RANGE
-                                && BoundVex.huntable(player.getUUID(), other)
-                                && BoundVex.isPrey(level, player.getUUID(), other))
-                .size();
     }
 
     /** Ends the visit: a puff, a quiet vex death sound and {@code discard}. The record stays. */
@@ -4294,7 +4998,7 @@ public final class VillagerGhost extends LivingEntity {
 }
 ```
 
-(`Villager.createDefaultVillagerData()` is public static, `Villager.java:455`; `bind` always overwrites it, so the default only matters for a `/summon`ed ghost that discards itself on its first tick.) `hostilesNear` uses `BoundVex.huntable(UUID, LivingEntity)` (package-private static) and `BoundVex.isPrey(ServerLevel, UUID, LivingEntity)` (public static), both for the player's UUID; `BoundVex.huntable(UUID, ...)` takes a `@Nullable UUID`.
+(`Villager.createDefaultVillagerData()` is public static, `Villager.java:455`; `bind` always overwrites it, so the default only matters for a `/summon`ed ghost that discards itself on its first tick.) The ghost keeps no hostile-counting code of its own: it calls `VillagerGhosts.hostilesWithin` below, the one definition that the spawner uses too (spawn and fade must agree on what a hostile near the player is). Add a Javadoc to the `recordId()`, `helpedId()` and `villagerData()` accessors.
 
 `VillagerGhosts` (add to the class):
 
@@ -4302,7 +5006,14 @@ public final class VillagerGhost extends LivingEntity {
 /** A record is only considered within this many blocks of the player. */
 static final double RANGE = 48.0;
 
-/** Runs {@link #step} every 20 ticks of each player's {@code tickCount}. */
+/** Ticks between two checks of each player. */
+private static final int STEP_INTERVAL = 20;
+
+/**
+ * Runs {@link #step} every 20 ticks of each player's {@code tickCount}.
+ *
+ * @param event the player's post-tick event
+ */
 @SubscribeEvent
 public static void onPlayerTick(PlayerTickEvent.Post event) {
     if (event.getEntity() instanceof ServerPlayer player && player.tickCount % STEP_INTERVAL == 0) {
@@ -4311,18 +5022,27 @@ public static void onPlayerTick(PlayerTickEvent.Post event) {
 }
 
 /**
- * Sends a ghost to {@code player} when they are in need (spec §9). Public so GameTests step a mock player, which gets no
- * player tick.
+ * Sends a ghost to {@code player} when they are in need and an enemy is near (spec §9). The conditions run cheapest
+ * first: the player's own state, then one query for the hostiles within {@link CasterRules#RANGE} (none: no ghost,
+ * because the ghost's own "still needed" test is the same query, so a ghost sent for a hurt player with no enemy would
+ * puff away at once and be sent again), then the need, and only then the level-wide scans for a ghost already helping
+ * or already out on a record. Public so GameTests step a mock player, which gets no player tick.
  *
  * @param player a player
  */
 public static void step(ServerPlayer player) {
     ServerLevel level = player.level();
-    if (!player.isAlive()
-            || player.isSpectator()
-            || !player.hasEffect(ModEffects.EVOKING)
-            || helping(level, player)
-            || !GhostNeed.inNeed(player.getHealth(), player.getMaxHealth(), hostilesNear(level, player))) {
+    if (!player.isAlive() || player.isSpectator() || !player.hasEffect(ModEffects.EVOKING)) {
+        return;
+    }
+    List<LivingEntity> hostiles = hostilesWithin(level, player, CasterRules.RANGE);
+    if (hostiles.isEmpty()) {
+        return;
+    }
+    int crowd = (int) hostiles.stream()
+            .filter(hostile -> hostile.distanceTo(player) <= GhostNeed.CROWD_RANGE)
+            .count();
+    if (!GhostNeed.inNeed(player.getHealth(), player.getMaxHealth(), crowd) || helping(level, player)) {
         return;
     }
     VillagerGhosts ghosts = get(level);
@@ -4333,31 +5053,70 @@ public static void step(ServerPlayer player) {
             .min(Comparator.comparingDouble(record -> record.pos().distToCenterSqr(player.position())))
             .ifPresent(record -> spawn(level, record, player));
 }
-```
 
-with private helpers `helping(level, player)` (a live `VillagerGhost` whose `helpedId()` is the player's), `hasLiveGhost(level, recordId)`, `hostilesNear(level, player)` (the same count as the ghost's, within `GhostNeed.CROWD_RANGE`: share one static `VillagerGhosts.hostilesWithin(ServerLevel, ServerPlayer, double range)` that both use) and `spawn`:
+/**
+ * The hostiles near a player: living, within {@code range} blocks, {@code huntable} and {@code isPrey} for that
+ * player. The one definition of "a hostile near the player", used by {@link #step} (with
+ * {@link CasterRules#RANGE}, then filtered to {@link GhostNeed#CROWD_RANGE} for the crowd) and by the ghost's fade
+ * check. {@code BoundVex.huntable(UUID, LivingEntity)} is package-private static and takes a {@code @Nullable UUID};
+ * {@code BoundVex.isPrey(ServerLevel, UUID, LivingEntity)} is public static.
+ *
+ * @param level the level
+ * @param player the player
+ * @param range the radius in blocks
+ * @return the hostiles, in query order
+ */
+static List<LivingEntity> hostilesWithin(ServerLevel level, ServerPlayer player, double range) {
+    return level.getEntitiesOfClass(
+            LivingEntity.class,
+            player.getBoundingBox().inflate(range),
+            other -> other.isAlive()
+                    && other.distanceTo(player) <= range
+                    && BoundVex.huntable(player.getUUID(), other)
+                    && BoundVex.isPrey(level, player.getUUID(), other));
+}
 
-```java
+/** Whether a live ghost is already helping {@code player}. */
+private static boolean helping(ServerLevel level, ServerPlayer player) {
+    return !level.getEntities(
+                    EntityTypeTest.forClass(VillagerGhost.class),
+                    ghost -> ghost.isAlive() && ghost.helpedId().filter(player.getUUID()::equals).isPresent())
+            .isEmpty();
+}
+
+/** Whether a live ghost is already out for the record {@code recordId}. */
+private static boolean hasLiveGhost(ServerLevel level, UUID recordId) {
+    return !level.getEntities(
+                    EntityTypeTest.forClass(VillagerGhost.class),
+                    ghost -> ghost.isAlive() && ghost.recordId().filter(recordId::equals).isPresent())
+            .isEmpty();
+}
+
+/**
+ * Sends a ghost out from {@code record} to {@code player}. The order matters: position the ghost first, then bind
+ * it (its Ghostrail probes the block at its position for a start spot; an unpositioned entity sits at (0, 0, 0) and
+ * the probe would load that chunk), then add it to the level.
+ */
 private static void spawn(ServerLevel level, Record record, ServerPlayer player) {
     VillagerGhost ghost = ModEntities.VILLAGER_GHOST.get().create(level, EntitySpawnReason.MOB_SUMMONED);
     if (ghost == null) {
         return;
     }
-    ghost.bind(record, player);
     ghost.snapTo(record.pos().getX() + 0.5, record.pos().getY(), record.pos().getZ() + 0.5, 0.0F, 0.0F);
+    ghost.bind(record, player);
     level.addFreshEntity(ghost);
 }
 ```
 
-(`STEP_INTERVAL = 20`.) Make `VillagerGhost.hostilesNear` call `VillagerGhosts.hostilesWithin(level, player, CasterRules.RANGE)` instead of its own copy.
+(The three scans `helping`, `hasLiveGhost` and the hostile query are the only world queries of a step; `ServerLevel.getEntities(EntityTypeTest, Predicate)` walks every entity of the level, which is why the cheap player and need checks come first and a player who is neither hurt nor near an enemy costs one box query every 20 ticks.)
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:villager_ghost_*"`, `"-PgameTests=spellcraft:ghostrail_*"`. Expected: PASS.
+Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:villager_ghost_*"`, `"-PgameTests=spellcraft:ghostrail_*"`. Expected: PASS. In the as-built note, record the one divergence from the spec: the ghost moves by `setPos`, not by velocity.
 
 - [ ] **Step 5: Gates and commit**
 
-Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 767 required tests passed` both times (754 + 13).
+Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 782 required tests passed` both times (the Task 11 total plus the 15 `villager_ghost_*` tests registered in this task).
 
 ```bash
 git add src
@@ -4373,33 +5132,32 @@ git commit -m "feat(evoking): villager ghosts that come to a player in need and 
 
 **Interfaces:**
 
-- Consumes: Task 3 (`ModEffects.CASTING_SCROLL`, `ModParticles.CASTING_SCROLL`), Task 8 (`BoundVex.isCaster`), Task 9 (the casting effect), `EvokerPose.armRotation/handOffset/HAND_HEIGHT`.
+- Consumes: Task 3 (`ModEffects.CASTING_SCROLL`, the casting effect, and `ModParticles.CASTING_SCROLL`), Task 8 (`BoundVex.isCaster`), `EvokerPose.armRotation/handOffset/HAND_HEIGHT`.
 - Produces:
   - `CastLook { FANGS, VEXES, SCROLL }`; `CastingState.of(LivingEntity)` returns `Optional<CastLook>` (it used to return `Optional<EvokerSpell>`, whose ordinals are the packet's `CAST` argument and so are not extended); `EvokingArmPose` only calls `.isPresent()` and needs no edit.
   - `BoundVexRenderState.caster` and `.casting` (public booleans).
   - `BoundVexModel extends VexModel`: `setupAnim` raises both arms with `EvokerPose.armRotation` while `state.casting`.
   - `BoundVexRobeLayer extends RenderLayer<VexRenderState, VexModel>`.
-  - `CastingParticles` draws the two hand particles for every living entity in render range whose `CastingState` is present, scaled by the entity's size (`getBbHeight() / 1.8`); the third color (`SCROLL`) is purple `#B24CFF`; a null provider for `ModParticles.CASTING_SCROLL` and the hidden-HUD extension for `ModEffects.CASTING_SCROLL`.
+  - `CastingParticles` draws the two hand particles for every living entity in render range whose `CastingState` is present, scaled by the entity's size (`caster.getScale() * caster.getType().getHeight() / 1.8F`: `EntityType.getHeight()` is the standing height, `EntityType.java:330`, so the scale equals `getScale()` for a player in any pose, exactly as Part 5 did, and is right for a Vex (0.8) and a villager ghost (1.95); `getBbHeight()` is pose dependent: 1.5 sneaking, 0.6 swimming, 0.2 sleeping); the third color (`SCROLL`) is purple `#B24CFF`; a null provider for `ModParticles.CASTING_SCROLL` and the hidden-HUD extension for `ModEffects.CASTING_SCROLL`.
 
-The client code has no GameTest (the client classes never load on the test server). `./gradlew runData` boots the client distribution headlessly and proves that the renderer, the layer, the model and the particle provider load (`docs/api-notes.md` §26); the look is Will's (Task 15's playtest items).
+The client code has no GameTest (the client classes never load on the test server). `./gradlew runData` boots the client distribution headlessly, but it only subscribes the `RegisterRenderers` listeners and never fires the event (`docs/api-notes.md:883-889`), so no renderer, layer, model or particle provider is constructed and no texture is resolved: for the client path this task's gate proves **compilation only**. The first render (stand-in creation, `ModelLayers`, the robe texture path, the particle provider) is Will's playtest (Task 15 has an item: launch the client, summon a Mirror image, a Caster and a ghost: no crash, a clean log). Javadoc omitted from a snippet below (constructors, overrides, private fields and constants) is still required in the code you commit.
 
 - [ ] **Step 1: Write the failing tests**
 
-`scripts/test_robe_texture.py` (stdlib `unittest`, like `test_spell_icons.py`; reuse its `chunks` helper by copying the three lines you need, not by importing a test module):
+`scripts/test_robe_texture.py` (stdlib `unittest`, like `test_spell_icons.py`; `decode` below needs no helper from another test module):
 
 ```python
 """Tests for robe_texture.py. Stdlib only. Run: python -m unittest discover -s scripts -p "test_*.py" """
 
 import struct
 import unittest
+import zlib
 
 import robe_texture as robe
 
 
 def decode(png: bytes) -> tuple[int, int, dict[tuple[int, int], tuple[int, int, int, int]]]:
     """Return (width, height, pixels) of an 8-bit RGBA PNG written by encode_png (filter 0, one IDAT)."""
-    import zlib
-
     pos, idat, size = 8, b"", (0, 0)
     while pos < len(png):
         (length,) = struct.unpack(">I", png[pos : pos + 4])
@@ -4456,8 +5214,8 @@ class RobeTextureTest(unittest.TestCase):
         Function under test: :func:`robe_texture.png`
         """
         _, _, pixels = decode(robe.png())
-        self.assertEqual(pixels[(25, 4)][3], 255)  # right arm, front face (25, 2), second row
-        self.assertEqual(pixels[(25, 10)][3], 255)  # left arm, front face (25, 8), second row
+        self.assertEqual(pixels[(25, 4)][3], 255)  # right arm: front face at (25, 2), third row of four
+        self.assertEqual(pixels[(25, 10)][3], 255)  # left arm: front face at (25, 8), third row of four
 
     def test_r5_the_lower_edge_is_ragged(self):
         """When the robe is generated, png should cut transparent notches into the lower body's last row.
@@ -4478,9 +5236,16 @@ class RobeTextureTest(unittest.TestCase):
         self.assertEqual(first, second)
         _, _, pixels = decode(first)
         self.assertTrue(set(pixels.values()) <= {robe.PURPLE, robe.MAGENTA, robe.CLEAR})
+
+    def test_r7_the_committed_file_is_what_the_generator_writes(self):
+        """When the robe is generated, png should equal the committed bound_vex_robe.png byte for byte.
+
+        Function under test: :func:`robe_texture.png`
+        """
+        self.assertEqual(robe.OUT.read_bytes(), robe.png())
 ```
 
-(`encode_png` writes filter byte 0 per row and one IDAT, so `decode` above reads it back; keep `decode` as shown.)
+(`encode_png` writes filter byte 0 per row and one IDAT, so `decode` above reads it back; keep `decode` as shown. `test_r7` is the robe's twin of `test_spell_icons.test_i5`: a stale texture cannot be committed.)
 
 `SpellAssetsTest`: add
 
@@ -4587,7 +5352,10 @@ Run `python scripts/robe_texture.py` and the Python tests (expected PASS); open 
 `CastLook`:
 
 ```java
-/** What an entity is casting, for the casting look (Parts 6-7 spec §6.4); client-only, separate from the packet's {@code EvokerSpell}. */
+/**
+ * What an entity is casting, for the casting look (Parts 6-7 spec §6.4); client-only, separate from the packet's
+ * {@code EvokerSpell}.
+ */
 public enum CastLook {
     /** A fang cast: the evoker's dark fang color. */
     FANGS,
@@ -4622,14 +5390,17 @@ for (Entity entity : level.entitiesForRendering()) {
     }
 }
 
-/** The evoker's two particles, one at each hand, following the body and swaying with the tick, scaled to the entity. */
+/**
+ * The evoker's two particles, one at each hand, following the body and swaying with the tick, scaled to the entity.
+ * The scale is the standing size, not the current box: a sneaking or swimming caster keeps Part 5's particles.
+ */
 private static void handParticles(ClientLevel level, LivingEntity caster, CastLook look) {
     ColorParticleOption color = switch (look) {
         case FANGS -> FANGS_COLOR;
         case VEXES -> VEXES_COLOR;
         case SCROLL -> SCROLL_COLOR;
     };
-    float size = caster.getBbHeight() / PLAYER_HEIGHT;
+    float size = caster.getScale() * caster.getType().getHeight() / PLAYER_HEIGHT;
     EvokerPose.HandOffset hand = EvokerPose.handOffset(caster.yBodyRot, caster.tickCount);
     double y = caster.getY() + EvokerPose.HAND_HEIGHT * size;
     level.addParticle(color, caster.getX() + hand.dx() * size, y, caster.getZ() + hand.dz() * size, 0, 0, 0);
@@ -4637,7 +5408,7 @@ private static void handParticles(ClientLevel level, LivingEntity caster, CastLo
 }
 ```
 
-with `private static final float PLAYER_HEIGHT = 1.8F;` (a player is 1.8 blocks tall: `EvokerPose.HAND_HEIGHT` is for a player). The class Javadoc's "every casting player" becomes "every casting living entity in view".
+with `private static final float PLAYER_HEIGHT = 1.8F;` (a player is 1.8 blocks tall: `EvokerPose.HAND_HEIGHT` is for a player; give it a one-line Javadoc). The class Javadoc's "every casting player" becomes "every casting living entity in view".
 
 `BoundVexRenderState` adds:
 
@@ -4654,6 +5425,11 @@ public boolean casting;
 ```java
 /** The vex model with the arms-up casting pose of a Caster (Parts 6-7 spec §6.4). */
 public final class BoundVexModel extends VexModel {
+    /**
+     * Creates the model from its baked layer.
+     *
+     * @param root the baked {@code ModelLayers.VEX} root
+     */
     public BoundVexModel(ModelPart root) {
         super(root);
     }
@@ -4669,6 +5445,7 @@ public final class BoundVexModel extends VexModel {
         }
     }
 
+    /** Sets all three rotations of {@code arm} from {@code rotation}. */
     private static void raise(ModelPart arm, EvokerPose.ArmRotation rotation) {
         arm.xRot = rotation.xRot();
         arm.yRot = rotation.yRot();
@@ -4681,12 +5458,15 @@ public final class BoundVexModel extends VexModel {
 
 ```java
 /**
- * Draws the vex model again with the robe texture for a Caster (Parts 6-7 spec §6.3), scaled up about the body so it never
- * z-fights the body, with {@code RenderTypes.entityCutout} (26.3 has no {@code entityCutoutNoCull}; {@code entityCutout}
- * is the no-cull variant). The texture is transparent on the head and the wings, so only the body and the arms are
- * dressed. The growth is a first guess for Will's eye (playtest checklist, Part 7).
+ * Draws the vex model again with the robe texture for a Caster (Parts 6-7 spec §6.3), scaled up about the body and
+ * drawn with {@code RenderTypes.entityCutoutZOffset} (26.3 has no {@code entityCutoutNoCull}; {@code entityCutout}
+ * is the no-cull variant; the z-offset variant exists for exactly this overlay case). The scale alone moves the 2-pixel
+ * body out by only about 0.06 pixel, too little to rule out z-fighting at range, so the z offset does that job and the
+ * growth is for the look. The texture is transparent on the head and the wings, so only the body and the arms are
+ * dressed. Both are first guesses for Will's eye (playtest checklist, Part 7).
  */
 public final class BoundVexRobeLayer extends RenderLayer<VexRenderState, VexModel> {
+    /** The robe texture, 32 x 32 like the vex's. */
     private static final Identifier ROBE = Spellcraft.id("textures/entity/bound_vex_robe.png");
 
     /** The robe is this much larger than the body, about the body's pivot. */
@@ -4695,6 +5475,11 @@ public final class BoundVexRobeLayer extends RenderLayer<VexRenderState, VexMode
     /** The body's pivot height in blocks: the root's offset (-2.5 pixels) plus the body's (20), over 16. */
     private static final float BODY_PIVOT = 17.5F / 16.0F;
 
+    /**
+     * Creates the layer for one renderer.
+     *
+     * @param renderer the vex renderer it dresses
+     */
     public BoundVexRobeLayer(RenderLayerParent<VexRenderState, VexModel> renderer) {
         super(renderer);
     }
@@ -4713,7 +5498,7 @@ public final class BoundVexRobeLayer extends RenderLayer<VexRenderState, VexMode
                 getParentModel(),
                 state,
                 poseStack,
-                RenderTypes.entityCutout(ROBE),
+                RenderTypes.entityCutoutZOffset(ROBE),
                 lightCoords,
                 LivingEntityRenderer.getOverlayCoords(state, 0.0F),
                 -1,
@@ -4744,11 +5529,11 @@ Update the class Javadocs (the renderer now draws the robe, the pose and the arm
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `python -m unittest discover -s scripts -p "test_*.py"`, `./gradlew test`, `./gradlew runData`. Expected: PASS; `runData` loads the renderer, the layer, the model and the particle provider (a missing texture or a wrong layer name shows in its log).
+Run: `python -m unittest discover -s scripts -p "test_*.py"`, `./gradlew test`, `./gradlew runData`. Expected: PASS. `runData` here proves that the client classes compile and the client distribution boots; it does not construct the renderer, the layer, the model or the particle provider, so a missing texture or a wrong layer name will not show in its log (Task 15's playtest item covers the first render).
 
 - [ ] **Step 5: Gates and commit**
 
-Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 767 required tests passed` both times (no GameTest added).
+Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All N required tests passed` both times, where N is the total Task 12 recorded (this task adds no GameTest).
 
 ```bash
 git add src scripts
@@ -4769,14 +5554,16 @@ git commit -m "feat(evoking): a robe, arms-up pose and casting particles for Cas
 - Consumes: Task 4 (`MirrorImage`: `copiedType()`, `profile()`), Task 12 (`VillagerGhost.villagerData()`), `ModEntities.MIRROR_IMAGE`, `ModEntities.VILLAGER_GHOST`.
 - Produces: `MirrorImageRenderer` and `VillagerGhostRenderer` registered for their entity types; no new data, no packet.
 
-As Task 13, no GameTest reaches client code; `./gradlew runData` proves the classes load and the renderers register, and the look is Will's. Read the sources named in api-notes §26 before writing: every client call below is checked against `build/mc-src`.
+As Task 13, no GameTest reaches client code, and `./gradlew runData` never fires `RegisterRenderers` (`docs/api-notes.md:883-889`): for this task it proves **compilation only**, and the first render of both renderers is Will's playtest (Task 15). Read the sources named in api-notes §26 before writing: every client call below is checked against `build/mc-src`. Javadoc omitted from a snippet below (constructors, overrides, private fields and constants) is still required in the code you commit.
 
 - [ ] **Step 1: Write the renderers**
 
 `MirrorImageRenderState`:
 
 ```java
-/** The render state of a Mirror image: the stand-in's own render state, drawn by the dispatcher (Parts 6-7 spec §7.2). */
+/**
+ * The render state of a Mirror image: the stand-in's own render state, drawn by the dispatcher (Parts 6-7 spec §7.2).
+ */
 public final class MirrorImageRenderState extends EntityRenderState {
     /** The state of the stand-in for this frame, or null when no stand-in could be made. */
     public @Nullable EntityRenderState standIn;
@@ -4788,22 +5575,40 @@ public final class MirrorImageRenderState extends EntityRenderState {
 ```java
 /**
  * Draws a Mirror image as the entity it copies (Parts 6-7 spec §7.2). Vanilla's renderers draw only the entity classes
- * they belong to, so the renderer keeps a client-side <b>stand-in</b> per image, created once and never added to the level:
- * a mannequin with the caster's profile for a player (its skin loads asynchronously, so the first frames may show the
- * default skin), or a new entity of the copied type for a mob. Each frame the image's position, rotations, hurt and
- * death time, walk, pose and held items are copied into the stand-in, the dispatcher is asked for the stand-in's render
- * state, and {@code submit} hands that state back to the dispatcher. The fallback, if the mannequin path fails in a
- * playtest, is the default player skin on a plain mannequin.
+ * they belong to, so the renderer keeps a client-side <b>stand-in</b> per image, created once and never added to the
+ * level: a mannequin for a player, or a new entity of the copied type for a mob. Each frame the image's position,
+ * rotations, hurt and death time, walk, pose and held items are copied into the stand-in, the dispatcher is asked for
+ * the stand-in's render state, and {@code submit} hands that state back to the dispatcher. The stand-in is never
+ * ticked (a ticking {@code LivingEntity} pushes nearby entities client-side), and the mannequin's own skin is only
+ * applied inside {@code ClientMannequin.tick()}, so it would stay the default skin forever: the player's skin is put
+ * into the extracted render state instead, from {@code PlayerSkinRenderCache.getOrDefault(profile)}, which answers the
+ * resolved skin or the default on every call (the dispatcher picks the player renderer, wide or slim, from
+ * {@code state.skin.model()}). Images carry the hands' items only, no armor (spec §7.2).
  */
 public final class MirrorImageRenderer extends EntityRenderer<MirrorImage, MirrorImageRenderState> {
-    private static final float SHADOW = 0.5F;
+    /** The stand-in made for one image, and what it was made from. */
+    private record StandIn(UUID image, EntityType<?> copiedType, @Nullable Entity entity) {
+        /** Whether this stand-in still fits {@code image} (entity ids restart per world, so the UUID is checked). */
+        boolean fits(MirrorImage image) {
+            return this.image.equals(image.getUUID()) && copiedType.equals(image.copiedType());
+        }
+    }
 
-    /** One stand-in per image, dropped with the image (weak keys). */
-    private final Map<MirrorImage, Entity> standIns = new WeakHashMap<>();
+    /**
+     * One stand-in per image, dropped with the image (weak keys). {@code Entity.equals} compares ids, which restart
+     * per server, so a not-yet-collected entry of a previous world could match a new image: every lookup checks
+     * {@link StandIn#fits}, and a mismatch makes a new stand-in.
+     */
+    private final Map<MirrorImage, StandIn> standIns = new WeakHashMap<>();
 
+    /**
+     * Creates the renderer. The shadow radius stays 0: the nested {@code dispatcher.submit} draws the stand-in's own
+     * shadow, and a second one here would stack two.
+     *
+     * @param context the renderer context
+     */
     public MirrorImageRenderer(EntityRendererProvider.Context context) {
         super(context);
-        shadowRadius = SHADOW;
     }
 
     @Override
@@ -4814,33 +5619,42 @@ public final class MirrorImageRenderer extends EntityRenderer<MirrorImage, Mirro
     @Override
     public void extractRenderState(MirrorImage image, MirrorImageRenderState state, float partialTicks) {
         super.extractRenderState(image, state, partialTicks);
-        Entity standIn = standIns.computeIfAbsent(image, this::createStandIn);
+        StandIn known = standIns.get(image);
+        if (known == null || !known.fits(image)) {
+            known = new StandIn(image.getUUID(), image.copiedType(), createStandIn(image));
+            standIns.put(image, known);
+        }
+        Entity standIn = known.entity();
         if (standIn == null) {
             state.standIn = null;
             return;
         }
         copyPose(image, standIn);
-        state.standIn = entityRenderDispatcher.extractEntity(standIn, partialTicks);
-        state.standIn.nameTag = null; // a mannequin's description label is not an image's
+        EntityRenderState inner = entityRenderDispatcher.extractEntity(standIn, partialTicks);
+        inner.nameTag = null; // a mannequin's description label is not an image's ...
+        // ... and neither is its below-name line (extractNameTags sets it from belowNameDisplay)
+        inner.scoreText = null;
+        if (inner instanceof AvatarRenderState avatar) {
+            avatar.skin = Minecraft.getInstance().playerSkinRenderCache().getOrDefault(image.profile()).playerSkin();
+        }
+        state.standIn = inner;
     }
 
-    /** A stand-in for {@code image}: a mannequin with the profile for a player, else a new entity of the copied type. */
+    /** A stand-in for {@code image}: a mannequin for a player, else a new entity of the copied type. */
     private @Nullable Entity createStandIn(MirrorImage image) {
         Level level = Minecraft.getInstance().level;
         if (level == null) {
             return null;
         }
         if (image.copiedType().equals(EntityTypes.PLAYER)) {
-            Mannequin mannequin = EntityTypes.MANNEQUIN.create(level, EntitySpawnReason.LOAD);
-            if (mannequin != null) {
-                mannequin.setComponent(DataComponents.PROFILE, image.profile());
-            }
-            return mannequin;
+            return EntityTypes.MANNEQUIN.create(level, EntitySpawnReason.LOAD);
         }
         return image.copiedType().create(level, EntitySpawnReason.LOAD);
     }
 
-    /** Copies what the renderer reads: position, rotations and their previous values, hurt, death, walk, pose, hands. */
+    /**
+     * Copies what the renderer reads: position, rotations and their previous values, hurt, death, walk, pose, hands.
+     */
     private static void copyPose(MirrorImage image, Entity standIn) {
         standIn.setPos(image.position());
         standIn.xo = image.xo;
@@ -4864,7 +5678,8 @@ public final class MirrorImageRenderer extends EntityRenderer<MirrorImage, Mirro
             living.deathTime = image.deathTime;
             living.setItemSlot(EquipmentSlot.MAINHAND, image.getMainHandItem());
             living.setItemSlot(EquipmentSlot.OFFHAND, image.getOffhandItem());
-            // The walk animation advances once per client tick, not once per frame: the stand-in's tick count is the marker
+            // The walk animation advances once per client tick, not once per frame: the stand-in's tick count is the
+            // marker. It smooths an already smoothed speed, so the stand-in's legs lag the image slightly (playtest).
             if (standIn.tickCount != image.tickCount) {
                 standIn.tickCount = image.tickCount;
                 living.walkAnimation.update(image.walkAnimation.speed(), 0.4F, 1.0F);
@@ -4883,7 +5698,7 @@ public final class MirrorImageRenderer extends EntityRenderer<MirrorImage, Mirro
 }
 ```
 
-(Checks to make against the sources, and to fix in the code, not here: whether `hurtTime`, `hurtDuration`, `deathTime`, `yBodyRotO`, `yHeadRotO`, `walkAnimation` are public on 26.3's `LivingEntity` (if one is not, the AT would be a new line, which Global Constraints forbid: leave that field out and record it for the playtest instead); the `EntityType.create(Level, EntitySpawnReason)` overload; and `nameTag` being the only place the mannequin's label rides.)
+(Already checked against the 26.3 sources, so no deferred "checks to make" remain: `hurtTime`, `hurtDuration`, `deathTime`, `yBodyRotO`, `yHeadRotO`, `walkAnimation`, `xOld/yOld/zOld`, `xo/yo/zo` and `tickCount` are all public (`LivingEntity.java:239-249`, `Entity.java:225-255`), so no access transformer is needed; `EntityType.create(Level, EntitySpawnReason)` exists (`EntityType.java:343`) and `EntityTypes.MANNEQUIN` and `EntityTypes.PLAYER` exist; `EntityRenderState.nameTag` and `scoreText` are both public fields (`EntityRenderState.java:33-34`). If the extracted state of a mannequin turns out not to be an `AvatarRenderState`, read `EntityRenderDispatcher.getRenderer(S)` before changing the skin line.)
 
 `VillagerGhostRenderer`:
 
@@ -4891,16 +5706,22 @@ public final class MirrorImageRenderer extends EntityRenderer<MirrorImage, Mirro
 /**
  * Draws a villager ghost (Parts 6-7 spec §9): the villager model with the base villager texture, translucent and tinted
  * pale blue (alpha 0.6), plus a copy of vanilla's profession layer that draws the type, profession and level textures
- * with the same tint. Vanilla's {@code VillagerRenderer} needs a {@code Villager} and the profession layer's helpers are
- * private and draw with {@code entityCutout}, which ignores alpha; hence the renderer and the layer are this mod's own.
- * The villager model's arms are one crossed part, so a ghost shows particles and sounds only when it casts.
+ * with the same tint. Vanilla's {@code VillagerRenderer} needs a {@code Villager} and the profession layer's helpers
+ * are private and draw with {@code entityCutout}, which ignores alpha; hence the renderer and the layer are this mod's
+ * own. The villager model's arms are one crossed part, so a ghost shows particles and sounds only when it casts.
  */
 public final class VillagerGhostRenderer extends LivingEntityRenderer<VillagerGhost, VillagerRenderState, VillagerModel> {
+    /** The base villager texture. */
     private static final Identifier BASE = Identifier.withDefaultNamespace("textures/entity/villager/villager.png");
 
     /** Pale blue at alpha 0.6, as ARGB (a first guess for Will's eye). */
     static final int TINT = 0x99DDE6FF;
 
+    /**
+     * Creates the renderer: the villager model and the profession layer's no-hat model.
+     *
+     * @param context the renderer context
+     */
     public VillagerGhostRenderer(EntityRendererProvider.Context context) {
         super(context, new VillagerModel(context.bakeLayer(ModelLayers.VILLAGER)), 0.5F);
         addLayer(new VillagerGhostProfessionLayer(
@@ -4950,11 +5771,25 @@ public final class VillagerGhostProfessionLayer extends RenderLayer<VillagerRend
             4, Identifier.withDefaultNamespace("emerald"),
             5, Identifier.withDefaultNamespace("diamond"));
 
+    /** The hat metadata of the type textures read so far. */
     private final Map<ResourceKey<VillagerType>, VillagerMetadataSection.Hat> typeHats = new HashMap<>();
+
+    /** The hat metadata of the profession textures read so far. */
     private final Map<ResourceKey<VillagerProfession>, VillagerMetadataSection.Hat> professionHats = new HashMap<>();
+
+    /** Where the texture metadata is read from. */
     private final ResourceManager resourceManager;
+
+    /** The model drawn for the type texture when a profession's hat covers the type's. */
     private final VillagerModel noHatModel;
 
+    /**
+     * Creates the layer for one renderer.
+     *
+     * @param renderer the ghost renderer it dresses
+     * @param resourceManager where the hat metadata comes from
+     * @param noHatModel the baked no-hat villager model
+     */
     public VillagerGhostProfessionLayer(
             RenderLayerParent<VillagerRenderState, VillagerModel> renderer,
             ResourceManager resourceManager,
@@ -5005,10 +5840,12 @@ public final class VillagerGhostProfessionLayer extends RenderLayer<VillagerRend
                         state.outlineColor);
     }
 
+    /** The texture path of a key: {@code textures/entity/villager/<kind>/<path>.png}. */
     private static Identifier identifier(String kind, Identifier key) {
         return key.withPath(path -> "textures/entity/villager/" + kind + "/" + path + ".png");
     }
 
+    /** The texture path of a registry holder, or the missing-texture location for an unbound holder. */
     private static Identifier identifier(String kind, Holder<?> holder) {
         return holder.unwrapKey()
                 .map(key -> identifier(kind, key.identifier()))
@@ -5047,11 +5884,11 @@ event.registerEntityRenderer(ModEntities.VILLAGER_GHOST.get(), VillagerGhostRend
 
 - [ ] **Step 2: Run the checks**
 
-Run: `./gradlew spotlessApply build`, `./gradlew runData`. Expected: PASS. `runData` constructing the renderers is the only automated check of this code; if it fails with a `NoSuchFieldError` or a missing model layer, fix the code against `build/mc-src`, never the check.
+Run: `./gradlew spotlessApply build`, `./gradlew runData`. Expected: PASS. This proves compilation and that the client distribution boots, nothing more: `runData` does not construct the renderers (api-notes §26), so a `NoSuchFieldError`, a missing model layer or a missing texture surfaces only at the first render, in Will's playtest (Task 15). Read the model-layer and texture names against `build/mc-src` once more before committing.
 
 - [ ] **Step 3: Commit**
 
-Run `./gradlew runGameTestServer` twice first (expected `All 767 required tests passed`: no GameTest added).
+Run `./gradlew runGameTestServer` twice first (expected `All N required tests passed`, where N is the total Task 12 recorded: this task adds no GameTest).
 
 ```bash
 git add src
@@ -5086,29 +5923,32 @@ and the last paragraph's list `(upside_down, infinity, trailing or evoking)` bec
 
 - [ ] **Step 2: Mod description and CLAUDE.md**
 
-`neoforge.mods.toml`: the description line becomes `Spells for Minecraft. Spells so far: Strength of Upside-Down, Strength of Infinity, Strength of Trailing, Strength of Evoking (whose Bound Vexes fight as a team and cast), Strength of Mirror and Strength of Ghostrail.` `CLAUDE.md`: in the Rules bullet "Mixins only where no event exists", append one sentence naming the one Part 7 Mixin: "`PlayerGhostrailMixin` (Ghostrail's `noPhysics`) is the one Mixin Part 7 adds; the Part 6 packet rule is unchanged: Part 7 adds no packet." (CLAUDE.md has no Mixin list today; the spec's "the Mixin list gains the Ghostrail Mixin" is met by this sentence.)
+`neoforge.mods.toml`: the description line becomes `Spells for Minecraft. Spells so far: Strength of Upside-Down, Strength of Infinity, Strength of Trailing, Strength of Evoking (whose Bound Vexes fight as a team and cast), Strength of Mirror and Strength of Ghostrail.` `CLAUDE.md`: in the Rules bullet "Mixins only where no event exists", append one sentence naming the one Part 7 Mixin: "`PlayerGhostrailMixin` (Ghostrail's `noPhysics`) is the one Mixin Part 7 adds; the Part 6 packet rule is unchanged: Part 7 adds no packet." (CLAUDE.md has no Mixin list today; the spec's "the Mixin list gains the Ghostrail Mixin" is met by this sentence.) Add a row to the Commands table, after the `python scripts/spell_icons.py` row: `` `python scripts/robe_texture.py` | Regenerate the Caster's robe texture (`bound_vex_robe.png`) ``. Correct the `./gradlew runData` row: it loads client classes and config specs and proves the `ArmPose` enum wiring, but it never fires `RegisterRenderers` (api-notes, the `runData` finding), so no renderer, layer, model or particle provider is constructed and no texture is resolved; say so in one clause, so nobody reads a green `runData` as proof of the renderers.
 
 - [ ] **Step 3: Playtest checklist**
 
 Add a section "Evoking II (Part 7)" to `docs/playtest-checklist.md`, after "Evoking II (Part 6)" and before "Real profile". One line of setup (survival world, Strength of Evoking on, three Bound Vexes out; `/give @s spellcraft:mirror_scroll` and `ghostrail_scroll`; `/summon evoker` and `/summon zombie` for fights), then `- [ ]` bullets (each is Will's to check; none is claimed working):
 
 - The scroll icons: Mirror (two facing figures, magenta) and Ghostrail (an arrow through a wall, pale blue) read at 16 x 16 and as effect icons.
-- Casters: one vex in three wears a torn purple robe. Does it look like a robe (the 1.06 growth, no flicker against the body; head and wings bare)? Is the trim readable?
+- First launch of the client after Part 7 (nothing automated constructs the new renderers): summon a Mirror image (cast the scroll), a Caster (`/summon` plus the V key until one rolls) and a villager ghost (kill a villager with a zombie, then get hurt): no crash, a clean log (no missing texture, model layer or field errors) on the first render of each.
+- Casters: one vex in three wears a torn purple robe. Does it look like a robe (the 1.06 growth and the z-offset render type: no flicker against the body at range; head and wings bare)? Is the trim readable?
 - A Caster with a target keeps its distance and never attacks; with two zombies near and you beside it, it raises both arms, purple particles rise from its hands, the sounds play, a Mirror scroll shows in its hand for a second, then you have Mirror. A hurt you (below a quarter health, or in a wall) gets Ghostrail first.
 - A Caster in a Raid: it casts Mirror at the start of the gather without the wind-up, then holds its place in the grid and does nothing else.
-- Mirror: do the thirteen images look like you (your skin, the right model and size, your held items)? On the first frames, is the default skin visible before yours loads? Do they wander without piling up or walking into walls, flash and fall back when hit, vanish in a puff at the end and when you milk the effect?
-- Mirror in a real fight: do zombies, skeletons, spiders and creepers go for copies about 13 times in 14? Does a pillager crossbow or a creeper still reach you? Are brain mobs (piglins, villagers, the Warden) unfooled, as accepted?
+- Mirror: do the thirteen images look like you (your skin from the first frame, slim or wide as yours is, the right size, your held items; no armor: an armored player gets unarmored images, by design)? No "Mannequin" label above or below an image, and one shadow under it, not two stacked? Do the legs walk in step, or lag the walk slightly (the walk animation is smoothed twice)? Do they wander without piling up or walking into walls, flash and fall back when hit, vanish in a puff at the end and when you milk the effect, and when the carrier dies (even on the death screen)?
+- Mirror and a dimension change: step through a portal with Mirror on; the images stay behind in the old dimension and the effect stays on (accepted: they poof when their own six minutes end). Is that acceptable, or should the portal poof them?
+- Mirror in a real fight: do zombies, skeletons, spiders and creepers go for copies about 13 times in 14? Does a mob that keeps the same target for a long time keep going for the copy (the same-target re-set must not re-roll and drag it back to you; no GameTest drives a real target goal)? Does a pillager crossbow or a creeper still reach you? Are brain mobs (piglins, villagers, the Warden) unfooled, as accepted?
 - A mob's Mirror (an evoker with a scroll): the images look like evokers; a golem going for the evoker goes for an image.
+- Ghostrail and blocks: a carrier has no collision, so it also triggers no block effects: walk (fly) through a nether portal frame, a pressure plate, cobweb, honey and powder snow and see that nothing reacts. Is that fine?
 - Ghostrail: fly through a hill and walls, no rubber-banding; the white-smoke trail; fall damage and mob hits do nothing; the end inside a hill moves you out (where, is it the nearest air?), and deep inside stone with nothing within eight blocks it puts you back where you started or leaves you suffocating (accepted).
 - Ghostrail with Infinity on: ending Ghostrail keeps Infinity's flight; ending Infinity keeps Ghostrail's.
 - A pillager or evoker with a Ghostrail scroll comes straight at you through a wall for two seconds. Does it look right? Does it stay put behind the wall afterwards?
 - Scroll mobs: how often a raid party carries scrolls; the scroll drop on a player kill (about half the time).
-- Villager ghosts: kill a villager with a zombie, then go hurt near it. Does the ghost float in (translucent pale blue, the profession clothes), hover about two blocks from you at your eye height, cast, and fade when the fight is over? Does the translucent texture look right at distance and in the dark?
+- Villager ghosts: kill a villager with a zombie, then go hurt near it. Does the ghost float in (translucent pale blue, the profession clothes), hover about two blocks from you at your eye height, cast, and fade when the fight is over? Does the translucent texture look right at distance and in the dark? Does it glide smoothly (its update interval is 1 tick) rather than in steps? A hurt you with no monster anywhere near gets no ghost.
 - Config screen and keys: nothing new (Part 7 adds no setting and no key).
 
 - [ ] **Step 4: API notes and spec sentences that the code settled**
 
-Re-read §26 against what Tasks 3–14 found; correct every line the sources contradicted and add the facts the tasks needed that §26 did not have (especially: how `FinalizeSpawnEvent` is posted, which `LivingEntity` fields the image renderer could read, the Mirror's `MirrorImage` save of the equipment, `EntityRenderState.nameTag`). Fill in the final baseline line with the real totals. In the Parts 6–7 spec, bring these sentences in line with the code as built (and with any divergence the earlier tasks' as-built notes record): §6.2 (a Caster tries Ghostrail before Mirror, as the villager ghost does; a Caster in a wind-up is not "busy"; `CasterRules` is the pure home of its numbers), §6.4 (`CastingState.of` returns `CastLook`), §7.1 (`Spells.cast`), §7.2 (images also save their copied type and profile; a recast poofs the old set first; `MirrorImages.afterEnd`), §7.3 (the mixin line is `Player.java:242` in this build, not 243; `GrantedAbilities.Plan`; `AbilitySync` is the renamed `InfinityAbilitySync`), §8 (the chase goal is installed on every evoker, vindicator and pillager that joins, a scroll or not), §9 (the step is a public seam, the 20-tick gate is in `onPlayerTick`), §12 (the new pure classes and `CasterRules`) and §14 (rows for Ghostrail before Mirror, the extra save fields, the chase goal install). Add the inline "Amended by the Parts 6–7 spec" notes to the parent spec at §9.1, §9.2, §9.3, §9.4, §9.5, §10 (Ghostrail's fallback), §11 and §13 (rows "Move gear", "Ghost trigger", "Which villagers leave ghosts"), in the style of the notes already there (one bold sentence naming the new spec's section and what changed); the notes for §3.1, §7 and §8 are already in.
+Re-read §26 against what Tasks 3–14 found; correct every line the sources contradicted and add the facts the tasks needed that §26 did not have (especially: how `FinalizeSpawnEvent` is posted, which `LivingEntity` fields the image renderer could read, the Mirror's `MirrorImage` save of the equipment, `EntityRenderState.nameTag` **and** `scoreText`, which the image renderer both clears). No `(verify)` marker may remain in §26: `git grep -n "(verify)" -- docs/api-notes.md` prints nothing. Fill in the final baseline line with the real totals. In the Parts 6–7 spec, bring these sentences in line with the code as built (and with any divergence the earlier tasks' as-built notes record): §6.2 (a Caster tries Ghostrail before Mirror, as the villager ghost does; a Caster in a wind-up is not "busy"; `CasterRules` is the pure home of its numbers), §6.4 (`CastingState.of` returns `CastLook`), §7.1 (`Spells.cast`), §7.2 (images also save their copied type and profile; a recast poofs the old set first; `MirrorImages.afterEnd`; the ring spawn keeps images out of blocks; the images carry the hands' items only, no armor), §7.3 (`GrantedAbilities.Plan`; `AbilitySync` is the renamed `InfinityAbilitySync`; the spec's `Player.java:243` is right and stays), §8 (the chase goal is installed on every evoker, vindicator and pillager that joins, a scroll or not), §9 (the step is a public seam, the 20-tick gate is in `onPlayerTick`; no ghost without a hostile near; the ghost moves by position), §12 (the new pure classes and `CasterRules`) and §14 (rows for Ghostrail before Mirror, the extra save fields, the chase goal install). The Parts 6–7 spec's §7.1 (one creative refusal for casters that are not scrolls: `Spells.refusedFor`), §9 (a ghost needs a hostile near), §10 (what happens on a carrier's death) and §11 (what `runData` proves) were amended while the plan was reviewed; check that each still matches the code as built. Add the inline "Amended by the Parts 6–7 spec" notes to the parent spec at §9.1, §9.2, §9.3, §9.4, §9.5, §10 (Ghostrail's fallback), §11 and §13 (rows "Move gear", "Ghost trigger", "Which villagers leave ghosts"), in the style of the notes already there (one bold sentence naming the new spec's section and what changed); the notes for §3.1, §7 and §8 are already in.
 
 - [ ] **Step 5: Mutation testing**
 
@@ -5121,19 +5961,28 @@ Run:
 ```bash
 git diff main --stat -- src/main/resources/META-INF src/main/resources/spellcraft.client.mixins.json
 git diff main --stat -- src/main/java/io/github/willrieske/spellcraft/mixin src/main/resources/spellcraft.mixins.json
-git grep -n "gradle.properties" -- docs/superpowers/plans/2026-11-10-evoking-ii-part-7.md | head -1
 git diff main -- gradle.properties
-git grep -n "message.spellcraft\|key.spellcraft\|spellcraft.configuration" -- src/main/resources/assets/spellcraft/lang/en_us.json | wc -l
+git show main:src/main/resources/assets/spellcraft/lang/en_us.json | grep -c "message.spellcraft\|key.spellcraft\|spellcraft.configuration"
+grep -c "message.spellcraft\|key.spellcraft\|spellcraft.configuration" src/main/resources/assets/spellcraft/lang/en_us.json
 ```
 
-Expected: the first prints nothing (no access-transformer or client Mixin change); the second lists exactly `PlayerGhostrailMixin.java` and `spellcraft.mixins.json`; the `git diff main -- gradle.properties` prints nothing (no version bump); the message, key and configuration lines are unchanged in number from Part 6 (Part 7 adds no message, key or setting). No new `CustomPacketPayload` exists: `git grep -n "CustomPacketPayload" -- src/main/java` lists only `EvokingRequest`.
+Expected: the first prints nothing (no access-transformer or client Mixin change); the second lists exactly `PlayerGhostrailMixin.java` and `spellcraft.mixins.json`; the `git diff main -- gradle.properties` prints nothing (no version bump); the last two commands print the same number (the message, key and configuration lines of the lang file on `main`, which holds Part 6, and in the working tree: Part 7 adds no message, key or setting). No new `CustomPacketPayload` exists: `git grep -n "CustomPacketPayload" -- src/main/java` lists only `EvokingRequest`.
 
 - [ ] **Step 7: Gates and commit**
 
-Run: `./gradlew spotlessApply build`, `./gradlew runData`, `./gradlew runGameTestServer` twice (expected `All 767 required tests passed`), and `python -m unittest discover -s scripts -p "test_*.py"`.
+Run: `./gradlew spotlessApply build`, `./gradlew runData`, `./gradlew runGameTestServer` twice (expected `All N required tests passed`, where N is the total Task 12 recorded: this task adds no GameTest), and `python -m unittest discover -s scripts -p "test_*.py"`.
+
+The mutation-killing unit tests of Step 5 are code, so they get their own commit:
 
 ```bash
-git add README.md CLAUDE.md docs src
+git add src/test
+git commit -m "test(spells): tests that kill the surviving mutants of the Part 7 rules"
+```
+
+Then the docs (skip the first commit if Step 5 added no test):
+
+```bash
+git add README.md CLAUDE.md docs src/main
 git commit -m "docs(evoking): Part 7 in the README, playtest items, mutation testing, as-built spec notes"
 ```
 
