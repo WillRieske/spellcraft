@@ -106,6 +106,7 @@ public final class SpellcraftGameTests {
         GhostrailGameTests.registerAll();
         CasterGameTests.registerAll();
         CasterSpellGameTests.registerAll();
+        ScrollMobGameTests.registerAll();
         GolemGameTests.registerAll();
     }
 
