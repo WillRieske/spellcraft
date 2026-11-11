@@ -49,11 +49,9 @@ final class ScrollMobGameTests {
      */
     private static final int FLOOR_RADIUS = 12;
 
-    /** Ticks a mob's Ghostrail cooldown lasts (the number in the plan; the production constant is package-private). */
-    private static final long GHOSTRAIL_COOLDOWN = 600L;
-
     private ScrollMobGameTests() {}
 
+    /** Registers every scroll-mob GameTest. */
     static void registerAll() {
         FangGameTests.addPadded(DICE, "scroll_mob_evoker_spawn", ScrollMobGameTests::evokerSpawn);
         FangGameTests.addPadded(DICE, "scroll_mob_drop_chance_is_half", ScrollMobGameTests::dropChanceIsHalf);
@@ -255,7 +253,7 @@ final class ScrollMobGameTests {
                 "the hostile duration");
         helper.assertValueEqual(
                 pillager.getExistingData(EvokingAttachments.MOB_GHOSTRAIL_READY).orElse(0L),
-                helper.getLevel().getGameTime() + GHOSTRAIL_COOLDOWN,
+                helper.getLevel().getGameTime() + ScrollMobs.MOB_GHOSTRAIL_COOLDOWN_TICKS,
                 "the cooldown ends 600 ticks from now");
         helper.succeed();
     }

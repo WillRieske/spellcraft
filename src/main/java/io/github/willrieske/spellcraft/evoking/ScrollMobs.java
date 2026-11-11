@@ -40,7 +40,7 @@ public final class ScrollMobs {
     static final float DROP_CHANCE = 0.5F;
 
     /** Ticks before a mob may cast Ghostrail on itself again (30 seconds; Mirror uses ScrollCasting's cooldown). */
-    static final int MOB_GHOSTRAIL_COOLDOWN_TICKS = 600;
+    public static final int MOB_GHOSTRAIL_COOLDOWN_TICKS = 600;
 
     /** The cast's purple, the Evoker-spell color of {@code CastingParticles} for a scroll. */
     private static final int PURPLE = 0xFFB24CFF;
