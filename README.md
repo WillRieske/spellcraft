@@ -46,19 +46,23 @@ A NeoForge mod for Minecraft that adds spells cast from scrolls. It has four:
   solid ground and feeds you an enchanted golden apple. A ghast's fireball that is about to hit you
   is batted back at the ghast, and the fireball is yours, so it can kill the ghast in one hit. In the
   End they break the end crystals while the dragon lives (the blast does not hurt or throw you, your
-  pets or your vexes), and every melee hit they land there does three times the damage. Your vexes act as a team. When something big comes close they grab conjured shields and take turns
-  bashing it back (**Shield**); when a strong monster goes after one of them, that vex and two friends pull out crossbows that fire
-  three arrows at once (**Multishot**); when you or an ally of yours drops below half health, up to three vexes circle the hurt
-  one, shove away anything that comes close and knock arrows back (**Evader**); and when a giant (a Ravager, a Warden, the Wither,
-  the Dragon) shows up and all twelve vexes are out, they gear up in netherite and diamond, line up in a 3 × 4 block and charge
-  together while the crossbow vexes fire rockets (**Raid**). The conjured gear vanishes when the move ends and your own gear comes
-  back; a vex in a move answers a click with "That vex is busy". Set `teamMoves` in the server config (section `evoking`) to
-  `MANUAL` to turn the automatic triggers off; then **J** picks a move and **K** starts it. The keys rebind in Controls (they sit
-  with the Evoking keys). Fangs spare you and your allies (your team, your pets, your own vexes,
+  pets or your vexes), and every melee hit they land there does three times the damage.
+  Fangs spare you and your allies (your team, your pets, your own vexes,
   villagers, wandering traders, and iron golems that are not mad at you) and hurt everything else;
   vexes spare them too and fight only what the list above says. You, your pets, your fangs and your
   vexes cannot take an iron golem below 25 health; when it gets that low, it calms down and stops
   being mad at you. The keys rebind in Controls. Sneak + scroll or milk turns it off.
+
+- **Team moves.** Your vexes act as a team. When something big comes close they grab conjured shields and take
+  turns bashing it back (**Shield**); when a strong monster goes after one of them, that vex and two friends pull
+  out crossbows that fire three arrows at once (**Multishot**); when you or an ally of yours drops below half
+  health, up to three vexes circle the hurt one, shove away anything that comes close and knock arrows back
+  (**Evader**); and when a giant (a Ravager, a Warden, the Wither, the Dragon) shows up and all twelve vexes are
+  out, they gear up in netherite and diamond, line up in a 3 × 4 block and charge together while the crossbow
+  vexes fire rockets (**Raid**). The conjured gear vanishes when the move ends and your own gear comes back; a vex
+  in a move answers a click with "That vex is busy". Set `teamMoves` in the server config (section `evoking`) to
+  `MANUAL` to turn the automatic triggers off; then **J** picks a move and **K** starts it. Both keys rebind in
+  Controls, where they sit with the Evoking keys.
 
 Each scroll is single-use. Scribe one by putting paper and lapis in an enchanting table: you get
 a random scroll, and more lapis raises the odds of an extreme-tier spell. Creative players can

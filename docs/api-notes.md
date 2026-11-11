@@ -1266,7 +1266,7 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   `Mob.java:1529`, and `swingForAttack(InteractionHand.MAIN_HAND)` needs no animation argument).
 - **Attributes.** `LivingEntity.getAttribute(Holder<Attribute>)` is `@Nullable` (`LivingEntity.java:2287`); `Ghast`,
   `Shulker` and `EnderDragon` define no `ATTACK_DAMAGE`; `Vindicator` 5, `Ravager` 12 (`monster/illager/Vindicator.java:94`,
-  `monster/Ravager.java:103`). A brain mob's `getTarget()` reads its brain (`Warden.java:474` → `Mob.getTargetFromBrain`, `Mob.java:253`).
+  `monster/Ravager.java:103`). A brain mob's `getTarget()` reads its brain (`world/entity/monster/warden/Warden.java:474` → `Mob.getTargetFromBrain`, `Mob.java:253`).
 - **Entities across levels.** `ServerLevel.getEntityInAnyDimension(UUID)` (`server/level/ServerLevel.java:1533`) looks in
   the level, then in every other level of the server; `Level.getEntity(UUID)` (`world/level/Level.java:846`) only in its own.
 - **The server config enum.** `ModConfigSpec.Builder.defineEnum(String, V)` returns `EnumValue<V>`
@@ -1298,4 +1298,16 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   for a dead player until it respawns, so `TeamMoves.tick` sees `isAlive() == false`.
 - **Baseline.** The first full `./gradlew runGameTestServer` of Part 6 (Task 1) reported `All 497 required tests passed`
   (measured on 981eae7); every Part 6 gate compares against 497 plus the tests the task added.
-  As built, the Part 6 total is 630 required tests (Task 13).
+  As built, the Part 6 total was 630 required tests at Task 13 and is 648 required tests (three full runs in a row) after the branch review's fixes.
+- **Later additions to this section.** Tasks 2 to 13 and the review fixes extended it beyond the Task 1 baseline: keys,
+  codecs, `Mob.swingForAttack`, attributes, entities across levels, vex flight, mock players, and the two bullets below.
+- **Rocket aim.** `CrossbowItem.shootProjectile` with a target override aims at `target.getY(1/3)` and adds
+  `0.2 * flatDistance` to the vertical component (`CrossbowItem.java:107-125`), which is an arrow's drop; a
+  `FireworkRocketEntity` built with `shotAtAngle = true` (`FireworkRocketEntity(Level, ItemStack, Entity, x, y, z,
+  boolean)`) has no gravity and flies that lifted line over a short enemy. `VexShots.rocket` therefore builds the rocket
+  itself and calls `Projectile.spawnProjectileUsingShoot(projectile, level, stack, dx, dy, dz, power, uncertainty)`
+  (`Projectile.java:241`) at the un-lifted aim point. The blast's damage source is `fireworks(rocket, owner)`: the direct
+  entity is the rocket and the causing entity the vex, which the friendly-fire backstop reads.
+- **A player's motion on the server.** `ServerPlayer.getDeltaMovement()` stays near zero (the client moves the player);
+  `Entity.getKnownMovement()` (`Entity.java:4265`, overridden in `ServerPlayer`) is the real motion, and is
+  `getDeltaMovement()` for any other entity.

@@ -251,6 +251,10 @@ either. Then, in order, the first that applies is the overlay answer:
    enemy for that move").
 5. Otherwise the move starts (§2.4) with its usual message.
 
+A summoner's requests are throttled: one fewer than **10 ticks** after their last handled request is
+ignored without an answer (`TeamMoves.REQUEST_INTERVAL`), so a modified client cannot make the server
+scan 16 blocks and answer on the action bar many times a tick.
+
 The subject is the nearest hostile within **16 blocks** of the summoner that is `isPrey`,
 `huntable` and fits the move: Shield `maxHealth ≥ 31`, Raid `maxHealth ≥ 99`, Multishot
 `ATTACK_DAMAGE ≥ 6` (it need not be targeting a vex; the targeted vex of the roster is then the
@@ -287,13 +291,19 @@ apply as for any vex hit.
 ### 4.2 Multishot
 
 Kit: a **crossbow** (`MAINHAND`) enchanted with Multishot (looked up from the level's enchantment
-registry by `Enchantments.MULTISHOT`) and `Unbreakable`. Each member keeps **6–8 blocks** from the
-enemy (closer than 6: back off; farther than 8: close in; between: hold, looking at it; a member that has to move flies to its own slot on an arc round the
-enemy, 25 degrees a slot (`MultishotMove.ARC_DEGREES`), so the shooters are not in each other's lines)
-and every
+registry by `Enchantments.MULTISHOT`) and `Unbreakable`. Each member keeps its own **slot on an arc
+round the enemy**, 7 blocks out at the enemy's eye height, 25 degrees a slot
+(`MultishotMove.ARC_DEGREES`, the middle slot straight toward the summoner), so the shooters are not
+in each other's lines: a member more than 1 block (sideways; a vex bobs up and down by itself) from
+its slot flies to it, one nearer holds, looking at the enemy. As built, a plain 6 to 8 block band let
+two members that happened to enter it in a line block each other for the rest of the move, so the
+slot is the rule and not only a way into the band. Every
 **40 ticks**, with line of sight and no friend in the way (the Part 3 hold-fire rule,
 `VexShots.aimPoint` and the 1-block segment test; the private `RangedGearGoal.friendInTheWay`
-moves to `VexShots` so the move can share it), loads the crossbow by hand
+moves to `VexShots` so the move can share it; fellow members of the roster do not count as friends in
+the way, as in the Raid, while the summoner, allies and Bound Vexes outside the roster still hold the
+fire; only the center line is tested, so a flank arrow of the fan can pass a friend 1.2 to 1.5 blocks
+off it, and the backstop then cancels its damage), loads the crossbow by hand
 (`CHARGED_PROJECTILES` = three plain arrows; vanilla's `draw` that would add Multishot's extra two
 is not reachable) and fires it with `CrossbowItem.performShooting(level, vex, MAIN_HAND, crossbow,
 1.6F, 14 − difficulty × 4, enemy)`, as a pillager does. The enchantment on the stack gives the
@@ -306,14 +316,17 @@ Kit: a shield in each hand, as Shield.
 
 - **Orbit:** members spread evenly on a 2-block circle around the ward at its mid-height, the
   circle turning 6° per tick. As built, each steers to its slot with a position/velocity push plus
-  feed-forward (named constants), because the vex move control alone (it only adds 0.05 x speed a
+  feed-forward (named constants; the ward's own motion is its known movement, because a player's delta
+  movement stays near zero on the server), because the vex move control alone (it only adds 0.05 x speed a
   tick) cannot hold 2 blocks: a plain fly-to settled at about 3.1.
 - **Shove:** any hostile (`huntable` and `isPrey`) whose box comes within 3 blocks of the ward's
   is shoved by the nearest member: `knockback(2.0, ward.x − hostile.x, ward.z − hostile.z, …)`
   (away from the ward; no damage), `SHIELD_BLOCK`, `Mob.swingForAttack`. Each hostile at most once per 20
   ticks.
 - **Deflect:** any `Projectile` within 2 blocks of the ward's box, moving toward the ward
-  (velocity · offset to the ward > 0), whose owner is not on the summoner's side (not the
+  (velocity · offset to the ward > 0; as built it also counts a projectile whose next step would cross
+  that range, since a full-draw arrow moves 3 blocks a tick and can jump the window between two
+  samples), whose owner is not on the summoner's side (not the
   summoner, an ally, or a mob carrying the summoner's mark), and that is not a `LargeFireball`
   (Part 5's return owns those), is deflected by the nearest member:
   `projectile.deflect(ProjectileDeflection.REVERSE, vex, EntityReference.of(vex), false, 2.0)`
@@ -346,11 +359,16 @@ Phases (the record's phase):
    hit cadence); rocket members keep 8 blocks (hold between 7 and 9), and every 40 ticks with line of sight and
    no friend in the way (fellow members of the same Raid do not count as friends in the way:
    `VexShots.friendInTheWay` takes the roster; the summoner, allies and Bound Vexes outside the roster
-   still hold fire) fire a **rocket**: the crossbow is loaded with one `FIREWORK_ROCKET`
-   carrying `FIREWORKS` = flight 1, one `FireworkExplosion.DEFAULT` (a rocket with no explosion
-   deals no damage) and fired with `performShooting(…, 1.6F, 1.0F, enemy)`. The blast hurts every
+   still hold fire) fire a **rocket**: one `FIREWORK_ROCKET` carrying `FIREWORKS` = flight 1, one
+   `FireworkExplosion.DEFAULT` (a rocket with no explosion deals no damage), spawned shot-at-an-angle
+   from the vex's eyes and aimed straight at `VexShots.aimPoint` at speed 1.6 and inaccuracy 1.0
+   (the crossbow is the kit item and plays the sound; `performShooting` with a target would lift the
+   aim by a fifth of the flat distance for an arrow's drop, and a rocket has no drop, so it would fly
+   over a short enemy). The blast hurts every
    living thing within 5 blocks in sight; its damage source's entity is the vex, so the Part 3
-   backstop cancels it for the summoner and everything the vex may not fight. Casters hold their
+   backstop cancels it for the summoner and everything the vex may not fight, and, for a rocket, for
+   everything it may not hunt (`huntable` and `isPrey`): farm animals and neutral mobs near the enemy
+   are spared. Casters hold their
    grid cell during the charge and do not attack.
 
 A Raid whose roster falls below 12 continues (parent §10).
@@ -804,6 +822,10 @@ walls).
 | J in automatic mode | Still cycles; the server answers K | The client cannot see the server's setting. |
 | Extra refusal messages | "already in a team move", "not ready yet" | One "unavailable" for four reasons hides the cooldown. |
 | Multishot out-of-band movement | Each member flies to its own arc slot, 25 degrees apart | Three members flying to one point end up in a row and block each other. |
+| Multishot slot rule | A member more than 1 block (sideways) from its slot flies to it, in or out of the 6 to 8 band; roster members are not friends in the way | Members that entered the band in a line blocked each other for the rest of the move (found in the branch review). |
+| Raid rocket aim | Spawned straight at the target's lower body, not through `performShooting` | The crossbow's target override lifts the aim for an arrow's drop; a rocket has none and overflew short enemies. |
+| Raid rocket blast | Hurts only what the vex may hunt (`huntable` and `isPrey`) | A 5-block blast at a farm would otherwise kill animals and neutral mobs; the Part 3 splash rule alone spares only what the vex may not fight. |
+| Request throttle | At least 10 ticks between a summoner's handled requests; extra ones ignored silently | A flood of packets must not cost a 16-block scan each. |
 | Raid rocketeers and fellow members | Roster members are ignored in the line-of-fire test | Twelve vexes in a block would otherwise stop every shot; outsiders still hold fire. |
 | Shield bash | 4 damage, knockback 1.5, each member on its own 40-tick clock | The parent's numbers, made per vex. |
 | Multishot loading | Three arrows by hand, the enchantment on the stack for the spread | The crossbow fires only what is loaded. |

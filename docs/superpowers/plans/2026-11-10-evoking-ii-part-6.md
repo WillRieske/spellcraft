@@ -1,5 +1,7 @@
 # Evoking II Part 6: Team Moves Implementation Plan
 
+**Status:** Part 6 built on `feat/evoking-ii-part-6`; the branch review's findings are fixed (`final-fix-report.md`); Part 7 plan not yet written
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Your Bound Vexes act as a team: they form a Shield against something big, ready a Multishot volley when a strong monster goes after one of them, circle a hurt summoner or ally as an Evader guard, and Raid a giant together; a server setting turns the automatic triggers off, and then **J** picks a move and **K** starts it.
@@ -6931,6 +6933,8 @@ git commit -m "docs(evoking): Part 6 in the README, playtest items, mutation tes
 ```
 
 > **As built (`eef3d4c`):** diverged — controller additions: extra playtest items (J/K, Evader orbit, rocket height, in-band Multishot), spec reconciliation of §2.1/§2.3/§2.5/§4.1–§4.4/§14, one unit test killing the TeamMoveRules:189 mutant; GameTests 630 passed in 2 of 3 full runs (`team_move_multishot_all_three_fire_from_their_arc_slots` failed once on timing); reason: review rulings and the as-built record.
+>
+> **As built (branch review fixes):** the review's seven Important and thirty-three Minor findings were fixed after Task 13 (Multishot slots and roster-ignoring hold-fire, un-lifted rocket aim, rocket blast sparing what the vex may not hunt, known-movement Evader orbit, scoped arrow queries, controls for the not-free tests, preemption and prune tests, request throttle, J/K swap swallow). GameTests: 648 required tests, three full runs in a row. See `.superpowers/sdd/2026-11-10-evoking-ii-part-6/final-fix-report.md`.
 
 ---
 
