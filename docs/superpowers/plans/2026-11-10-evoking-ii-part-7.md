@@ -4077,7 +4077,7 @@ git commit -m "feat(evoking): Casters cast Mirror and Ghostrail, alone and in a 
   - `ScrollMobs` (public final, `@EventBusSubscriber`): `onFinalizeSpawn(FinalizeSpawnEvent)` (an `Evoker` carries a scroll in the **offhand** 1 time in 4, a `Vindicator` or `Pillager` 1 in 10, Mirror or Ghostrail at even odds, offhand drop chance 0.5; the rolls are `Dice.SCROLL_MOB.below(random, 4 or 10)` and, for a carrier, `Dice.SCROLL_MOB.below(random, 2)` where 0 is Mirror), `onChangeTarget(LivingChangeTargetEvent)` (a mob with a Mirror or Ghostrail scroll in its offhand that goes from no target to a target casts at once if that spell's cooldown is over: Mirror on itself for 7200 ticks with a 7200-tick cooldown unless it has the effect; Ghostrail on itself for 40 ticks with a 600-tick cooldown; both through `ScrollCasting.land` (so the durations, the cast sound and the cooldown of Mirror come from the one place) and then a burst of 10 purple `ENTITY_EFFECT` particles; the scroll is not used up), `onJoin(EntityJoinLevelEvent)` (installs the chase goal), `static void install(Mob mob)` (public, idempotent).
   - `GhostrailChaseGoal` (public final, goal priority 0, flag `MOVE`): while the mob has Ghostrail and a target it stops the navigation and sets its velocity straight at the target's middle at 0.3 blocks per tick.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 A spawn fires `FinalizeSpawnEvent` through `EventHooks.finalizeMobSpawn(mob, level, difficulty, spawnType, spawnData)` (`EventHooks.java:334`; it posts the event, then calls the deprecated `Mob.finalizeSpawn`): call exactly that from the tests, never `Mob.finalizeSpawn` itself (it does not post the event, and calling it directly fails the `-Werror` build).
 
@@ -4177,11 +4177,11 @@ static void chasesThroughAWall(GameTestHelper helper) {
 
 Add `ScrollMobGameTests.registerAll();` after `CasterSpellGameTests.registerAll();`.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:scroll_mob_*"`. Expected: FAIL (nothing spawns with a scroll yet).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `ScrollMobs`:
 
@@ -4373,12 +4373,12 @@ public final class GhostrailChaseGoal extends Goal {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:scroll_mob_*"`. If `chasesThroughAWall` times out, read the log for the pillager's position per tick before changing the goal: the usual cause is the vanilla `AbstractIllager`/`Raider` goals running at a higher priority on `MOVE` (none should, the goal is priority 0) or `Ghostrail.tick` not holding `noPhysics` (the `EntityTickEvent.Post` needs the saved mark: `Ghostrail.begin` sets it in the effect hook).
 Expected: PASS.
 
-- [ ] **Step 5: Gates and commit**
+- [x] **Step 5: Gates and commit**
 
 Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 757 required tests passed` both times (the Task 9 total plus the 14 `scroll_mob_*` tests of `ScrollMobGameTests`).
 
@@ -4386,6 +4386,8 @@ Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expec
 git add src
 git commit -m "feat(evoking): evokers, vindicators and pillagers that carry scrolls"
 ```
+
+> **As built (`ea7c862`):** diverged — chasesThroughAWall keeps the player vulnerable (Mob.asValidTarget rejects an invulnerable target via canBeSeenAsEnemy, so the plan's setTarget was dropped) and empties the pillager's main hand instead; floored scenes use radius 12 for Mirror image wander room; EVOKER_CAST_SPELL has no .value() in 26.3; MOB_GHOSTRAIL_COOLDOWN_TICKS made public for the test; RED was compile-time; reason: implementer report, review approved
 
 ### Task 11: Villager ghost records
 
@@ -6019,3 +6021,4 @@ git commit -m "docs(evoking): Part 7 in the README, playtest items, mutation tes
 | 7 | `6302d73` | `endingGoesToTheStartSpot` lifts the player 10, not 6, inside a stone cube (the plan's lift left the start spot within the search radius); a recast in stone keeps the earlier start spot (review fix, +1 test); the Task 6 review's creative-player fix (+1 test) landed first in 30ed2b4. No RED capture. |
 | 8 | `31ca0c1` | no RED capture (production code partly written before tests); caster_plain_vex_charges resets a vex parked at rest beside the frozen husk each tick (test-only: ChargeGoal needs >2 blocks, a real target moves); countsTowardARaidTrigger proves the Shield control with a second summoner; reason: implementer report, review approved |
 | 9 | `f871ee5` | CasterSpellGameTests scene floor is 8 blocks, not 3 (Mirror images wander up to 6 blocks and fell off a 3-block floor; spec has no ledge avoidance); review minors fixed in f871ee5 (dismiss once, exact cast-timing bound, choose() clears its pick); reason: implementer report, review approved |
+| 10 | `ea7c862` | chasesThroughAWall keeps the player vulnerable (Mob.asValidTarget rejects an invulnerable target via canBeSeenAsEnemy, so the plan's setTarget was dropped) and empties the pillager's main hand instead; floored scenes use radius 12 for Mirror image wander room; EVOKER_CAST_SPELL has no .value() in 26.3; MOB_GHOSTRAIL_COOLDOWN_TICKS made public for the test; RED was compile-time; reason: implementer report, review approved |
