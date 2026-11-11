@@ -401,10 +401,15 @@ final class CasterGameTests {
      */
     static void countsTowardARaidTrigger(GameTestHelper helper) {
         // Arrange
-        ServerPlayer player = plainPlayer(helper);
         Vec3 hang = TeamMoveTestSupport.hangPoint(helper);
-        TeamMoveTestSupport.frozenVexes(helper, player, 11);
         TeamMoveTestSupport.foe(helper, EntityTypes.RAVAGER, TeamMoveTestSupport.beside(helper));
+        // Control: another summoner with the same eleven free vexes and no Caster gets a Shield, not a Raid.
+        ServerPlayer other = plainPlayer(helper);
+        TeamMoveTestSupport.frozenVexes(helper, other, 11);
+        TeamMoves.tick(other);
+        helper.assertValueEqual(TeamMoves.running(other), Optional.of(TeamMove.SHIELD), "control: a Shield starts");
+        ServerPlayer player = plainPlayer(helper);
+        TeamMoveTestSupport.frozenVexes(helper, player, 11);
         helper.assertValueEqual(TeamMoves.freeVexes(player, true).size(), 11, "control: eleven free without a Caster");
         helper.assertValueEqual(
                 TeamMoveRules.rosterSize(TeamMove.RAID, 11), 0, "control: eleven are too few for a Raid");
