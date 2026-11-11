@@ -124,7 +124,7 @@ Roster size and choice (the pure `TeamMoveRules`, §5):
 
 ### 2.3 Triggers (automatic mode)
 
-Each summoner is checked every **10 ticks** (from `TeamMoves.tick`, §2.5, on a stored game-time deadline, `nextScan`, not the summoner's
+Each summoner is checked every **10 ticks** (from `TeamMoves.tick`, §2.5, on a stored game-time deadline kept apart from the record, not the summoner's
 `tickCount`: a mock player is never ticked), only when no move is running and the summoner is present (online, alive, not a
 spectator). Candidates are hostiles that are `isPrey` and `huntable` for the summoner (an
 `Enemy`, not a creeper, no other player's mark) and whose feet are inside the guard area of at
@@ -814,7 +814,7 @@ walls).
 |---|---|---|
 | Team-move flag | Server-only field, not synced | Nothing on the client reads it. |
 | Who is free | Following, not a Caster (Raid aside), not in a job, not the rescuer, within 32 blocks | A move should not cut a cure short or pull a staying guard off its post. |
-| Trigger scan | Every 10 ticks per summoner, from a stored game-time deadline (`nextScan`) | The goals' clock; one place for all four triggers. |
+| Trigger scan | Every 10 ticks per summoner, from a stored game-time deadline (kept apart from the record) | The goals' clock; one place for all four triggers. |
 | A ≥ 99 enemy without 12 free vexes | Falls through to a Shield | Otherwise a Ravager gets no move at all with 11 vexes out. |
 | Multishot detection | `getTarget()` in the scan, not the target event | Brain mobs skip the event. |
 | Evader ward | The summoner or an ally within 16 blocks; never a vex or image | A vex at half health is not who the move is for. |

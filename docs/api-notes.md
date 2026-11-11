@@ -1287,7 +1287,7 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   orbit steers with a position/velocity push plus feed-forward, melee Raid members use a spring plus damping inside 3
   blocks of the enemy, and the Shield back-off aims at 7 and holds from 6.
 - **Mock players never tick.** A GameTest mock player is not ticked by the server and fires no `PlayerTickEvent`, so
-  tests step `TeamMoves.tick(player)` by hand; the scan clock is a stored game-time deadline (`nextScan`), not
+  tests step `TeamMoves.tick(player)` by hand; the scan clock is a stored game-time deadline (`NEXT_SCAN`, kept apart from the per-summoner record), not
   `tickCount`.
 - **Rescues and kits.** A rescue does not conjure its bucket or apple while the main hand holds a kit item, so it never
   dismisses a kit slot; a preempted job goal's `stop` is what can.
@@ -1298,7 +1298,7 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   for a dead player until it respawns, so `TeamMoves.tick` sees `isAlive() == false`.
 - **Baseline.** The first full `./gradlew runGameTestServer` of Part 6 (Task 1) reported `All 497 required tests passed`
   (measured on 981eae7); every Part 6 gate compares against 497 plus the tests the task added.
-  As built, the Part 6 total was 630 required tests at Task 13 and is 648 required tests (three full runs in a row) after the branch review's fixes.
+  As built, the Part 6 total was 630 required tests at Task 13 and is 650 required tests (three full runs in a row) after the branch review's fixes and the re-review's.
 - **Later additions to this section.** Tasks 2 to 13 and the review fixes extended it beyond the Task 1 baseline: keys,
   codecs, `Mob.swingForAttack`, attributes, entities across levels, vex flight, mock players, and the two bullets below.
 - **Rocket aim.** `CrossbowItem.shootProjectile` with a target override aims at `target.getY(1/3)` and adds
