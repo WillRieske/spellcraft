@@ -15,15 +15,6 @@ final class CasterGoal extends Goal {
     /** The distance the Caster flies to when it has to move: the middle of the band. */
     private static final double HOLD_DISTANCE = (CasterRules.KEEP_MIN + CasterRules.KEEP_MAX) / 2.0;
 
-    /** Inside this distance from the spot the push is a spring to the spot instead of a flight to it. */
-    private static final double SETTLE_RANGE = 3.0;
-
-    /** The spring's pull toward the spot, per block of gap (the value {@code RaidMove} uses for the same job). */
-    private static final double SETTLE_POSITION_GAIN = 0.06;
-
-    /** The damping on the vex's own velocity (the value {@code RaidMove} uses for the same job). */
-    private static final double SETTLE_VELOCITY_GAIN = 0.3;
-
     /** The Caster this goal flies. */
     private final BoundVex vex;
 
@@ -56,16 +47,9 @@ final class CasterGoal extends Goal {
         }
         TeamFlight.lookAt(vex, target);
         Vec3 spot = TeamFlight.ringPoint(target.position(), vex.position(), HOLD_DISTANCE, target.getEyeY());
-        Vec3 gap = spot.subtract(vex.position());
         boolean hold = CasterRules.approach(vex.distanceTo(target)) == CasterRules.Approach.HOLD;
-        if (!hold && gap.length() > SETTLE_RANGE) {
-            TeamFlight.flyTo(vex, spot, TeamFlight.NORMAL);
-            return;
-        }
-        // A vex only accelerates toward its wanted point and coasts, so a plain "fly to the spot" overshoots the
-        // band: near the spot (or inside the band) the push is a spring to the spot, none when holding, with
-        // damping on the vex's own velocity, as RaidMove.closeIn does.
-        Vec3 spring = hold ? Vec3.ZERO : gap.scale(SETTLE_POSITION_GAIN);
-        TeamFlight.steer(vex, spring.subtract(vex.getDeltaMovement().scale(SETTLE_VELOCITY_GAIN)));
+        // Inside the band the Caster only damps its own drift (settling at its own position); out of it, it flies to
+        // the spot and settles there (TeamFlight.holdAt)
+        TeamFlight.holdAt(vex, hold ? vex.position() : spot, Vec3.ZERO);
     }
 }

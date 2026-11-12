@@ -19,23 +19,29 @@ import io.github.willrieske.spellcraft.spell.Spell;
 import io.github.willrieske.spellcraft.spell.Spells;
 import io.github.willrieske.spellcraft.spell.rules.GhostrailDuration;
 import io.github.willrieske.spellcraft.spell.rules.MirrorRule;
+import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.illager.Evoker;
 import net.minecraft.world.entity.monster.illager.Pillager;
 import net.minecraft.world.entity.monster.illager.Vindicator;
 import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.EventHooks;
 
 /** GameTests of the mobs that carry scrolls (Parts 6-7 spec §8) and the Ghostrail chase goal (§7.3). */
@@ -70,6 +76,14 @@ final class ScrollMobGameTests {
         FangGameTests.addPadded(SHARED, "scroll_mob_chase_goal_installed", ScrollMobGameTests::chaseGoalInstalled);
         FangGameTests.addPadded(
                 SHARED, "scroll_mob_chases_through_a_wall", 100, ScrollMobGameTests::chasesThroughAWall);
+        FangGameTests.addPadded(SHARED, "scroll_mob_only_raiders_cast", ScrollMobGameTests::onlyRaidersCast);
+        FangGameTests.addPadded(
+                SHARED, "scroll_mob_ghostrail_cooldown_is_600", ScrollMobGameTests::ghostrailCooldownIs600);
+        FangGameTests.addPadded(
+                SHARED, "scroll_mob_casts_on_the_next_target", ScrollMobGameTests::castsOnTheNextTarget);
+        FangGameTests.addPadded(SHARED, "scroll_mob_drops_on_a_player_kill", ScrollMobGameTests::dropsOnAPlayerKill);
+        FangGameTests.addPadded(
+                SHARED, "scroll_mob_keeps_it_on_another_kill", ScrollMobGameTests::keepsItOnAnotherKill);
     }
 
     /**
@@ -259,6 +273,131 @@ final class ScrollMobGameTests {
     }
 
     /**
+     * When a mob that is no evoker, vindicator or pillager has a scroll in its offhand and takes a target, should it
+     * cast nothing.
+     *
+     * <p>Method under test: {@code ScrollMobs.onChangeTarget}: only the three raiders cast
+     */
+    static void onlyRaidersCast(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = plainPlayer(helper);
+        Husk husk = hostileAt(helper, at(helper, 4.0, 0.0, 0.0));
+        husk.setItemSlot(EquipmentSlot.OFFHAND, ModItems.scrollFor(Spells.MIRROR));
+        // Act
+        husk.setTarget(player);
+        // Assert
+        helper.assertFalse(husk.hasEffect(ModEffects.MIRROR), "no Mirror on a husk");
+        helper.assertValueEqual(
+                husk.getExistingData(EvokingAttachments.MOB_MIRROR_READY).orElse(0L), 0L, "no cooldown");
+        helper.succeed();
+    }
+
+    /**
+     * When a pillager casts Ghostrail and takes a target again inside the cooldown, should the stored ready time be
+     * the cast's game time plus 600 and the second target change cast nothing.
+     *
+     * <p>Method under test: {@code ScrollMobs.onChangeTarget}: the 600-tick cooldown
+     */
+    static void ghostrailCooldownIs600(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = plainPlayer(helper);
+        Pillager pillager = armed(helper, EntityTypes.PILLAGER, Spells.GHOSTRAIL);
+        long castAt = helper.getLevel().getGameTime();
+        pillager.setTarget(player);
+        helper.assertTrue(pillager.hasEffect(ModEffects.GHOSTRAIL), "setup: the first cast happened");
+        long readyAt =
+                pillager.getExistingData(EvokingAttachments.MOB_GHOSTRAIL_READY).orElse(0L);
+        pillager.removeEffect(ModEffects.GHOSTRAIL);
+        pillager.setTarget(null);
+        // Act
+        pillager.setTarget(player);
+        // Assert
+        helper.assertValueEqual(readyAt, castAt + 600L, "the stored ready time is the cast time plus 600");
+        helper.assertFalse(pillager.hasEffect(ModEffects.GHOSTRAIL), "no second cast inside the cooldown");
+        helper.assertValueEqual(
+                pillager.getExistingData(EvokingAttachments.MOB_GHOSTRAIL_READY).orElse(0L),
+                readyAt,
+                "the cooldown is not restarted");
+        helper.succeed();
+    }
+
+    /**
+     * When a pillager loses its target after a cast and the cooldown is over, should it cast on the next target.
+     *
+     * <p>Method under test: {@code ScrollMobs.onChangeTarget}: a lost target is a new fight
+     */
+    static void castsOnTheNextTarget(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = plainPlayer(helper);
+        Pillager pillager = armed(helper, EntityTypes.PILLAGER, Spells.GHOSTRAIL);
+        pillager.setTarget(player);
+        helper.assertTrue(pillager.hasEffect(ModEffects.GHOSTRAIL), "setup: the first cast happened");
+        pillager.removeEffect(ModEffects.GHOSTRAIL);
+        pillager.setTarget(null);
+        pillager.setData(EvokingAttachments.MOB_GHOSTRAIL_READY, 0L);
+        // Act
+        pillager.setTarget(player);
+        // Assert
+        helper.assertTrue(pillager.hasEffect(ModEffects.GHOSTRAIL), "it casts on the next target");
+        helper.succeed();
+    }
+
+    /** The Mirror scroll items on the ground within 3 blocks of {@code where}. */
+    private static List<ItemEntity> scrollsNear(GameTestHelper helper, Vec3 where) {
+        return helper.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(where, where).inflate(3.0)).stream()
+                .filter(item -> item.getItem().is(ModItems.MIRROR_SCROLL.get()))
+                .toList();
+    }
+
+    /**
+     * Kills an evoker armed with a Mirror scroll and returns the scrolls it dropped. The offhand drop chance is raised
+     * to 1.0 first: the 0.5 roll is vanilla's own random, which a test cannot script ({@code dropChanceIsHalf} pins
+     * the 0.5), and what this checks is who may collect the drop.
+     */
+    private static List<ItemEntity> killedWith(GameTestHelper helper, Function<ServerLevel, DamageSource> source) {
+        Evoker evoker = armed(helper, Spells.MIRROR);
+        evoker.setDropChance(EquipmentSlot.OFFHAND, 1.0F);
+        Vec3 where = evoker.position();
+        whenDone(helper, () -> scrollsNear(helper, where).forEach(ItemEntity::discard));
+        ServerLevel level = helper.getLevel();
+        evoker.hurtServer(level, source.apply(level), 1000.0F);
+        helper.assertFalse(evoker.isAlive(), "setup: the evoker died");
+        return scrollsNear(helper, where);
+    }
+
+    /**
+     * When a player kills an evoker that carries a scroll, should the scroll drop.
+     *
+     * <p>Method under test: {@code ScrollMobs}: the offhand scroll is the player-kill loot
+     */
+    static void dropsOnAPlayerKill(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = plainPlayer(helper);
+        // Act
+        List<ItemEntity> dropped =
+                killedWith(helper, level -> level.damageSources().playerAttack(player));
+        // Assert
+        helper.assertValueEqual(dropped.size(), 1, "the scroll drops");
+        helper.succeed();
+    }
+
+    /**
+     * When something other than a player kills an evoker that carries a scroll, should the scroll not drop.
+     *
+     * <p>Method under test: {@code ScrollMobs}: the offhand scroll is the player-kill loot
+     */
+    static void keepsItOnAnotherKill(GameTestHelper helper) {
+        // Arrange
+        plainPlayer(helper);
+        // Act
+        List<ItemEntity> dropped =
+                killedWith(helper, level -> level.damageSources().generic());
+        // Assert
+        helper.assertTrue(dropped.isEmpty(), "no scroll drops");
+        helper.succeed();
+    }
+
+    /**
      * When an evoker with an empty offhand takes a target, should it cast neither spell.
      *
      * <p>Method under test: {@code ScrollMobs.onChangeTarget}
@@ -398,6 +537,9 @@ final class ScrollMobGameTests {
         Pillager pillager = helper.spawn(EntityTypes.PILLAGER, FangGameTests.FEET.offset(9, 0, 0));
         whenDone(helper, pillager::discard);
         pillager.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+        // No target goals: with the test's own target set, a mock player of another test running at the same time
+        // must not be able to draw the pillager away (the test failed intermittently on a busy run)
+        pillager.targetSelector.removeAllGoals(goal -> true);
         // Act
         Spells.cast(pillager, Spells.GHOSTRAIL, 400);
         pillager.setTarget(player);

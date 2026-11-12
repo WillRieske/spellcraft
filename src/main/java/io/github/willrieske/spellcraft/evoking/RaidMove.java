@@ -47,15 +47,6 @@ public final class RaidMove {
     /** Ticks between one rocketeer's rockets. */
     static final int ROCKET_INTERVAL = 40;
 
-    /** Within this many blocks of the enemy's middle a charging member settles instead of flying straight at it. */
-    private static final double SETTLE_RANGE = 3.0;
-
-    /** Settling: how strongly a member is pushed toward the enemy's middle, per block of gap. */
-    private static final double SETTLE_POSITION_GAIN = 0.06;
-
-    /** Settling: how strongly a member is pushed to match the enemy's velocity, per block a tick of difference. */
-    private static final double SETTLE_VELOCITY_GAIN = 0.3;
-
     private RaidMove() {}
 
     /**
@@ -125,7 +116,7 @@ public final class RaidMove {
     private static void casterTick(
             BoundVex vex, TeamMoves.Move record, TeamMoves.Member member, LivingEntity enemy, long now) {
         Vec3 summoner = vex.summoner().map(Entity::position).orElse(vex.position());
-        TeamFlight.flyTo(vex, cell(enemy.getEyePosition(), summoner, member.cell), TeamFlight.NORMAL);
+        TeamFlight.holdAt(vex, cell(enemy.getEyePosition(), summoner, member.cell), Vec3.ZERO);
         if (!member.casterDone) {
             member.casterDone = true;
             vex.summoner().filter(owner -> !owner.hasEffect(ModEffects.MIRROR)).ifPresent(owner -> {
@@ -154,21 +145,14 @@ public final class RaidMove {
     /**
      * Flies the vex's middle to the enemy's middle and holds it there. A vex only accelerates toward its wanted point
      * and coasts, so a plain "fly to the point" overshoots and swings in and out of the enemy's box; inside
-     * {@link #SETTLE_RANGE} the push is a spring to the middle with damping on the vex's own velocity instead, the way
-     * {@code EvaderMove} steers.
+     * {@link TeamFlight#SETTLE_RANGE} the push is a spring to the middle with damping on the vex's own velocity
+     * instead, the way {@code EvaderMove} steers.
      */
     private static void closeIn(BoundVex vex, LivingEntity enemy) {
         Vec3 middle = enemy.getBoundingBox().getCenter().subtract(0.0, vex.getBbHeight() / 2.0, 0.0);
-        Vec3 gap = middle.subtract(vex.position());
-        if (gap.length() > SETTLE_RANGE) {
-            TeamFlight.flyTo(vex, middle, TeamFlight.NORMAL);
-            return;
-        }
         // The enemy's real step, not its velocity field: a mob that was knocked back keeps a stale velocity
         Vec3 enemyStep = enemy.position().subtract(enemy.xOld, enemy.yOld, enemy.zOld);
-        Vec3 push = gap.scale(SETTLE_POSITION_GAIN)
-                .add(enemyStep.subtract(vex.getDeltaMovement()).scale(SETTLE_VELOCITY_GAIN));
-        TeamFlight.steer(vex, push);
+        TeamFlight.holdAt(vex, middle, enemyStep);
     }
 
     /**

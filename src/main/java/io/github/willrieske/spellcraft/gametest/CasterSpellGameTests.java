@@ -43,6 +43,9 @@ final class CasterSpellGameTests {
     /** How near its grid cell a Caster must be after settling, in blocks. */
     private static final double CELL_TOLERANCE = 2.0;
 
+    /** Ticks, after the Raid has settled, over which the Caster must keep its cell. */
+    private static final int HOLD_TICKS = 40;
+
     /** A summoner's health low enough (under a quarter of 20) to need Ghostrail. */
     private static final float HURT_HEALTH = 4.0F;
 
@@ -54,6 +57,7 @@ final class CasterSpellGameTests {
 
     private CasterSpellGameTests() {}
 
+    /** Registers every Caster casting and Raid GameTest. */
     static void registerAll() {
         FangGameTests.addPadded(SHARED, "caster_casts_mirror", 200, CasterSpellGameTests::castsMirror);
         FangGameTests.addPadded(SHARED, "caster_wind_up_look", 200, CasterSpellGameTests::windUpLook);
@@ -75,6 +79,15 @@ final class CasterSpellGameTests {
         FangGameTests.addPadded(
                 SHARED, "caster_interruption_spends_nothing", 200, CasterSpellGameTests::interruptionSpendsNothing);
         FangGameTests.addPadded(SHARED, "caster_two_casters_one_cast", 200, CasterSpellGameTests::twoCastersOneCast);
+        FangGameTests.addPadded(
+                SHARED, "caster_ghostrail_before_mirror", 200, CasterSpellGameTests::ghostrailBeforeMirror);
+        FangGameTests.addPadded(
+                SHARED, "caster_ghostrail_cooldown_is_4800", 200, CasterSpellGameTests::ghostrailCooldownIs4800);
+        FangGameTests.addPadded(SHARED, "caster_ghostrail_range_is_16", 200, CasterSpellGameTests::ghostrailRangeIs16);
+        FangGameTests.addPadded(
+                SHARED, "caster_no_mirror_when_summoner_has_it", 200, CasterSpellGameTests::noMirrorWhenSummonerHasIt);
+        FangGameTests.addPadded(
+                "team_move_dice", "caster_raid_dismisses_a_wind_up", 300, CasterSpellGameTests::raidDismissesAWindUp);
         FangGameTests.addPadded(
                 "team_move_dice", "caster_raid_casts_mirror", 300, CasterSpellGameTests::raidCastsMirror);
         FangGameTests.addPadded(
@@ -111,6 +124,12 @@ final class CasterSpellGameTests {
      */
     private static RaidScene startedRaid(GameTestHelper helper, boolean mirrorFirst) {
         RaidScene scene = raidScene(helper);
+        startRaid(helper, scene, mirrorFirst);
+        return scene;
+    }
+
+    /** Starts the Raid of {@code scene} as {@link #startedRaid} does, and steps it every tick. */
+    private static void startRaid(GameTestHelper helper, RaidScene scene, boolean mirrorFirst) {
         whenDone(helper, Dice::unscriptAll);
         if (mirrorFirst) {
             Spells.cast(scene.player(), Spells.MIRROR, MirrorRule.DURATION_TICKS);
@@ -125,7 +144,6 @@ final class CasterSpellGameTests {
         }
         helper.assertTrue(started, "setup: the Raid starts");
         TeamMoveTestSupport.stepEveryTick(helper, scene.player());
-        return scene;
     }
 
     /**
@@ -189,6 +207,119 @@ final class CasterSpellGameTests {
                 .thenExecute(() -> {
                     helper.assertTrue(scene.caster().getMainHandItem().is(Items.GOLDEN_SWORD), "the sword is back");
                     helper.assertFalse(scene.caster().isConjured(EquipmentSlot.MAINHAND), "the slot is not conjured");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the summoner is hurt and two hostiles stand in the guard area, should the Caster cast Ghostrail first and
+     * Mirror not yet: Ghostrail is checked before Mirror.
+     *
+     * <p>Method under test: {@code CasterSpellGoal.choose}: Ghostrail before Mirror
+     */
+    static void ghostrailBeforeMirror(GameTestHelper helper) {
+        // Arrange
+        Scene scene = scene(helper, 2);
+        scene.player().setHealth(HURT_HEALTH);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(scene.player().hasEffect(ModEffects.GHOSTRAIL), "Ghostrail"))
+                .thenExecute(() -> {
+                    helper.assertFalse(scene.player().hasEffect(ModEffects.MIRROR), "no Mirror yet");
+                    helper.assertValueEqual(scene.caster().mirrorReadyAt(), 0L, "no Mirror cooldown spent");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a Caster casts Ghostrail, should its saved ready time be the game time of the cast plus 4800.
+     *
+     * <p>Method under test: {@code CasterSpellGoal.finish}: the Ghostrail cooldown
+     */
+    static void ghostrailCooldownIs4800(GameTestHelper helper) {
+        // Arrange
+        Scene scene = scene(helper, 0);
+        scene.player().setHealth(HURT_HEALTH);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(scene.player().hasEffect(ModEffects.GHOSTRAIL), "Ghostrail"))
+                .thenExecute(() -> {
+                    long now = helper.getLevel().getGameTime();
+                    long castAt = scene.caster().ghostrailReadyAt() - 4800L;
+                    helper.assertTrue(castAt <= now && castAt >= now - 5L, "the ready time is the cast plus 4800");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the hurt summoner is 17 blocks from the Caster, should the Caster cast nothing: its range is 16.
+     *
+     * <p>Method under test: {@code CasterSpellGoal.emergency}: the 16-block range
+     */
+    static void ghostrailRangeIs16(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = plainPlayer(helper);
+        floor(helper, FLOOR_RADIUS);
+        BoundVex caster = casterVex(helper, player, at(helper, -9.0, 3.0, 0.0));
+        MockPlayers.moveTo(helper, player, FangGameTests.STAND.add(8.0, 0.0, 0.0));
+        player.setHealth(HURT_HEALTH);
+        helper.assertTrue(player.distanceTo(caster) > 16.0, "setup: the summoner is out of range");
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteAfter(80, () -> {
+                    helper.assertFalse(player.hasEffect(ModEffects.GHOSTRAIL), "no Ghostrail out of range");
+                    helper.assertValueEqual(caster.ghostrailReadyAt(), 0L, "no cooldown spent");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the summoner already has Mirror and two hostiles stand in the guard area, should the Caster not cast.
+     *
+     * <p>Method under test: {@code CasterSpellGoal.choose}: Mirror needs a summoner without it
+     */
+    static void noMirrorWhenSummonerHasIt(GameTestHelper helper) {
+        // Arrange
+        Scene scene = scene(helper, 2);
+        Spells.cast(scene.player(), Spells.MIRROR, MirrorRule.DURATION_TICKS);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenExecuteAfter(80, () -> {
+                    helper.assertValueEqual(scene.caster().mirrorReadyAt(), 0L, "no cooldown spent");
+                    helper.assertFalse(scene.caster().isConjured(EquipmentSlot.MAINHAND), "no scroll was conjured");
+                    helper.assertValueEqual(images(scene.player()).size(), MirrorRule.IMAGES, "no second set");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a Raid starts while a Caster winds up Ghostrail, should the scroll be dismissed, no cooldown spent, no
+     * Ghostrail landed, and the Raid kit (a Mirror scroll) be in hand instead.
+     *
+     * <p>Method under test: {@code CasterSpellGoal.stop}: a Raid preempts the wind-up
+     */
+    static void raidDismissesAWindUp(GameTestHelper helper) {
+        // Arrange
+        RaidScene scene = raidScene(helper);
+        scene.player().setHealth(HURT_HEALTH);
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        ItemStack.isSameItem(scene.caster().getMainHandItem(), ModItems.scrollFor(Spells.GHOSTRAIL)),
+                        "winding up Ghostrail"))
+                .thenExecute(() -> startRaid(helper, scene, false))
+                .thenExecuteAfter(5, () -> {
+                    helper.assertFalse(scene.player().hasEffect(ModEffects.GHOSTRAIL), "no Ghostrail landed");
+                    helper.assertValueEqual(scene.caster().ghostrailReadyAt(), 0L, "no cooldown spent");
+                    helper.assertFalse(scene.caster().hasEffect(ModEffects.CASTING_SCROLL), "the casting look is gone");
+                    helper.assertTrue(
+                            scene.caster().getMainHandItem().is(ModItems.MIRROR_SCROLL.get()),
+                            "the Raid kit's Mirror scroll is in hand");
                 })
                 .thenSucceed();
     }
@@ -416,8 +547,9 @@ final class CasterSpellGameTests {
     }
 
     /**
-     * When a Raid has run well past its gather, should the Caster sit near its grid cell with an empty main hand, the
-     * husk still alive so the move cannot have ended.
+     * When a Raid has run well past its gather, should the Caster sit near its grid cell on every one of the next 40
+     * ticks (it holds the cell without circling) with an empty main hand, the husk still alive so the move cannot have
+     * ended.
      *
      * <p>Method under test: {@code RaidMove.tick}: the Caster holds its cell
      */
@@ -429,12 +561,15 @@ final class CasterSpellGameTests {
         helper.startSequence()
                 .thenExecuteAfter(SETTLE_TICKS, () -> {
                     helper.assertTrue(scene.husk().isAlive(), "the husk lives, so the move is still running");
+                    helper.assertTrue(scene.caster().getMainHandItem().isEmpty(), "its hand is empty");
+                })
+                .thenExecuteFor(HOLD_TICKS, () -> {
                     int cell = TeamMoves.roster(scene.player()).indexOf(scene.caster());
                     Vec3 spot = RaidMove.cell(
                             scene.husk().getEyePosition(), scene.player().position(), cell);
                     helper.assertTrue(
-                            scene.caster().position().distanceTo(spot) <= CELL_TOLERANCE, "the Caster holds its cell");
-                    helper.assertTrue(scene.caster().getMainHandItem().isEmpty(), "its hand is empty");
+                            scene.caster().position().distanceTo(spot) <= CELL_TOLERANCE,
+                            "the Caster holds its cell on every tick");
                 })
                 .thenSucceed();
     }

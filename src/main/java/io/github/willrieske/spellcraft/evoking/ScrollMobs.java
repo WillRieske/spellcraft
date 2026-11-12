@@ -88,6 +88,7 @@ public final class ScrollMobs {
     @SubscribeEvent
     public static void onChangeTarget(LivingChangeTargetEvent event) {
         if (!(event.getEntity() instanceof Mob mob)
+                || oneIn(mob) == 0
                 || event.getNewAboutToBeSetTarget() == null
                 || mob.getTarget() != null
                 || !(mob.level() instanceof ServerLevel level)

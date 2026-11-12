@@ -85,6 +85,9 @@ final class CasterSpellGoal extends Goal {
 
     @Override
     public void tick() {
+        if (done) {
+            return;
+        }
         if (subject != null) {
             TeamFlight.lookAt(vex, subject);
         }
