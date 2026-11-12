@@ -108,10 +108,16 @@ public final class MirrorImageRenderer extends EntityRenderer<MirrorImage, Mirro
         if (level == null) {
             return null;
         }
-        if (image.copiedType().equals(EntityTypes.PLAYER)) {
-            return EntityTypes.MANNEQUIN.create(level, EntitySpawnReason.LOAD);
+        Entity standIn = image.copiedType().equals(EntityTypes.PLAYER)
+                ? EntityTypes.MANNEQUIN.create(level, EntitySpawnReason.LOAD)
+                : image.copiedType().create(level, EntitySpawnReason.LOAD);
+        if (standIn != null) {
+            // Level.getNextEntityId() is 0 on the client (ids come from the spawn packet), and Entity.getId() throws
+            // for 0; vanilla's ItemModelResolver.updateForLiving reads it as the item model seed. The image's own id
+            // is non-zero, and the stand-in is never in a level, so sharing it collides with nothing.
+            standIn.setId(image.getId());
         }
-        return image.copiedType().create(level, EntitySpawnReason.LOAD);
+        return standIn;
     }
 
     /**
