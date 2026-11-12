@@ -17,4 +17,10 @@ public class BoundVexRenderState extends VexRenderState {
 
     /** The leggings, or {@link ItemStack#EMPTY} when none is worn or it has no armor model. */
     public ItemStack legsArmor = ItemStack.EMPTY;
+
+    /** Whether the vex is a Caster: the robe layer draws the robe. */
+    public boolean caster;
+
+    /** Whether the vex is casting (the casting effect is on): {@code BoundVexModel} raises both arms. */
+    public boolean casting;
 }

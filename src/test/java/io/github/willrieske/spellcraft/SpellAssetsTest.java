@@ -41,6 +41,16 @@ class SpellAssetsTest {
         assertSquarePng(ASSETS.resolve("textures/item/" + name + "_scroll.png"), 16);
     }
 
+    /**
+     * When the robe texture is read, should it be a 32 x 32 PNG: another size would mis-map the vex model's UV layout.
+     *
+     * <p>Method under test: the robe texture file
+     */
+    @Test
+    void robeTextureIs32x32() throws IOException {
+        assertSquarePng(ASSETS.resolve("textures/entity/bound_vex_robe.png"), 32);
+    }
+
     @ParameterizedTest
     @MethodSource("spellNames")
     void effectIconIs18x18(String name) throws IOException {
