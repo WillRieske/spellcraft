@@ -7,6 +7,7 @@ import static io.github.willrieske.spellcraft.gametest.ScrollTestSupport.images;
 import static io.github.willrieske.spellcraft.gametest.ScrollTestSupport.plainPlayer;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
+import io.github.willrieske.spellcraft.effect.MirrorEffect;
 import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.evoking.Dice;
 import io.github.willrieske.spellcraft.evoking.MirrorImage;
@@ -30,6 +31,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ExperienceOrb;
+import net.minecraft.world.entity.decoration.Mannequin;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Enderman;
 import net.minecraft.world.entity.monster.illager.Evoker;
@@ -57,7 +59,9 @@ public final class MirrorGameTests {
         FangGameTests.addPadded(
                 SHARED, "mirror_images_poof_when_all_effects_are_cleared", MirrorGameTests::poofOnClearAll);
         FangGameTests.addPadded(
-                SHARED, "mirror_images_poof_on_their_own_life_when_the_caster_is_gone", MirrorGameTests::poofOnOwnLife);
+                SHARED,
+                "mirror_images_poof_on_their_own_life_when_the_carrier_is_gone",
+                MirrorGameTests::poofOnOwnLife);
         FangGameTests.addPadded(
                 SHARED,
                 "mirror_images_poof_when_a_mob_carrier_is_killed",
@@ -68,11 +72,27 @@ public final class MirrorGameTests {
                 SHARED, "mirror_the_last_image_dying_removes_the_effect", MirrorGameTests::lastImageRemovesTheEffect);
         FangGameTests.addPadded(SHARED, "mirror_image_saves_and_loads", MirrorGameTests::savesAndLoads);
         FangGameTests.addPadded(
-                SHARED, "mirror_image_without_a_caster_discards_itself", MirrorGameTests::discardsWithNoCaster);
+                SHARED, "mirror_evoker_image_saves_and_loads_its_type", MirrorGameTests::evokerImageSavesAndLoads);
         FangGameTests.addPadded(
-                SHARED, "mirror_images_wander_near_the_caster", 200, MirrorGameTests::wanderNearTheCaster);
+                SHARED,
+                "mirror_a_player_without_images_loses_the_effect_after_the_login_grace",
+                MirrorGameTests::imagelessPlayerLosesMirror);
         FangGameTests.addPadded(
-                SHARED, "mirror_an_idle_image_faces_where_the_caster_faces", MirrorGameTests::idleImageFacesTheCaster);
+                SHARED,
+                "mirror_a_player_without_images_keeps_the_effect_within_the_login_grace",
+                MirrorGameTests::imagelessPlayerKeepsMirrorInTheGrace);
+        FangGameTests.addPadded(
+                SHARED,
+                "mirror_a_player_with_images_keeps_the_effect_after_the_login_grace",
+                MirrorGameTests::playerWithImagesKeepsMirror);
+        FangGameTests.addPadded(
+                SHARED, "mirror_image_without_a_carrier_discards_itself", MirrorGameTests::discardsWithNoCarrier);
+        FangGameTests.addPadded(
+                SHARED, "mirror_images_wander_near_the_carrier", 200, MirrorGameTests::wanderNearTheCarrier);
+        FangGameTests.addPadded(
+                SHARED,
+                "mirror_an_idle_image_faces_where_the_carrier_faces",
+                MirrorGameTests::idleImageFacesTheCarrier);
         FangGameTests.addPadded(
                 SHARED, "mirror_a_second_cast_makes_no_extra_images", MirrorGameTests::secondCastMakesNoExtras);
         FangGameTests.addPadded(
@@ -218,7 +238,7 @@ public final class MirrorGameTests {
     /**
      * When the carrier loses the effect (expiry, dispel), should every image poof within a few ticks.
      *
-     * <p>Method under test: {@code MirrorImage#tick} (the caster lost Mirror)
+     * <p>Method under test: {@code MirrorImage#tick} (the carrier lost Mirror)
      */
     static void poofOnRemove(GameTestHelper helper) {
         // Arrange
@@ -236,7 +256,7 @@ public final class MirrorGameTests {
     /**
      * When every effect is cleared (milk, a totem), should the images poof too.
      *
-     * <p>Method under test: {@code MirrorImage#tick} (the caster lost Mirror)
+     * <p>Method under test: {@code MirrorImage#tick} (the carrier lost Mirror)
      */
     static void poofOnClearAll(GameTestHelper helper) {
         // Arrange
@@ -252,8 +272,8 @@ public final class MirrorGameTests {
     }
 
     /**
-     * When the caster is removed without dying (unloaded with its chunk), should each image still end when its own life
-     * runs out. (A killed or discarded mob takes its images with it: {@code poofWhenAMobCarrierIsKilled}.)
+     * When the carrier is removed without dying (unloaded with its chunk), should each image still end when its own
+     * life runs out. (A killed or discarded mob takes its images with it: {@code poofWhenAMobCarrierIsKilled}.)
      *
      * <p>Method under test: {@code MirrorImage#tick} (the image's own life)
      */
@@ -337,7 +357,7 @@ public final class MirrorGameTests {
     }
 
     /**
-     * When an image is saved and loaded, should it keep its caster, life, look and held item.
+     * When an image is saved and loaded, should it keep its carrier, life, look and held item.
      *
      * <p>Method under test: {@code MirrorImage#addAdditionalSaveData} and {@code readAdditionalSaveData}
      */
@@ -354,19 +374,103 @@ public final class MirrorGameTests {
         // Assert
         helper.assertTrue(copy instanceof MirrorImage, "an image");
         MirrorImage loaded = (MirrorImage) copy;
-        helper.assertValueEqual(loaded.casterId().orElse(null), player.getUUID(), "caster");
+        helper.assertValueEqual(loaded.carrierId().orElse(null), player.getUUID(), "carrier");
         helper.assertValueEqual(loaded.lifeTicks(), 1234, "life");
         helper.assertTrue(loaded.copiedType().equals(EntityTypes.PLAYER), "look");
         helper.assertTrue(loaded.getMainHandItem().is(Items.BRICK), "held item");
+        helper.assertTrue(loaded.profile().equals(image.profile()), "the player's profile");
+        helper.assertTrue(
+                !loaded.profile().equals(Mannequin.DEFAULT_PROFILE), "the profile is the player's, not the default");
+        helper.assertValueEqual(
+                loaded.getExistingData(AllyAttachments.SUMMONER).orElse(null), player.getUUID(), "summoner mark");
         helper.succeed();
     }
 
     /**
-     * When an image is summoned with no caster (as /summon does), should it discard itself on its first tick.
+     * When an evoker's image is saved and loaded, should it still look like an evoker.
      *
-     * <p>Method under test: {@code MirrorImage#tick} with no caster
+     * <p>Method under test: {@code MirrorImage#addAdditionalSaveData} and {@code readAdditionalSaveData}
      */
-    static void discardsWithNoCaster(GameTestHelper helper) {
+    static void evokerImageSavesAndLoads(GameTestHelper helper) {
+        // Arrange
+        plainPlayer(helper);
+        floor(helper, 6);
+        Evoker evoker = foeAt(helper, EntityTypes.EVOKER, at(helper, 0.0, 0.0, 0.0));
+        Spells.cast(evoker, Spells.MIRROR, MirrorRule.DURATION_TICKS);
+        MirrorImage image = images(evoker).get(0);
+        // Act
+        Entity copy = GameTestSupport.reloaded(helper.getLevel(), image);
+        // Assert
+        helper.assertTrue(copy instanceof MirrorImage, "an image");
+        MirrorImage loaded = (MirrorImage) copy;
+        helper.assertTrue(loaded.copiedType().equals(EntityTypes.EVOKER), "still an evoker");
+        helper.assertValueEqual(loaded.carrierId().orElse(null), evoker.getUUID(), "carrier");
+        helper.succeed();
+    }
+
+    /** The Mirror effect's tick, as the effect engine would call it for {@code carrier}. */
+    private static boolean mirrorTick(GameTestHelper helper, ServerPlayer carrier) {
+        return ModEffects.MIRROR.value().applyEffectTick(helper.getLevel(), carrier, 0);
+    }
+
+    /**
+     * When a player with Mirror has no live image and has been in the world past the login grace, should the effect's
+     * tick end the effect.
+     *
+     * <p>Method under test: {@code MirrorEffect#applyEffectTick}
+     */
+    static void imagelessPlayerLosesMirror(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = plainPlayer(helper);
+        floor(helper, 6);
+        Spells.cast(player, Spells.MIRROR, MirrorRule.DURATION_TICKS);
+        images(player).forEach(MirrorImage::poof);
+        player.tickCount = MirrorEffect.LOGIN_GRACE_TICKS + 1;
+        // Act and Assert
+        helper.assertFalse(mirrorTick(helper, player), "the effect ends");
+        helper.succeed();
+    }
+
+    /**
+     * When a player with Mirror has no live image but is still within the login grace, should the effect stay (the
+     * images' chunk may not be loaded yet).
+     *
+     * <p>Method under test: {@code MirrorEffect#applyEffectTick}
+     */
+    static void imagelessPlayerKeepsMirrorInTheGrace(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = plainPlayer(helper);
+        floor(helper, 6);
+        Spells.cast(player, Spells.MIRROR, MirrorRule.DURATION_TICKS);
+        images(player).forEach(MirrorImage::poof);
+        player.tickCount = MirrorEffect.LOGIN_GRACE_TICKS;
+        // Act and Assert
+        helper.assertTrue(mirrorTick(helper, player), "the effect stays");
+        helper.succeed();
+    }
+
+    /**
+     * When a player with Mirror still has live images past the login grace, should the effect stay.
+     *
+     * <p>Method under test: {@code MirrorEffect#applyEffectTick}
+     */
+    static void playerWithImagesKeepsMirror(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = plainPlayer(helper);
+        floor(helper, 6);
+        Spells.cast(player, Spells.MIRROR, MirrorRule.DURATION_TICKS);
+        player.tickCount = MirrorEffect.LOGIN_GRACE_TICKS + 500;
+        // Act and Assert
+        helper.assertTrue(mirrorTick(helper, player), "the effect stays");
+        helper.succeed();
+    }
+
+    /**
+     * When an image is summoned with no carrier (as /summon does), should it discard itself on its first tick.
+     *
+     * <p>Method under test: {@code MirrorImage#tick} with no carrier
+     */
+    static void discardsWithNoCarrier(GameTestHelper helper) {
         // Arrange & Act
         MirrorImage image = helper.spawn(ModEntities.MIRROR_IMAGE.get(), new BlockPos(1, 2, 1));
         // Assert
@@ -382,7 +486,7 @@ public final class MirrorGameTests {
      *
      * <p>Method under test: {@code MirrorImage#serverAiStep}
      */
-    static void wanderNearTheCaster(GameTestHelper helper) {
+    static void wanderNearTheCarrier(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = plainPlayer(helper);
         floor(helper, 12);
@@ -409,11 +513,11 @@ public final class MirrorGameTests {
     }
 
     /**
-     * When an image has arrived at its wander target, should it face the way the caster faces.
+     * When an image has arrived at its wander target, should it face the way the carrier faces.
      *
      * <p>Method under test: {@code MirrorImage#serverAiStep} (idle)
      */
-    static void idleImageFacesTheCaster(GameTestHelper helper) {
+    static void idleImageFacesTheCarrier(GameTestHelper helper) {
         // Arrange
         ServerPlayer player = plainPlayer(helper);
         floor(helper, 6);
@@ -425,7 +529,7 @@ public final class MirrorGameTests {
         // Assert
         helper.startSequence()
                 .thenExecuteAfter(
-                        3, () -> helper.assertValueEqual(image.getYRot(), 90.0F, "faces where the caster faces"))
+                        3, () -> helper.assertValueEqual(image.getYRot(), 90.0F, "faces where the carrier faces"))
                 .thenSucceed();
     }
 

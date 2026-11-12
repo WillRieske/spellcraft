@@ -776,7 +776,11 @@ an evoker), not the Caster vex.
   `LivingDeathEvent` handler when a carrier dies, and by `MirrorEffect.onMobRemoved` when a mob is
   killed or discarded (§7.2).
 - **A carrier changes dimension:** its images stay behind in the old level (they are looked up by level)
-  and the carrier keeps the effect until the images' own life ends. Accepted, a playtest note.
+  and a player carrier's effect ends within a second of the change (see the next item). Accepted, a playtest note.
+- **A player carrier logs out and returns:** the images poof on their own life while the player is offline, and
+  effect timers do not run offline. `MirrorEffect.applyEffectTick` (every 20 ticks) therefore ends the effect of a
+  player who has no live image of theirs in the level once `tickCount` (which restarts on login) is past 100, so the
+  chunk's entities have loaded first.
 - **A mob with a scroll is converted** (a pillager is not; an evoker cannot be): nothing special.
 - **A ghost whose record was dropped** (a 33rd death): the ghost discards itself on its next tick.
 - **Two Casters ready at once:** each checks "no effect" at the end of its wind-up, so only the

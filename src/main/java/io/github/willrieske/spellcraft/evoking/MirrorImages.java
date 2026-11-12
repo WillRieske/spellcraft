@@ -33,17 +33,17 @@ public final class MirrorImages {
     private MirrorImages() {}
 
     /**
-     * The live images of {@code caster} in {@code level}, at any distance.
+     * The live images of {@code carrier} in {@code level}, at any distance.
      *
      * @param level the level
-     * @param caster the carrier's UUID
+     * @param carrier the carrier's UUID
      * @return the images, in query order
      */
-    public static List<MirrorImage> of(ServerLevel level, UUID caster) {
+    public static List<MirrorImage> of(ServerLevel level, UUID carrier) {
         return List.copyOf(level.getEntities(
                 EntityTypeTest.forClass(MirrorImage.class),
                 image -> image.isAlive()
-                        && image.casterId().filter(caster::equals).isPresent()));
+                        && image.carrierId().filter(carrier::equals).isPresent()));
     }
 
     /**
@@ -99,9 +99,11 @@ public final class MirrorImages {
 
     /**
      * A carrier that dies takes its images with it. A dead player's effects are not cleared (vanilla keeps them until
-     * the respawn), so the images' own "caster lost Mirror" check would never fire; a mob's effects are cleared only
+     * the respawn), so the images' own "carrier lost Mirror" check would never fire; a mob's effects are cleared only
      * when it is removed ({@code MirrorEffect.onMobRemoved}), which comes up to 20 ticks after the death. Lowest
-     * priority and not called for a cancelled event, so a totem or another mod that cancels the death keeps the images.
+     * priority and not called for a cancelled event, so another mod that cancels the death while the effect stays keeps
+     * the images (a totem never reaches this event: vanilla checks it before {@code die}, and its death protection
+     * clears every effect, so the images poof on their next tick).
      *
      * @param event the death of any living entity
      */
@@ -114,16 +116,16 @@ public final class MirrorImages {
     }
 
     /**
-     * Called when an image dies or runs out of life: when no other live image of the caster remains and the caster is
+     * Called when an image dies or runs out of life: when no other live image of the carrier remains and the carrier is
      * loaded in {@code level}, its Mirror effect goes, so "no images" and "no effect" are one thing.
      *
      * @param level the image's level
-     * @param caster the carrier's UUID
+     * @param carrierId the carrier's UUID
      * @param ending the image that just ended (excluded: it may still be listed this tick)
      */
-    public static void afterEnd(ServerLevel level, UUID caster, MirrorImage ending) {
-        boolean others = of(level, caster).stream().anyMatch(image -> !image.equals(ending));
-        if (!others && level.getEntities().get(caster) instanceof LivingEntity carrier) {
+    public static void afterEnd(ServerLevel level, UUID carrierId, MirrorImage ending) {
+        boolean others = of(level, carrierId).stream().anyMatch(image -> !image.equals(ending));
+        if (!others && level.getEntities().get(carrierId) instanceof LivingEntity carrier) {
             carrier.removeEffect(ModEffects.MIRROR);
         }
     }
@@ -132,12 +134,12 @@ public final class MirrorImages {
      * Confusion (spec §7.2; amends the parent §9.3 to any mob): when a mob is about to pick a carrier that has live
      * images within {@link MirrorRule#CONFUSION_RANGE} of the carrier, the new target is replaced, with probability
      * 13/14, by a random one of those images. Skipped when the new target has no Mirror effect (this event fires for
-     * every target change of every mob in the world, and finding images walks every entity in the level, so the cheap
-     * effect test comes first; "no images alive" and "no Mirror effect" are the same thing), when the new target is
-     * already an image, when it is the mob's current target (a target goal re-sets its target every tick, and each
-     * re-set fires this event; rolling on those would redirect almost every mob), when the mob already targets an
-     * image (a live image of this carrier: the change is cancelled and the mob stays on it; any other image: the
-     * change goes ahead; no roll either way), and for an iron golem
+     * every target change of every mob in the world, and the box query for images costs more, so the cheap effect test
+     * comes first; "no images alive" and "no Mirror effect" are the same thing), when it is the mob's current target (a
+     * target goal re-sets its target every tick, and each re-set fires this event; rolling on those would redirect
+     * almost every mob), when the mob already targets an image (a live image of this carrier: the change is cancelled
+     * and the mob stays on it; any other image: the change goes ahead; no roll either way; a removed image is no
+     * target at all, since {@code Mob.getTarget} drops it, so that change is a fresh pick), and for an iron golem
      * going for a player (the images carry the player's mark, which {@code GolemMercy} refuses as a golem's target).
      * The roll is taken only for an eligible change, so a scripted GameTest roll is never spent on a skipped one.
      * Brain mobs that write their target without this event are not confused (accepted).
@@ -149,7 +151,6 @@ public final class MirrorImages {
         LivingEntity carrier = event.getNewAboutToBeSetTarget();
         if (carrier == null
                 || !carrier.hasEffect(ModEffects.MIRROR)
-                || carrier instanceof MirrorImage
                 || !(event.getEntity() instanceof Mob mob)
                 || !(carrier.level() instanceof ServerLevel level)
                 || carrier.equals(mob.getTarget())
@@ -158,14 +159,17 @@ public final class MirrorImages {
         }
         if (mob.getTarget() instanceof MirrorImage current) {
             if (current.isAlive()
-                    && current.casterId().filter(carrier.getUUID()::equals).isPresent()) {
+                    && current.carrierId().filter(carrier.getUUID()::equals).isPresent()) {
                 event.setCanceled(true);
             }
             return;
         }
-        List<MirrorImage> near = of(level, carrier.getUUID()).stream()
-                .filter(image -> image.distanceTo(carrier) <= MirrorRule.CONFUSION_RANGE)
-                .toList();
+        List<MirrorImage> near = level.getEntitiesOfClass(
+                MirrorImage.class,
+                carrier.getBoundingBox().inflate(MirrorRule.CONFUSION_RANGE),
+                image -> image.isAlive()
+                        && image.carrierId().filter(carrier.getUUID()::equals).isPresent()
+                        && image.distanceTo(carrier) <= MirrorRule.CONFUSION_RANGE);
         if (near.isEmpty()) {
             return;
         }

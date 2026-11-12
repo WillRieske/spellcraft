@@ -18,7 +18,9 @@ import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.monster.illager.Evoker;
 import net.minecraft.world.entity.monster.zombie.Husk;
 
-/** GameTests of the Mirror confusion (Parts 6-7 spec §7.2: 13 of 14, any mob, never a golem onto a player's images). */
+/**
+ * GameTests of the Mirror confusion (Parts 6-7 spec §7.2: 13 of 14, any mob, never a golem onto a player's images).
+ */
 public final class MirrorConfusionGameTests {
     private MirrorConfusionGameTests() {}
 
@@ -38,6 +40,14 @@ public final class MirrorConfusionGameTests {
                 DICE,
                 "mirror_confusion_does_not_roll_for_a_mob_already_on_an_image",
                 MirrorConfusionGameTests::noRerollOnAnImage);
+        FangGameTests.addPadded(
+                DICE,
+                "mirror_confusion_does_not_block_a_mob_on_another_carriers_image",
+                MirrorConfusionGameTests::anotherCarriersImageIsNotBlocked);
+        FangGameTests.addPadded(
+                DICE,
+                "mirror_confusion_treats_a_removed_image_target_as_a_fresh_pick",
+                MirrorConfusionGameTests::aDeadImageDoesNotHold);
         FangGameTests.addPadded(
                 DICE,
                 "mirror_confusion_ignores_images_beyond_16_blocks",
@@ -79,7 +89,7 @@ public final class MirrorConfusionGameTests {
         // Assert
         helper.assertTrue(
                 zombie.getTarget() instanceof MirrorImage image
-                        && image.casterId().filter(player.getUUID()::equals).isPresent(),
+                        && image.carrierId().filter(player.getUUID()::equals).isPresent(),
                 "the target is an image of the player");
         helper.succeed();
     }
@@ -165,6 +175,69 @@ public final class MirrorConfusionGameTests {
     }
 
     /**
+     * When a zombie that targets an image of carrier A is then set on carrier B, should the change go ahead (A's image
+     * does not hold it) and no roll be taken, so the next zombie gets the scripted 0.
+     *
+     * <p>Method under test: {@code MirrorImages.onChangeTarget}.
+     */
+    static void anotherCarriersImageIsNotBlocked(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = plainPlayer(helper);
+        floor(helper, 6);
+        Spells.cast(player, Spells.MIRROR, MirrorRule.DURATION_TICKS);
+        Evoker evoker = foeAt(helper, EntityTypes.EVOKER, at(helper, 0.0, 0.0, -3.0));
+        Spells.cast(evoker, Spells.MIRROR, MirrorRule.DURATION_TICKS);
+        Husk zombieA = zombie(helper);
+        Husk zombieB = hostileAt(helper, at(helper, -4.0, 0.0, 0.0));
+        MirrorImage playersImage = images(player).get(0);
+        // Act
+        try {
+            Dice.MIRROR_CONFUSION.script(0);
+            zombieA.setTarget(playersImage);
+            zombieA.setTarget(evoker);
+            zombieB.setTarget(evoker);
+        } finally {
+            Dice.unscriptAll();
+        }
+        // Assert
+        helper.assertTrue(evoker.equals(zombieA.getTarget()), "A switched to the evoker, with no roll");
+        helper.assertTrue(
+                zombieB.getTarget() instanceof MirrorImage image
+                        && image.carrierId().filter(evoker.getUUID()::equals).isPresent(),
+                "B was redirected to an evoker image, so the 0 was not spent");
+        helper.succeed();
+    }
+
+    /**
+     * When a zombie's target image has been removed and the zombie is set on the image's carrier, should the change be
+     * a fresh pick (the removed image no longer counts as a target), so the dice redirect it to a live image.
+     *
+     * <p>Method under test: {@code MirrorImages.onChangeTarget}.
+     */
+    static void aDeadImageDoesNotHold(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = plainPlayer(helper);
+        floor(helper, 6);
+        Spells.cast(player, Spells.MIRROR, MirrorRule.DURATION_TICKS);
+        Husk zombie = zombie(helper);
+        MirrorImage image = images(player).get(0);
+        // Act
+        try {
+            Dice.MIRROR_CONFUSION.script(0);
+            zombie.setTarget(image);
+            image.poof();
+            zombie.setTarget(player);
+        } finally {
+            Dice.unscriptAll();
+        }
+        // Assert
+        helper.assertTrue(
+                zombie.getTarget() instanceof MirrorImage other && other.isAlive() && !other.equals(image),
+                "the zombie was redirected to a live image: a fresh pick");
+        helper.succeed();
+    }
+
+    /**
      * When every image is more than 16 blocks from the carrier and the dice roll 0, should the zombie keep the carrier.
      *
      * <p>Method under test: {@code MirrorImages.onChangeTarget}.
@@ -237,7 +310,7 @@ public final class MirrorConfusionGameTests {
         // Assert
         helper.assertTrue(
                 golem.getTarget() instanceof MirrorImage image
-                        && image.casterId().filter(evoker.getUUID()::equals).isPresent(),
+                        && image.carrierId().filter(evoker.getUUID()::equals).isPresent(),
                 "the golem targets an image of the evoker");
         helper.succeed();
     }

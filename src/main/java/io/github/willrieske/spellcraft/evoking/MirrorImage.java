@@ -33,9 +33,9 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * One of the thirteen copies a Mirror makes (Parts 6-7 spec §7.2). A {@code LivingEntity}, not a mob: health 10, no
- * attack, no pathfinding. It wanders within {@link MirrorRule#WANDER_RADIUS} blocks of its caster by walking at a
- * random point and jumping one block, lives {@link MirrorRule#LIFE_TICKS} ticks of its own, and poofs when its caster
- * is loaded in its level and no longer has Mirror. For a player caster it carries the player's summoner mark, so
+ * attack, no pathfinding. It wanders within {@link MirrorRule#WANDER_RADIUS} blocks of its carrier by walking at a
+ * random point and jumping one block, lives {@link MirrorRule#LIFE_TICKS} ticks of its own, and poofs when its carrier
+ * is loaded in its level and no longer has Mirror. For a player carrier it carries the player's summoner mark, so
  * {@code Allies} treat it as the player's own. The client draws it as a stand-in of {@link #copiedType()} (Task 14).
  */
 public final class MirrorImage extends LivingEntity {
@@ -43,12 +43,12 @@ public final class MirrorImage extends LivingEntity {
     private static final EntityDataAccessor<String> COPIED_TYPE =
             SynchedEntityData.defineId(MirrorImage.class, EntityDataSerializers.STRING);
 
-    /** Synced: the profile of a player caster (the skin), else {@link Mannequin#DEFAULT_PROFILE}. */
+    /** Synced: the profile of a player carrier (the skin), else {@link Mannequin#DEFAULT_PROFILE}. */
     private static final EntityDataAccessor<ResolvableProfile> PROFILE =
             SynchedEntityData.defineId(MirrorImage.class, EntityDataSerializers.RESOLVABLE_PROFILE);
 
-    /** Save key of the caster's UUID. */
-    private static final String CASTER_TAG = "caster";
+    /** Save key of the carrier's UUID. The key stays {@code "caster"}: spec §7.2 fixes it, saved images use it. */
+    private static final String CARRIER_TAG = "caster";
 
     /** Save key of the ticks left of the image's own life. */
     private static final String LIFE_TAG = "life_ticks";
@@ -71,8 +71,8 @@ public final class MirrorImage extends LivingEntity {
     /** The speed an image walks at, as {@code setSpeed} takes it. */
     private static final float WALK_SPEED = 0.1F;
 
-    /** The caster's UUID, or null for an image nobody made (it discards itself on its first tick). */
-    private @Nullable UUID casterId;
+    /** The carrier's UUID, or null for an image nobody made (it discards itself on its first tick). */
+    private @Nullable UUID carrierId;
 
     /** Ticks left of this image's own life. */
     private int lifeTicks = MirrorRule.LIFE_TICKS;
@@ -101,12 +101,12 @@ public final class MirrorImage extends LivingEntity {
     }
 
     /**
-     * The caster this image copies.
+     * The carrier this image copies.
      *
-     * @return the caster's UUID, if this image has one
+     * @return the carrier's UUID, if this image has one
      */
-    public Optional<UUID> casterId() {
-        return Optional.ofNullable(casterId);
+    public Optional<UUID> carrierId() {
+        return Optional.ofNullable(carrierId);
     }
 
     /**
@@ -124,7 +124,7 @@ public final class MirrorImage extends LivingEntity {
     /**
      * The skin this image wears.
      *
-     * @return the skin profile of a player caster, else the default profile
+     * @return the skin profile of a player carrier, else the default profile
      */
     public ResolvableProfile profile() {
         return entityData.get(PROFILE);
@@ -150,7 +150,7 @@ public final class MirrorImage extends LivingEntity {
 
     /**
      * Sends the image to walk to {@code point} (a test hook: setting the image's own position makes it idle there,
-     * facing where its caster faces, until the next pick).
+     * facing where its carrier faces, until the next pick).
      *
      * @param point the new wander target
      */
@@ -160,22 +160,22 @@ public final class MirrorImage extends LivingEntity {
     }
 
     /**
-     * Makes this image a copy of {@code caster}: the caster id, the copied type and profile, copies of both hands, and,
-     * for a player, the player's summoner mark. Call once, before the image is added to the level.
+     * Makes this image a copy of {@code carrier}: the carrier id, the copied type and profile, copies of both hands,
+     * and, for a player, the player's summoner mark. Call once, before the image is added to the level.
      *
-     * @param caster whoever has the Mirror effect
+     * @param carrier whoever has the Mirror effect
      */
-    public void bind(LivingEntity caster) {
-        casterId = caster.getUUID();
+    public void bind(LivingEntity carrier) {
+        carrierId = carrier.getUUID();
         entityData.set(
                 COPIED_TYPE,
-                BuiltInRegistries.ENTITY_TYPE.getKey(caster.getType()).toString());
-        if (caster instanceof Player player) {
+                BuiltInRegistries.ENTITY_TYPE.getKey(carrier.getType()).toString());
+        if (carrier instanceof Player player) {
             entityData.set(PROFILE, ResolvableProfile.createResolved(player.getGameProfile()));
             setData(AllyAttachments.SUMMONER, player.getUUID());
         }
-        setItemSlot(EquipmentSlot.MAINHAND, caster.getMainHandItem().copy());
-        setItemSlot(EquipmentSlot.OFFHAND, caster.getOffhandItem().copy());
+        setItemSlot(EquipmentSlot.MAINHAND, carrier.getMainHandItem().copy());
+        setItemSlot(EquipmentSlot.OFFHAND, carrier.getOffhandItem().copy());
         refreshDimensions();
     }
 
@@ -215,33 +215,34 @@ public final class MirrorImage extends LivingEntity {
         }
     }
 
-    /** Ends the image when it has no caster, no life left, or a caster that lost Mirror. */
+    /** Ends the image when it has no carrier, no life left, or a carrier that lost Mirror. */
     private void serverTick(ServerLevel server) {
-        if (casterId == null) {
+        if (carrierId == null) {
             discard();
             return;
         }
         if (--lifeTicks <= 0) {
             poof();
-            MirrorImages.afterEnd(server, casterId, this);
+            MirrorImages.afterEnd(server, carrierId, this);
             return;
         }
-        if (server.getEntities().get(casterId) instanceof LivingEntity caster && !caster.hasEffect(ModEffects.MIRROR)) {
+        if (server.getEntities().get(carrierId) instanceof LivingEntity carrier
+                && !carrier.hasEffect(ModEffects.MIRROR)) {
             poof();
         }
     }
 
-    /** Walks toward a random point near the caster; faces where the caster faces when it has arrived. */
+    /** Walks toward a random point near the carrier; faces where the carrier faces when it has arrived. */
     @Override
     protected void serverAiStep() {
         super.serverAiStep();
-        LivingEntity caster = casterId != null
+        LivingEntity carrier = carrierId != null
                         && level() instanceof ServerLevel server
-                        && server.getEntities().get(casterId) instanceof LivingEntity found
+                        && server.getEntities().get(carrierId) instanceof LivingEntity found
                 ? found
                 : null;
-        Vec3 center = caster != null ? caster.position() : position();
-        // A new target only when the timer runs out: an image that has arrived idles (facing the caster) until then.
+        Vec3 center = carrier != null ? carrier.position() : position();
+        // A new target only when the timer runs out: an image that has arrived idles (facing the carrier) until then.
         if (wanderTo == null || --wanderTicks <= 0) {
             double angle = random.nextDouble() * Math.PI * 2.0;
             double radius = random.nextDouble() * MirrorRule.WANDER_RADIUS;
@@ -253,8 +254,8 @@ public final class MirrorImage extends LivingEntity {
         if (dx * dx + dz * dz < 1.0) {
             zza = 0.0F;
             setJumping(false);
-            if (caster != null) {
-                setYRot(caster.getYRot());
+            if (carrier != null) {
+                setYRot(carrier.getYRot());
                 yBodyRot = getYRot();
                 yHeadRot = getYRot();
             }
@@ -277,20 +278,20 @@ public final class MirrorImage extends LivingEntity {
         discard();
     }
 
-    /** A dead image may have been the last one: then the caster's Mirror ends with it. */
+    /** A dead image may have been the last one: then the carrier's Mirror ends with it. */
     @Override
     public void die(DamageSource source) {
         super.die(source);
-        if (level() instanceof ServerLevel server && casterId != null) {
-            MirrorImages.afterEnd(server, casterId, this);
+        if (level() instanceof ServerLevel server && carrierId != null) {
+            MirrorImages.afterEnd(server, carrierId, this);
         }
     }
 
     @Override
     protected void addAdditionalSaveData(ValueOutput output) {
         super.addAdditionalSaveData(output);
-        if (casterId != null) {
-            output.store(CASTER_TAG, UUIDUtil.CODEC, casterId);
+        if (carrierId != null) {
+            output.store(CARRIER_TAG, UUIDUtil.CODEC, carrierId);
         }
         output.putInt(LIFE_TAG, lifeTicks);
         output.putString(TYPE_TAG, entityData.get(COPIED_TYPE));
@@ -300,7 +301,7 @@ public final class MirrorImage extends LivingEntity {
     @Override
     protected void readAdditionalSaveData(ValueInput input) {
         super.readAdditionalSaveData(input);
-        casterId = input.read(CASTER_TAG, UUIDUtil.CODEC).orElse(null);
+        carrierId = input.read(CARRIER_TAG, UUIDUtil.CODEC).orElse(null);
         lifeTicks = input.getIntOr(LIFE_TAG, MirrorRule.LIFE_TICKS);
         entityData.set(COPIED_TYPE, input.getStringOr(TYPE_TAG, DEFAULT_TYPE));
         input.read(PROFILE_TAG, ResolvableProfile.CODEC).ifPresent(profile -> entityData.set(PROFILE, profile));
