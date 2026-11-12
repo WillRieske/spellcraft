@@ -35,6 +35,8 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
  * Bound Vexes rescue their summoner (Parts 4–5 spec §5, §6.2): driven from the player's tick, this class finds the
  * need, picks the rescuer and applies the push itself, so a rescue never waits on a vex's goals. The rescuer's
  * {@link RescueGoal} only keeps the vex at the player's side. All state is transient.
+ *
+ * <p>Functional spec §10.1, §10.2, §10.3, §10.4, §10.5.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class VexRescues {
@@ -48,31 +50,33 @@ public final class VexRescues {
         VOID
     }
 
-    /** How far the rescuer may be when a lava or drowning rescue starts. */
+    /** How far the rescuer may be when a lava or drowning rescue starts. Functional spec §10.1. */
     public static final double RESCUER_RANGE = 16.0;
 
-    /** How far the rescuer may be when a void catch starts. */
+    /** How far the rescuer may be when a void catch starts. Functional spec §10.1. */
     public static final double VOID_RESCUER_RANGE = 64.0;
 
-    /** A lava pull lasts at most this long. */
+    /** A lava pull lasts at most this long. Functional spec §10.3. */
     public static final int LAVA_LIMIT = 60;
 
     /** A lava pull ends when the player has been out of lava this long. */
     public static final int OUT_OF_LAVA = 10;
 
-    /** After a lava pull, none starts for the same player for this long. */
+    /** After a lava pull, none starts for the same player for this long. Functional spec §10.3. */
     public static final int LAVA_PAUSE = 20;
 
     /** How long the rescuer shows what it used (the bucket, the apple) after the rescue's work is done. */
     public static final int TAIL = 20;
 
-    /** A drowning push starts when the player has less air than this (ticks of air supply). */
+    /**
+     * A drowning push starts when the player has less air than this (ticks of air supply). Functional spec §10.5.
+     */
     public static final int LOW_AIR = 60;
 
-    /** A drowning push lasts at most this long. */
+    /** A drowning push lasts at most this long. Functional spec §10.5. */
     public static final int DROWNING_LIMIT = 200;
 
-    /** The open water above the player head may reach up at most this far to the air. */
+    /** The open water above the player head may reach up at most this far to the air. Functional spec §10.5. */
     public static final int WAY_UP = 32;
 
     /** How far to the right of the way the player faces the rescuer hangs. */
@@ -157,6 +161,7 @@ public final class VexRescues {
     /**
      * One step for {@code player}: notes where they last stood, carries a running rescue on, or starts the first
      * rescue they need. Public so GameTests can step a mock player, which gets no player tick.
+     * Functional spec §10.1, §10.2.
      *
      * @param player the player
      */
@@ -256,7 +261,9 @@ public final class VexRescues {
         showInHand(rescue, item, now);
     }
 
-    /** Whether {@code player} is under water, low on air, and open water leads up to air. */
+    /**
+     * Whether {@code player} is under water, low on air, and open water leads up to air. Functional spec §10.5.
+     */
     private static boolean needsDrowningPush(ServerPlayer player) {
         return wantsDrowningPush(player)
                 && player.isUnderWater()
@@ -264,7 +271,10 @@ public final class VexRescues {
                 && hasWayUp(player);
     }
 
-    /** Whether {@code player} is the kind of player a drowning push is for: Overworld, not immune, pushable. */
+    /**
+     * Whether {@code player} is the kind of player a drowning push is for: Overworld, not immune, pushable.
+     * Functional spec §10.2, §10.5.
+     */
     private static boolean wantsDrowningPush(ServerPlayer player) {
         return player.level().dimension().equals(Level.OVERWORLD)
                 && canBePushed(player)
@@ -275,6 +285,7 @@ public final class VexRescues {
     /**
      * Whether open water leads from the player head straight up to air within {@link #WAY_UP} blocks: every block on
      * the way is water with no collision. Under a ceiling there is no push (it would pin the player to the roof).
+     * Functional spec §10.5.
      */
     private static boolean hasWayUp(ServerPlayer player) {
         ServerLevel level = player.level();
@@ -294,12 +305,14 @@ public final class VexRescues {
         return false;
     }
 
-    /** Whether {@code player} may be pushed by a rescue at all: not creative and not riding. */
+    /**
+     * Whether {@code player} may be pushed by a rescue at all: not creative and not riding. Functional spec §10.2.
+     */
     private static boolean canBePushed(ServerPlayer player) {
         return !player.isCreative() && !player.isPassenger();
     }
 
-    /** Whether {@code player} is in lava and no rule keeps a vex from pulling them out. */
+    /** Whether {@code player} is in lava and no rule keeps a vex from pulling them out. Functional spec §10.3. */
     private static boolean needsLavaPull(ServerPlayer player) {
         long now = player.level().getGameTime();
         return player.isInLava()
@@ -307,7 +320,10 @@ public final class VexRescues {
                 && now >= LAVA_PAUSED_UNTIL.getOrDefault(player.getUUID(), 0L);
     }
 
-    /** Whether {@code player} is the kind of player a lava pull is for: not immune, pushable. */
+    /**
+     * Whether {@code player} is the kind of player a lava pull is for: not immune, pushable.
+     * Functional spec §10.2, §10.3.
+     */
     private static boolean wantsLavaPull(ServerPlayer player) {
         ResourceKey<Level> dimension = player.level().dimension();
         return (dimension.equals(Level.OVERWORLD) || dimension.equals(Level.NETHER))
@@ -319,6 +335,7 @@ public final class VexRescues {
      * Starts a rescue of {@code kind} when a rescuer is within {@code range}; it goes to the player's side. The
      * move can take the rescuer away from the target it was fighting: it keeps that target only if the target is
      * still within the vex's reach from the player's side, otherwise the vex's own rules drop it.
+     * Functional spec §10.1.
      */
     private static void start(ServerPlayer player, Kind kind, double range) {
         UUID id = player.getUUID();
@@ -330,7 +347,7 @@ public final class VexRescues {
         });
     }
 
-    /** The nearest vex within {@code range} that {@link #holds} {@code player}, if any. */
+    /** The nearest vex within {@code range} that {@link #holds} {@code player}, if any. Functional spec §10.1. */
     static Optional<BoundVex> nearestRescuer(ServerPlayer player, double range) {
         return player
                 .level()
@@ -342,7 +359,10 @@ public final class VexRescues {
                 .min(Comparator.comparingDouble(vex -> vex.distanceToSqr(player)));
     }
 
-    /** Whether {@code vex} can (still) rescue {@code player}: alive, here, following, and theirs. */
+    /**
+     * Whether {@code vex} can (still) rescue {@code player}: alive, here, following, and theirs.
+     * Functional spec §10.1.
+     */
     private static boolean holds(BoundVex vex, ServerPlayer player) {
         return vex.isAlive()
                 && !vex.isRemoved()
@@ -369,7 +389,10 @@ public final class VexRescues {
         }
     }
 
-    /** One tick of a drowning push: ends at the surface, when the way up closes, on the limit or when not needed. */
+    /**
+     * One tick of a drowning push: ends at the surface, when the way up closes, on the limit or when not needed.
+     * Functional spec §10.5.
+     */
     private static void drowning(ServerPlayer player, Rescue rescue, long now) {
         if (!wantsDrowningPush(player)
                 || !player.isUnderWater()
@@ -381,7 +404,7 @@ public final class VexRescues {
         push(player, RescuePush.drowningPush(vector(player.getKnownMovement())));
     }
 
-    /** One tick of a lava pull: counts the ticks out of lava, ends the pull, or pushes. */
+    /** One tick of a lava pull: counts the ticks out of lava, ends the pull, or pushes. Functional spec §10.3. */
     private static void lava(ServerPlayer player, Rescue rescue, long now) {
         if (!wantsLavaPull(player)) {
             drop(player.getUUID());
@@ -408,7 +431,10 @@ public final class VexRescues {
         }
     }
 
-    /** Ends a lava pull: starts the pause, then in the Nether (player out of lava) the bucket and its tail. */
+    /**
+     * Ends a lava pull: starts the pause, then in the Nether (player out of lava) the bucket and its tail.
+     * Functional spec §10.3, §10.4.
+     */
     private static void endLava(ServerPlayer player, Rescue rescue, long now, boolean out) {
         LAVA_PAUSED_UNTIL.put(player.getUUID(), now + LAVA_PAUSE);
         if (out && player.level().dimension().equals(Level.NETHER)) {
@@ -419,7 +445,10 @@ public final class VexRescues {
         }
     }
 
-    /** The Nether's water bucket: the sounds, the splash, the fire out. No water block is placed. */
+    /**
+     * The Nether's water bucket: the sounds, the splash, the fire out. No water block is placed.
+     * Functional spec §10.4.
+     */
     private static void douse(ServerPlayer player) {
         ServerLevel level = player.level();
         level.playSound(
@@ -537,7 +566,7 @@ public final class VexRescues {
 
     /**
      * Puts {@code vex} at the player's side, still. Vexes pass through blocks, so any point works. A target out of
-     * the vex's reach from there is dropped by the vex's own rules, not here.
+     * the vex's reach from there is dropped by the vex's own rules, not here. Functional spec §10.1.
      *
      * @param vex the rescuer
      * @param player the player

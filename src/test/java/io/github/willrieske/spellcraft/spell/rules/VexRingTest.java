@@ -10,6 +10,7 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+/** Functional spec §5.1. */
 class VexRingTest {
     @Nested
     class OffsetAt {

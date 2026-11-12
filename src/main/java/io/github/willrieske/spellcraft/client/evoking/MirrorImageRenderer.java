@@ -32,6 +32,8 @@ import org.jspecify.annotations.Nullable;
  * into the extracted render state instead, from {@code PlayerSkinRenderCache.getOrDefault(profile)}, which answers the
  * resolved skin or the default on every call (the dispatcher picks the player renderer, wide or slim, from
  * {@code state.skin.model()}). Images carry the hands' items only, no armor (spec §7.2).
+ *
+ * <p>Functional spec §13.2, §13.3.
  */
 public final class MirrorImageRenderer extends EntityRenderer<MirrorImage, MirrorImageRenderState> {
     /**

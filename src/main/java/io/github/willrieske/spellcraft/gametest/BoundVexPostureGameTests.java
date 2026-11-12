@@ -21,6 +21,8 @@ import org.slf4j.Logger;
 /**
  * GameTests of the Bound Vex guard postures by place and time of day: the close posture's band, the staying
  * vex's scan cadence by place, and the close flight that yields to a target or follows a fleeing summoner.
+ *
+ * <p>Functional spec §6.1, §6.2, §6.3, §7.1.
  */
 public final class BoundVexPostureGameTests {
     /** Where the posture tests log what they measured. */
@@ -63,6 +65,8 @@ public final class BoundVexPostureGameTests {
      * 10.
      *
      * <p>Method under test: {@code BoundVex.posture} and {@code BoundVex.scanInterval}
+     *
+     * <p>Functional spec §6.1, §6.2.
      */
     static void postureOverworldDay(GameTestHelper helper) {
         // Arrange
@@ -83,6 +87,8 @@ public final class BoundVexPostureGameTests {
      * overhead (at least 1.7 above the summoner's feet for 60 ticks, never far off sideways) and scan every 4 ticks.
      *
      * <p>Method under test: {@code BoundVex.posture} through {@code FollowSummonerGoal}
+     *
+     * <p>Functional spec §6.1, §6.2.
      */
     static void postureNight(GameTestHelper helper) {
         // Arrange
@@ -104,6 +110,8 @@ public final class BoundVexPostureGameTests {
      * least 1.7 above the summoner's feet for 60 ticks, never far off sideways) and scan every 4 ticks.
      *
      * <p>Method under test: {@code BoundVex.posture} through {@code FollowSummonerGoal}
+     *
+     * <p>Functional spec §6.1, §6.2.
      */
     static void postureNether(GameTestHelper helper) {
         // Arrange
@@ -121,6 +129,8 @@ public final class BoundVexPostureGameTests {
      * least 1.7 above the summoner's feet for 60 ticks, never far off sideways) and scan every 2 ticks.
      *
      * <p>Method under test: {@code BoundVex.posture} through {@code FollowSummonerGoal}
+     *
+     * <p>Functional spec §6.1, §6.2.
      */
     static void postureEnd(GameTestHelper helper) {
         // Arrange
@@ -207,6 +217,8 @@ public final class BoundVexPostureGameTests {
      * "nearer" cannot come from the husk moving.
      *
      * <p>Method under test: {@code FollowSummonerGoal.stop} (package-private), through the charge goal
+     *
+     * <p>Functional spec §7.1.
      */
     static void closeFlightYieldsToATarget(GameTestHelper helper) {
         // Arrange
@@ -255,6 +267,8 @@ public final class BoundVexPostureGameTests {
      * {@link FollowSummonerGoal#TELEPORT_LANDING_MAX} of the summoner.
      *
      * <p>Method under test: {@code FollowSummonerGoal.canContinueToUse} and {@code stop} (package-private)
+     *
+     * <p>Functional spec §6.3.
      */
     static void closeFlightFollowsAFleeingSummoner(GameTestHelper helper) {
         // Arrange
@@ -285,6 +299,8 @@ public final class BoundVexPostureGameTests {
      * changes where it hovers, not how often it looks.
      *
      * <p>Method under test: {@code BoundVex.scanInterval}
+     *
+     * <p>Functional spec §6.2.
      */
     static void postureStayingScansByPlace(GameTestHelper helper) {
         // Arrange
@@ -313,6 +329,8 @@ public final class BoundVexPostureGameTests {
      * ({@code scanDue} is package-private, so the test watches the behavior it gives.)
      *
      * <p>Method under test: {@code BoundVex.scanDue} with the End posture's interval
+     *
+     * <p>Functional spec §6.2.
      */
     static void scanCadenceEnd(GameTestHelper helper) {
         // Arrange
@@ -350,6 +368,8 @@ public final class BoundVexPostureGameTests {
      * ({@code scanDue} is package-private, so the test watches the behavior it gives.)
      *
      * <p>Method under test: {@code BoundVex.scanDue} with the wide posture's interval
+     *
+     * <p>Functional spec §6.2.
      */
     static void scanCadenceOverworldDay(GameTestHelper helper) {
         // Arrange

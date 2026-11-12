@@ -31,22 +31,24 @@ import org.jspecify.annotations.Nullable;
  * crossed part, so there is no arms-up pose), and fades when the fight is over, ready to come back next time. It
  * flies by setting its own position (no gravity, no collision), cannot be hurt, targeted or picked, and is never
  * saved. It carries an infinite Ghostrail from the spawn.
+ *
+ * <p>Functional spec §14.8, §16.3, §16.4, §16.5.
  */
 public final class VillagerGhost extends LivingEntity {
     /** Synced: the villager's type, profession and level, for the look. */
     private static final EntityDataAccessor<VillagerData> VILLAGER_DATA =
             SynchedEntityData.defineId(VillagerGhost.class, EntityDataSerializers.VILLAGER_DATA);
 
-    /** The distance from the player at which the ghost hovers. */
+    /** The distance from the player at which the ghost hovers. Functional spec §16.3. */
     private static final double HOVER = 2.0;
 
-    /** How close to the player the ghost must be to start a cast. */
+    /** How close to the player the ghost must be to start a cast. Functional spec §16.4. */
     private static final double CAST_RANGE = 3.0;
 
-    /** How far from the player a ghost stays before it gives up. */
+    /** How far from the player a ghost stays before it gives up. Functional spec §16.5. */
     private static final double LEAVE_DISTANCE = 64.0;
 
-    /** Ticks with no hostile near the player before the ghost fades. */
+    /** Ticks with no hostile near the player before the ghost fades. Functional spec §16.5. */
     private static final int QUIET_LIMIT = 200;
 
     /** Ticks between two counts of the hostiles near the player (a 200-tick rule needs no finer count). */
@@ -72,7 +74,7 @@ public final class VillagerGhost extends LivingEntity {
 
     /**
      * Creates a ghost (the entity type's factory). It is invulnerable from the start, so vanilla's
-     * {@code canBeSeenAsEnemy} is false for it.
+     * {@code canBeSeenAsEnemy} is false for it. Functional spec §16.3.
      *
      * @param type the entity type
      * @param level the level
@@ -121,6 +123,7 @@ public final class VillagerGhost extends LivingEntity {
      * Makes this ghost the spirit of {@code record}, helping {@code player}; infinite Ghostrail from now on. Call it
      * after positioning the ghost ({@code snapTo}): the Ghostrail it casts probes the block at the ghost's position
      * for a start spot, and an unpositioned entity sits at (0, 0, 0), which would load or generate that chunk.
+     * Functional spec §14.8, §16.3.
      *
      * @param record the record the ghost is the spirit of
      * @param player the player it comes to help
@@ -132,6 +135,7 @@ public final class VillagerGhost extends LivingEntity {
         Spells.cast(this, Spells.GHOSTRAIL, GhostrailDuration.of(GhostrailDuration.Kind.VILLAGER_GHOST));
     }
 
+    // Functional spec §16.5
     @Override
     public boolean shouldBeSaved() {
         return false;
@@ -167,7 +171,7 @@ public final class VillagerGhost extends LivingEntity {
         }
     }
 
-    /** One server tick: the end conditions, the flight, the cast. */
+    /** One server tick: the end conditions, the flight, the cast. Functional spec §16.5. */
     private void serverTick(ServerLevel level) {
         VillagerGhosts ghosts = VillagerGhosts.get(level);
         ServerPlayer player =
@@ -199,7 +203,11 @@ public final class VillagerGhost extends LivingEntity {
         }
     }
 
-    /** Moves, with no physics, toward the spot {@link #HOVER} blocks from the player at the player's eye height. */
+    /**
+     * Moves, with no physics, toward the spot {@link #HOVER} blocks from the player at the player's eye height.
+     *
+     * <p>Functional spec §16.3.
+     */
     private void flyToward(ServerPlayer player) {
         Vec3 away = position().subtract(player.position()).multiply(1.0, 0.0, 1.0);
         Vec3 side = away.lengthSqr() < 1.0E-4 ? new Vec3(1.0, 0.0, 0.0) : away.normalize();
@@ -217,7 +225,7 @@ public final class VillagerGhost extends LivingEntity {
         yHeadRot = getYRot();
     }
 
-    /** Picks the spell (Ghostrail first when both apply) and starts the wind-up. */
+    /** Picks the spell (Ghostrail first when both apply) and starts the wind-up. Functional spec §16.4. */
     private void startCast(ServerLevel level, VillagerGhosts ghosts, ServerPlayer player) {
         VillagerGhosts.Record record = ghosts.find(recordId).orElseThrow();
         long now = level.getGameTime();
@@ -235,7 +243,11 @@ public final class VillagerGhost extends LivingEntity {
         ScrollCasting.windUp(this);
     }
 
-    /** Counts the wind-up; at the end casts if the player still qualifies and writes the cooldown to the record. */
+    /**
+     * Counts the wind-up; at the end casts if the player still qualifies and writes the cooldown to the record.
+     *
+     * <p>Functional spec §16.4.
+     */
     private void windUpTick(ServerLevel level, VillagerGhosts ghosts, ServerPlayer player) {
         if (++windUp < CasterRules.WIND_UP_TICKS) {
             return;
@@ -256,7 +268,11 @@ public final class VillagerGhost extends LivingEntity {
         }
     }
 
-    /** Ends the visit: a puff, a quiet vex death sound and {@code discard}. The record stays. */
+    /**
+     * Ends the visit: a puff, a quiet vex death sound and {@code discard}. The record stays.
+     *
+     * <p>Functional spec §16.5.
+     */
     public void fade() {
         if (level() instanceof ServerLevel server) {
             server.sendParticles(

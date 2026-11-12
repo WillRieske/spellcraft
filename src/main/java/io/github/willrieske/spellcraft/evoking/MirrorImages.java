@@ -27,6 +27,8 @@ import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 
 /**
  * Spawning, ending and the confusion of Mirror images (Parts 6-7 spec §7.2).
+ *
+ * <p>Functional spec §13.2, §13.4, §13.6.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class MirrorImages {
@@ -52,6 +54,8 @@ public final class MirrorImages {
      * carrier's own spot for every image that is left (a tunnel has few free cells; the carrier's spot is free by
      * definition). An image is never placed inside a block, so none takes wall damage on its first ticks. Images the
      * carrier still has are poofed first, so a recast in the tick after a removal never doubles the set.
+     *
+     * <p>Functional spec §13.2.
      *
      * @param carrier whoever just got the Mirror effect
      */
@@ -105,6 +109,8 @@ public final class MirrorImages {
      * the images (a totem never reaches this event: vanilla checks it before {@code die}, and its death protection
      * clears every effect, so the images poof on their next tick).
      *
+     * <p>Functional spec §13.6.
+     *
      * @param event the death of any living entity
      */
     @SubscribeEvent(priority = EventPriority.LOWEST)
@@ -118,6 +124,8 @@ public final class MirrorImages {
     /**
      * Called when an image dies or runs out of life: when no other live image of the carrier remains and the carrier is
      * loaded in {@code level}, its Mirror effect goes, so "no images" and "no effect" are one thing.
+     *
+     * <p>Functional spec §13.6.
      *
      * @param level the image's level
      * @param carrierId the carrier's UUID
@@ -143,6 +151,8 @@ public final class MirrorImages {
      * going for a player (the images carry the player's mark, which {@code GolemMercy} refuses as a golem's target).
      * The roll is taken only for an eligible change, so a scripted GameTest roll is never spent on a skipped one.
      * Brain mobs that write their target without this event are not confused (accepted).
+     *
+     * <p>Functional spec §13.4.
      *
      * @param event the change-target event for any living entity
      */

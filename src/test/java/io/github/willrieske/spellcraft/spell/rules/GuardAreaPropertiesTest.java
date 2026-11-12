@@ -10,6 +10,7 @@ import net.jqwik.api.constraints.DoubleRange;
 import net.jqwik.api.constraints.IntRange;
 import net.jqwik.api.constraints.Scale;
 
+/** Functional spec §6.4, §7.1, §7.5. */
 class GuardAreaPropertiesTest {
     // jqwik refuses static @Group classes, so ClassCanBeStatic cannot apply.
     @Group

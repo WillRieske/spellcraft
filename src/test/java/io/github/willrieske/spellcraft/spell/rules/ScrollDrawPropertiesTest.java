@@ -11,6 +11,7 @@ import net.jqwik.api.Property;
 import net.jqwik.api.constraints.IntRange;
 import net.jqwik.api.constraints.Size;
 
+/** Functional spec §1.2, §13.1, §14.1. */
 class ScrollDrawPropertiesTest {
     private static List<Candidate<Integer>> candidates(List<SpellTier> tiers) {
         return IntStream.range(0, tiers.size())

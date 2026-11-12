@@ -27,7 +27,11 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
-/** GameTests of the Caster flag, its roll and its goal (Parts 6-7 spec §6.1, §6.2). */
+/**
+ * GameTests of the Caster flag, its roll and its goal (Parts 6-7 spec §6.1, §6.2).
+ *
+ * <p>Functional spec §8.5, §8.6, §11.2, §11.4, §11.11, §12.1, §12.2.
+ */
 final class CasterGameTests {
     /** How many batches of three the statistical test summons. */
     private static final int BATCHES = 100;
@@ -75,6 +79,8 @@ final class CasterGameTests {
      * flag the client reads.
      *
      * <p>Method under test: {@code VexSummons.summon}: the Caster roll
+     *
+     * <p>Functional spec §12.1.
      */
     static void scriptedRollMakesACaster(GameTestHelper helper) {
         // Arrange
@@ -101,6 +107,8 @@ final class CasterGameTests {
      * When the Caster die rolls 1 on a summon, should the vex be a plain vex.
      *
      * <p>Method under test: {@code VexSummons.summon}: the Caster roll
+     *
+     * <p>Functional spec §12.1.
      */
     static void scriptedRollMakesAPlainVex(GameTestHelper helper) {
         // Arrange
@@ -126,6 +134,8 @@ final class CasterGameTests {
      * When a Caster with two ready times is saved and loaded, should the copy keep the flag and both times.
      *
      * <p>Method under test: {@code BoundVex.addAdditionalSaveData} and {@code readAdditionalSaveData}
+     *
+     * <p>Functional spec §12.1.
      */
     static void flagSurvivesSaveAndLoad(GameTestHelper helper) {
         // Arrange
@@ -149,6 +159,8 @@ final class CasterGameTests {
      * When a vex is made the way the command makes one (no summoner roll), should it not be a Caster.
      *
      * <p>Method under test: {@code BoundVex.isCaster}: the default
+     *
+     * <p>Functional spec §12.1.
      */
     static void commandVexIsNotACaster(GameTestHelper helper) {
         // Arrange & Act
@@ -164,6 +176,8 @@ final class CasterGameTests {
      * of a third.
      *
      * <p>Method under test: {@code VexSummons.summon}: the Caster roll
+     *
+     * <p>Functional spec §12.1.
      */
     static void shareIsAboutAThird(GameTestHelper helper) {
         // Arrange
@@ -187,6 +201,8 @@ final class CasterGameTests {
      * When a Caster is told to target a husk beside it, should the husk keep all its health for 60 ticks.
      *
      * <p>Method under test: {@code CasterGoal}: the Caster never attacks
+     *
+     * <p>Functional spec §12.2.
      */
     static void neverHurtsItsTarget(GameTestHelper helper) {
         // Arrange
@@ -208,6 +224,8 @@ final class CasterGameTests {
      * block of it.
      *
      * <p>Method under test: {@code CasterGoal.tick}: closing in and holding
+     *
+     * <p>Functional spec §12.2.
      */
     static void keepsItsDistance(GameTestHelper helper) {
         // Arrange
@@ -234,6 +252,8 @@ final class CasterGameTests {
      * When a Caster targets a husk 2 blocks away, should it back off to at least 3.5 blocks.
      *
      * <p>Method under test: {@code CasterGoal.tick}: backing off
+     *
+     * <p>Functional spec §12.2.
      */
     static void backsOff(GameTestHelper helper) {
         // Arrange
@@ -253,6 +273,8 @@ final class CasterGameTests {
      * When a Caster holds a bow and a husk stands 5 blocks away, should it shoot nothing in 120 ticks.
      *
      * <p>Method under test: {@code RangedGearGoal.canUse}: a Caster does not shoot
+     *
+     * <p>Functional spec §12.2.
      */
     static void neverShoots(GameTestHelper helper) {
         // Arrange
@@ -282,6 +304,8 @@ final class CasterGameTests {
      * When a plain vex (the control) targets a husk, should it charge and hurt it.
      *
      * <p>Method under test: {@code BoundVex.ChargeGoal.canUse}: a plain vex still fights
+     *
+     * <p>Functional spec §8.5.
      */
     static void plainVexCharges(GameTestHelper helper) {
         // Arrange
@@ -318,6 +342,8 @@ final class CasterGameTests {
      * husk.
      *
      * <p>Method under test: {@code RangedGearGoal.canUse}: a plain vex still shoots
+     *
+     * <p>Functional spec §8.6.
      */
     static void plainVexShoots(GameTestHelper helper) {
         // Arrange
@@ -349,6 +375,8 @@ final class CasterGameTests {
      * and a Shield take only the three.
      *
      * <p>Method under test: {@code TeamMoves.isFree} and {@code freeVexes} without the Raid flag
+     *
+     * <p>Functional spec §11.2.
      */
     static void notFreeForOrdinaryMoves(GameTestHelper helper) {
         // Arrange
@@ -376,6 +404,8 @@ final class CasterGameTests {
      * When a Caster stands near its summoner, should it be free for a Raid and counted among the free vexes.
      *
      * <p>Method under test: {@code TeamMoves.isFree(BoundVex, ServerPlayer, boolean)} and {@code freeVexes}
+     *
+     * <p>Functional spec §11.2.
      */
     static void freeForARaid(GameTestHelper helper) {
         // Arrange
@@ -399,6 +429,8 @@ final class CasterGameTests {
      * holding the Mirror scroll; the control is that eleven alone are below a Raid.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: the Raid count includes Casters
+     *
+     * <p>Functional spec §11.2, §11.4.
      */
     static void countsTowardARaidTrigger(GameTestHelper helper) {
         // Arrange
@@ -434,6 +466,8 @@ final class CasterGameTests {
      * netherite head, chest and legs, and an ordinary member carry Raid gear.
      *
      * <p>Method under test: {@code TeamMoveKits.kit}: the Caster's Raid kit
+     *
+     * <p>Functional spec §11.11.
      */
     static void raidKit(GameTestHelper helper) {
         // Arrange

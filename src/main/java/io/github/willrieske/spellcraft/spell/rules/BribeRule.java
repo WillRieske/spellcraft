@@ -5,6 +5,8 @@ package io.github.willrieske.spellcraft.spell.rules;
  * accept and one refuses, so the bribe works two times in three. Will asked for "1/1.5", which is 2/3. Pure: the roll
  * comes from the caller's {@link ScrollDraw.Dice}, the same small interface Scribing's draw uses, so a GameTest can
  * script it.
+ *
+ * <p>Functional spec §9.6.
  */
 public final class BribeRule {
     /** The number of sides on the roll: the bribe is accepted on {@code 0} and {@code 1}, refused on {@code 2}. */

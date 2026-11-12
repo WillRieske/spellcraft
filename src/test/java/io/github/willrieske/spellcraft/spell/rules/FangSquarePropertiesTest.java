@@ -7,6 +7,7 @@ import net.jqwik.api.Group;
 import net.jqwik.api.Property;
 import net.jqwik.api.constraints.DoubleRange;
 
+/** Functional spec §3.1. */
 class FangSquarePropertiesTest {
     // jqwik refuses static @Group classes, so ClassCanBeStatic cannot apply.
     @Group

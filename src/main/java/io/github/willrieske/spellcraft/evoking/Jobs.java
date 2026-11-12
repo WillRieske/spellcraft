@@ -9,6 +9,8 @@ import net.minecraft.world.entity.Entity;
  * What the job goals ({@link RepairGolemGoal}, {@link CureZombieVillagerGoal} and {@link BribeGoal}) share: the flight
  * constants and the claim map. A job goal makes a Bound Vex do one task on one subject; it claims the subject so two
  * vexes never share one.
+ *
+ * <p>Functional spec §9.1, §9.3, §9.5, §9.6, §10.8, §11.2.
  */
 final class Jobs {
     /** How near its subject the vex works from (the golem's chest, the zombie villager's head, the other vex). */
@@ -17,13 +19,13 @@ final class Jobs {
     /** The move speed the vex is ordered to fly at. */
     static final double SPEED = 1.0;
 
-    /** The most ticks an approach may take before the goal gives up. */
+    /** The most ticks an approach may take before the goal gives up. Functional spec §9.5. */
     static final int APPROACH_LIMIT = 100;
 
     /**
      * Ticks after giving up an approach during which a vex starts no new job of that kind. The abort and the next scan
      * can fall on the same goal-selector pass, so without it the vex would claim the same unreachable subject again at
-     * once and it would never be released.
+     * once and it would never be released. Functional spec §9.5.
      */
     static final int RETRY_DELAY = 200;
 
@@ -31,7 +33,7 @@ final class Jobs {
 
     /**
      * Whether {@code vex} is in the middle of one of the four jobs (a repair, a cure, a bribe, a crystal): a vex
-     * mid-job finishes it and is not free for a team move (Parts 6-7 spec §2.2).
+     * mid-job finishes it and is not free for a team move (Parts 6-7 spec §2.2). Functional spec §11.2.
      *
      * @param vex a Bound Vex
      * @return true while it holds a live claim in any job
@@ -47,7 +49,7 @@ final class Jobs {
      * A claim map: subject UUID to the Bound Vex holding the claim and the game time it was made. A claim counts only
      * while its holder is alive (a vex that dies, despawns or is unloaded never runs its goal's {@code stop}) and, when
      * the map has an age limit, while it is not older than that (a vex alive in a chunk that stopped ticking never
-     * finishes). Not thread-safe: the server thread only.
+     * finishes). Not thread-safe: the server thread only. One vex per subject: Functional spec §9.1, §9.3, §9.6, §10.8.
      */
     static final class Claims {
         private record Claim(BoundVex holder, long time) {}

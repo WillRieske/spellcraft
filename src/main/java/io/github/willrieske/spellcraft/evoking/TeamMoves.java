@@ -41,18 +41,20 @@ import org.slf4j.Logger;
  * The Shield, Multishot, Evader and Raid parts run through {@code TeamMoveGoal} and one class per move. {@code Member}
  * carries the per-move fields of all of them (the Shield's stage and lunge clock, the Raid's cell and role), so a new
  * move adds its own there rather than a second state class.
+ *
+ * <p>Functional spec §11.1, §11.2, §11.3, §11.4, §11.5, §11.6, §11.7, §11.12.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class TeamMoves {
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** A vex farther than this from its summoner is not free (spec §2.2). */
+    /** A vex farther than this from its summoner is not free (spec §2.2). Functional spec §11.2. */
     public static final double FREE_RANGE = 32.0;
 
-    /** The scan for triggers runs once every this many ticks (spec §2.3). */
+    /** The scan for triggers runs once every this many ticks (spec §2.3). Functional spec §11.4. */
     public static final int SCAN_INTERVAL = 10;
 
-    /** How far from the summoner an ally may be and still be warded (spec §2.3). */
+    /** How far from the summoner an ally may be and still be warded (spec §2.3). Functional spec §11.4. */
     private static final double WARD_RANGE = 16.0;
 
     private TeamMoves() {}
@@ -60,7 +62,7 @@ public final class TeamMoves {
     /**
      * Whether {@code vex} may join a move of {@code owner} (spec §2.2): alive, theirs, in their level, within
      * {@link #FREE_RANGE} blocks of them, following (not staying), in no move, in no job ({@link Jobs#busy}) and not
-     * the player's rescuer.
+     * the player's rescuer. Functional spec §11.2.
      *
      * @param vex a Bound Vex
      * @param owner the summoner
@@ -72,7 +74,7 @@ public final class TeamMoves {
 
     /**
      * {@link #isFree(BoundVex, ServerPlayer)}, with Casters counted when {@code forRaid}: a Caster is free only for a
-     * Raid (Parts 6-7 spec §2.2, §6.2).
+     * Raid (Parts 6-7 spec §2.2, §6.2). Functional spec §11.2.
      *
      * @param vex a Bound Vex
      * @param owner the summoner
@@ -127,7 +129,10 @@ public final class TeamMoves {
         return vexes.stream().filter(vex -> isFree(vex, owner, forRaid)).toList();
     }
 
-    /** Lang key prefix of the overlay message each start shows: {@code ...team_move_shield} and so on. */
+    /**
+     * Lang key prefix of the overlay message each start shows: {@code ...team_move_shield} and so on.
+     * Functional spec §11.5.
+     */
     public static final String MESSAGE_PREFIX = "message.spellcraft.team_move_";
 
     /** The Raid's two phases (spec §4.4). */
@@ -262,7 +267,7 @@ public final class TeamMoves {
      * is not cooling and the free vexes fill a roster (spec §§2.2, 2.4). Every kit is built before anything is
      * marked. Each member gets the mark, the target (not for an Evader) and its kit (given gear goes to the stash);
      * the summoner gets the overlay message. This is the one method the scan, the request and the GameTests start a
-     * move through.
+     * move through. Functional spec §11.1, §11.5.
      *
      * @param owner the summoner
      * @param move the move
@@ -319,6 +324,7 @@ public final class TeamMoves {
      * Multishot the vex the enemy hunts (else the free vex nearest the enemy) and the two nearest that one, Raid every
      * free vex. The list is ordered: Shield, Evader and Raid nearest the enemy or ward first, Multishot the anchor
      * first and then nearest the anchor first. {@code Move.add} gives each member the cell of its place in this order.
+     * Functional spec §11.3.
      */
     private static List<BoundVex> chooseRoster(TeamMove move, List<BoundVex> free, LivingEntity subject) {
         int size = TeamMoveRules.rosterSize(move, free.size());
@@ -389,11 +395,11 @@ public final class TeamMoves {
      * Evader's ward is healed, or the time limit is up. A summoner in another level ends the move without a check of
      * its own: the members are in the old level (pruned and released) or are new copies marked NONE (pruned), and the
      * enemy is not found in the summoner's level. Public so GameTests can step a mock player, which gets no player
-     * tick. A summoner with no record is left alone: stepping never creates one.
+     * tick. A summoner with no record is left alone: stepping never creates one. Functional spec §11.6, §11.7.
      *
      * <p>Then, in AUTOMATIC mode with no move running, runs the trigger scan on its 10-tick clock (spec §2.3).
      * The scan clock is kept apart from the record and {@link #start} creates the record, so a summoner who only
-     * waits for a trigger (or is in manual mode, or absent) gets none.
+     * waits for a trigger (or is in manual mode, or absent) gets none. Functional spec §11.1, §11.4.
      *
      * @param owner the summoner
      */
@@ -430,24 +436,25 @@ public final class TeamMoves {
         }
     }
 
-    /** Lang key of the answer in automatic mode. */
+    /** Lang key of the answer in automatic mode. Functional spec §11.12. */
     public static final String AUTOMATIC_KEY = "message.spellcraft.team_moves_automatic";
 
-    /** Lang key of the answer while a move runs. */
+    /** Lang key of the answer while a move runs. Functional spec §11.12. */
     public static final String RUNNING_KEY = "message.spellcraft.team_move_running";
 
-    /** Lang key of the answer while the kind is cooling down. */
+    /** Lang key of the answer while the kind is cooling down. Functional spec §11.12. */
     public static final String COOLING_KEY = "message.spellcraft.team_move_cooling";
 
-    /** Lang key of the answer when no roster or no subject fits. */
+    /** Lang key of the answer when no roster or no subject fits. Functional spec §11.12. */
     public static final String UNAVAILABLE_KEY = "message.spellcraft.team_move_unavailable";
 
-    /** The manual request looks for an enemy this far from the summoner (spec §3.4). */
+    /** The manual request looks for an enemy this far from the summoner (spec §3.4). Functional spec §11.12. */
     public static final double REQUEST_RANGE = 16.0;
 
     /**
      * The fewest ticks between two handled requests of one summoner: a request scans 16 blocks for an enemy and may
      * answer on the action bar, so a modified client that floods the packet is ignored in between (spec §3.4).
+     * Functional spec §11.12.
      */
     public static final int REQUEST_INTERVAL = 10;
 
@@ -477,6 +484,7 @@ public final class TeamMoves {
      * that applies is the answer, shown on the action bar: automatic mode; a move already running; the kind cooling;
      * no roster or no subject (the nearest hostile within {@link #REQUEST_RANGE} blocks that is huntable, prey and fits
      * the move; for an Evader the ward of {@link #wardFor}); otherwise the move starts with its usual message.
+     * Functional spec §11.12.
      *
      * @param owner the sender
      * @param move the requested move
@@ -515,7 +523,7 @@ public final class TeamMoves {
         return answer;
     }
 
-    /** The enemy a manual move is fought against, or the ward of an Evader. */
+    /** The enemy a manual move is fought against, or the ward of an Evader. Functional spec §11.12. */
     private static @Nullable LivingEntity subjectFor(ServerPlayer owner, TeamMove move) {
         if (move == TeamMove.EVADER) {
             return wardFor(owner);
@@ -542,7 +550,7 @@ public final class TeamMoves {
     /**
      * The one an Evader would protect (spec §2.3): the summoner, or a living ally within 16 blocks of them,
      * below half health. Never a mob carrying a summoner mark (a Bound Vex or an image). The lowest health fraction
-     * wins; the summoner wins ties.
+     * wins; the summoner wins ties. Functional spec §11.4.
      */
     static @Nullable LivingEntity wardFor(ServerPlayer owner) {
         List<LivingEntity> hurt = new ArrayList<>();
@@ -573,7 +581,7 @@ public final class TeamMoves {
 
     /**
      * Drops the members that are dead, removed, in another level or no longer marked with this move. A member found
-     * alive and still marked in another level has its kit put away now.
+     * alive and still marked in another level has its kit put away now. Functional spec §11.7.
      */
     private static void prune(ServerPlayer owner, Move record) {
         ServerLevel level = owner.level();
@@ -605,6 +613,7 @@ public final class TeamMoves {
     /**
      * Why the move is over (spec §2.5), or null while it goes on: no members, an absent summoner, the time
      * limit, the subject gone, dead or beyond 48 blocks, or an Evader's ward healed to half health.
+     * Functional spec §11.6.
      */
     private static @Nullable String endReason(ServerPlayer owner, Move record, long now) {
         if (record.roster.isEmpty()) {
@@ -625,7 +634,10 @@ public final class TeamMoves {
                 : null;
     }
 
-    /** Ends the move: every remaining member's kit goes, its mark clears, and the kind's 30-second cooldown starts. */
+    /**
+     * Ends the move: every remaining member's kit goes, its mark clears, and the kind's 30-second cooldown starts.
+     * Functional spec §11.6.
+     */
     private static void end(ServerPlayer owner, Move record, long now, String reason) {
         LOGGER.debug(
                 "Team move {} ended for {}: {} ({} members)",

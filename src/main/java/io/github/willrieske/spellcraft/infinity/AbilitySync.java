@@ -19,6 +19,8 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
  * class is the one driver of the sync: {@code Ghostrail.tick} does not call it, and the two do not depend
  * on each other's order in the Post event (a GameTest that steps {@code Ghostrail.tick} by hand and needs the
  * abilities settled calls {@link #sync} itself).
+ *
+ * <p>Functional spec §14.2, §14.6, §14.7.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class AbilitySync {
@@ -28,7 +30,7 @@ public final class AbilitySync {
      * Whether Ghostrail makes {@code player} pass through blocks: it has the effect and is in a mode where Ghostrail
      * grants flight (survival or adventure). A creative player given Ghostrail by command keeps physics, since the
      * sync forces no flying for them and they would sink through the floor; a spectator keeps vanilla's own
-     * {@code noPhysics}. Shared by the Mixin on {@code Player.tick}, on both sides.
+     * {@code noPhysics}. Shared by the Mixin on {@code Player.tick}, on both sides. Functional spec §14.2.
      *
      * @param player the ticking player
      * @return true when {@code noPhysics} should be set by Ghostrail
@@ -53,6 +55,7 @@ public final class AbilitySync {
     /**
      * Applies one {@link GrantedAbilities} plan: a reset to the game mode's abilities when a source ended, the
      * grants of what is still active, both marks. Public so GameTests can run one sync without waiting for a tick.
+     * Functional spec §14.2, §14.6, §14.7.
      *
      * @param player the player to sync
      */

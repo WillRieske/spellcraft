@@ -2,7 +2,11 @@ package io.github.willrieske.spellcraft.spell.rules;
 
 import java.util.function.BooleanSupplier;
 
-/** Whether a player over the End's void needs the catch (Parts 4–5 spec §6.4). */
+/**
+ * Whether a player over the End's void needs the catch (Parts 4–5 spec §6.4).
+ *
+ * <p>Functional spec §10.11.
+ */
 public final class VoidRule {
     /** Below the level's lowest Y by more than this, the catch is certain. */
     public static final int BELOW_FLOOR = 4;

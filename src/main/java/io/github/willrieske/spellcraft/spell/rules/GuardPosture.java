@@ -5,6 +5,8 @@ package io.github.willrieske.spellcraft.spell.rules;
  * spec §6.1). Distances are from the summoner's feet: sideways in the horizontal plane, height straight up. In the
  * three close postures the band is above the summoner's head, out of the way of their clicks.
  *
+ * <p>Functional spec §6.1, §6.2.
+ *
  * @param sideMin the band's inner sideways edge
  * @param sideMax the band's outer sideways edge
  * @param heightMin the band's lowest height above the summoner's feet
@@ -33,13 +35,16 @@ public record GuardPosture(
         OTHER
     }
 
-    /** The Overworld by day, and any other dimension: the geometry of Parts 1–4. */
+    /** The Overworld by day, and any other dimension: the geometry of Parts 1–4. Functional spec §6.1, §6.2. */
     public static final GuardPosture WIDE = new GuardPosture(2.0, 3.5, 0.5, 1.5, 0.7, 10, false);
 
-    /** The Overworld in the dark, and the Nether: close and overhead, scanning every fourth tick. */
+    /**
+     * The Overworld in the dark, and the Nether: close and overhead, scanning every fourth tick. Functional spec
+     * §6.1, §6.2.
+     */
     private static final GuardPosture NEAR = new GuardPosture(1.0, 2.0, 2.5, 3.0, 0.35, 4, true);
 
-    /** The End: closest and overhead, scanning every second tick. */
+    /** The End: closest and overhead, scanning every second tick. Functional spec §6.1, §6.2. */
     private static final GuardPosture NEAREST = new GuardPosture(0.5, 1.5, 2.5, 3.0, 0.35, 2, true);
 
     /** In the wide posture a vex farther than this from the summoner's feet moves (feet to feet, as before Part 5). */

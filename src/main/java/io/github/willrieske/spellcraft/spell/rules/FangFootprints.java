@@ -8,6 +8,8 @@ import java.util.List;
  * The block columns a target's bounding box covers (Evoking II spec §2.2): a fang goes under each one. Pure: the box
  * arrives as its horizontal extent, not as an {@code AABB}. Meant for entity-sized boxes (a few blocks wide); a box
  * thousands of blocks wide would list every column in it.
+ *
+ * <p>Functional spec §3.4.
  */
 public final class FangFootprints {
     /**

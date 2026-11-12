@@ -8,6 +8,7 @@ import io.github.willrieske.spellcraft.spell.rules.EvokingCast.Readiness;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+/** Functional spec §2.2, §2.3, §3.3. */
 class EvokingCastTest {
     private final EvokingCast cast = new EvokingCast();
 

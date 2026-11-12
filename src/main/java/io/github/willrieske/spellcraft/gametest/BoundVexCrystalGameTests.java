@@ -37,6 +37,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 /**
  * GameTests of the End crystal goal: a Bound Vex flies to a crystal and breaks it while a dragon lives, the
  * blast spares the summoner's side, and how the claims on crystals are given up and cleared.
+ *
+ * <p>Functional spec §5.5, §7.9, §10.8, §10.9, §11.2.
  */
 public final class BoundVexCrystalGameTests {
     /** The environment (a batch of its own) of the server-stop crystal test: the stop handler clears every claim. */
@@ -141,6 +143,8 @@ public final class BoundVexCrystalGameTests {
      * come away unhurt.
      *
      * <p>Method under test: {@code AttackCrystalGoal}: the approach and the strike
+     *
+     * <p>Functional spec §10.8, §10.9.
      */
     static void crystalBroken(GameTestHelper helper) {
         // Arrange
@@ -165,6 +169,8 @@ public final class BoundVexCrystalGameTests {
      * none of them be hurt or thrown, and neither the breaking vex.
      *
      * <p>Method under test: {@code BoundVexEvents.onIncomingDamage} and {@code onExplosionKnockback}
+     *
+     * <p>Functional spec §10.9.
      */
     static void crystalSparesYourSide(GameTestHelper helper) {
         // Arrange
@@ -231,6 +237,8 @@ public final class BoundVexCrystalGameTests {
      * must still be within the 32-block search.)
      *
      * <p>Method under test: {@code AttackCrystalGoal.canContinueToUse}, then {@code canUse}
+     *
+     * <p>Functional spec §10.8.
      */
     static void crystalRemovedOnTheWay(GameTestHelper helper) {
         // Arrange
@@ -263,6 +271,8 @@ public final class BoundVexCrystalGameTests {
      * Overworld test level, where there is no fight, should {@code livingDragon} be false.
      *
      * <p>Method under test: {@code AttackCrystalGoal.canUse}, {@code AttackCrystalGoal.livingDragon}
+     *
+     * <p>Functional spec §10.8.
      */
     static void crystalNeedsADragon(GameTestHelper helper) {
         // Arrange
@@ -290,6 +300,8 @@ public final class BoundVexCrystalGameTests {
      * crystals are claimed at the same time), both crystals break and both vexes live.
      *
      * <p>Method under test: {@code AttackCrystalGoal}: the claim map
+     *
+     * <p>Functional spec §10.8, §10.9.
      */
     static void crystalOneEach(GameTestHelper helper) {
         // Arrange
@@ -319,6 +331,8 @@ public final class BoundVexCrystalGameTests {
      * alone for 60 ticks.
      *
      * <p>Method under test: {@code AttackCrystalGoal.canUse}: no target
+     *
+     * <p>Functional spec §10.8.
      */
     static void crystalNotWhileFighting(GameTestHelper helper) {
         // Arrange
@@ -347,6 +361,8 @@ public final class BoundVexCrystalGameTests {
      * (on the other side) alone for 100 ticks.
      *
      * <p>Method under test: {@code AttackCrystalGoal.canUse}: the stay area
+     *
+     * <p>Functional spec §10.8.
      */
     static void crystalStayingVexOnlyInItsArea(GameTestHelper helper) {
         // Arrange
@@ -369,6 +385,8 @@ public final class BoundVexCrystalGameTests {
      * When a Bound Vex holds a live claim on a crystal (an attack job), should it not be free and not be listed.
      *
      * <p>Method under test: {@code Jobs.busy} (the crystal wiring), through {@link TeamMoves#isFree}
+     *
+     * <p>Functional spec §11.2.
      */
     static void crystalVexIsNotFree(GameTestHelper helper) {
         // Arrange (as crystalGivesUpAfter200Ticks)
@@ -395,6 +413,8 @@ public final class BoundVexCrystalGameTests {
      * for the retry delay, so a second vex added then breaks the crystal.
      *
      * <p>Method under test: {@code AttackCrystalGoal.stop}: the limit and the retry delay
+     *
+     * <p>Functional spec §10.8.
      */
     static void crystalGivesUpAfter200Ticks(GameTestHelper helper) {
         // Arrange
@@ -426,6 +446,8 @@ public final class BoundVexCrystalGameTests {
      *
      * <p>Method under test: {@code BoundVexEvents.onIncomingDamage} and {@code onExplosionKnockback}: a crystal's blast
      * never hurts or moves a Bound Vex, whoever set it off
+     *
+     * <p>Functional spec §10.9.
      */
     static void crystalBlastByAPlayer(GameTestHelper helper) {
         // Arrange
@@ -455,6 +477,8 @@ public final class BoundVexCrystalGameTests {
      * unmoved.
      *
      * <p>Method under test: {@code BoundVexEvents.onIncomingDamage}: a crystal's blast never hurts a Bound Vex
+     *
+     * <p>Functional spec §10.9.
      */
     static void crystalBlastSparesAnotherPlayersVex(GameTestHelper helper) {
         // Arrange
@@ -510,6 +534,8 @@ public final class BoundVexCrystalGameTests {
      * should the crystal be alive and unclaimed after 60 ticks (the job is for the End only).
      *
      * <p>Method under test: {@code AttackCrystalGoal.canUse}: the End clause
+     *
+     * <p>Functional spec §10.8.
      */
     static void crystalOnlyInTheEnd(GameTestHelper helper) {
         // Arrange
@@ -535,6 +561,8 @@ public final class BoundVexCrystalGameTests {
      * the crystal be alive and unclaimed after 60 ticks.
      *
      * <p>Method under test: {@code AttackCrystalGoal.canUse}: a summoner must be present
+     *
+     * <p>Functional spec §5.5.
      */
     static void crystalNeedsASummonerAtTheStart(GameTestHelper helper) {
         // Arrange
@@ -559,6 +587,8 @@ public final class BoundVexCrystalGameTests {
      * given up within 2 ticks.
      *
      * <p>Method under test: {@code AttackCrystalGoal.canContinueToUse}: the summoner must stay present
+     *
+     * <p>Functional spec §5.5.
      */
     static void crystalSummonerLostMidFlight(GameTestHelper helper) {
         // Arrange
@@ -585,6 +615,8 @@ public final class BoundVexCrystalGameTests {
      * 2 ticks and the crystal survive.
      *
      * <p>Method under test: {@code AttackCrystalGoal.canContinueToUse}: the dragon must stay alive
+     *
+     * <p>Functional spec §10.8.
      */
     static void crystalDragonDiesMidFlight(GameTestHelper helper) {
         // Arrange
@@ -612,6 +644,8 @@ public final class BoundVexCrystalGameTests {
      * the blast, without a second explosion of its own), and the summoner be unhurt with no velocity.
      *
      * <p>Method under test: {@code BoundVexEvents.onIncomingDamage} and {@code onExplosionKnockback}: a crystal chain
+     *
+     * <p>Functional spec §10.9.
      */
     static void crystalNeighborsBothGo(GameTestHelper helper) {
         // Arrange
@@ -639,6 +673,8 @@ public final class BoundVexCrystalGameTests {
      * no velocity and the husk hurt.
      *
      * <p>Method under test: {@code BoundVexEvents.onExplosionKnockback}: the absent-summoner case
+     *
+     * <p>Functional spec §7.9.
      */
     static void crystalBlastSparesYourSideWithoutYou(GameTestHelper helper) {
         // Arrange

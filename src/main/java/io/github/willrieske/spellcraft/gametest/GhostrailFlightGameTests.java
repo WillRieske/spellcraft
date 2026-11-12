@@ -18,7 +18,11 @@ import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.level.storage.TagValueOutput;
 import net.minecraft.world.phys.Vec3;
 
-/** GameTests of a Ghostrail player's physics and flight (Parts 6-7 spec §7.3). */
+/**
+ * GameTests of a Ghostrail player's physics and flight (Parts 6-7 spec §7.3).
+ *
+ * <p>Functional spec §14.2, §14.6, §14.7.
+ */
 @SuppressWarnings("deprecation") // Every test reads Abilities#mayfly; see AbilitySync#sync for why.
 public final class GhostrailFlightGameTests {
     /** The most a flying mock player may sink over 20 ticks, in blocks (damped gravity; a free fall is ~3 blocks). */
@@ -86,6 +90,8 @@ public final class GhostrailFlightGameTests {
      * Mixin and the sync).
      *
      * <p>Method under test: {@code AbilitySync#ghostrailPassesThroughBlocks} and {@code AbilitySync#sync}.
+     *
+     * <p>Functional spec §14.2.
      */
     static void adventurePassesThrough(GameTestHelper helper) {
         // Arrange
@@ -125,6 +131,8 @@ public final class GhostrailFlightGameTests {
      * again and marked.
      *
      * <p>Method under test: {@code AbilitySync#sync}.
+     *
+     * <p>Functional spec §14.2.
      */
     static void switchBackResumes(GameTestHelper helper) {
         // Arrange
@@ -166,6 +174,8 @@ public final class GhostrailFlightGameTests {
      * Mixin).
      *
      * <p>Method under test: {@code PlayerGhostrailMixin#spellcraft$ghostrailNoPhysics}.
+     *
+     * <p>Functional spec §14.2.
      */
     static void noPhysicsThroughTheMixin(GameTestHelper helper) {
         // Arrange
@@ -183,6 +193,8 @@ public final class GhostrailFlightGameTests {
      * flying, so passing through blocks would sink them through the floor).
      *
      * <p>Method under test: {@code PlayerGhostrailMixin#spellcraft$ghostrailNoPhysics}.
+     *
+     * <p>Functional spec §14.2.
      */
     static void creativeKeepsPhysics(GameTestHelper helper) {
         // Arrange
@@ -231,6 +243,8 @@ public final class GhostrailFlightGameTests {
      *
      * <p>Method under test: {@code PlayerGhostrailMixin#spellcraft$ghostrailNoPhysics} together with
      * {@code AbilitySync#onPlayerTick}.
+     *
+     * <p>Functional spec §14.2.
      */
     static void staysAloftOverStone(GameTestHelper helper) {
         // Arrange
@@ -267,6 +281,8 @@ public final class GhostrailFlightGameTests {
      * When a survival player gets Ghostrail and is synced, should have mayfly and flying and no instabuild.
      *
      * <p>Method under test: {@code AbilitySync#sync}.
+     *
+     * <p>Functional spec §14.2.
      */
     static void grantsFlight(GameTestHelper helper) {
         // Arrange
@@ -284,6 +300,8 @@ public final class GhostrailFlightGameTests {
      * When a Ghostrail player's flying flag is cleared, should have it set again by the next sync.
      *
      * <p>Method under test: {@code AbilitySync#sync}.
+     *
+     * <p>Functional spec §14.2.
      */
     static void reassertsFlying(GameTestHelper helper) {
         // Arrange
@@ -302,6 +320,8 @@ public final class GhostrailFlightGameTests {
      * When Ghostrail ends on a survival player, should take both mayfly and flying away at the next sync.
      *
      * <p>Method under test: {@code AbilitySync#sync}.
+     *
+     * <p>Functional spec §14.6.
      */
     static void endingRevokes(GameTestHelper helper) {
         // Arrange
@@ -323,6 +343,8 @@ public final class GhostrailFlightGameTests {
      * flying.
      *
      * <p>Method under test: {@code AbilitySync#sync}.
+     *
+     * <p>Functional spec §14.7.
      */
     static void endingKeepsInfinity(GameTestHelper helper) {
         // Arrange
@@ -343,6 +365,8 @@ public final class GhostrailFlightGameTests {
      * When Infinity ends on a player who still has Ghostrail, should keep mayfly and flying and lose instabuild.
      *
      * <p>Method under test: {@code AbilitySync#sync}.
+     *
+     * <p>Functional spec §14.7.
      */
     static void infinityEndingKeepsGhostrail(GameTestHelper helper) {
         // Arrange
@@ -389,6 +413,8 @@ public final class GhostrailFlightGameTests {
      * forced flying), and still may fly after the effect ends.
      *
      * <p>Method under test: {@code AbilitySync#sync}.
+     *
+     * <p>Functional spec §14.7.
      */
     static void creativeKeepsFlight(GameTestHelper helper) {
         // Arrange

@@ -11,6 +11,7 @@ import net.jqwik.api.Group;
 import net.jqwik.api.Property;
 import net.jqwik.api.Provide;
 
+/** Functional spec §14.2, §14.6, §14.7. */
 class GrantedAbilitiesPropertiesTest {
     /** Test model of the plumbing: what applying {@code plan} leaves behind (vanilla mode defaults on a reset). */
     private static State after(State s, Plan p) {

@@ -33,6 +33,8 @@ import net.minecraft.world.level.GameType;
 /**
  * GameTests of the manual team-move request (Parts 6-7 spec section 3.4) and, from Task 8, of the packet's
  * dispatch.
+ *
+ * <p>Functional spec §2.6, §11.3, §11.5, §11.12.
  */
 final class BoundVexTeamMoveRequestGameTests {
     private BoundVexTeamMoveRequestGameTests() {}
@@ -155,6 +157,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * with an enemy and vexes ready.
      *
      * <p>Method under test: {@link TeamMoves#request}: the automatic answer
+     *
+     * <p>Functional spec §11.12.
      */
     static void automaticAnswers(GameTestHelper helper) {
         // Arrange
@@ -174,6 +178,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * When the setting is manual and no enemy is near, should the request answer "unavailable".
      *
      * <p>Method under test: {@link TeamMoves#request}: no subject
+     *
+     * <p>Functional spec §11.12.
      */
     static void noEnemyIsUnavailable(GameTestHelper helper) {
         // Arrange
@@ -193,6 +199,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * When the setting is manual and only two vexes are free, should the request answer "unavailable" for a Shield.
      *
      * <p>Method under test: {@link TeamMoves#request}: no roster
+     *
+     * <p>Functional spec §11.3, §11.12.
      */
     static void tooFewVexesIsUnavailable(GameTestHelper helper) {
         // Arrange
@@ -212,6 +220,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * outside the 16-block sphere) would fit, should the request answer "unavailable".
      *
      * <p>Method under test: {@link TeamMoves#request}: the 16-block search, the sphere clause
+     *
+     * <p>Functional spec §11.12.
      */
     static void farEnemyIsUnavailable(GameTestHelper helper) {
         // Arrange (+12/+12/0 is inside the inflated box and 16.97 blocks away, so only the sphere clause rejects it)
@@ -232,6 +242,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * kind.
      *
      * <p>Method under test: {@link TeamMoves#request}: one move at a time
+     *
+     * <p>Functional spec §11.12.
      */
     static void runningMoveAnswersRunning(GameTestHelper helper) {
         // Arrange
@@ -254,6 +266,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * yet" (a husk and vexes are ready, so this is also the proof that cooling beats unavailable).
      *
      * <p>Method under test: {@link TeamMoves#request}: the cooldown
+     *
+     * <p>Functional spec §11.12.
      */
     static void coolingKindAnswersCooling(GameTestHelper helper) {
         // Arrange
@@ -280,6 +294,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * Shield with its usual message and nothing else.
      *
      * <p>Method under test: {@link TeamMoves#request}: the Shield
+     *
+     * <p>Functional spec §11.5, §11.12.
      */
     static void shieldRequestStarts(GameTestHelper helper) {
         // Arrange
@@ -303,6 +319,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * the nearest free vex in the roster (a hunted vex is not needed).
      *
      * <p>Method under test: {@link TeamMoves#request}: the Multishot
+     *
+     * <p>Functional spec §11.12.
      */
     static void multishotRequestNeedsNoHuntedVex(GameTestHelper helper) {
         // Arrange
@@ -329,6 +347,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * Multishot request answer "unavailable".
      *
      * <p>Method under test: {@link TeamMoves#request}: the Multishot roster minimum
+     *
+     * <p>Functional spec §11.3, §11.12.
      */
     static void multishotWithTwoIsUnavailable(GameTestHelper helper) {
         // Arrange
@@ -349,6 +369,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * When the setting is manual and the summoner is hurt, should an Evader request start with no enemy near.
      *
      * <p>Method under test: {@link TeamMoves#request}: the Evader
+     *
+     * <p>Functional spec §11.12.
      */
     static void evaderRequestNeedsNoEnemy(GameTestHelper helper) {
         // Arrange
@@ -369,6 +391,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * When the setting is manual with twelve free vexes and a ravager near, should a Raid request start the Raid.
      *
      * <p>Method under test: {@link TeamMoves#request}: the Raid
+     *
+     * <p>Functional spec §11.3, §11.12.
      */
     static void raidRequestStarts(GameTestHelper helper) {
         // Arrange
@@ -390,6 +414,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * outlive the effect).
      *
      * <p>Method under test: {@link TeamMoves#request}: no Evoking needed
+     *
+     * <p>Functional spec §11.12.
      */
     static void requestNeedsNoEvoking(GameTestHelper helper) {
         // Arrange
@@ -410,6 +436,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * answered again.
      *
      * <p>Method under test: {@link TeamMoves#request}: the per-player throttle
+     *
+     * <p>Functional spec §11.12.
      */
     static void floodIsIgnored(GameTestHelper helper) {
         // Arrange (no enemy near, so every handled request is answered "unavailable")
@@ -439,6 +467,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * When the sender is dead, should the request be ignored: no answer on the action bar and nothing started.
      *
      * <p>Method under test: {@link TeamMoves#request}: dead and spectating senders
+     *
+     * <p>Functional spec §2.6.
      */
     static void deadSenderIsIgnored(GameTestHelper helper) {
         // Arrange
@@ -460,6 +490,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * When the sender is a spectator, should the request be ignored: no answer on the action bar and nothing started.
      *
      * <p>Method under test: {@link TeamMoves#request}: spectating senders
+     *
+     * <p>Functional spec §2.6.
      */
     static void spectatingSenderIsIgnored(GameTestHelper helper) {
         // Arrange
@@ -482,6 +514,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * "unavailable" (no ward).
      *
      * <p>Method under test: {@link TeamMoves#request}: the Evader needs a ward
+     *
+     * <p>Functional spec §11.12.
      */
     static void evaderWithoutAWardIsUnavailable(GameTestHelper helper) {
         // Arrange
@@ -500,6 +534,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * When the setting is manual with eleven free vexes and a ravager near, should a Raid request answer "unavailable".
      *
      * <p>Method under test: {@link TeamMoves#request}: the Raid roster minimum
+     *
+     * <p>Functional spec §11.3, §11.12.
      */
     static void raidWithElevenIsUnavailable(GameTestHelper helper) {
         // Arrange
@@ -521,6 +557,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * should a Raid request answer "unavailable" and start nothing.
      *
      * <p>Method under test: {@link TeamMoves#request}: the subject must be huntable and prey
+     *
+     * <p>Functional spec §11.12.
      */
     static void allyGiantIsNotASubject(GameTestHelper helper) {
         // Arrange
@@ -542,6 +580,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * automatic answer comes first).
      *
      * <p>Method under test: {@link TeamMoves#request}: the order of the answers
+     *
+     * <p>Functional spec §11.12.
      */
     static void automaticBeatsRunning(GameTestHelper helper) {
         // Arrange (the setting stays on its default, AUTOMATIC: no manual(...))
@@ -564,6 +604,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * "already running", not "not ready yet" (running comes before cooling).
      *
      * <p>Method under test: {@link TeamMoves#request}: the order of the answers
+     *
+     * <p>Functional spec §11.12.
      */
     static void runningBeatsCooling(GameTestHelper helper) {
         // Arrange
@@ -609,6 +651,8 @@ final class BoundVexTeamMoveRequestGameTests {
      * got to {@code TeamMoves.request}.
      *
      * <p>Method under test: {@link EvokingNetwork#handle}: the TEAM_MOVE kind
+     *
+     * <p>Functional spec §11.12.
      */
     static void teamMoveReachesTheRequest(GameTestHelper helper) {
         // Arrange (drain first, as the other caster tests do: assertActionBarKey demands exactly one message)

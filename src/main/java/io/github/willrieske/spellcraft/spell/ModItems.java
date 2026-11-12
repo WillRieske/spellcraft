@@ -12,9 +12,15 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
+/**
+ * The mod's items: one scroll per spell.
+ *
+ * <p>Functional spec §1.2.
+ */
 public final class ModItems {
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(Spellcraft.MODID);
 
+    // Functional spec §1.2
     private static final int SCROLL_STACK_SIZE = 16;
 
     /** Scroll per spell id, in declaration order. Filled by {@link #registerScroll}; must precede the fields below. */

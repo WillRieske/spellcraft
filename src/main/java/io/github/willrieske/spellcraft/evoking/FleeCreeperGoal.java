@@ -13,12 +13,14 @@ import org.jspecify.annotations.Nullable;
  * it to {@link #SAFE_DISTANCE} blocks and holds there until the creeper stops swelling, dies or explodes. The goal
  * outranks the charge goal (both hold the MOVE flag), so the target is kept and the charge resumes afterwards. The
  * selector ticks a goal right after starting it, so {@code start} needs no move of its own.
+ *
+ * <p>Functional spec §7.7.
  */
 public final class FleeCreeperGoal extends Goal {
-    /** How near a swelling creeper must be to be noticed. */
+    /** How near a swelling creeper must be to be noticed. Functional spec §7.7. */
     public static final double NOTICE_RANGE = 8.0;
 
-    /** How far from the creeper the vex flies. */
+    /** How far from the creeper the vex flies. Functional spec §7.7. */
     public static final double SAFE_DISTANCE = 8.0;
 
     private static final double SPEED = 1.0;

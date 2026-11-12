@@ -1,6 +1,10 @@
 package io.github.willrieske.spellcraft.config;
 
-/** Whether Bound Vexes start team moves by themselves (Parts 6-7 spec section 3.1). */
+/**
+ * Whether Bound Vexes start team moves by themselves (Parts 6-7 spec section 3.1).
+ *
+ * <p>Functional spec §11.1.
+ */
 public enum TeamMoveMode {
     /** The vexes start team moves when a trigger fires; the J and K keys only say so. */
     AUTOMATIC,

@@ -19,7 +19,11 @@ import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
 
-/** GameTests of the Mirror and Ghostrail scrolls and of {@code Spells.cast} (Parts 6-7 spec §7.1, §10). */
+/**
+ * GameTests of the Mirror and Ghostrail scrolls and of {@code Spells.cast} (Parts 6-7 spec §7.1, §10).
+ *
+ * <p>Functional spec §13.1, §14.1.
+ */
 public final class SpellScrollGameTests {
     private SpellScrollGameTests() {}
 
@@ -49,6 +53,8 @@ public final class SpellScrollGameTests {
      * When a survival player reads a Mirror scroll, should they get Mirror for 7200 ticks and the scroll be used up.
      *
      * <p>Method under test: {@code SpellScrollItem#use} with the Mirror scroll
+     *
+     * <p>Functional spec §13.1.
      */
     static void mirrorScroll(GameTestHelper helper) {
         // Arrange
@@ -69,6 +75,8 @@ public final class SpellScrollGameTests {
      * used up.
      *
      * <p>Method under test: {@code SpellScrollItem#use} with the Ghostrail scroll
+     *
+     * <p>Functional spec §14.1.
      */
     static void ghostrailScroll(GameTestHelper helper) {
         // Arrange
@@ -89,6 +97,8 @@ public final class SpellScrollGameTests {
      * bar.
      *
      * <p>Method under test: {@code SpellScrollItem#use} with an active Mirror
+     *
+     * <p>Functional spec §13.1.
      */
     static void mirrorRefusedWhileActive(GameTestHelper helper) {
         // Arrange
@@ -109,6 +119,8 @@ public final class SpellScrollGameTests {
      * When a sneaking player with Mirror reads a Mirror scroll, should Mirror end and one scroll be used up.
      *
      * <p>Method under test: {@code SpellScrollItem#use} with an active Mirror, sneaking
+     *
+     * <p>Functional spec §13.1.
      */
     static void mirrorSneakDispels(GameTestHelper helper) {
         // Arrange
@@ -130,6 +142,8 @@ public final class SpellScrollGameTests {
      * already flies).
      *
      * <p>Method under test: {@code SpellScrollItem#use} with the Ghostrail scroll in creative
+     *
+     * <p>Functional spec §14.1.
      */
     static void ghostrailRefusedInCreative(GameTestHelper helper) {
         // Arrange
@@ -149,6 +163,8 @@ public final class SpellScrollGameTests {
      * When a creative player reads a Mirror scroll, should they get Mirror (it is not redundant in creative).
      *
      * <p>Method under test: {@code SpellScrollItem#use} with the Mirror scroll in creative
+     *
+     * <p>Functional spec §13.1.
      */
     static void mirrorAllowedInCreative(GameTestHelper helper) {
         // Arrange

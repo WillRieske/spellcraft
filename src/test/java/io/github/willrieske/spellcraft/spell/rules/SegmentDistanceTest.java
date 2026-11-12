@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.within;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+/** Functional spec §8.7. */
 class SegmentDistanceTest {
     @Nested
     class DistanceToSegment {

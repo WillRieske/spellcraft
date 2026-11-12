@@ -27,12 +27,14 @@ import org.jspecify.annotations.Nullable;
  * portal while repairing, gets its item back on load. Repair outranks follow, so a summoner who walks off waits until
  * the golem is full: at most four taps (a golem under 25 health needs them all), which is 4.5 seconds (90 ticks) after
  * the vex reaches the golem, plus the flight there.
+ *
+ * <p>Functional spec §9.1, §9.8.
  */
 final class RepairGolemGoal extends Goal {
-    /** Health per tap: vanilla's iron-ingot repair. */
+    /** Health per tap: vanilla's iron-ingot repair. Functional spec §9.1. */
     static final float HEAL = 25.0F;
 
-    /** Ticks between taps. */
+    /** Ticks between taps. Functional spec §9.1. */
     static final int TAP_INTERVAL = 30;
 
     private static final double CHEST_HEIGHT = 1.4;

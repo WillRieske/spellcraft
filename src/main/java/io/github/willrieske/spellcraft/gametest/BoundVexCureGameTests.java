@@ -66,6 +66,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  * headroom register through {@code FangGameTests.addPadded} (padding 13); the rest run inside the shared 3x3x3 box.
  * Shared constants and helpers live in {@link BoundVexTestSupport}; the bribe's tests are in
  * {@link BoundVexBribeGameTests}.
+ *
+ * <p>Functional spec §4.1, §4.2, §4.6, §7.4, §7.9, §8.12, §9.2, §9.3, §9.4, §9.5, §9.6, §9.8, §11.2.
  */
 public final class BoundVexCureGameTests {
     /** The environment of the test that stops the server: the stop handler clears every claim on it. */
@@ -174,6 +176,8 @@ public final class BoundVexCureGameTests {
      *
      * <p>Method under test: {@link BoundVex#isPrey(net.minecraft.world.entity.LivingEntity)}, through the vex's target
      * goals
+     *
+     * <p>Functional spec §7.4, §9.2.
      */
     static void aZombieVillagerIsNeverPrey(GameTestHelper helper) {
         // Arrange: no movement goals (the target goals are the subject), a staying vex so the guard box is fixed
@@ -209,6 +213,8 @@ public final class BoundVexCureGameTests {
      * mark count in {@link Allies#mayHaveAllies}, and the summoner's fangs spare it while they bite an unmarked one.
      *
      * <p>Method under test: {@link Allies#isAllyOf} and {@link Allies#mayHaveAllies}, through fangs
+     *
+     * <p>Functional spec §4.1, §4.2, §9.4.
      */
     static void aZombieVillagerBeingCuredIsAnAlly(GameTestHelper helper) {
         // Arrange
@@ -245,6 +251,8 @@ public final class BoundVexCureGameTests {
      * enemy).
      *
      * <p>Method under test: {@code GolemMercy.onChangeTarget} (the cure mark)
+     *
+     * <p>Functional spec §4.6.
      */
     static void aGolemLeavesAZombieVillagerBeingCured(GameTestHelper helper) {
         // Arrange: a golem on stone with its AI, the zombie villager on stone beside it
@@ -376,6 +384,8 @@ public final class BoundVexCureGameTests {
      *
      * <p>Method under test: {@link CureZombieVillagerGoal}, through the vex's goal selector: the four steps of spec
      * §2.2; the vex also stops short of the zombie villager's head
+     *
+     * <p>Functional spec §9.3, §9.4.
      */
     static void cureRunsItsTimeline(GameTestHelper helper) {
         // Arrange
@@ -437,6 +447,8 @@ public final class BoundVexCureGameTests {
      * zombie villager remain.
      *
      * <p>Method under test: {@link CureEvents#onConversion} and the starter passed to {@code startConverting}
+     *
+     * <p>Functional spec §9.4.
      */
     static void cureEndsInAVillagerWithAiAndTheDiscount(GameTestHelper helper) {
         // Arrange
@@ -474,6 +486,8 @@ public final class BoundVexCureGameTests {
      * (a new target does not end the goal) with the vex still holding its target.
      *
      * <p>Method under test: {@link CureZombieVillagerGoal#canContinueToUse}: it does not look at the vex's target
+     *
+     * <p>Functional spec §9.5.
      */
     static void aNewTargetDoesNotStopTheCure(GameTestHelper helper) {
         // Arrange: no target goals, so only the test decides the vex's target
@@ -500,6 +514,8 @@ public final class BoundVexCureGameTests {
      * summoner, and not claim a nearer zombie villager that has no target while the vex still has its target.
      *
      * <p>Method under test: {@link CureZombieVillagerGoal#canUse}: the target clause of spec §2.2
+     *
+     * <p>Functional spec §9.3.
      */
     static void anAttackerIsClaimedByABusyVex(GameTestHelper helper) {
         // Arrange: the husk soaks up the vex's blows, so the vex keeps its target
@@ -532,6 +548,8 @@ public final class BoundVexCureGameTests {
      *
      * <p>Method under test: {@link CureZombieVillagerGoal#stop} as the abort, through {@link FleeCreeperGoal} taking
      * the move flag
+     *
+     * <p>Functional spec §9.5.
      */
     static void aCreeperInterruptsAndTheCureRestarts(GameTestHelper helper) {
         // Arrange: a staying vex, so the zombie villager stays in the guard area while the vex flees
@@ -565,6 +583,8 @@ public final class BoundVexCureGameTests {
      * the zombie villager is released (unfrozen, unmarked).
      *
      * <p>Method under test: {@link CureZombieVillagerGoal#canContinueToUse}: the approach timeout
+     *
+     * <p>Functional spec §9.5.
      */
     static void approachTimeoutAborts(GameTestHelper helper) {
         // Arrange
@@ -601,6 +621,8 @@ public final class BoundVexCureGameTests {
      * is unfrozen and unmarked and the vex's hand restored.
      *
      * <p>Method under test: {@link CureZombieVillagerGoal#canContinueToUse}: the summoner clause
+     *
+     * <p>Functional spec §9.5.
      */
     static void theSummonerLeavingAbortsTheCure(GameTestHelper helper) {
         // Arrange
@@ -630,6 +652,8 @@ public final class BoundVexCureGameTests {
      * When the zombie villager dies in the apple step, should the vex hold its sword again with nothing conjured.
      *
      * <p>Method under test: {@link CureZombieVillagerGoal#canContinueToUse}: the subject-alive clause, and {@code stop}
+     *
+     * <p>Functional spec §9.5.
      */
     static void theSubjectDyingRestoresTheHand(GameTestHelper helper) {
         // Arrange
@@ -653,6 +677,8 @@ public final class BoundVexCureGameTests {
      * hold their swords once the conversion has begun.
      *
      * <p>Method under test: {@link CureZombieVillagerGoal}'s claim (the mark and the claim map)
+     *
+     * <p>Functional spec §9.3.
      */
     static void twoVexesOneSubject(GameTestHelper helper) {
         // Arrange
@@ -681,6 +707,8 @@ public final class BoundVexCureGameTests {
      *
      * <p>Method under test: {@link CureZombieVillagerGoal}, through two vexes (neighboring entity ids differ in
      * parity: the goal clock)
+     *
+     * <p>Functional spec §9.3, §9.8.
      */
     static void twoVexesTwoSubjects(GameTestHelper helper) {
         // Arrange
@@ -709,6 +737,8 @@ public final class BoundVexCureGameTests {
      * stays frozen and marked.
      *
      * <p>Method under test: {@link CureEvents#onEntityTick}: the release after {@link CureEvents#RELEASE_AFTER}
+     *
+     * <p>Functional spec §9.5.
      */
     static void aStaleFreezeIsReleased(GameTestHelper helper) {
         // Arrange
@@ -739,6 +769,8 @@ public final class BoundVexCureGameTests {
      *
      * <p>Method under test: {@link CureZombieVillagerGoal}: step 4 skips {@code startConverting} for a converting
      * zombie villager
+     *
+     * <p>Functional spec §9.5.
      */
     static void aHandFedZombieVillagerKeepsItsConversion(GameTestHelper helper) {
         // Arrange
@@ -793,6 +825,8 @@ public final class BoundVexCureGameTests {
      * near one and leave the far one (outside the stay area) alone.
      *
      * <p>Method under test: {@link CureZombieVillagerGoal#canUse}: the stay area, through {@code BoundVex.inGuardArea}
+     *
+     * <p>Functional spec §9.8.
      */
     static void aStayingVexCuresOnlyInItsArea(GameTestHelper helper) {
         // Arrange
@@ -819,6 +853,8 @@ public final class BoundVexCureGameTests {
      * reach {@code isConverting()}.
      *
      * <p>Method under test: {@code CureZombieVillagerGoal.start}: the claim ends a golem's fight with its subject
+     *
+     * <p>Functional spec §4.6.
      */
     static void aGolemAlreadyFightingTheZombieVillagerStops(GameTestHelper helper) {
         // Arrange: the vex waits (no AI) until the golem holds its target; the golem is in reach of the subject
@@ -861,6 +897,8 @@ public final class BoundVexCureGameTests {
      *
      * <p>Method under test: {@code BoundVex.alliesInGuardArea} (package-private): the cure-mark exclusion, through
      * {@code HurtBySummonerSideGoal} and {@code AllyFightGoal}
+     *
+     * <p>Functional spec §9.4.
      */
     static void aHurtZombieVillagerBeingCuredIsNotAvenged(GameTestHelper helper) {
         // Arrange: the zombie villager is frozen and marked by the test, so no vex works on it
@@ -893,6 +931,8 @@ public final class BoundVexCureGameTests {
      *
      * <p>Method under test: {@code BoundVex.conjure} (no drop) and {@link CureEvents#onEntityTick}: the release of a
      * freeze whose goal is gone
+     *
+     * <p>Functional spec §8.12, §9.5.
      */
     static void aVexDyingInTheAppleStepLeavesNoItemAndTheFreezeEnds(GameTestHelper helper) {
         // Arrange
@@ -1044,6 +1084,8 @@ public final class BoundVexCureGameTests {
      * When a Bound Vex is curing a zombie villager (it holds the claim), should it not be free and not be listed.
      *
      * <p>Method under test: {@code Jobs.busy} (the cure wiring), through {@link TeamMoves#isFree}
+     *
+     * <p>Functional spec §11.2.
      */
     static void curingVexIsNotFree(GameTestHelper helper) {
         // Arrange (as aClaimLivesOnlyWhileTheMarkDoes)
@@ -1074,6 +1116,8 @@ public final class BoundVexCureGameTests {
      *
      * <p>Method under test: {@link CureZombieVillagerGoal}: a claim counts only while the cure mark is present, and the
      * job continues only while the vex still holds the claim
+     *
+     * <p>Functional spec §9.5.
      */
     static void aClaimLivesOnlyWhileTheMarkDoes(GameTestHelper helper) {
         // Arrange: the second vex waits (no AI) until the first has the claim
@@ -1117,6 +1161,8 @@ public final class BoundVexCureGameTests {
      *
      * <p>Method under test: {@link BoundVexEvents#onIncomingDamage}: the friendly-fire backstop spares what
      * {@code isPrey} spares
+     *
+     * <p>Functional spec §7.4, §7.9.
      */
     static void aDirectHitSparesWhatIsNotPrey(GameTestHelper helper) {
         // Arrange: a vex with no AI, so only the test hits anything
@@ -1181,6 +1227,8 @@ public final class BoundVexCureGameTests {
      * villager is converting, the vanilla vex is bribed and the Bound Vex holds its sword.
      *
      * <p>Method under test: {@link CureZombieVillagerGoal} and {@code BribeGoal}, sharing one vex's goal selector
+     *
+     * <p>Functional spec §9.4, §9.6.
      */
     static void aCureAndABribeAreDoneOneAfterTheOther(GameTestHelper helper) {
         // Arrange
@@ -1229,6 +1277,8 @@ public final class BoundVexCureGameTests {
      *
      * <p>Method under test: {@link CureZombieVillagerGoal} and {@code BribeGoal}: the claims, with far more vexes than
      * subjects
+     *
+     * <p>Functional spec §9.3, §9.6.
      */
     static void twelveVexesShareThreeCuresAndTwoBribes(GameTestHelper helper) {
         // Arrange

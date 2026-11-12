@@ -11,7 +11,11 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
-/** Binds each pure {@link SpellDeclarations} entry to its effect and duration. */
+/**
+ * Binds each pure {@link SpellDeclarations} entry to its effect and duration.
+ *
+ * <p>Functional spec §1.1, §12.3, §13.1, §14.1, §16.4.
+ */
 public final class Spells {
     public static final Spell UPSIDE_DOWN = new Spell(
             Spellcraft.id(SpellDeclarations.UPSIDE_DOWN.name()),
@@ -31,20 +35,24 @@ public final class Spells {
             SpellDeclarations.TRAILING,
             ServerConfig::trailingDurationTicks);
 
+    // Functional spec §1.1
     public static final Spell EVOKING = new Spell(
             Spellcraft.id(SpellDeclarations.EVOKING.name()),
             ModEffects.EVOKING,
             SpellDeclarations.EVOKING,
             Spell.INFINITE);
 
-    /** Mirror: thirteen images of the caster for six minutes. */
+    /** Mirror: thirteen images of the caster for six minutes. Functional spec §13.1. */
     public static final Spell MIRROR = new Spell(
             Spellcraft.id(SpellDeclarations.MIRROR.name()),
             ModEffects.MIRROR,
             SpellDeclarations.MIRROR,
             () -> MirrorRule.DURATION_TICKS);
 
-    /** Ghostrail: fly through walls, unhurt, for four minutes (a player's duration; other carriers pass their own). */
+    /**
+     * Ghostrail: fly through walls, unhurt, for four minutes (a player's duration; other carriers pass their own).
+     * Functional spec §14.1.
+     */
     public static final Spell GHOSTRAIL = new Spell(
             Spellcraft.id(SpellDeclarations.GHOSTRAIL.name()),
             ModEffects.GHOSTRAIL,
@@ -78,7 +86,7 @@ public final class Spells {
      * Whether a caster that is not a scroll (a Caster Vex, a villager ghost) must not cast {@code spell} on
      * {@code target}: the target is a creative or spectator player and the spell is redundant in creative (Ghostrail:
      * creative players already fly). The scroll's own refusal is {@code CastRules}'; this is the one predicate for
-     * every other caster, so they cannot diverge.
+     * every other caster, so they cannot diverge. Functional spec §12.3, §16.4.
      *
      * @param target who would get the effect
      * @param spell the spell

@@ -52,6 +52,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 /**
  * GameTests of the lava pull: the rescue that pulls a burning summoner to the shore, the Nether's water bucket
  * in its tail, and how a rescue ends (shore, timeout, logout, a dead rescuer or a server stop).
+ *
+ * <p>Functional spec §7.5, §10.1, §10.2, §10.3, §10.4, §11.2, §11.7.
  */
 public final class BoundVexLavaGameTests {
     /** The server-stop test clears every rescue on the server, so it runs in an environment of its own. */
@@ -204,6 +206,8 @@ public final class BoundVexLavaGameTests {
      * side.
      *
      * <p>Method under test: {@code VexRescues.tick}, {@code RescuePush.lavaPull} through it
+     *
+     * <p>Functional spec §10.1, §10.3.
      */
     static void lavaPull(GameTestHelper helper) {
         // Arrange
@@ -230,6 +234,8 @@ public final class BoundVexLavaGameTests {
      * by the lava drag: velocity {@code (0.1, 0.3, 0.1)}.
      *
      * <p>Method under test: {@code VexRescues.tick}: the push reads {@code getKnownMovement}
+     *
+     * <p>Functional spec §10.3.
      */
     static void lavaPullKeepsYourSteering(GameTestHelper helper) {
         // Arrange
@@ -250,6 +256,8 @@ public final class BoundVexLavaGameTests {
      * a new one start on the 20th step after the ending.
      *
      * <p>Method under test: {@code VexRescues.tick}: the end on the ground and the 20-tick pause
+     *
+     * <p>Functional spec §10.3.
      */
     static void lavaPullEndsOnTheShore(GameTestHelper helper) {
         // Arrange
@@ -290,6 +298,8 @@ public final class BoundVexLavaGameTests {
      * being 20 ticks) start again on the 20th step after that.
      *
      * <p>Method under test: {@code VexRescues.tick}: the 60-tick limit
+     *
+     * <p>Functional spec §10.3.
      */
     static void lavaPullPausesAfter60(GameTestHelper helper) {
         // Arrange
@@ -335,6 +345,8 @@ public final class BoundVexLavaGameTests {
      * pull be the lift: velocity {@code (0, 0.4, 0)}.
      *
      * <p>Method under test: {@code StandableSpots.shore} through {@code VexRescues.tick}
+     *
+     * <p>Functional spec §10.3.
      */
     static void lavaPullIgnoresALowShore(GameTestHelper helper) {
         // Arrange
@@ -360,6 +372,8 @@ public final class BoundVexLavaGameTests {
      * rescue and leave their velocity alone.
      *
      * <p>Method under test: {@code VexRescues.tick}: who gets the lava pull
+     *
+     * <p>Functional spec §10.1, §10.2.
      *
      * @param helper the test helper
      * @param unhurt what makes the player a poor candidate
@@ -387,6 +401,8 @@ public final class BoundVexLavaGameTests {
      * When a player in lava rides a pig, should a step start no rescue and leave their velocity alone.
      *
      * <p>Method under test: {@code VexRescues.tick}: passengers are not rescued
+     *
+     * <p>Functional spec §10.2.
      */
     static void lavaPullNotForPassengers(GameTestHelper helper) {
         // Arrange
@@ -427,6 +443,8 @@ public final class BoundVexLavaGameTests {
      * When a vex is the rescuer of a player in lava, should the free-vex list be empty (the rescuer is the only vex).
      *
      * <p>Method under test: {@link TeamMoves#isFree}: the rescuer clause
+     *
+     * <p>Functional spec §11.2.
      */
     static void lavaRescuerIsNotFree(GameTestHelper helper) {
         // Arrange
@@ -450,6 +468,8 @@ public final class BoundVexLavaGameTests {
      * once the player is out.
      *
      * <p>Method under test: {@code RescueGoal} against {@link TeamMoveGoal}, in the real goal selector
+     *
+     * <p>Functional spec §11.7.
      */
     static void lavaRescuerKeepsItsTeamMoveKit(GameTestHelper helper) {
         // Arrange (the husk is far off and has no AI; the Shield starts before the rescue, which then names a member)
@@ -496,6 +516,8 @@ public final class BoundVexLavaGameTests {
      * have sunk it into the stone, where it cannot see the husk.
      *
      * <p>Method under test: {@code RescueGoal} and {@code VexRescues.start}: the move keeps a target in reach
+     *
+     * <p>Functional spec §7.5, §10.1.
      */
     static void lavaRescuerKeepsItsTarget(GameTestHelper helper) {
         // Arrange
@@ -525,6 +547,8 @@ public final class BoundVexLavaGameTests {
      * follow goal is paused until the vex holds the husk, as in {@link #lavaRescuerKeepsItsTarget}.
      *
      * <p>Method under test: {@code VexRescues.start}: the move does not carry a far target along
+     *
+     * <p>Functional spec §7.5, §10.1.
      */
     static void lavaRescuerDropsATargetOutOfReach(GameTestHelper helper) {
         // Arrange
@@ -587,6 +611,8 @@ public final class BoundVexLavaGameTests {
      * and hold it at the player's side two ticks later.
      *
      * <p>Method under test: {@code RescueGoal} (priority -1) against {@code FleeCreeperGoal}
+     *
+     * <p>Functional spec §10.1.
      */
     static void lavaPullTakesAFleeingVex(GameTestHelper helper) {
         // Arrange
@@ -620,6 +646,8 @@ public final class BoundVexLavaGameTests {
      * it make the other vex the rescuer.
      *
      * <p>Method under test: {@code VexRescues.tick}: a rescuer that no longer holds
+     *
+     * <p>Functional spec §10.1.
      */
     static void lavaPullReplacesADeadRescuer(GameTestHelper helper) {
         // Arrange
@@ -652,6 +680,8 @@ public final class BoundVexLavaGameTests {
      * rescuer still hold its sword: only the Nether has the bucket.
      *
      * <p>Method under test: {@code VexRescues.tick}: the end of a lava rescue by dimension
+     *
+     * <p>Functional spec §10.4.
      */
     static void lavaOverworldKeepsBurning(GameTestHelper helper) {
         // Arrange
@@ -711,6 +741,8 @@ public final class BoundVexLavaGameTests {
      * bucket (conjured) for a tail of 20 ticks in which nothing pushes the player, and then hold its sword again.
      *
      * <p>Method under test: {@code VexRescues.tick}: the Nether's bucket and its tail
+     *
+     * <p>Functional spec §10.4.
      */
     static void lavaNetherBucket(GameTestHelper helper) {
         // Arrange
@@ -762,6 +794,8 @@ public final class BoundVexLavaGameTests {
      * burn: the bucket is for a player who is out.
      *
      * <p>Method under test: {@code VexRescues.tick}: no bucket while in lava
+     *
+     * <p>Functional spec §10.3, §10.4.
      */
     static void lavaNetherNoBucketWhileInLava(GameTestHelper helper) {
         // Arrange
@@ -798,6 +832,8 @@ public final class BoundVexLavaGameTests {
      * not the 9th, and no tick out of lava should push.
      *
      * <p>Method under test: {@code VexRescues.tick}: the 10-tick end and no push out of lava
+     *
+     * <p>Functional spec §10.3.
      */
     static void lavaPullEndsAfterTenTicksOut(GameTestHelper helper) {
         // Arrange
@@ -859,6 +895,8 @@ public final class BoundVexLavaGameTests {
      * When a vex is 15.5 blocks from the player in lava, should it be chosen (the range is 16).
      *
      * <p>Method under test: {@code VexRescues.start}: the rescuer range
+     *
+     * <p>Functional spec §10.1.
      */
     static void lavaRescuerRangeInside(GameTestHelper helper) {
         lavaRescuerAt(helper, 15.5, true);
@@ -868,6 +906,8 @@ public final class BoundVexLavaGameTests {
      * When a vex is 17 blocks from the player in lava, should it not be chosen.
      *
      * <p>Method under test: {@code VexRescues.start}: the rescuer range
+     *
+     * <p>Functional spec §10.1.
      */
     static void lavaRescuerRangeOutside(GameTestHelper helper) {
         lavaRescuerAt(helper, 17.0, false);
@@ -899,6 +939,8 @@ public final class BoundVexLavaGameTests {
      * When the shore is two blocks above the player feet, should the pull go toward it.
      *
      * <p>Method under test: {@code StandableSpots.shore}: the top of the height window
+     *
+     * <p>Functional spec §10.3.
      */
     static void lavaShoreTwoUp(GameTestHelper helper) {
         lavaShoreAt(helper, -2, true);
@@ -908,6 +950,8 @@ public final class BoundVexLavaGameTests {
      * When the shore is one block below the player feet, should the pull go toward it.
      *
      * <p>Method under test: {@code StandableSpots.shore}: the bottom of the height window
+     *
+     * <p>Functional spec §10.3.
      */
     static void lavaShoreOneDown(GameTestHelper helper) {
         lavaShoreAt(helper, 1, true);
@@ -917,6 +961,8 @@ public final class BoundVexLavaGameTests {
      * When the shore is three blocks above the player feet, should the pull lift and not go toward it.
      *
      * <p>Method under test: {@code StandableSpots.shore}: just over the top of the height window
+     *
+     * <p>Functional spec §10.3.
      */
     static void lavaShoreThreeUp(GameTestHelper helper) {
         lavaShoreAt(helper, -3, false);
@@ -926,6 +972,8 @@ public final class BoundVexLavaGameTests {
      * When the player gains Fire Resistance during the rescue, should the rescue end on the next step.
      *
      * <p>Method under test: {@code VexRescues.tick}: the player stops needing the rescue
+     *
+     * <p>Functional spec §10.2.
      */
     static void lavaPullEndsWithFireResistance(GameTestHelper helper) {
         // Arrange
@@ -952,6 +1000,8 @@ public final class BoundVexLavaGameTests {
      * 40 ticks, should the sideways speed never pass 0.35.
      *
      * <p>Method under test: {@code RescuePush.lavaPull} through {@code VexRescues.tick}: the drag and the cap
+     *
+     * <p>Functional spec §10.3.
      */
     static void lavaPullNeverPassesTheCap(GameTestHelper helper) {
         // Arrange
@@ -1017,6 +1067,8 @@ public final class BoundVexLavaGameTests {
      * When the rescuer is told to stay during the tail, should the tail end and the bucket be dismissed.
      *
      * <p>Method under test: {@code VexRescues.tick}: a rescuer that no longer holds, in the tail
+     *
+     * <p>Functional spec §10.1.
      */
     static void lavaTailEndsWhenTheRescuerStays(GameTestHelper helper) {
         interruptedTail(helper, (player, vex) -> vex.setStaying(true), true);

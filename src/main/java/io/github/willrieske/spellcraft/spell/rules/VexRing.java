@@ -5,6 +5,8 @@ import java.util.List;
 
 /**
  * Where summoned vexes appear (spec §6): the 40 cells whose Chebyshev distance from the caster's block is 2 or 3.
+ *
+ * <p>Functional spec §5.1, §13.2.
  */
 public final class VexRing {
     /** The nearest a vex spawns, per axis. */
@@ -16,7 +18,7 @@ public final class VexRing {
     /** How many spawn cells there are: a 7×7 square minus its 3×3 middle. */
     public static final int COUNT = 40;
 
-    /** How many vexes one cast summons. */
+    /** How many vexes one cast summons. Functional spec §5.1. */
     public static final int SUMMON_COUNT = 3;
 
     /**

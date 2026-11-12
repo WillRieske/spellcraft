@@ -3,9 +3,13 @@ package io.github.willrieske.spellcraft.spell.rules;
 import java.util.ArrayList;
 import java.util.List;
 
-/** The one list rule of the villager-ghost records (Parts 6-7 spec §9): the oldest record goes first. */
+/**
+ * The one list rule of the villager-ghost records (Parts 6-7 spec §9): the oldest record goes first.
+ *
+ * <p>Functional spec §16.1.
+ */
 public final class GhostRecords {
-    /** Most records a level keeps. */
+    /** Most records a level keeps. Functional spec §16.1. */
     public static final int MAX = 32;
 
     private GhostRecords() {}

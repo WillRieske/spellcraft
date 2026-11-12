@@ -11,6 +11,8 @@ import net.minecraft.world.entity.ai.goal.Goal;
  * dismisses a kit slot, such as a preempted job goal's own {@code stop}, the kit is conjured again). Its {@code stop}
  * dismisses the kit only when the record no longer lists the vex, so a pause keeps the kit. {@link #tick} runs the
  * member's part of the running move (one class per move).
+ *
+ * <p>Functional spec §11.7.
  */
 public final class TeamMoveGoal extends Goal {
     /** The vex this goal belongs to. */

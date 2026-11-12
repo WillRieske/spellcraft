@@ -11,6 +11,8 @@ import org.jspecify.annotations.Nullable;
  * scan leaves its pick in {@link #found}, {@code start} takes it, and the goal holds it for as long as the vex may
  * keep it ({@code BoundVex.keepsTarget}); a scan picks with {@code BoundVex.takesTarget}. The sight rule of {@code TargetGoal} is not used here (spec §3.4 items 1 and 2), so
  * {@code canContinueToUse} never calls {@code super}.
+ *
+ * <p>Functional spec §7.5.
  */
 abstract class ScanTargetGoal extends TargetGoal {
     /** The vex this goal belongs to. */

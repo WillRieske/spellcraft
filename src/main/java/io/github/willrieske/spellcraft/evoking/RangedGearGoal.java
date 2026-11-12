@@ -13,12 +13,14 @@ import net.minecraft.world.phys.Vec3;
  * same main-hand test keeps out. It holds its fire while a friend is in the way ({@link
  * VexShots#friendInTheWay(BoundVex, LivingEntity)}, spec §4.3 "Friendly fire"). A staying vex may back out of its stay
  * area to hold the band; it returns through the post goal once the target is gone (spec §2.2).
+ *
+ * <p>Functional spec §7.5, §8.6, §8.7, §12.2.
  */
 public final class RangedGearGoal extends Goal {
-    /** Closer than this and the vex flies away (spec §4.3). */
+    /** Closer than this and the vex flies away (spec §4.3). Functional spec §8.6. */
     public static final double MIN_DISTANCE = 6.0;
 
-    /** Farther than this and the vex flies in (spec §4.3). */
+    /** Farther than this and the vex flies in (spec §4.3). Functional spec §8.6. */
     public static final double MAX_DISTANCE = 10.0;
 
     /**
@@ -26,17 +28,23 @@ public final class RangedGearGoal extends Goal {
      * spec §4.3). The vex flies to the middle of the band and coasts on after the goal's last order, and the goal turns
      * it back only once it is beyond {@link #MAX_DISTANCE}: with the limit exactly there, the coast alone carried it a
      * hair past and the target was dropped for good (the guard box does not take it again from that far). The margin
-     * lets the goal turn the vex back before the target goes.
+     * lets the goal turn the vex back before the target goes. Functional spec §7.5.
      */
     public static final double KEEP_MARGIN = 2.0;
 
-    /** Ticks between shots (spec §4.3). */
+    /** Ticks between shots (spec §4.3). Functional spec §8.6. */
     public static final int SHOT_INTERVAL = 40;
 
-    /** How close to the line of an arrow a friend's middle may be before the vex holds its fire (spec §4.3). */
+    /**
+     * How close to the line of an arrow a friend's middle may be before the vex holds its fire (spec §4.3).
+     * Functional spec §8.7.
+     */
     public static final double LINE_CLEARANCE = VexShots.LINE_CLEARANCE;
 
-    /** How close to its target a friend may be before the vex holds back a splash potion (spec §4.3). */
+    /**
+     * How close to its target a friend may be before the vex holds back a splash potion (spec §4.3).
+     * Functional spec §8.7.
+     */
     public static final double SPLASH_CLEARANCE = VexShots.SPLASH_CLEARANCE;
 
     private final BoundVex vex;

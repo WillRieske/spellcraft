@@ -13,6 +13,8 @@ import net.minecraft.world.phys.Vec3;
  * overwrites a wanted position set from outside the goals, so the goal stops the navigation and sets the velocity
  * itself; the mob has no gravity and no collision while it carries the effect ({@code Ghostrail.tick}), so it can rise
  * and sink.
+ *
+ * <p>Functional spec §14.8, §15.2.
  */
 public final class GhostrailChaseGoal extends Goal {
     /** Blocks per tick. */

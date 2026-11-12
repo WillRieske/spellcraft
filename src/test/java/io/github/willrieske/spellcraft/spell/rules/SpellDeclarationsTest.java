@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+/** Functional spec §1.2, §1.3, §13.1, §14.1. */
 class SpellDeclarationsTest {
     @Test
     void declaresEverySpellWithItsTier() {

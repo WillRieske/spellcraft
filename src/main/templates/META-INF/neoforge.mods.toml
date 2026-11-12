@@ -23,7 +23,7 @@ version="${mod_version}" #mandatory
 # A display name for the mod
 displayName="${mod_name}" #mandatory
 
-# Adds the evoker spellcasting arm pose to HumanoidModel.ArmPose (FML enum extension; Evoking spec §7).
+# Adds the evoker spellcasting arm pose to HumanoidModel.ArmPose (FML enum extension; Evoking I spec §7).
 enumExtensions="META-INF/enumextensions.json"
 
 # A URL to query for updates for this mod. See the JSON update specification https://docs.neoforged.net/docs/misc/updatechecker/

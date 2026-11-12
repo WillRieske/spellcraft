@@ -46,6 +46,8 @@ import net.minecraft.world.phys.Vec3;
  * In every test the vex is held at the summoner's side within a few ticks, the job's state is given back cleanly, the
  * tail shows its item in the vex's hand (even when the job held the hand at the tail's start), the sword comes back
  * when the rescue ends and the job starts over.
+ *
+ * <p>Functional spec §9.5, §10.1, §10.4, §10.11.
  */
 public final class BoundVexRescueJobGameTests {
     /** How many ticks a body may take: a job restarts from nothing after a rescue and a tail of 20 ticks. */
@@ -249,6 +251,8 @@ public final class BoundVexRescueJobGameTests {
      * A lava pull preempts {@code maker}'s job in a Nether room: the vex is held within {@link #WITHIN} ticks, the job
      * is given back, the vex's hand holds its sword; the player walks out, the tail shows the bucket; and when it ends
      * the sword is back and the job starts over.
+     *
+     * <p>Functional spec §9.5, §10.1, §10.4.
      */
     private static void lavaTest(GameTestHelper helper, JobMaker maker) {
         // Arrange
@@ -310,6 +314,8 @@ public final class BoundVexRescueJobGameTests {
      * it), is put back on the platform, the vex is held within {@link #WITHIN} ticks with the apple in its hand even
      * though the job held the hand at the catch, the job is given back; and when the 20-tick tail ends the sword is
      * back and the job starts over.
+     *
+     * <p>Functional spec §9.5, §10.1, §10.11.
      */
     private static void voidTest(GameTestHelper helper, JobMaker maker) {
         // Arrange
@@ -376,6 +382,8 @@ public final class BoundVexRescueJobGameTests {
      * {@code pullTicks} ticks in lava: the bucket must be in the vex's hand for the whole tail, although the
      * preempted job's {@code stop} dismisses the hand. Stepped by hand, so the tail starts on a known tick; the sword
      * is back when the tail ends and the job's state is given back.
+     *
+     * <p>Functional spec §10.1, §10.4.
      */
     private static void lavaQuickTest(GameTestHelper helper, JobMaker maker, int pullTicks) {
         // Arrange

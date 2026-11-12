@@ -14,6 +14,8 @@ import org.slf4j.Logger;
  * Registers the mod's one payload (spec §4). The handler runs on the server thread (NeoForge's default) and hands
  * the request to {@link #handle}, which validates it and dispatches a cast to {@link EvokingCaster} and a team move
  * (the J and K keys) to {@link TeamMoves}; those decide whether anything happens.
+ *
+ * <p>Functional spec §2.6.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class EvokingNetwork {

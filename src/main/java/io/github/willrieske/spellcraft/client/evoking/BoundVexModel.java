@@ -5,7 +5,11 @@ import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.monster.vex.VexModel;
 import net.minecraft.client.renderer.entity.state.VexRenderState;
 
-/** The vex model with the arms-up casting pose of a Caster (Parts 6-7 spec §6.4). */
+/**
+ * The vex model with the arms-up casting pose of a Caster (Parts 6-7 spec §6.4).
+ *
+ * <p>Functional spec §12.5.
+ */
 public final class BoundVexModel extends VexModel {
     /**
      * Creates the model from its baked layer.

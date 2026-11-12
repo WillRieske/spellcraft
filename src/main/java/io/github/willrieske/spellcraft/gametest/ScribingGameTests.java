@@ -26,7 +26,11 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 
-/** Scribing GameTests: a real enchanting menu at a real table. Registered in {@link SpellcraftGameTests}. */
+/**
+ * Scribing GameTests: a real enchanting menu at a real table. Registered in {@link SpellcraftGameTests}.
+ *
+ * <p>Functional spec §1.2, §13.1, §14.1.
+ */
 public final class ScribingGameTests {
     private static final BlockPos TABLE = new BlockPos(1, 1, 1);
     private static final int LEVELS = 30;
@@ -192,6 +196,8 @@ public final class ScribingGameTests {
      * the lower pool, which holds every non-extreme spell (Upside-Down, Trailing, Evoking and Mirror). A random draw
      * cannot prove all are reachable, so {@code ScrollDraw.draw} itself is run first over
      * {@code Scribing.candidates()} with dice that pick each index of the lower pool in turn.
+     *
+     * <p>Functional spec §1.2, §13.1.
      */
     static void zeroPercent(GameTestHelper helper) {
         List<Item> lowerPool = new ArrayList<>();
@@ -244,6 +250,8 @@ public final class ScribingGameTests {
      * the top tier, which holds Infinity and Ghostrail. A single random draw cannot prove both are reachable, so
      * {@code ScrollDraw.draw} is run first over {@code Scribing.candidates()} with dice that pick each index of the
      * top pool in turn.
+     *
+     * <p>Functional spec §14.1.
      */
     static void hundredPercent(GameTestHelper helper) {
         List<Item> topPool = new ArrayList<>();

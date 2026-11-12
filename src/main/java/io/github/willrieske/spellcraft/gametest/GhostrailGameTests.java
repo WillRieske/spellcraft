@@ -26,7 +26,11 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
-/** GameTests of Ghostrail's damage rule, trail, ending and mob carriers (Parts 6-7 spec §7.3, §10). */
+/**
+ * GameTests of Ghostrail's damage rule, trail, ending and mob carriers (Parts 6-7 spec §7.3, §10).
+ *
+ * <p>Functional spec §14.3, §14.4, §14.6, §14.8.
+ */
 @SuppressWarnings("deprecation") // The ending tests read Abilities#mayfly; see AbilitySync#sync for why.
 public final class GhostrailGameTests {
     /** How far from the player the big stone cubes reach sideways and down (the push-out search radius). */
@@ -148,6 +152,8 @@ public final class GhostrailGameTests {
      * and not change with it.
      *
      * <p>Method under test: {@code Ghostrail#onIncomingDamage}.
+     *
+     * <p>Functional spec §14.3.
      */
     static void damageIsCancelled(GameTestHelper helper) {
         // Arrange
@@ -173,6 +179,8 @@ public final class GhostrailGameTests {
      * When a Ghostrail player is hit by /kill's damage, should they die.
      *
      * <p>Method under test: {@code Ghostrail#onIncomingDamage}.
+     *
+     * <p>Functional spec §14.3.
      */
     static void killStillLands(GameTestHelper helper) {
         // Arrange
@@ -190,6 +198,8 @@ public final class GhostrailGameTests {
      * When a Ghostrail player is hit by the void's damage, should they die.
      *
      * <p>Method under test: {@code Ghostrail#onIncomingDamage}.
+     *
+     * <p>Functional spec §14.3.
      */
     static void voidDamageStillLands(GameTestHelper helper) {
         // Arrange
@@ -207,6 +217,8 @@ public final class GhostrailGameTests {
      * When a Ghostrail player is stepped once, should white smoke be sent.
      *
      * <p>Method under test: {@code Ghostrail#tick}: the trail.
+     *
+     * <p>Functional spec §14.4.
      */
     static void trailIsSent(GameTestHelper helper) {
         // Arrange
@@ -227,6 +239,8 @@ public final class GhostrailGameTests {
      * mayfly.
      *
      * <p>Method under test: {@code Ghostrail#tick}: the push-out.
+     *
+     * <p>Functional spec §14.6.
      */
     static void endingInStone(GameTestHelper helper) {
         // Arrange: a 7 x 7 x 7 block of stone with the player's feet in it, over a floor
@@ -259,6 +273,8 @@ public final class GhostrailGameTests {
      * When Ghostrail ends with the player's box in the open, should they stay where they are, fall distance 0.
      *
      * <p>Method under test: {@code Ghostrail#tick}: the end.
+     *
+     * <p>Functional spec §14.6.
      */
     static void endingInTheOpen(GameTestHelper helper) {
         // Arrange
@@ -281,6 +297,8 @@ public final class GhostrailGameTests {
      * player go to that start spot.
      *
      * <p>Method under test: {@code Ghostrail#begin} and the push-out's last resort.
+     *
+     * <p>Functional spec §14.6.
      */
     static void endingGoesToTheStartSpot(GameTestHelper helper) {
         // Arrange: a floor, the cast at the standing spot, then a lift past the search radius into solid stone
@@ -304,6 +322,8 @@ public final class GhostrailGameTests {
      * When Ghostrail began inside stone (no start spot) and ends deep in stone, should the player stay where they are.
      *
      * <p>Method under test: {@code Ghostrail#begin} and the push-out's last resort.
+     *
+     * <p>Functional spec §14.6.
      */
     static void endingStaysWithNoStartSpot(GameTestHelper helper) {
         // Arrange
@@ -325,6 +345,8 @@ public final class GhostrailGameTests {
      * When a husk has Ghostrail and is stepped, should it have noPhysics and no gravity.
      *
      * <p>Method under test: {@code Ghostrail#tick}: the mob hold.
+     *
+     * <p>Functional spec §14.8.
      */
     static void mobGetsNoPhysics(GameTestHelper helper) {
         // Arrange
@@ -502,6 +524,8 @@ public final class GhostrailGameTests {
      * (only the any-free-spot fallback can succeed), should the player land in that pocket.
      *
      * <p>Method under test: {@code Ghostrail#tick}: the push-out's fallback.
+     *
+     * <p>Functional spec §14.6.
      */
     static void endingTakesAFreeSpot(GameTestHelper helper) {
         // Arrange
@@ -525,6 +549,8 @@ public final class GhostrailGameTests {
      * the player land in the free pocket and not in the lava.
      *
      * <p>Method under test: {@code Ghostrail#tick}: the push-out's fallback skips liquids.
+     *
+     * <p>Functional spec §14.6.
      */
     static void endingSkipsLava(GameTestHelper helper) {
         // Arrange
@@ -560,6 +586,8 @@ public final class GhostrailGameTests {
      * the player land in the free pocket and not in the fire.
      *
      * <p>Method under test: {@code Ghostrail#tick}: the push-out's fallback skips fire.
+     *
+     * <p>Functional spec §14.6.
      */
     static void endingSkipsFire(GameTestHelper helper) {
         // Arrange
@@ -593,6 +621,8 @@ public final class GhostrailGameTests {
      * middle of their own block (ring 0), not to a neighbor.
      *
      * <p>Method under test: {@code Ghostrail#tick}: the push-out's search starts at ring 0.
+     *
+     * <p>Functional spec §14.6.
      */
     static void endingNudgesToItsOwnBlock(GameTestHelper helper) {
         // Arrange

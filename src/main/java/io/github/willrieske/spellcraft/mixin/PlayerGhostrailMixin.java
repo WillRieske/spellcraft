@@ -16,6 +16,8 @@ import org.spongepowered.asm.mixin.injection.At;
  * a moved call fails startup loudly. The handler is thin: the original answer or
  * {@link AbilitySync#ghostrailPassesThroughBlocks} (survival and adventure only, so a creative player given Ghostrail
  * keeps physics).
+ *
+ * <p>Functional spec §14.2, §14.5.
  */
 @Mixin(Player.class)
 abstract class PlayerGhostrailMixin {

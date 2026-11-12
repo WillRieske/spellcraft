@@ -7,7 +7,11 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
-/** Per-player data Infinity keeps (docs/api-notes.md §13). Saved with the player; not copied on death. */
+/**
+ * Per-player data Infinity keeps (docs/api-notes.md §13). Saved with the player; not copied on death.
+ *
+ * <p>Functional spec §14.7.
+ */
 public final class InfinityAttachments {
     public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES =
             DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, Spellcraft.MODID);
@@ -27,6 +31,7 @@ public final class InfinityAttachments {
      * Saved, so a relog mid-effect does not leave {@code mayfly} on for good. Not copied on death, as {@link #GRANTED}.
      * Not the same as {@code EvokingAttachments.GHOSTRAIL_MARK}: that one records the carrier's original
      * {@code noGravity}, for every kind of carrier; this one records only who set the abilities flags, for players.
+     * Functional spec §14.7.
      */
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<Boolean>> GHOSTRAIL_GRANTED =
             ATTACHMENT_TYPES.register(

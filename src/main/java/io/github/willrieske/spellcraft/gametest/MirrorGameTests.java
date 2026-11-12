@@ -41,7 +41,11 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-/** GameTests of the Mirror effect and its images (Parts 6-7 spec §7.2, §10). */
+/**
+ * GameTests of the Mirror effect and its images (Parts 6-7 spec §7.2, §10).
+ *
+ * <p>Functional spec §13.2, §13.3, §13.5, §13.6.
+ */
 public final class MirrorGameTests {
     private MirrorGameTests() {}
 
@@ -110,6 +114,8 @@ public final class MirrorGameTests {
      * When Mirror is cast on a player, should exactly 13 images of them exist.
      *
      * <p>Method under test: {@code MirrorEffect#onEffectAdded}
+     *
+     * <p>Functional spec §13.2.
      */
     static void spawnsThirteen(GameTestHelper helper) {
         // Arrange
@@ -126,6 +132,8 @@ public final class MirrorGameTests {
      * When Mirror is cast over a floor, should the 13 images stand on 13 different ring cells 2 to 3 blocks away.
      *
      * <p>Method under test: {@code MirrorImages#spawn}
+     *
+     * <p>Functional spec §13.2.
      */
     static void standOnTheRing(GameTestHelper helper) {
         // Arrange
@@ -151,6 +159,8 @@ public final class MirrorGameTests {
      * When the carrier holds 3 bricks and a shield, should every image hold copies, not the carrier's stacks.
      *
      * <p>Method under test: {@code MirrorImage#bind}
+     *
+     * <p>Functional spec §13.2.
      */
     static void holdCopiesOfItems(GameTestHelper helper) {
         // Arrange
@@ -174,6 +184,8 @@ public final class MirrorGameTests {
      * When a player casts Mirror, should each image carry that player's summoner mark and count as the player's ally.
      *
      * <p>Method under test: {@code MirrorImage#bind} for a player
+     *
+     * <p>Functional spec §13.5.
      */
     static void playerImagesAreAllies(GameTestHelper helper) {
         // Arrange
@@ -194,6 +206,8 @@ public final class MirrorGameTests {
      * When an evoker has Mirror, should its images copy the evoker's type and carry no summoner mark.
      *
      * <p>Method under test: {@code MirrorImage#bind} for a mob
+     *
+     * <p>Functional spec §13.2, §13.5.
      */
     static void mobImagesHaveNoMark(GameTestHelper helper) {
         // Arrange
@@ -216,6 +230,8 @@ public final class MirrorGameTests {
      * included.
      *
      * <p>Method under test: {@code MirrorImage#die}
+     *
+     * <p>Functional spec §13.3.
      */
     static void diesWithNoDrops(GameTestHelper helper) {
         // Arrange
@@ -239,6 +255,8 @@ public final class MirrorGameTests {
      * When the carrier loses the effect (expiry, dispel), should every image poof within a few ticks.
      *
      * <p>Method under test: {@code MirrorImage#tick} (the carrier lost Mirror)
+     *
+     * <p>Functional spec §13.6.
      */
     static void poofOnRemove(GameTestHelper helper) {
         // Arrange
@@ -257,6 +275,8 @@ public final class MirrorGameTests {
      * When every effect is cleared (milk, a totem), should the images poof too.
      *
      * <p>Method under test: {@code MirrorImage#tick} (the carrier lost Mirror)
+     *
+     * <p>Functional spec §13.6.
      */
     static void poofOnClearAll(GameTestHelper helper) {
         // Arrange
@@ -276,6 +296,8 @@ public final class MirrorGameTests {
      * life runs out. (A killed or discarded mob takes its images with it: {@code poofWhenAMobCarrierIsKilled}.)
      *
      * <p>Method under test: {@code MirrorImage#tick} (the image's own life)
+     *
+     * <p>Functional spec §13.6.
      */
     static void poofOnOwnLife(GameTestHelper helper) {
         // Arrange
@@ -298,6 +320,8 @@ public final class MirrorGameTests {
      * When a mob carrier is killed (removed with the KILLED reason), should all its images poof at once.
      *
      * <p>Method under test: {@code MirrorEffect#onMobRemoved}
+     *
+     * <p>Functional spec §13.6.
      */
     static void poofWhenAMobCarrierIsKilled(GameTestHelper helper) {
         // Arrange
@@ -317,6 +341,8 @@ public final class MirrorGameTests {
      * When a player carrier dies (its effects stay until the respawn), should all its images poof at once.
      *
      * <p>Method under test: {@code MirrorImages#onDeath}
+     *
+     * <p>Functional spec §13.6.
      */
     static void poofWhenAPlayerCarrierDies(GameTestHelper helper) {
         // Arrange
@@ -338,6 +364,8 @@ public final class MirrorGameTests {
      * When the images die one by one, should the effect stay until the last one dies and then go.
      *
      * <p>Method under test: {@code MirrorImages#afterEnd}
+     *
+     * <p>Functional spec §13.6.
      */
     static void lastImageRemovesTheEffect(GameTestHelper helper) {
         // Arrange
@@ -418,6 +446,8 @@ public final class MirrorGameTests {
      * tick end the effect.
      *
      * <p>Method under test: {@code MirrorEffect#applyEffectTick}
+     *
+     * <p>Functional spec §13.6.
      */
     static void imagelessPlayerLosesMirror(GameTestHelper helper) {
         // Arrange
@@ -436,6 +466,8 @@ public final class MirrorGameTests {
      * images' chunk may not be loaded yet).
      *
      * <p>Method under test: {@code MirrorEffect#applyEffectTick}
+     *
+     * <p>Functional spec §13.6.
      */
     static void imagelessPlayerKeepsMirrorInTheGrace(GameTestHelper helper) {
         // Arrange
@@ -453,6 +485,8 @@ public final class MirrorGameTests {
      * When a player with Mirror still has live images past the login grace, should the effect stay.
      *
      * <p>Method under test: {@code MirrorEffect#applyEffectTick}
+     *
+     * <p>Functional spec §13.6.
      */
     static void playerWithImagesKeepsMirror(GameTestHelper helper) {
         // Arrange
@@ -485,6 +519,8 @@ public final class MirrorGameTests {
      * whatever the cause, fails this).
      *
      * <p>Method under test: {@code MirrorImage#serverAiStep}
+     *
+     * <p>Functional spec §13.3.
      */
     static void wanderNearTheCarrier(GameTestHelper helper) {
         // Arrange
@@ -516,6 +552,8 @@ public final class MirrorGameTests {
      * When an image has arrived at its wander target, should it face the way the carrier faces.
      *
      * <p>Method under test: {@code MirrorImage#serverAiStep} (idle)
+     *
+     * <p>Functional spec §13.3.
      */
     static void idleImageFacesTheCarrier(GameTestHelper helper) {
         // Arrange
@@ -538,6 +576,8 @@ public final class MirrorGameTests {
      * after 20 ticks (an image in a block takes wall damage and dies).
      *
      * <p>Method under test: {@code MirrorImages#spawn}
+     *
+     * <p>Functional spec §13.2.
      */
     static void tunnelKeepsImagesOutOfWalls(GameTestHelper helper) {
         // Arrange: solid stone around the standing spot, with only a one-wide corridor (two high) along z
@@ -571,6 +611,8 @@ public final class MirrorGameTests {
      * shell would already cover its column.)
      *
      * <p>Method under test: {@code MirrorImages#spawn}
+     *
+     * <p>Functional spec §13.2.
      */
     static void tallCarrierKeepsImagesOutOfCeiling(GameTestHelper helper) {
         // Arrange: the carrier stands 5 blocks east of the standing spot, clear of the test box's barrier shell
@@ -625,6 +667,8 @@ public final class MirrorGameTests {
      * once).
      *
      * <p>Method under test: {@code MirrorImages#spawn}
+     *
+     * <p>Functional spec §13.2.
      */
     static void secondCastMakesNoExtras(GameTestHelper helper) {
         // Arrange

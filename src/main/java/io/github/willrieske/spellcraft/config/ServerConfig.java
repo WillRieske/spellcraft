@@ -6,6 +6,8 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 /**
  * Server-side (per-world) settings. The durations are read at cast time; {@code maxTrailBlocks} is read each time a
  * flame is laid.
+ *
+ * <p>Functional spec §11.1.
  */
 public final class ServerConfig {
     private static final int TICKS_PER_SECOND = 20;
@@ -18,7 +20,7 @@ public final class ServerConfig {
     public static final ModConfigSpec.IntValue TRAILING_DURATION_SECONDS;
     public static final ModConfigSpec.IntValue TRAILING_MAX_FLAMES;
     public static final ModConfigSpec.ConfigValue<List<? extends Integer>> TOP_TIER_CHANCE_PERCENT;
-    /** The {@code evoking.teamMoves} setting: automatic triggers, or the J and K keys only. */
+    /** The {@code evoking.teamMoves} setting: automatic triggers, or the J and K keys only. Functional spec §11.1. */
     public static final ModConfigSpec.EnumValue<TeamMoveMode> TEAM_MOVES;
 
     public static final ModConfigSpec SPEC;

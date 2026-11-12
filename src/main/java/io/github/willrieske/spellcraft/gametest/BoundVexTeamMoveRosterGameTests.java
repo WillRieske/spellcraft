@@ -38,7 +38,11 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
-/** GameTests of the free-vex test and the busy refusals (Parts 6-7 spec section 2.2, section 2.6). */
+/**
+ * GameTests of the free-vex test and the busy refusals (Parts 6-7 spec section 2.2, section 2.6).
+ *
+ * <p>Functional spec §5.2, §5.6, §8.13, §11.1, §11.2, §11.3, §11.5, §11.7, §11.8, §11.9, §11.10, §11.11.
+ */
 final class BoundVexTeamMoveRosterGameTests {
     private BoundVexTeamMoveRosterGameTests() {}
 
@@ -133,6 +137,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * and listed.
      *
      * <p>Method under test: {@link TeamMoves#isFree}, {@link TeamMoves#freeVexes}
+     *
+     * <p>Functional spec §11.2.
      */
     static void followingVexIsFree(GameTestHelper helper) {
         // Arrange
@@ -152,6 +158,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * When one of three vexes is told to stay, should it not be free and the other two should be.
      *
      * <p>Method under test: {@link TeamMoves#isFree}
+     *
+     * <p>Functional spec §11.2.
      */
     static void stayingVexIsNotFree(GameTestHelper helper) {
         // Arrange
@@ -169,6 +177,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * When a vex already carries a team move, should it not be free.
      *
      * <p>Method under test: {@link TeamMoves#isFree}
+     *
+     * <p>Functional spec §11.2.
      */
     static void markedVexIsNotFree(GameTestHelper helper) {
         // Arrange
@@ -230,6 +240,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * When a vex has no summoner mark (as {@code /summon} makes one), should it never be free for anyone.
      *
      * <p>Method under test: {@link TeamMoves#isFree}: the summoner clause
+     *
+     * <p>Functional spec §5.2.
      */
     static void unmarkedVexIsNotFree(GameTestHelper helper) {
         // Arrange
@@ -247,6 +259,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * busy" and keep following.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     *
+     * <p>Functional spec §11.7.
      */
     static void busyRefusesStay(GameTestHelper helper) {
         // Arrange
@@ -271,6 +285,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * the sword in its hand.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     *
+     * <p>Functional spec §11.7.
      */
     static void busyRefusesTakeBack(GameTestHelper helper) {
         // Arrange
@@ -294,6 +310,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * is for the empty hand only) and no busy message come.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     *
+     * <p>Functional spec §11.7.
      */
     static void busyTakesAGift(GameTestHelper helper) {
         // Arrange
@@ -316,6 +334,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * not.
      *
      * <p>Method under test: {@link TeamMoves#isFree}: the range clause
+     *
+     * <p>Functional spec §11.2.
      */
     static void rangeIsThirtyTwo(GameTestHelper helper) {
         // Arrange (a mock player is never ticked, so the player, not the vex, is moved with setPos)
@@ -335,6 +355,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * When a following vex is killed, should it not be free and not be listed.
      *
      * <p>Method under test: {@link TeamMoves#isFree}: the alive clause
+     *
+     * <p>Functional spec §11.2.
      */
     static void deadVexIsNotFree(GameTestHelper helper) {
         // Arrange
@@ -353,6 +375,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * busy message (the {@code isSummonedBy} check comes first).
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     *
+     * <p>Functional spec §5.6.
      */
     static void strangerIsNotToldBusy(GameTestHelper helper) {
         // Arrange
@@ -396,6 +420,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * nearest the husk, each marked, targeting it and holding a shield in each hand, and the fourth left alone.
      *
      * <p>Method under test: {@link TeamMoves#start}: the Shield roster and kit
+     *
+     * <p>Functional spec §11.3, §11.5, §11.8.
      */
     static void startShieldThree(GameTestHelper helper) {
         // Arrange
@@ -430,6 +456,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * be no nearer the husk than any member.
      *
      * <p>Method under test: {@link TeamMoves#start}: the Shield roster size and choice
+     *
+     * <p>Functional spec §11.3.
      */
     static void startShieldNine(GameTestHelper helper) {
         // Arrange
@@ -459,6 +487,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * When only two vexes are free, should a Shield not start, nobody be marked and nothing be said.
      *
      * <p>Method under test: {@link TeamMoves#start}: the minimum roster
+     *
+     * <p>Functional spec §11.3.
      */
     static void startRefusedWithTwoFree(GameTestHelper helper) {
         // Arrange
@@ -483,6 +513,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * enchanted with Multishot, and the summoner be told once.
      *
      * <p>Method under test: {@link TeamMoves#start}: the Multishot roster and kit
+     *
+     * <p>Functional spec §11.3, §11.5, §11.9.
      */
     static void startMultishotTargetedVexIsIn(GameTestHelper helper) {
         // Arrange (the vexes stand at x = -1.5, -0.5, 0.5, 1.5 and the husk at x = +3, so the three nearest the husk
@@ -525,6 +557,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * then the two nearest that one.
      *
      * <p>Method under test: {@link TeamMoves#start}: the Multishot anchor
+     *
+     * <p>Functional spec §11.3.
      */
     static void startMultishotNearestWhenNothingHunts(GameTestHelper helper) {
         // Arrange
@@ -550,6 +584,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * three free vexes and without the hunted one.
      *
      * <p>Method under test: {@link TeamMoves#start}: the hunted vex must be free to be the anchor
+     *
+     * <p>Functional spec §11.2, §11.3.
      */
     static void startMultishotHuntedVexNotFree(GameTestHelper helper) {
         // Arrange
@@ -578,6 +614,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * summoner, a shield in each hand, no target, the summoner as its ward, and one message.
      *
      * <p>Method under test: {@link TeamMoves#start}: the Evader roster, kit and ward
+     *
+     * <p>Functional spec §11.3, §11.5, §11.10.
      */
     static void startEvaderNearestThree(GameTestHelper helper) {
         // Arrange
@@ -608,6 +646,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * When thirteen vexes are free and a ravager stands beside them, should a Raid take exactly twelve (the cap).
      *
      * <p>Method under test: {@link TeamMoves#start}: the Raid roster cap
+     *
+     * <p>Functional spec §11.3.
      */
     static void startRaidTakesTwelveOfThirteen(GameTestHelper helper) {
         // Arrange
@@ -630,6 +670,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * the iron gear in the stash, and one message.
      *
      * <p>Method under test: {@link TeamMoves#start}: the Raid roster and kit
+     *
+     * <p>Functional spec §8.13, §11.3, §11.5, §11.11.
      */
     static void startRaidTwelveGeared(GameTestHelper helper) {
         // Arrange
@@ -684,6 +726,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * the fourth keep it in its hand.
      *
      * <p>Method under test: {@link TeamMoves#start}: given gear is stashed
+     *
+     * <p>Functional spec §8.13, §11.5.
      */
     static void startStashesGivenGear(GameTestHelper helper) {
         // Arrange
@@ -711,6 +755,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * more than the first three vexes be marked.
      *
      * <p>Method under test: {@link TeamMoves#start}: one move at a time per summoner
+     *
+     * <p>Functional spec §11.1.
      */
     static void startRefusedWhileRunning(GameTestHelper helper) {
         // Arrange
@@ -778,6 +824,8 @@ final class BoundVexTeamMoveRosterGameTests {
      * key.
      *
      * <p>Method under test: {@link TeamMoves#start}: the overlay message
+     *
+     * <p>Functional spec §11.5.
      */
     static void startMessageOnce(GameTestHelper helper) {
         // Arrange

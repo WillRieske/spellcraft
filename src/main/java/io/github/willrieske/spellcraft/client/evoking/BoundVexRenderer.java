@@ -15,6 +15,8 @@ import net.minecraft.world.item.ItemStack;
  * Vanilla's vex renderer plus the armor layer (Evoking II Part 3 spec §6): a Bound Vex wears the helmet, chestplate
  * and leggings it was given. A Caster also wears the robe layer and raises its arms while casting ({@link
  * BoundVexModel}; Parts 6-7 spec §6.3-§6.4). Its charging texture, held items and everything else are vanilla's.
+ *
+ * <p>Functional spec §8.11, §12.1, §12.5.
  */
 public final class BoundVexRenderer extends VexRenderer {
     /**

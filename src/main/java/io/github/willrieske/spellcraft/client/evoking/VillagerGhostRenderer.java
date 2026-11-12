@@ -18,6 +18,8 @@ import org.jspecify.annotations.Nullable;
  * profession layer's helpers are private and draw with {@code entityCutout}, which ignores alpha; hence the
  * renderer and the layer are this mod's own. The villager model's arms are one crossed part, so a ghost shows
  * particles and sounds only when it casts.
+ *
+ * <p>Functional spec §16.3.
  */
 public final class VillagerGhostRenderer
         extends LivingEntityRenderer<VillagerGhost, VillagerRenderState, VillagerModel> {

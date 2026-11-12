@@ -11,7 +11,11 @@ import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
-/** The mod's entity types. {@code Spellcraft} registers {@link #ENTITIES} on the mod bus. */
+/**
+ * The mod's entity types. {@code Spellcraft} registers {@link #ENTITIES} on the mod bus.
+ *
+ * <p>Functional spec §5.2, §5.4, §13.3, §16.5.
+ */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class ModEntities {
     public static final DeferredRegister.Entities ENTITIES = DeferredRegister.createEntities(Spellcraft.MODID);
@@ -21,7 +25,7 @@ public final class ModEntities {
      * 0.4×0.8, tracked eight chunks out and not allowed on Peaceful, where {@code create} refuses and
      * {@code Mob.checkDespawn} discards it. No spawn egg, no natural spawn, no loot table (stated by
      * {@code noLootTable()}, so a datapack cannot add one by accident) and no experience; {@code /summon
-     * spellcraft:bound_vex} makes one with no summoner, which idles.
+     * spellcraft:bound_vex} makes one with no summoner, which idles. Functional spec §5.2, §5.4.
      */
     public static final DeferredHolder<EntityType<?>, EntityType<BoundVex>> BOUND_VEX = ENTITIES.registerEntityType(
             "bound_vex",
@@ -39,7 +43,7 @@ public final class ModEntities {
     /**
      * The Mirror image (Parts 6-7 spec §7.2): a copy of a caster that wanders and can be hit. Not a mob: a living
      * entity with its own small walk. Sized at spawn like its caster ({@link MirrorImage#getDefaultDimensions}); no
-     * loot table.
+     * loot table. Functional spec §13.3.
      */
     public static final DeferredHolder<EntityType<?>, EntityType<MirrorImage>> MIRROR_IMAGE =
             ENTITIES.registerEntityType(
@@ -51,7 +55,7 @@ public final class ModEntities {
     /**
      * The villager ghost (Parts 6-7 spec §9): the spirit drawn from a record, sized like a villager. Never saved: it
      * vanishes with its chunk or a restart, and the record stays. Position updates every tick, because a ghost moves
-     * by position and the default of three ticks would make it look steppy.
+     * by position and the default of three ticks would make it look steppy. Functional spec §16.5.
      */
     public static final DeferredHolder<EntityType<?>, EntityType<VillagerGhost>> VILLAGER_GHOST =
             ENTITIES.registerEntityType(
@@ -68,7 +72,8 @@ public final class ModEntities {
 
     /**
      * Gives the Bound Vex, the Mirror image and the villager ghost their attributes (a mod-bus event, received here as
-     * {@code SpellcraftGameTests} receives {@code RegisterGameTestsEvent}).
+     * {@code SpellcraftGameTests} receives {@code RegisterGameTestsEvent}). The Mirror image's 10 health:
+     * Functional spec §13.3.
      *
      * @param event the attribute event
      */

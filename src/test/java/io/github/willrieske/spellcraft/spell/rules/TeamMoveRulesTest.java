@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+/** Functional spec §11.3, §11.4, §11.6, §11.10, §11.11. */
 class TeamMoveRulesTest {
     @Nested
     class RosterSize {

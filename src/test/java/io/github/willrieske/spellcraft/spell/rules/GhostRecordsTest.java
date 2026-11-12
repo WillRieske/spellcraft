@@ -8,6 +8,7 @@ import java.util.List;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+/** Functional spec §16.1. */
 class GhostRecordsTest {
     @Nested
     class Add {

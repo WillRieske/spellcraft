@@ -26,7 +26,11 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.scores.Scoreboard;
 
-/** The shared ally rule (Evoking spec §3, table A1–A5). Registered in {@link SpellcraftGameTests}. */
+/**
+ * The shared ally rule (Evoking I spec §3, table A1–A5). Registered in {@link SpellcraftGameTests}.
+ *
+ * <p>Functional spec §4.1, §4.7.
+ */
 public final class AlliesGameTests {
     private static final BlockPos SPOT = new BlockPos(1, 1, 1);
 
@@ -51,6 +55,8 @@ public final class AlliesGameTests {
      * <p>Method under test: {@link Allies#isAllyOf}, and {@link Allies#mayHaveAllies}
      *
      * <p>Puts the player on a team, so it runs in the {@code team_mutation} batch; synchronous on purpose.
+     *
+     * <p>Functional spec §4.1.
      */
     static void a1Team(GameTestHelper helper) {
         // Arrange
@@ -75,6 +81,8 @@ public final class AlliesGameTests {
      * pet is allied through ownership, not the scoreboard.
      *
      * <p>Method under test: {@link Allies#isAllyOf}, and {@link Allies#mayHaveAllies}
+     *
+     * <p>Functional spec §4.1.
      */
     static void a2TamedPet(GameTestHelper helper) {
         // Arrange
@@ -97,6 +105,8 @@ public final class AlliesGameTests {
      * OwnableEntity}, so a vex alone would pass without it.
      *
      * <p>Method under test: {@link Allies#isAllyOf}, and {@link Allies#mayHaveAllies}
+     *
+     * <p>Functional spec §4.1.
      */
     static void a3SummonerAttachment(GameTestHelper helper) {
         // Arrange
@@ -127,6 +137,8 @@ public final class AlliesGameTests {
      * {@link GameTestSupport#vexOwnedBy}.
      *
      * <p>Method under test: {@link Allies#isAllyOf}, and {@link Allies#mayHaveAllies}
+     *
+     * <p>Functional spec §4.1.
      */
     static void a4OwnableOwner(GameTestHelper helper) {
         // Arrange
@@ -148,6 +160,8 @@ public final class AlliesGameTests {
      * When a mob has no team, owner or mark, should be no ally and cannot have allies; the player is their own ally.
      *
      * <p>Method under test: {@link Allies#isAllyOf}, and {@link Allies#mayHaveAllies}
+     *
+     * <p>Functional spec §4.1.
      */
     static void a5Strangers(GameTestHelper helper) {
         // Arrange
@@ -170,6 +184,8 @@ public final class AlliesGameTests {
      * {@code AbstractVillager}) should not be an ally (Evoking II §2.3).
      *
      * <p>Method under test: {@link Allies#isAllyOf}, and {@link Allies#mayHaveAllies}
+     *
+     * <p>Functional spec §4.1.
      */
     static void a7VillagersAndTraders(GameTestHelper helper) {
         // Arrange
@@ -204,6 +220,8 @@ public final class AlliesGameTests {
      *
      * <p>Mutates a global game rule, so it runs alone in the {@code pvp_off} batch; the rule is restored through
      * {@code whenDone}.
+     *
+     * <p>Functional spec §4.7.
      */
     static void a6PvpOff(GameTestHelper helper) {
         // Arrange

@@ -24,15 +24,17 @@ import net.minecraft.world.phys.Vec3;
  * fire for the rest of the move. The summoner, allies and Bound Vexes outside the roster still hold its fire. The
  * blast's damage source names the vex, so the friendly-fire backstop spares the summoner and everything the vex may not
  * fight. A Raid whose roster falls below 12 continues.
+ *
+ * <p>Functional spec §11.11.
  */
 public final class RaidMove {
-    /** Ticks the gather lasts before the charge. */
+    /** Ticks the gather lasts before the charge. Functional spec §11.11. */
     public static final int GATHER_TICKS = 40;
 
-    /** How far from the enemy, toward the summoner, the grid is centered. */
+    /** How far from the enemy, toward the summoner, the grid is centered. Functional spec §11.11. */
     static final double GRID_DISTANCE = 8.0;
 
-    /** Ticks between one melee member's hits. */
+    /** Ticks between one melee member's hits. Functional spec §11.11. */
     static final int ATTACK_INTERVAL = 20;
 
     /** Closer than this and a rocketeer backs off. */
@@ -41,10 +43,10 @@ public final class RaidMove {
     /** Farther than this and a rocketeer closes in. */
     static final double ROCKET_FAR = 9.0;
 
-    /** The distance a rocketeer that moves aims for. */
+    /** The distance a rocketeer that moves aims for. Functional spec §11.11. */
     static final double ROCKET_HOLD = 8.0;
 
-    /** Ticks between one rocketeer's rockets. */
+    /** Ticks between one rocketeer's rockets. Functional spec §11.11. */
     static final int ROCKET_INTERVAL = 40;
 
     private RaidMove() {}
@@ -111,7 +113,7 @@ public final class RaidMove {
      * A Caster in a Raid: it flies to its grid cell and holds it for the whole move, and never attacks. At the start of
      * the gather it casts Mirror on the summoner at once (no wind-up) if the summoner has none, ignoring its own Mirror
      * cooldown and then setting it. It holds the scroll through the gather (spec §4.4: the scroll is its gather kit)
-     * and empties the conjured main hand only when the charge starts.
+     * and empties the conjured main hand only when the charge starts. Functional spec §11.11.
      */
     private static void casterTick(
             BoundVex vex, TeamMoves.Move record, TeamMoves.Member member, LivingEntity enemy, long now) {

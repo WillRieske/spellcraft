@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+/** Functional spec §12.1, §12.2, §12.3, §12.4, §12.5. */
 class CasterRulesTest {
     @Nested
     class ApproachTo {

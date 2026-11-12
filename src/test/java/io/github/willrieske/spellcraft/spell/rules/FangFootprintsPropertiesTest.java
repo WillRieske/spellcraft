@@ -11,6 +11,7 @@ import net.jqwik.api.Property;
 import net.jqwik.api.constraints.DoubleRange;
 import net.jqwik.api.constraints.IntRange;
 
+/** Functional spec §3.4. */
 class FangFootprintsPropertiesTest {
     // jqwik refuses static @Group classes, so ClassCanBeStatic cannot apply.
     @Group

@@ -32,7 +32,11 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-/** GameTests of the Raid team move (Parts 6-7 spec §4.4). */
+/**
+ * GameTests of the Raid team move (Parts 6-7 spec §4.4).
+ *
+ * <p>Functional spec §11.11.
+ */
 final class BoundVexTeamMoveRaidGameTests {
     private BoundVexTeamMoveRaidGameTests() {}
 

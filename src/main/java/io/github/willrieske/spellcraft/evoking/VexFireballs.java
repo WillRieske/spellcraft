@@ -24,10 +24,15 @@ import net.neoforged.neoforge.event.entity.ProjectileImpactEvent;
  * A Bound Vex bats a ghast's fireball back (Parts 4–5 spec §6.3). The return hangs on the impact itself: a fireball
  * covers 1.2 to 1.9 blocks a tick, so a look once per tick would miss most of them. The return is Nether only; the
  * pass-through of its owner's own vexes holds everywhere.
+ *
+ * <p>Functional spec §10.6, §10.7.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class VexFireballs {
-    /** An impact this near a player's body (or on them) is theirs to have returned, in blocks. */
+    /**
+     * An impact this near a player's body (or on them) is theirs to have returned, in blocks.
+     * Functional spec §10.6.
+     */
     public static final double NEAR_PLAYER = 4.0;
 
     private VexFireballs() {}
@@ -42,12 +47,12 @@ public final class VexFireballs {
      * point. Next tick its ray starts either inside the vex's box or already beyond it, and either way it cannot enter
      * the box through a face ({@code AABB.clip} counts only the faces a ray enters through, at a positive distance
      * along it, and {@code ProjectileUtil.getEntityHitResult} takes the nearest such hit), so the same vex is not
-     * struck again. This holds in every dimension; only the return below is Nether only.
+     * struck again. This holds in every dimension; only the return below is Nether only. Functional spec §10.7.
      *
      * <p>Then, in the Nether only: cancels the impact of a fireball that is about to hit a player, or land within
      * {@link #NEAR_PLAYER} blocks of the player's body (the distance from the hit to their bounding box, not to their
      * feet), when a Bound Vex summoned by that player is within reach of the fireball, and sends it back. A fireball
-     * the player already owns, or one near a spectator, is left alone.
+     * the player already owns, or one near a spectator, is left alone. Functional spec §10.6.
      *
      * @param event the impact, before vanilla explodes the fireball
      */
@@ -81,7 +86,10 @@ public final class VexFireballs {
         }
     }
 
-    /** Whether {@code hit} is on a Bound Vex summoned by the player who owns {@code fireball}. */
+    /**
+     * Whether {@code hit} is on a Bound Vex summoned by the player who owns {@code fireball}.
+     * Functional spec §10.7.
+     */
     private static boolean strikesOwnersVex(LargeFireball fireball, HitResult hit) {
         return fireball.getOwner() instanceof Player owner
                 && hit instanceof EntityHitResult entityHit
@@ -89,7 +97,10 @@ public final class VexFireballs {
                 && vex.isSummonedBy(owner.getUUID());
     }
 
-    /** The living Bound Vex of {@code player} nearest to {@code fireball}, if one is within the guard reach of it. */
+    /**
+     * The living Bound Vex of {@code player} nearest to {@code fireball}, if one is within the guard reach of it.
+     * Functional spec §10.6.
+     */
     private static Optional<BoundVex> nearestVexOf(ServerLevel level, LargeFireball fireball, ServerPlayer player) {
         return level
                 .getEntitiesOfClass(
@@ -105,7 +116,7 @@ public final class VexFireballs {
     /**
      * The return: the vex jumps to the fireball, the knockback sound plays, and the fireball flies at its old speed
      * toward the ghast that shot it (alive and in the vex's sight), or straight back. The summoner becomes its owner:
-     * vanilla kills a ghast in one hit only with a fireball a player returned.
+     * vanilla kills a ghast in one hit only with a fireball a player returned. Functional spec §10.6.
      */
     private static void sendBack(ServerLevel level, LargeFireball fireball, BoundVex vex, ServerPlayer player) {
         Vec3 at = fireball.position();

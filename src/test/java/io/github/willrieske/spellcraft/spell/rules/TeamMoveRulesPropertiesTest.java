@@ -10,6 +10,7 @@ import net.jqwik.api.constraints.DoubleRange;
 import net.jqwik.api.constraints.IntRange;
 import net.jqwik.api.constraints.LongRange;
 
+/** Functional spec §11.3, §11.4, §11.6, §11.10, §11.11. */
 class TeamMoveRulesPropertiesTest {
     // jqwik refuses static @Group classes, so ClassCanBeStatic cannot apply.
     @Group

@@ -26,7 +26,11 @@ import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.phys.Vec3;
 
-/** GameTests of the automatic triggers (Parts 6-7 spec section 2.3). */
+/**
+ * GameTests of the automatic triggers (Parts 6-7 spec section 2.3).
+ *
+ * <p>Functional spec §11.1, §11.2, §11.3, §11.4, §11.6.
+ */
 final class BoundVexTeamMoveTriggerGameTests {
     private BoundVexTeamMoveTriggerGameTests() {}
 
@@ -165,6 +169,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * twelve, each geared.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: the Raid trigger
+     *
+     * <p>Functional spec §11.3, §11.4.
      */
     static void ravagerWithTwelveRaids(GameTestHelper helper) {
         // Arrange
@@ -186,6 +192,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When only four vexes are free beside a ravager, should a Shield start with three.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: the Raid fall-through to a Shield
+     *
+     * <p>Functional spec §11.3, §11.4.
      */
     static void ravagerWithFourShields(GameTestHelper helper) {
         // Arrange
@@ -206,6 +214,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When eleven vexes are free beside a ravager (one short of a Raid), should a Shield start with nine.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: the Raid fall-through to a Shield
+     *
+     * <p>Functional spec §11.3, §11.4.
      */
     static void ravagerWithElevenShields(GameTestHelper helper) {
         // Arrange
@@ -226,6 +236,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When nine vexes are free beside an enderman (40 health), should a Shield start with nine.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: the Shield trigger
+     *
+     * <p>Functional spec §11.3, §11.4.
      */
     static void endermanWithNineShields(GameTestHelper helper) {
         // Arrange
@@ -246,6 +258,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When a vindicator (attack damage 5) hunts a free vex, should no move start.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: the Multishot damage threshold
+     *
+     * <p>Functional spec §11.4.
      */
     static void vindicatorStartsNothing(GameTestHelper helper) {
         // Arrange
@@ -265,6 +279,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When a husk with attack damage 6 hunts a free vex, should a Multishot start with that vex in its roster of three.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: the Multishot trigger
+     *
+     * <p>Functional spec §11.3, §11.4.
      */
     static void strongHunterStartsAMultishot(GameTestHelper helper) {
         // Arrange
@@ -288,6 +304,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When a husk with attack damage 6 hunts nobody, should no move start.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: Multishot needs a hunted free vex
+     *
+     * <p>Functional spec §11.4.
      */
     static void strongHunterOfNobodyStartsNothing(GameTestHelper helper) {
         // Arrange
@@ -308,6 +326,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * warding the summoner.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: the Evader trigger for the summoner
+     *
+     * <p>Functional spec §11.3, §11.4.
      */
     static void hurtSummonerStartsAnEvader(GameTestHelper helper) {
         // Arrange
@@ -329,6 +349,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When a villager within 16 blocks is at 40 % health, should an Evader start warding it.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: the Evader trigger for an ally
+     *
+     * <p>Functional spec §11.4.
      */
     static void hurtVillagerStartsAnEvader(GameTestHelper helper) {
         // Arrange
@@ -351,6 +373,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When one of the summoner's own vexes is at 40 % health, should no Evader start (a vex is never warded).
      *
      * <p>Method under test: {@code TeamMoves.wardFor}: no summoner-marked mob
+     *
+     * <p>Functional spec §11.4.
      */
     static void hurtVexIsNotWarded(GameTestHelper helper) {
         // Arrange
@@ -371,6 +395,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * enemy side comes first).
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: the order of the triggers
+     *
+     * <p>Functional spec §11.4.
      */
     static void enemyMovesComeBeforeTheEvader(GameTestHelper helper) {
         // Arrange
@@ -391,6 +417,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When a plain husk (20 health, attack damage 3) stands in the guard area, should no move start.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: the thresholds
+     *
+     * <p>Functional spec §11.4.
      */
     static void plainHuskStartsNothing(GameTestHelper helper) {
         // Arrange
@@ -410,6 +438,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When a ravager stands ten blocks from the vexes (outside every guard area), should no move start.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: candidates are inside a following vex's guard area
+     *
+     * <p>Functional spec §11.4.
      */
     static void enemyOutsideTheGuardAreaStartsNothing(GameTestHelper helper) {
         // Arrange
@@ -429,6 +459,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When one of three vexes stays, should a ravager start no move (two free vexes) and a staying vex never be taken.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: staying vexes are not free
+     *
+     * <p>Functional spec §11.2, §11.4.
      */
     static void stayingVexIsNotTaken(GameTestHelper helper) {
         // Arrange
@@ -449,6 +481,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * Raid is cooling, so the ravager falls through).
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: a cooling kind is not ready
+     *
+     * <p>Functional spec §11.4.
      */
     static void coolingRaidFallsThroughToAShield(GameTestHelper helper) {
         // Arrange
@@ -476,6 +510,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When a ghast (no attack-damage attribute) hunts a free vex, should no move start and the scan not fail.
      *
      * <p>Method under test: {@code TeamMoves.attackDamage}: the missing-attribute path
+     *
+     * <p>Functional spec §11.4.
      */
     static void ghastHuntingAVexStartsNothing(GameTestHelper helper) {
         // Arrange
@@ -495,6 +531,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When two 40-health husks stand in the guard area, should the Shield's subject be the one nearer the summoner.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: the nearest candidate wins (spec section 2.3)
+     *
+     * <p>Functional spec §11.4.
      */
     static void nearestCandidateIsTheSubject(GameTestHelper helper) {
         // Arrange
@@ -519,6 +557,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * (the Raid comes before the Shield across candidates) with the ravager as its subject.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: the Raid-before-Shield order across candidates
+     *
+     * <p>Functional spec §11.4.
      */
     static void raidCandidateBeatsANearerShieldCandidate(GameTestHelper helper) {
         // Arrange
@@ -545,6 +585,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * fraction wins).
      *
      * <p>Method under test: {@code TeamMoves.wardFor}: the ranking
+     *
+     * <p>Functional spec §11.4.
      */
     static void lowestFractionIsWarded(GameTestHelper helper) {
         // Arrange
@@ -566,6 +608,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When the summoner and a villager are at the same health fraction, should an Evader ward the summoner.
      *
      * <p>Method under test: {@code TeamMoves.wardFor}: the summoner wins ties
+     *
+     * <p>Functional spec §11.4.
      */
     static void summonerWinsTies(GameTestHelper helper) {
         // Arrange
@@ -587,6 +631,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When a villager is at exactly half health, should no Evader start (the boundary is strict).
      *
      * <p>Method under test: {@code TeamMoves.wardFor}: {@code health < maxHealth / 2}
+     *
+     * <p>Functional spec §11.4.
      */
     static void healthyAllyIsNotWarded(GameTestHelper helper) {
         // Arrange
@@ -608,6 +654,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * within 16 blocks).
      *
      * <p>Method under test: {@code TeamMoves.wardFor}: the range clause
+     *
+     * <p>Functional spec §11.4.
      */
     static void farAllyIsNotWarded(GameTestHelper helper) {
         // Arrange
@@ -628,6 +676,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When the summoner is dead with twelve vexes and a ravager beside, should the scan start nothing.
      *
      * <p>Method under test: {@code TeamMoves.tick}: the scan needs a present summoner
+     *
+     * <p>Functional spec §11.4.
      */
     static void deadSummonerScansNothing(GameTestHelper helper) {
         // Arrange
@@ -649,6 +699,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * area does not count).
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: candidates come from following vexes only
+     *
+     * <p>Functional spec §11.4.
      */
     static void stayingVexesGuardAreaDoesNotCount(GameTestHelper helper) {
         // Arrange
@@ -669,6 +721,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * hunted vex is not free).
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: {@code targetsFreeVex}
+     *
+     * <p>Functional spec §11.2, §11.4.
      */
     static void hunterOfAStayingVexStartsNothing(GameTestHelper helper) {
         // Arrange
@@ -691,6 +745,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When a husk with attack damage 6 hunts one of only two free vexes, should no Multishot start.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: a Multishot needs three free vexes
+     *
+     * <p>Functional spec §11.3, §11.4.
      */
     static void twoFreeVexesStartNoMultishot(GameTestHelper helper) {
         // Arrange
@@ -713,6 +769,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * scan again, one a tick short of the clock not scan either, and one on the clock start the Shield.
      *
      * <p>Method under test: {@code TeamMoves.tick}: the 10-tick scan clock
+     *
+     * <p>Functional spec §11.4.
      */
     static void scanClockIsTenTicks(GameTestHelper helper) {
         // Arrange
@@ -742,6 +800,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * When the setting is manual, should the scan not run: a ravager beside twelve vexes starts nothing.
      *
      * <p>Method under test: {@code TeamMoves.tick}: the {@code teamMoves} setting
+     *
+     * <p>Functional spec §11.1.
      */
     static void manualModeDoesNotScan(GameTestHelper helper) {
         // Arrange
@@ -782,6 +842,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * nothing before the cooldown is over (a Shield cools like every kind), and the move start once it is over.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: a cooling Shield is not ready
+     *
+     * <p>Functional spec §11.4, §11.6.
      */
     static void coolingShieldStartsNothing(GameTestHelper helper) {
         // Arrange
@@ -814,6 +876,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * nothing before the cooldown is over, and the move start once it is over.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: a cooling Multishot is not ready
+     *
+     * <p>Functional spec §11.4, §11.6.
      */
     static void coolingMultishotStartsNothing(GameTestHelper helper) {
         // Arrange
@@ -849,6 +913,8 @@ final class BoundVexTeamMoveTriggerGameTests {
      * cooldown is over, and the move start once it is over.
      *
      * <p>Method under test: {@code TeamMoveTriggers.scan}: a cooling Evader is not ready
+     *
+     * <p>Functional spec §11.4, §11.6.
      */
     static void coolingEvaderStartsNothing(GameTestHelper helper) {
         // Arrange

@@ -21,6 +21,8 @@ import net.minecraft.world.phys.Vec3;
  * is told to stay, or when a higher-priority goal takes the move control. Without a summoner in the level the goal is
  * idle. Like vanilla's random move, the goal waits for the move control to be free ({@code !hasWanted()}), so a vex
  * finishes a return flight to its post or a charge before it follows.
+ *
+ * <p>Functional spec §6.1, §6.3.
  */
 public final class FollowSummonerGoal extends Goal {
     /** The wide posture's inner sideways edge (feet to feet); the GameTests read it. */
@@ -29,10 +31,13 @@ public final class FollowSummonerGoal extends Goal {
     /** The wide posture's limit (feet to feet): beyond it a wide-posture vex moves. */
     public static final double ORBIT_MAX = GuardPosture.WIDE_LIMIT;
 
-    /** Farther than this (feet to feet), the vex teleports instead of flying. */
+    /** Farther than this (feet to feet), the vex teleports instead of flying. Functional spec §6.3. */
     public static final double TELEPORT_DISTANCE = 12.0;
 
-    /** The teleport lands within this many blocks of the summoner's feet sideways, and 0–2 blocks up. */
+    /**
+     * The teleport lands within this many blocks of the summoner's feet sideways, and 0–2 blocks up.
+     * Functional spec §6.3.
+     */
     public static final int TELEPORT_SPREAD = 2;
 
     /**
@@ -124,7 +129,10 @@ public final class FollowSummonerGoal extends Goal {
         });
     }
 
-    /** A random spot inside the posture's band, measured from the summoner's feet as {@code canUse} measures. */
+    /**
+     * A random spot inside the posture's band, measured from the summoner's feet as {@code canUse} measures.
+     * Functional spec §6.1.
+     */
     private void flyToOrbit(ServerPlayer owner) {
         RandomSource random = vex.getRandom();
         GuardPosture posture = vex.posture();
@@ -139,7 +147,7 @@ public final class FollowSummonerGoal extends Goal {
     /**
      * An air cell within {@link #TELEPORT_SPREAD} of the summoner's feet, 0–2 blocks up; after ten misses the cell
      * above the summoner's own (vexes clip through blocks, so any cell works). The velocity and the wanted position
-     * are cleared so the vex hovers where it lands.
+     * are cleared so the vex hovers where it lands. Functional spec §6.3.
      */
     private void teleportBeside(ServerPlayer owner) {
         RandomSource random = vex.getRandom();

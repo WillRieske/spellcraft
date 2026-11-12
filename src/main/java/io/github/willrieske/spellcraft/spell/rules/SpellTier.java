@@ -1,6 +1,10 @@
 package io.github.willrieske.spellcraft.spell.rules;
 
-/** A spell's power band. Scribing draws the top tier with a chance that grows with the lapis spent. */
+/**
+ * A spell's power band. Scribing draws the top tier with a chance that grows with the lapis spent.
+ *
+ * <p>Functional spec §1.2, §13.1, §14.1.
+ */
 public enum SpellTier {
     NOOB,
     STARTER,

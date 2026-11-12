@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+/** Functional spec §1.2, §13.1, §14.1. */
 class ScrollDrawTest {
     private static final List<Integer> DEFAULT_CHANCES = List.of(25, 50, 75);
     private static final List<Candidate<String>> BOTH =

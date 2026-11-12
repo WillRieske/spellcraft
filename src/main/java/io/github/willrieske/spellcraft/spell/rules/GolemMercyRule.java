@@ -3,9 +3,11 @@ package io.github.willrieske.spellcraft.spell.rules;
 /**
  * Mercy for iron golems (Evoking II spec §2.3): the player's side never takes a golem under {@link #MERCY_HEALTH}, and
  * a golem left there forgives. Pure arithmetic; {@code spell.GolemMercy} applies it to the damage events.
+ *
+ * <p>Functional spec §4.4, §4.5.
  */
 public final class GolemMercyRule {
-    /** The health a golem keeps at least, against the player's side. */
+    /** The health a golem keeps at least, against the player's side. Functional spec §4.4, §4.5. */
     public static final float MERCY_HEALTH = 25.0F;
 
     private GolemMercyRule() {}

@@ -41,6 +41,8 @@ import org.slf4j.Logger;
  * dead, its turn (or its sweep) is a no-op, and the save drops it: {@link #entries()} and the saved {@code stale} list
  * keep only flames the index gives to that owner. So a save lists each spot under one owner at most, and a reload can
  * never hand a spot back to the older owner. The live trails and stale set are left as they are.
+ *
+ * <p>Functional spec §4.2.
  */
 public final class TrailFires {
     /**
@@ -376,6 +378,8 @@ public final class TrailFires {
      *
      * <p>The owner lookup is skipped when {@link Allies#mayHaveAllies} is false; why that is safe is documented
      * there. An iron golem is always spared once the flame has an owner (Evoking II §2.3).
+     *
+     * <p>Functional spec §4.2.
      *
      * @param level the level the flame is in
      * @param pos the flame's position

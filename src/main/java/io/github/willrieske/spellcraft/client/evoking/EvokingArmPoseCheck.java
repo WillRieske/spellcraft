@@ -18,6 +18,8 @@ import net.neoforged.neoforge.data.event.GatherDataEvent;
  * the only one that initializes {@code ArmPose}. The GameTest server never loads that class. Without this check a
  * wrong {@code field}, {@code class} or argument list would only fail at the first humanoid render, in
  * {@code ArmPose.<clinit>}, which only a playtest reaches.
+ *
+ * <p>Functional spec §2.5.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID, value = Dist.CLIENT)
 public final class EvokingArmPoseCheck {

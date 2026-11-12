@@ -46,6 +46,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  * logout and server-stop note tests. Tests whose vex flies or teleports, that need headroom, or that park many
  * vexes register through {@code FangGameTests.addPadded} (padding 13); the rest run inside the shared 3x3x3 box.
  * Shared constants and helpers live in {@link BoundVexTestSupport}.
+ *
+ * <p>Functional spec §5.2, §5.5, §6.1, §6.3, §6.4, §6.5, §8.13.
  */
 public final class BoundVexFollowGameTests {
     /**
@@ -119,6 +121,8 @@ public final class BoundVexFollowGameTests {
      * its flight.
      *
      * <p>Method under test: {@link FollowSummonerGoal}, through the vex's goal selector
+     *
+     * <p>Functional spec §6.1, §6.3.
      */
     static void followFliesIntoTheOrbit(GameTestHelper helper) {
         // Arrange
@@ -146,6 +150,8 @@ public final class BoundVexFollowGameTests {
      * ({@link BoundVexTestSupport#followOnly}), so no hostile in a neighboring structure can hold it.
      *
      * <p>Method under test: {@link FollowSummonerGoal}, through the vex's goal selector
+     *
+     * <p>Functional spec §6.3.
      */
     static void followTeleportsFromThirteen(GameTestHelper helper) {
         // Arrange
@@ -166,6 +172,8 @@ public final class BoundVexFollowGameTests {
      * forty ticks: the follow goal is idle without a summoner (spec §10).
      *
      * <p>Method under test: {@link FollowSummonerGoal}, through the vex's goal selector
+     *
+     * <p>Functional spec §5.2.
      */
     static void followIdlesWithoutASummoner(GameTestHelper helper) {
         // Arrange
@@ -191,6 +199,8 @@ public final class BoundVexFollowGameTests {
      * ({@link BoundVexTestSupport#followOnly}), so the distance check cannot be spoiled by a chase.
      *
      * <p>Method under test: {@link FollowSummonerGoal} and {@code BoundVex.HoldPostGoal}, through the goal selector
+     *
+     * <p>Functional spec §6.4.
      */
     static void stayingHoldsItsPost(GameTestHelper helper) {
         // Arrange
@@ -221,6 +231,8 @@ public final class BoundVexFollowGameTests {
      * <p>If this fails again, the message names the vex's target, goals and positions ({@code vexState}).
      *
      * <p>Method under test: {@link BoundVex#setStaying} and {@link FollowSummonerGoal}, through the goal selector
+     *
+     * <p>Functional spec §6.4.
      */
     static void followsAgainAfterStay(GameTestHelper helper) {
         // Arrange
@@ -249,6 +261,8 @@ public final class BoundVexFollowGameTests {
      * (past {@code PORTAL_RANGE}, which then idles where it is) and another player's vex two blocks away.
      *
      * <p>Method under test: {@link BoundVexEvents#onTravel} and {@link BoundVexEvents#onChangedDimension}
+     *
+     * <p>Functional spec §6.5.
      */
     static void portalFollow(GameTestHelper helper) {
         // Arrange
@@ -298,6 +312,8 @@ public final class BoundVexFollowGameTests {
      * for a same-dimension teleport.
      *
      * <p>Method under test: {@link BoundVexEvents#onTravel} and {@link BoundVexEvents#onChangedDimension}
+     *
+     * <p>Functional spec §6.5.
      */
     static void sameDimensionTeleportBringsNothing(GameTestHelper helper) {
         // Arrange
@@ -431,6 +447,8 @@ public final class BoundVexFollowGameTests {
      * marked, and the staying one still in the Nether. The Nether stands in for the End, as the path is the same.
      *
      * <p>Method under test: {@link BoundVexEvents#onRespawnPosition} and {@link BoundVexEvents#onRespawn}
+     *
+     * <p>Functional spec §6.5.
      */
     static void endExitBringsFollowers(GameTestHelper helper) {
         // Arrange
@@ -481,6 +499,8 @@ public final class BoundVexFollowGameTests {
      * teleport on respawn after a death).
      *
      * <p>Method under test: {@link BoundVexEvents#onRespawnPosition} and {@link BoundVexEvents#onRespawn}
+     *
+     * <p>Functional spec §6.5.
      */
     static void deathRespawnBringsNothing(GameTestHelper helper) {
         // Arrange
@@ -511,6 +531,8 @@ public final class BoundVexFollowGameTests {
      * back in survival, should fly into the orbit again.
      *
      * <p>Method under test: {@link BoundVex#summoner}, through {@link FollowSummonerGoal}
+     *
+     * <p>Functional spec §5.5.
      */
     static void followIgnoresASpectatingSummoner(GameTestHelper helper) {
         // Arrange
@@ -539,6 +561,8 @@ public final class BoundVexFollowGameTests {
      *
      * <p>Method under test: {@link BoundVex#restoreFrom} and {@link BoundVex#onAddedToLevel}, through
      * {@code Entity.teleport}
+     *
+     * <p>Functional spec §8.13.
      */
     static void stayingVexRepostsInAnotherDimension(GameTestHelper helper) {
         // Arrange
@@ -569,6 +593,8 @@ public final class BoundVexFollowGameTests {
      * control).
      *
      * <p>Method under test: {@link BoundVexEvents#onTravel}: the spectator rule of the shared note
+     *
+     * <p>Functional spec §5.5.
      */
     static void portalLeavesTheVexesOfASpectator(GameTestHelper helper) {
         // Arrange
@@ -653,6 +679,8 @@ public final class BoundVexFollowGameTests {
      * {@code start} and reads the wanted position.
      *
      * <p>Method under test: {@link FollowSummonerGoal#start}
+     *
+     * <p>Functional spec §6.1.
      */
     static void orbitSpotsStayInsideTheBand(GameTestHelper helper) {
         // Arrange

@@ -9,6 +9,7 @@ import net.jqwik.api.Group;
 import net.jqwik.api.Property;
 import net.jqwik.api.constraints.IntRange;
 
+/** Functional spec §16.1. */
 class GhostRecordsPropertiesTest {
     // jqwik refuses static @Group classes, so ClassCanBeStatic cannot apply.
     @Group

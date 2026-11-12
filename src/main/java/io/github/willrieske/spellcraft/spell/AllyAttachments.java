@@ -11,14 +11,18 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
-/** Entity data the ally rule reads (spec §3). Saved with the entity; never copied on death. */
+/**
+ * Entity data the ally rule reads (spec §3). Saved with the entity; never copied on death.
+ *
+ * <p>Functional spec §4.1, §9.4, §9.6, §9.7.
+ */
 public final class AllyAttachments {
     public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES =
             DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, Spellcraft.MODID);
 
     /**
      * The player who summoned this mob (Evoking puts it on every vex it calls). Read with {@code getExistingData}
-     * or {@code hasData}; the default exists only because the builder needs one.
+     * or {@code hasData}; the default exists only because the builder needs one. Functional spec §4.1.
      */
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<UUID>> SUMMONER = ATTACHMENT_TYPES.register(
             "summoner",
@@ -30,6 +34,7 @@ public final class AllyAttachments {
      * The cure mark (Evoking II Parts 4-5 spec §2.3): on a zombie villager a Bound Vex is curing, the game time the
      * cure began. Saved. While it is present the zombie villager is frozen, is an ally of every player and is never
      * prey. Read with {@link #isBeingCured} or {@code hasData}; the default exists only because the builder needs one.
+     * Functional spec §4.1, §9.4.
      */
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<Long>> CURE = ATTACHMENT_TYPES.register(
             "cure",
@@ -39,6 +44,7 @@ public final class AllyAttachments {
 
     /**
      * The bribed mark (spec §3.2): on a vex that took an emerald and is leaving. Saved. A bribed mob is never prey.
+     * Functional spec §9.7.
      */
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<Boolean>> BRIBED = ATTACHMENT_TYPES.register(
             "bribed",
@@ -48,7 +54,7 @@ public final class AllyAttachments {
 
     /**
      * The bribe-tried mark (spec §3.1): on a vex a Bound Vex has already offered an emerald to, whatever the answer.
-     * Saved, so a vex is offered once and never again.
+     * Saved, so a vex is offered once and never again. Functional spec §9.6.
      */
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<Boolean>> BRIBE_TRIED =
             ATTACHMENT_TYPES.register(

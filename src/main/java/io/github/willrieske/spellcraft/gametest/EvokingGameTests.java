@@ -25,6 +25,8 @@ import net.minecraft.world.level.GameType;
  * Cast-rule GameTests for Strength of Evoking (spec §2, §9), written like {@link InfinityGameTests}: the effect is
  * infinite and a recast is refused, which {@link CastRuleGameTests} (finite, refreshing spells) does not fit. The
  * casting itself is in {@code FangGameTests} and {@code VexGameTests}.
+ *
+ * <p>Functional spec §1.1, §1.3, §2.5.
  */
 public final class EvokingGameTests {
     private EvokingGameTests() {}
@@ -60,6 +62,8 @@ public final class EvokingGameTests {
      * When the Evoking effect is asked for its category, should it be beneficial.
      *
      * <p>Method under test: {@link ModEffects#EVOKING}
+     *
+     * <p>Functional spec §1.1.
      */
     static void isBeneficial(GameTestHelper helper) {
         // Act & Assert
@@ -73,6 +77,8 @@ public final class EvokingGameTests {
      * icon shown, and one scroll be used up.
      *
      * <p>Method under test: {@link SpellScrollItem#use}
+     *
+     * <p>Functional spec §1.1, §1.3.
      */
     static void castIsInfiniteAndConsumes(GameTestHelper helper) {
         // Arrange
@@ -96,6 +102,8 @@ public final class EvokingGameTests {
      * scroll is still used up.
      *
      * <p>Method under test: {@link SpellScrollItem#use}
+     *
+     * <p>Functional spec §1.3.
      */
     static void creativeCasts(GameTestHelper helper) {
         // Arrange
@@ -116,6 +124,8 @@ public final class EvokingGameTests {
      * effect stays, and the refusal notice shows.
      *
      * <p>Method under test: {@link SpellScrollItem#use}
+     *
+     * <p>Functional spec §1.3.
      */
     static void recastRefused(GameTestHelper helper) {
         // Arrange
@@ -138,6 +148,8 @@ public final class EvokingGameTests {
      * When a player with Evoking sneaks and uses a scroll, should the effect be dispelled and a scroll used up.
      *
      * <p>Method under test: {@link SpellScrollItem#use}
+     *
+     * <p>Functional spec §1.3.
      */
     static void sneakDispels(GameTestHelper helper) {
         // Arrange
@@ -159,6 +171,8 @@ public final class EvokingGameTests {
      * When a player without Evoking sneaks and uses a scroll, should the effect be cast and a scroll used up.
      *
      * <p>Method under test: {@link SpellScrollItem#use}
+     *
+     * <p>Functional spec §1.3.
      */
     static void sneakInactiveCasts(GameTestHelper helper) {
         // Arrange
@@ -179,6 +193,8 @@ public final class EvokingGameTests {
      * When a player with Evoking sneaks and uses another item, should the effect stay: dispel is a scroll action.
      *
      * <p>Method under test: {@link net.minecraft.world.item.Item#use}
+     *
+     * <p>Functional spec §1.3.
      */
     static void sneakOtherItemKeeps(GameTestHelper helper) {
         // Arrange
@@ -199,6 +215,8 @@ public final class EvokingGameTests {
      * When a player with Evoking drinks milk, should the effect be cleared.
      *
      * <p>Method under test: {@link net.minecraft.world.item.Item#finishUsingItem}
+     *
+     * <p>Functional spec §1.3.
      */
     static void milkClears(GameTestHelper helper) {
         // Arrange
@@ -218,6 +236,8 @@ public final class EvokingGameTests {
      * neutral, and be mint: the sync flag of spec section 2.
      *
      * <p>Method under test: {@link io.github.willrieske.spellcraft.effect.CastingEffect}
+     *
+     * <p>Functional spec §2.5.
      */
     static void castingEffectsCarryTheirParticles(GameTestHelper helper) {
         // Act & Assert

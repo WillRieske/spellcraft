@@ -1,6 +1,10 @@
 package io.github.willrieske.spellcraft.spell.rules;
 
-/** The Caster's numbers and tests (Parts 6-7 spec §6.2). */
+/**
+ * The Caster's numbers and tests (Parts 6-7 spec §6.2).
+ *
+ * <p>Functional spec §12.1, §12.2, §12.3, §12.4, §12.5, §16.4.
+ */
 public final class CasterRules {
     /** What the Caster does about its distance from its target. */
     public enum Approach {
@@ -12,28 +16,28 @@ public final class CasterRules {
         HOLD
     }
 
-    /** Nearest the Caster stays to its target. */
+    /** Nearest the Caster stays to its target. Functional spec §12.2. */
     public static final double KEEP_MIN = 4.0;
 
-    /** Farthest the Caster stays from its target. */
+    /** Farthest the Caster stays from its target. Functional spec §12.2. */
     public static final double KEEP_MAX = 6.0;
 
-    /** One vex in this many is a Caster. */
+    /** One vex in this many is a Caster. Functional spec §12.1. */
     public static final int CASTER_ONE_IN = 3;
 
-    /** Ticks a cast takes. */
+    /** Ticks a cast takes. Functional spec §12.5, §16.4. */
     public static final int WIND_UP_TICKS = 20;
 
-    /** Ticks before the same Caster may cast Mirror again (6 minutes). */
+    /** Ticks before the same Caster may cast Mirror again (6 minutes). Functional spec §12.4, §15.2, §16.4. */
     public static final int MIRROR_COOLDOWN_TICKS = 7200;
 
-    /** Ticks before the same Caster may cast Ghostrail again (4 minutes). */
+    /** Ticks before the same Caster may cast Ghostrail again (4 minutes). Functional spec §12.3, §16.4. */
     public static final int GHOSTRAIL_COOLDOWN_TICKS = 4800;
 
-    /** The summoner or sibling must be within this many blocks of the Caster. */
+    /** The summoner or sibling must be within this many blocks of the Caster. Functional spec §12.3, §12.4. */
     public static final double RANGE = 16.0;
 
-    /** A Mirror needs this many hostiles in the guard area. */
+    /** A Mirror needs this many hostiles in the guard area. Functional spec §12.4. */
     public static final int MIRROR_HOSTILES = 2;
 
     private CasterRules() {}
@@ -63,6 +67,7 @@ public final class CasterRules {
 
     /**
      * Whether a subject needs Ghostrail: below a quarter of its health, or (the summoner only) inside a wall.
+     * Functional spec §12.3, §16.4.
      *
      * @param health the subject's health
      * @param maxHealth its maximum health

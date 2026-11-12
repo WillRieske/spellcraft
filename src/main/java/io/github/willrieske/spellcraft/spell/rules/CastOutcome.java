@@ -1,6 +1,10 @@
 package io.github.willrieske.spellcraft.spell.rules;
 
-/** What using a scroll does. Every outcome except {@link #REFUSE} uses the scroll up. */
+/**
+ * What using a scroll does. Every outcome except {@link #REFUSE} uses the scroll up.
+ *
+ * <p>Functional spec §1.3.
+ */
 public enum CastOutcome {
     CAST,
     REFRESH,

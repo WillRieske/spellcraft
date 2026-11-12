@@ -18,15 +18,17 @@ import net.minecraft.world.phys.Vec3;
  * sees nothing that matters. With no player within range at all the vex is discarded at once. The goal always runs,
  * and {@link #install} gives a vex nothing else; a vex loaded from a save gets it again through
  * {@code BoundVexEvents.onJoin}, and its {@link #LIMIT} ticks start over.
+ *
+ * <p>Functional spec §9.7.
  */
 public final class FleeFromViewGoal extends Goal {
-    /** How far from every player the vex must be before it may vanish. */
+    /** How far from every player the vex must be before it may vanish. Functional spec §9.7. */
     public static final double CLEAR_DISTANCE = 12.0;
 
     /** Only players this near count: the vex is discarded at once when none is. */
     public static final double PLAYER_RANGE = 64.0;
 
-    /** The most ticks the vex flees before it is discarded whether seen or not. */
+    /** The most ticks the vex flees before it is discarded whether seen or not. Functional spec §9.7. */
     public static final int LIMIT = 200;
 
     /** How far past the vex along the line from the player each tick's wanted position lies. */

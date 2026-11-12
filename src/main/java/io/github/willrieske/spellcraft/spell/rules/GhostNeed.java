@@ -1,11 +1,15 @@
 package io.github.willrieske.spellcraft.spell.rules;
 
-/** When a player is "in need" and when a spell subject is in an emergency (Parts 6-7 spec §6.2, §9). */
+/**
+ * When a player is "in need" and when a spell subject is in an emergency (Parts 6-7 spec §6.2, §9).
+ *
+ * <p>Functional spec §12.3, §16.2, §16.4.
+ */
 public final class GhostNeed {
-    /** This many hostiles close by make a player in need. */
+    /** This many hostiles close by make a player in need. Functional spec §16.2. */
     public static final int CROWD = 3;
 
-    /** How close, in blocks, a hostile counts toward the crowd. */
+    /** How close, in blocks, a hostile counts toward the crowd. Functional spec §16.2. */
     public static final double CROWD_RANGE = 8.0;
 
     private GhostNeed() {}

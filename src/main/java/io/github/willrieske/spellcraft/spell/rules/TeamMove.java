@@ -7,6 +7,8 @@ import java.util.Optional;
  * A team move of the Bound Vexes (Parts 6–7 spec §2). {@link #NONE} is last on purpose: the packet argument of a
  * team-move request is the ordinal (spec §3.2, "Shield 0 … Raid 3"), and {@link #NONE} is what a vex that takes part
  * in no move carries (spec §2.1), so it can never be requested.
+ *
+ * <p>Functional spec §11.12.
  */
 public enum TeamMove {
     /** A few vexes bash a big enemy with conjured shields (spec §4.1). */
@@ -43,7 +45,7 @@ public enum TeamMove {
     }
 
     /**
-     * The next move in the J key's cycle: Shield, Multishot, Evader, Raid, Shield.
+     * The next move in the J key's cycle: Shield, Multishot, Evader, Raid, Shield. Functional spec §11.12.
      *
      * @return the next move; {@link #SHIELD} after {@link #NONE}
      */

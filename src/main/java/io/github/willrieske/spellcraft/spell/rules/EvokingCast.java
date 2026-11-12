@@ -8,6 +8,8 @@ import java.util.Optional;
  * One player's casting timers (spec §4): whether a spell may start now, when the pending perform or the no-targets
  * notice is due, and whether the arms are up. Times are game-time ticks supplied by the caller. Callers ask
  * {@link #readiness} before {@link #start} or {@link #noTargets}.
+ *
+ * <p>Functional spec §2.2, §2.3, §3.3.
  */
 public final class EvokingCast {
     /** Whether a spell may start now. */
@@ -47,7 +49,7 @@ public final class EvokingCast {
 
     /**
      * Whether {@code spell} may start at {@code now}: {@code BUSY} while any cast's casting ticks run, else
-     * {@code COOLING} while this spell's interval runs, else {@code READY}.
+     * {@code COOLING} while this spell's interval runs, else {@code READY}. Functional spec §2.3.
      *
      * @param spell the spell the player asks to start
      * @param now the current game time in ticks
@@ -65,7 +67,7 @@ public final class EvokingCast {
 
     /**
      * Starts {@code spell} at {@code now}: the arms go up for its casting ticks, the perform is due after the warmup,
-     * the spell's interval starts, and any scheduled notice is dropped.
+     * the spell's interval starts, and any scheduled notice is dropped. Functional spec §2.2, §2.3.
      *
      * @param spell the spell to start
      * @param now the current game time in ticks
@@ -84,7 +86,7 @@ public final class EvokingCast {
     }
 
     /**
-     * Schedules the no-targets notice for one warmup after {@code now}; a later call moves it.
+     * Schedules the no-targets notice for one warmup after {@code now}; a later call moves it. Functional spec §3.3.
      *
      * @param now the current game time in ticks
      */

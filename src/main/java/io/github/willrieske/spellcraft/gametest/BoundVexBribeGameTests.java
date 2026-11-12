@@ -53,6 +53,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  * Bound Vex GameTests for the bribe (Evoking II Parts 4-5 spec §3). Tests whose vex flies or that need headroom
  * register through {@code FangGameTests.addPadded} (padding 13); the rest run inside the shared 3x3x3 box. Shared
  * constants and helpers live in {@link BoundVexTestSupport}; the cure's tests are in {@link BoundVexCureGameTests}.
+ *
+ * <p>Functional spec §5.5, §7.4, §7.9, §9.6, §9.7, §9.8, §11.2.
  */
 public final class BoundVexBribeGameTests {
     /**
@@ -130,6 +132,8 @@ public final class BoundVexBribeGameTests {
      *
      * <p>Method under test: {@link BoundVex#isPrey(ServerLevel, java.util.UUID,
      * net.minecraft.world.entity.LivingEntity)}
+     *
+     * <p>Functional spec §7.4, §9.6, §9.7.
      */
     static void aBribedVexIsNotPrey(GameTestHelper helper) {
         // Arrange
@@ -214,6 +218,8 @@ public final class BoundVexBribeGameTests {
      * hold its sword again, and take the bribed vex as a target never.
      *
      * <p>Method under test: {@link BribeGoal}, through the vex's goal selector: spec §3.1, an accepted roll
+     *
+     * <p>Functional spec §9.6, §9.7.
      */
     static void aBribeThatSucceeds(GameTestHelper helper) {
         // Arrange
@@ -248,6 +254,8 @@ public final class BoundVexBribeGameTests {
      * {@code LIMIT} ticks.
      *
      * <p>Method under test: {@link FleeFromViewGoal#tick}: the distance and sight rule, and the tick limit
+     *
+     * <p>Functional spec §9.7.
      */
     static void aBribedVexLeavesOutOfSight(GameTestHelper helper) {
         // Arrange: the player stands inside the box; a wall of stone and the barrier shell are between it and the vex
@@ -299,6 +307,8 @@ public final class BoundVexBribeGameTests {
      * target, and no emerald be conjured again in sixty ticks.
      *
      * <p>Method under test: {@link BribeGoal}: a refused roll, and the bribe-tried mark
+     *
+     * <p>Functional spec §9.6.
      */
     static void aBribeThatFails(GameTestHelper helper) {
         // Arrange: the other vex soaks up the Bound Vex's blows, so the test can watch the target
@@ -329,6 +339,8 @@ public final class BoundVexBribeGameTests {
      * When a Bound Vex courts an enemy vex (it holds a live claim), should it not be free and not be listed.
      *
      * <p>Method under test: {@code Jobs.busy} (the bribe wiring), through {@link TeamMoves#isFree}
+     *
+     * <p>Functional spec §11.2.
      */
     static void courtingVexIsNotFree(GameTestHelper helper) {
         // Arrange (as aCourtedVexIsNotPrey)
@@ -360,6 +372,8 @@ public final class BoundVexBribeGameTests {
      *
      * <p>Method under test: {@link BoundVex#isPrey} (the courted clause), through the target goals and the
      * friendly-fire backstop {@code BoundVexEvents.onIncomingDamage}
+     *
+     * <p>Functional spec §7.4, §7.9, §9.6.
      */
     static void aCourtedVexIsNotPrey(GameTestHelper helper) {
         // Arrange
@@ -402,6 +416,8 @@ public final class BoundVexBribeGameTests {
      * Bound Vex targeting its summoner within its area for sixty ticks, should offer none of them an emerald.
      *
      * <p>Method under test: {@link BribeGoal#canUse}: the target clause and the exact vex type
+     *
+     * <p>Functional spec §9.6.
      */
     static void noOfferToAVexThatIsNotAttackingYourSide(GameTestHelper helper) {
         // Arrange: the enemies soak up the Bound Vex's blows, so they live for the whole window
@@ -511,6 +527,8 @@ public final class BoundVexBribeGameTests {
      *
      * <p>Method under test: {@link BribeGoal}: the leaves-the-area clause, and {@code stop} as the abort through
      * {@link FleeCreeperGoal} taking the move flag
+     *
+     * <p>Functional spec §9.8.
      */
     static void theOfferEndsIfTheVexLeavesOrTheBriberFlees(GameTestHelper helper) {
         // Arrange: no target goals, so the Bound Vex does not wander off to fight; a staying vex keeps its area fixed
@@ -557,6 +575,8 @@ public final class BoundVexBribeGameTests {
      * the copy keep the mark and have the flee goal as its only goal and no target goals.
      *
      * <p>Method under test: {@code BoundVexEvents.onJoin}: the reinstall on join, keyed on the mark
+     *
+     * <p>Functional spec §9.7.
      */
     static void aBribedVexLoadedFromASaveOnlyFlees(GameTestHelper helper) {
         // Arrange
@@ -583,6 +603,8 @@ public final class BoundVexBribeGameTests {
      * one and leave the far one (outside the stay area) alone.
      *
      * <p>Method under test: {@link BribeGoal#canUse}: the stay area, through {@code BoundVex.inGuardArea}
+     *
+     * <p>Functional spec §9.8.
      */
     static void aStayingVexBribesOnlyInItsArea(GameTestHelper helper) {
         // Arrange
@@ -611,6 +633,8 @@ public final class BoundVexBribeGameTests {
      *
      * <p>Method under test: {@link BribeGoal#tick} and its roll: the roll happens once, though vanilla ticks a goal
      * that requires an update every tick on ticks {@code canContinueToUse} is not asked
+     *
+     * <p>Functional spec §9.6.
      */
     static void aRefusedVexIsRolledForExactlyOnce(GameTestHelper helper) {
         // Arrange
@@ -652,6 +676,8 @@ public final class BoundVexBribeGameTests {
      * rolled exactly three times in all, and no Bound Vex hold a courted vex as its target at any tick.
      *
      * <p>Method under test: {@link BribeGoal}: the claims and the single roll, with more briber than prey
+     *
+     * <p>Functional spec §9.6.
      */
     static void eachEnemyVexGetsExactlyOneOffer(GameTestHelper helper) {
         // Arrange
@@ -760,6 +786,8 @@ public final class BoundVexBribeGameTests {
      * back in hand, and stay ended.
      *
      * <p>Method under test: {@link BribeGoal#canContinueToUse}: the summoner-present clause, and {@code stop}
+     *
+     * <p>Functional spec §5.5.
      */
     static void theSummonerGoingAbsentEndsTheOffer(GameTestHelper helper) {
         // Arrange
@@ -789,6 +817,8 @@ public final class BoundVexBribeGameTests {
      * goals: the join handler puts them back.
      *
      * <p>Method under test: {@code BoundVexEvents.onJoin}, for an entity that arrives from another dimension
+     *
+     * <p>Functional spec §9.7.
      */
     static void aBribedVexArrivingInAnotherDimensionOnlyFlees(GameTestHelper helper) {
         // Arrange: a stone pocket in the Nether at the vex's own coordinates; the vex has no AI, so it neither flees

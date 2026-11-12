@@ -20,7 +20,7 @@ import net.neoforged.neoforge.client.settings.KeyConflictContext;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The four Evoking keys: two casting keys (Evoking spec §2, §7; Evoking II §2.1) and J and K for team moves (Part 6
+ * The four Evoking keys: two casting keys (Evoking I spec §2, §7; Evoking II §2.1) and J and K for team moves (Part 6
  * spec §3.3). A casting-key press while the local player has Evoking sends an {@link EvokingRequest}, and so does a
  * K press whether or not it has Evoking; the server decides what each does. Fangs default to Y (an unbound key in
  * vanilla), vexes to V, J cycles the selected team move and K starts it. A key bound to the same key as vanilla's
@@ -29,6 +29,8 @@ import org.jspecify.annotations.Nullable;
  * rule: the swap-offhand clicks are drained only on a tick where such a key consumed at least one click that did
  * something (a casting key only while Evoking is on; J and K always), so with Fangs rebound to Shift+F a plain F
  * press still swaps. With the defaults it never fires.
+ *
+ * <p>Functional spec §2.1, §11.12.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID, value = Dist.CLIENT)
 public final class EvokingKeys {
@@ -94,7 +96,7 @@ public final class EvokingKeys {
     /**
      * Sends one request per click of a casting key while Evoking is on, and swallows the swap-offhand clicks on a
      * tick where a casting key that is bound to the swap key ({@code KeyMapping.same}) consumed a click, so that
-     * press casts instead of swapping. A key that does not share the swap key never swallows it.
+     * press casts instead of swapping. A key that does not share the swap key never swallows it. Functional spec §2.1.
      *
      * @param event the game-bus event
      */
@@ -124,7 +126,7 @@ public final class EvokingKeys {
     /**
      * J cycles the selection and shows it on the action bar; K sends the selected move. Neither needs Evoking (the
      * server decides, and does not need it either). In automatic mode J still cycles and the server's answer to K is
-     * "Team moves are automatic": the client cannot see the server's setting.
+     * "Team moves are automatic": the client cannot see the server's setting. Functional spec §11.12.
      *
      * @return the number of clicks of a key that is bound to the same key as {@code swap}, whose swap clicks the
      *     caller swallows (zero at the defaults)

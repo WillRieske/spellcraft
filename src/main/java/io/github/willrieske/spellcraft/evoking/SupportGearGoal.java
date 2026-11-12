@@ -17,12 +17,14 @@ import net.minecraft.world.entity.ai.goal.Goal;
  * {@code BoundVex.SCAN_INTERVAL} clock, not the posture's: its 40-tick throw cooldown makes a faster look pointless.
  * (The cure potion a vex conjures, Parts 4-5 spec §2.2, is not support gear: it has no effects, and
  * {@code VexGear.kindOf} gives an effect-free potion {@code NONE}.)
+ *
+ * <p>Functional spec §8.8.
  */
 final class SupportGearGoal extends Goal {
-    /** How far a friend may be (spec §4.3). */
+    /** How far a friend may be (spec §4.3). Functional spec §8.8. */
     static final double RANGE = 10.0;
 
-    /** Ticks between throws (spec §4.3). */
+    /** Ticks between throws (spec §4.3). Functional spec §8.8. */
     static final int INTERVAL = 40;
 
     private final BoundVex vex;
@@ -64,7 +66,10 @@ final class SupportGearGoal extends Goal {
                 });
     }
 
-    /** The summoner or an ally of theirs, alive, in sight and below half health; never the vex itself. */
+    /**
+     * The summoner or an ally of theirs, alive, in sight and below half health; never the vex itself.
+     * Functional spec §8.8.
+     */
     private boolean isHurtFriend(ServerPlayer owner, LivingEntity friend) {
         return !friend.getUUID().equals(vex.getUUID())
                 && friend.isAlive()

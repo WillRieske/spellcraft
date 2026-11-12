@@ -38,6 +38,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  * teleports, that need headroom, or that park many vexes register through {@code FangGameTests.addPadded}
  * (padding 13); the rest run inside the shared 3x3x3 box. Shared constants and helpers live in {@link
  * BoundVexTestSupport}.
+ *
+ * <p>Functional spec §4.3, §7.7, §7.8, §9.1, §11.2.
  */
 public final class BoundVexJobGameTests {
     private static final String SERVER_STOP_CLAIMS = "bound_vex_server_stop_claims";
@@ -179,6 +181,8 @@ public final class BoundVexJobGameTests {
      *
      * <p>Method under test: {@link FleeCreeperGoal}, through the goal selector: the notice range and
      * {@code canContinueToUse}'s swelling check
+     *
+     * <p>Functional spec §7.7.
      */
     static void fleesAHissingCreeper(GameTestHelper helper) {
         // Arrange: the creeper is between the vex and the summoner, so fleeing it means flying away from the summoner
@@ -226,6 +230,8 @@ public final class BoundVexJobGameTests {
      * creeper floats off the barrier shell ({@link #floatingCreeper}).
      *
      * <p>Method under test: {@link FleeCreeperGoal}: {@code canContinueToUse}'s alive check, through the goal selector
+     *
+     * <p>Functional spec §7.7.
      */
     static void fleeEndsWhenTheCreeperIsGone(GameTestHelper helper) {
         // Arrange: the creeper is between the vex and the summoner
@@ -262,6 +268,8 @@ public final class BoundVexJobGameTests {
      * control). The vex has no target goals ({@link BoundVexTestSupport#followOnly}): the subject is movement.
      *
      * <p>Method under test: {@link FleeCreeperGoal}: the swelling and range filters
+     *
+     * <p>Functional spec §7.7.
      */
     static void fleeIgnoresACalmOrFarCreeper(GameTestHelper helper) {
         // Arrange
@@ -299,6 +307,8 @@ public final class BoundVexJobGameTests {
      * blocks away).
      *
      * <p>Method under test: {@code DodgeGolemGoal} (package-private), through the goal selector
+     *
+     * <p>Functional spec §7.8.
      */
     static void dodgesAGolemsSwing(GameTestHelper helper) {
         // Arrange: the golem looks east; the vex hovers two blocks east of it
@@ -330,6 +340,8 @@ public final class BoundVexJobGameTests {
      * control).
      *
      * <p>Method under test: {@code DodgeGolemGoal} (package-private): the facing and range filters
+     *
+     * <p>Functional spec §7.8.
      */
     static void dodgeIgnoresASwingAwayOrFar(GameTestHelper helper) {
         // Arrange
@@ -369,6 +381,8 @@ public final class BoundVexJobGameTests {
      * stands 2.8 blocks away and swings facing it, should dart (the control).
      *
      * <p>Method under test: {@code DodgeGolemGoal} (package-private): the range is a sphere, not the search box
+     *
+     * <p>Functional spec §7.8.
      */
     static void dodgeIgnoresADiagonalSwingBeyondThreeBlocks(GameTestHelper helper) {
         // Arrange: the golem looks straight at the vex
@@ -406,6 +420,8 @@ public final class BoundVexJobGameTests {
      * dart for twenty ticks; once the golem swings, should dart (the control).
      *
      * <p>Method under test: {@code DodgeGolemGoal} (package-private): the swing condition
+     *
+     * <p>Functional spec §7.8.
      */
     static void dodgeIgnoresAGolemThatIsNotSwinging(GameTestHelper helper) {
         // Arrange: the golem looks east at the vex, two blocks east of it, and is full, so nothing needs repair
@@ -437,6 +453,8 @@ public final class BoundVexJobGameTests {
      * an idle vex of the same summoner in.
      *
      * <p>Method under test: {@code Jobs.busy}, through {@link TeamMoves#isFree}
+     *
+     * <p>Functional spec §11.2.
      */
     static void repairingVexIsNotFree(GameTestHelper helper) {
         // Arrange
@@ -465,6 +483,8 @@ public final class BoundVexJobGameTests {
      * that flies in can drift out of reach between taps, which holds the tap clock, so it cannot pin the spacing.
      *
      * <p>Method under test: {@code RepairGolemGoal} (package-private), through the goal selector: {@code HEAL}
+     *
+     * <p>Functional spec §9.1.
      */
     static void repairsAHurtAllyGolem(GameTestHelper helper) {
         // Arrange: each vex starts about 2.1 blocks from the chest (reach 1.5), so the one that claims must fly
@@ -507,6 +527,8 @@ public final class BoundVexJobGameTests {
      * apart.
      *
      * <p>Method under test: {@code RepairGolemGoal} (package-private), through the goal selector: {@code TAP_INTERVAL}
+     *
+     * <p>Functional spec §9.1.
      */
     static void tapsComeEveryThirtyTicks(GameTestHelper helper) {
         // Arrange: the vex is 0.4 blocks from the chest, so it taps on the tick it takes the golem
@@ -544,6 +566,8 @@ public final class BoundVexJobGameTests {
      * even entity id, so a scan gate that opens only for one parity fails here (docs/api-notes.md §21, the goal clock).
      *
      * <p>Method under test: {@code RepairGolemGoal} (package-private), through {@code BoundVex.scanDue}
+     *
+     * <p>Functional spec §9.1.
      */
     static void repairsTwoGolemsApart(GameTestHelper helper) {
         // Arrange
@@ -565,6 +589,8 @@ public final class BoundVexJobGameTests {
      * goal {@code stop()}), should leave the golem free: a second vex then repairs it to full.
      *
      * <p>Method under test: {@code RepairGolemGoal}'s claim map (package-private)
+     *
+     * <p>Functional spec §9.1.
      */
     static void claimFreesWhenTheVexIsGone(GameTestHelper helper) {
         // Arrange
@@ -592,6 +618,8 @@ public final class BoundVexJobGameTests {
      *
      * <p>Method under test: {@code RepairGolemGoal.canContinueToUse} and {@code stop} (package-private): the claim
      * release
+     *
+     * <p>Functional spec §9.1.
      */
     static void fightInterruptsARepair(GameTestHelper helper) {
         // Arrange: target goals off, so only the test decides who has a target
@@ -629,6 +657,8 @@ public final class BoundVexJobGameTests {
      *
      * <p>Method under test: {@code RepairGolemGoal.stop} (package-private), through {@link FleeCreeperGoal} taking the
      * move flag
+     *
+     * <p>Functional spec §7.7, §9.1.
      */
     static void fleeInterruptsARepair(GameTestHelper helper) {
         // Arrange: target goals off, so only the creeper can end the repair; the creeper stands three blocks off
@@ -696,6 +726,8 @@ public final class BoundVexJobGameTests {
      * down, should repair it (the control).
      *
      * <p>Method under test: {@code RepairGolemGoal} (package-private): the ally and health filters
+     *
+     * <p>Functional spec §4.3, §9.1.
      */
     static void noRepairForAMadOrFullGolem(GameTestHelper helper) {
         // Arrange
@@ -729,6 +761,8 @@ public final class BoundVexJobGameTests {
      *
      * <p>Method under test: {@code RepairGolemGoal.canUse}: the no-target gate (package-private), through the goal
      * selector
+     *
+     * <p>Functional spec §9.1.
      */
     static void fightingVexDoesNotStartARepair(GameTestHelper helper) {
         // Arrange: target goals off, so the target is the test's; the vex is 0.6 blocks above the chest
@@ -765,6 +799,8 @@ public final class BoundVexJobGameTests {
      *
      * <p>Method under test: {@code RepairGolemGoal.stop}: the restore guard (package-private), through the goal
      * selector
+     *
+     * <p>Functional spec §9.1.
      */
     static void repairStoppedInFlightKeepsTheHeldItem(GameTestHelper helper) {
         // Arrange: the vex starts three blocks west of the golem and two up, so it has to fly
@@ -805,6 +841,8 @@ public final class BoundVexJobGameTests {
      *
      * <p>Method under test: {@code RepairGolemGoal.canContinueToUse}: the ally check (package-private), through the
      * goal selector
+     *
+     * <p>Functional spec §4.3, §9.1.
      */
     static void golemAngeredMidRepairIsDropped(GameTestHelper helper) {
         // Arrange
@@ -842,6 +880,8 @@ public final class BoundVexJobGameTests {
      *
      * <p>Method under test: {@code RepairGolemGoal.canUse}: the guard-box filter (package-private), through the goal
      * selector
+     *
+     * <p>Functional spec §9.1.
      */
     static void noRepairOutsideTheGuardBox(GameTestHelper helper) {
         // Arrange: target goals off; the golem's feet are 4 blocks below the vex's, so outside the 3.5 box
@@ -874,6 +914,8 @@ public final class BoundVexJobGameTests {
      *
      * <p>Method under test: {@code RepairGolemGoal.canContinueToUse}: the guard-box check (package-private), through
      * the goal selector
+     *
+     * <p>Functional spec §9.1.
      */
     static void golemLeavingTheGuardBoxEndsTheRepair(GameTestHelper helper) {
         // Arrange

@@ -1,6 +1,10 @@
 package io.github.willrieske.spellcraft.spell.rules;
 
-/** How long a Ghostrail lasts for each kind of carrier (Parts 6-7 spec §7.3, "Durations"). */
+/**
+ * How long a Ghostrail lasts for each kind of carrier (Parts 6-7 spec §7.3, "Durations").
+ *
+ * <p>Functional spec §14.1, §14.8, §15.2.
+ */
 public final class GhostrailDuration {
     /** What kind of thing carries the effect. */
     public enum Kind {
@@ -14,13 +18,16 @@ public final class GhostrailDuration {
         VILLAGER_GHOST
     }
 
-    /** Ticks for a player or a Bound Vex (4 minutes). */
+    /** Ticks for a player or a Bound Vex (4 minutes). Functional spec §14.1, §14.8. */
     public static final int PLAYER_TICKS = 4800;
 
-    /** Ticks for a hostile mob that cast it on itself (2 seconds). */
+    /** Ticks for a hostile mob that cast it on itself (2 seconds). Functional spec §14.8, §15.2. */
     public static final int HOSTILE_TICKS = 40;
 
-    /** The never-ending duration; the same number as {@code MobEffectInstance.INFINITE_DURATION}. */
+    /**
+     * The never-ending duration; the same number as {@code MobEffectInstance.INFINITE_DURATION}. Functional spec
+     * §14.8.
+     */
     public static final int INFINITE = -1;
 
     private GhostrailDuration() {}

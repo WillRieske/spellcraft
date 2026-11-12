@@ -4,6 +4,8 @@ package io.github.willrieske.spellcraft.spell.rules;
  * The velocities a rescuing Bound Vex gives (Parts 4–5 spec §6.2, §6.3). Every push adds to what the player is
  * already doing (slowed by the fluid's drag, as the client's own move would), so they keep steering; none lowers the
  * upward speed below its floor.
+ *
+ * <p>Functional spec §10.3, §10.5, §10.6.
  */
 public final class RescuePush {
     /** Sideways speed added toward the shore each tick of a lava pull. */
@@ -50,7 +52,7 @@ public final class RescuePush {
      * One tick of the lava pull toward a shore: the velocity the player had, slowed by the lava's drag (the pushed
      * velocity replaces the client's own result, so the drag must be applied here), plus {@link #PULL} sideways toward
      * the spot, with the sideways speed held at or under {@link #PULL_CAP} always, and the upward speed raised to at
-     * least {@link #PULL_UP}. A spot straight above or below adds nothing sideways.
+     * least {@link #PULL_UP}. A spot straight above or below adds nothing sideways. Functional spec §10.3.
      *
      * @param v the velocity the player had (the client's last reported movement)
      * @param toSpotX blocks east from the player to the spot
@@ -75,7 +77,7 @@ public final class RescuePush {
 
     /**
      * One tick of the lava pull with no shore in reach: the velocity slowed by the lava's drag, the upward speed raised
-     * to at least {@link #LIFT}.
+     * to at least {@link #LIFT}. Functional spec §10.3.
      *
      * @param v the velocity the player had
      * @return the pushed velocity
@@ -86,7 +88,7 @@ public final class RescuePush {
 
     /**
      * One tick of the drowning push: the velocity slowed by the water's drag, the upward speed raised to at least
-     * {@link #LIFT}.
+     * {@link #LIFT}. Functional spec §10.5.
      *
      * @param v the velocity the player had
      * @return the pushed velocity
@@ -97,7 +99,7 @@ public final class RescuePush {
 
     /**
      * A returned fireball's velocity: its old speed along the new heading; with no heading (zero length), straight
-     * back the way it came.
+     * back the way it came. Functional spec §10.6.
      *
      * @param old the fireball's velocity
      * @param headingX the new heading, east

@@ -3,6 +3,8 @@ package io.github.willrieske.spellcraft.spell.rules;
 /**
  * The evoker's look while casting (spec §7): the illager model's spellcasting arm pose, and where the evoker's hand
  * particles sit relative to its feet. Pure numbers; the client applies them.
+ *
+ * <p>Functional spec §2.5, §12.5.
  */
 public final class EvokerPose {
     /** How far from the body center each hand particle sits, horizontally, at scale 1 (multiply by the scale). */

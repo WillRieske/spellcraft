@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+/** Functional spec §12.3, §16.2, §16.4. */
 class GhostNeedTest {
     @Nested
     class InNeed {

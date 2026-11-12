@@ -21,6 +21,8 @@ import net.minecraft.world.item.equipment.Equippable;
  * reads only the stack's item and components, so the client and the server classify alike (spec §3): the client
  * answers a click on a vex from this class alone. The vanilla facts (the equippable and attribute components, the
  * potion contents) are in docs/api-notes.md §22.
+ *
+ * <p>Functional spec §8.1, §8.2, §8.5, §8.6, §8.8.
  */
 public final class VexGear {
     /** The kinds of item a vex can be given (Part 3 spec §4.1). */
@@ -35,7 +37,7 @@ public final class VexGear {
         THROWABLE,
         /** An arrow, plain or tipped. */
         ARROW,
-        /** Anything in the main hand with attack damage: a sword, an axe, a trident, a mace. */
+        /** Anything in the main hand with attack damage: a sword, an axe, a trident, a mace. Functional spec §8.5. */
         MELEE,
         /** Nothing a vex can use. */
         NONE
@@ -48,7 +50,7 @@ public final class VexGear {
      * vanilla shield also carries an off-hand {@code EQUIPPABLE}), the launchers, throwables and arrows, then "other
      * equippable" (boots, body armor, saddles: wearable, but not by a vex), and last the melee weapons. A splash or
      * lingering potion with no effects (water, awkward) is {@link Kind#NONE}, and so is an arrow tipped with at least
-     * one effect when every effect is beneficial (spec §4.1: support gear is potions only).
+     * one effect when every effect is beneficial (spec §4.1: support gear is potions only). Functional spec §8.2.
      *
      * @param stack the item
      * @return its kind, {@link Kind#NONE} for an empty stack
@@ -84,7 +86,7 @@ public final class VexGear {
     }
 
     /**
-     * The slot a vex holds {@code stack} in (Part 3 spec §4.1).
+     * The slot a vex holds {@code stack} in (Part 3 spec §4.1). Functional spec §8.1, §8.2.
      *
      * @param stack the item
      * @return the slot, or empty for an item a vex cannot use
@@ -102,6 +104,7 @@ public final class VexGear {
     /**
      * Whether {@code stack} is support gear: a throwable (so one with at least one effect) whose effects are all
      * beneficial (Part 3 spec §4.1, §4.3). Only potions are support gear: a beneficial tipped arrow is not gear at all.
+     * Functional spec §8.8.
      *
      * @param stack the item
      * @return true for support gear
@@ -112,7 +115,7 @@ public final class VexGear {
 
     /**
      * Whether {@code stack} is ranged gear: a launcher, or a throwable or arrow that is not support gear (Part 3 spec
-     * §4.3). A harming or poison tipped arrow and a plain or spectral arrow are ranged.
+     * §4.3). A harming or poison tipped arrow and a plain or spectral arrow are ranged. Functional spec §8.6.
      *
      * @param stack the item
      * @return true for ranged gear

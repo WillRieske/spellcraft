@@ -9,6 +9,8 @@ import net.minecraft.world.entity.LivingEntity;
 /**
  * Strength of Ghostrail (Parts 6-7 spec §7.3). Milk-curable. {@link #onEffectAdded} calls
  * {@link Ghostrail#begin}.
+ *
+ * <p>Functional spec §14.1, §14.6.
  */
 public final class GhostrailEffect extends MobEffect {
     /** The effect's color, as the Ghostrail icon's ink. */

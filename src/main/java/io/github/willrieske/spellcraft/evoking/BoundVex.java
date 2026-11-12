@@ -72,15 +72,20 @@ import org.jspecify.annotations.Nullable;
  * Without a summoner online, alive, in its level and not spectating it idles. The summoner is the
  * {@link AllyAttachments#SUMMONER} mark, so {@code Allies}, {@code GolemMercy} and the Trailing flame already treat it
  * as the summoner's.
+ *
+ * <p>Functional spec §4.7, §5.2, §5.3, §5.4, §5.5, §5.6, §6.1, §6.2, §6.4, §7.1, §7.3, §7.4, §7.5, §7.6.
+ * Functional spec §8.1, §8.3, §8.4, §8.5, §8.9, §8.10, §8.12, §8.13, §9.2, §9.4, §9.6, §9.7, §11.7, §12.1, §12.2.
  */
 public class BoundVex extends Vex {
-    /** Synced: whether the vex holds its post instead of following (spec §3.3). */
+    /** Synced: whether the vex holds its post instead of following (spec §3.3). Functional spec §6.4. */
     private static final EntityDataAccessor<Boolean> STAYING =
             SynchedEntityData.defineId(BoundVex.class, EntityDataSerializers.BOOLEAN);
 
     private static final String STAYING_TAG = "staying";
 
-    /** Synced: whether the vex is a Caster (the client draws the robe and the casting pose). */
+    /**
+     * Synced: whether the vex is a Caster (the client draws the robe and the casting pose). Functional spec §12.1.
+     */
     private static final EntityDataAccessor<Boolean> CASTER =
             SynchedEntityData.defineId(BoundVex.class, EntityDataSerializers.BOOLEAN);
 
@@ -97,7 +102,10 @@ public class BoundVex extends Vex {
     public static final List<EquipmentSlot> GEAR_SLOTS = List.of(
             EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND, EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS);
 
-    /** Lang key of the notice for an empty-hand click on a vex in a team move (Parts 6-7 spec section 2.6). */
+    /**
+     * Lang key of the notice for an empty-hand click on a vex in a team move (Parts 6-7 spec section 2.6).
+     * Functional spec §11.7.
+     */
     public static final String BUSY_KEY = "message.spellcraft.vex_busy";
 
     private static final String STASH_TAG_PREFIX = "stash_";
@@ -109,7 +117,7 @@ public class BoundVex extends Vex {
      */
     static final int SCAN_INTERVAL = GuardPosture.WIDE.scanInterval();
 
-    /** How far the summoner's wolves hear the call to a fight (spec §3.4), feet to feet. */
+    /** How far the summoner's wolves hear the call to a fight (spec §3.4), feet to feet. Functional spec §7.6. */
     static final double WOLF_CALL_RANGE = 16.0;
 
     /**
@@ -171,6 +179,7 @@ public class BoundVex extends Vex {
     public BoundVex(EntityType<? extends BoundVex> type, Level level) {
         super(type, level);
         // No experience: summon-and-kill would farm 3 XP per vex, 3 vexes per press (vanilla's vex gives 3).
+        // Functional spec §5.2
         xpReward = 0;
     }
 
@@ -230,6 +239,7 @@ public class BoundVex extends Vex {
         targetSelector.addGoal(3, new NearestHostileGoal(this));
     }
 
+    // Functional spec §8.13, §12.1
     @Override
     protected void addAdditionalSaveData(ValueOutput output) {
         super.addAdditionalSaveData(output);
@@ -300,7 +310,10 @@ public class BoundVex extends Vex {
         }
     }
 
-    /** Never removed for being far from players (spec §3.1); Peaceful still removes it through the type. */
+    /**
+     * Never removed for being far from players (spec §3.1); Peaceful still removes it through the type.
+     * Functional spec §5.2.
+     */
     @Override
     public boolean removeWhenFarAway(double distanceSquared) {
         return false;
@@ -334,7 +347,7 @@ public class BoundVex extends Vex {
      * Puts a conjured item in {@code slot} (Part 3 spec §5.1). If the slot is not conjured yet, what it holds moves to
      * the stash first; conjuring over a conjured item just replaces it. The item is set silently
      * ({@code setItemSlot(slot, stack, true)} skips {@code LivingEntity.onEquipItem}, so no equip sound plays,
-     * docs/api-notes.md §22).
+     * docs/api-notes.md §22). Functional spec §8.13.
      *
      * @param slot a gear slot
      * @param stack the conjured item
@@ -349,6 +362,7 @@ public class BoundVex extends Vex {
     /**
      * Ends the conjure in {@code slot}: the conjured item goes and the stashed item returns (Part 3 spec §5.1). Does
      * nothing for a slot that is not conjured. The stashed item is restored silently, like the conjure.
+     * Functional spec §8.13.
      *
      * @param slot a gear slot
      */
@@ -384,7 +398,7 @@ public class BoundVex extends Vex {
      * Puts a gift in the stash of a conjured slot, to come back when the conjure ends (Part 3 spec §5.1). Public
      * for the give click (Part 3 plan Task 5) and the GameTests in another package. The stash keeps a copy of
      * {@code gift}, so a caller that changes its stack afterwards does not change the stash. A gift for a slot that is
-     * not conjured would never be restored, saved or dropped, so it is refused.
+     * not conjured would never be restored, saved or dropped, so it is refused. Functional spec §8.13.
      *
      * @param slot a conjured gear slot
      * @param gift the item given
@@ -403,7 +417,7 @@ public class BoundVex extends Vex {
      * Drops everything the vex was given (Part 3 spec §5.2): conjured items vanish and their stashed items return to
      * their slots, then every gear slot is marked a guaranteed drop, which vanilla drops undamaged whoever the killer
      * was (docs/api-notes.md §22). The marks are set here, not at spawn: vanilla zeroes the main hand's chance at
-     * spawn and saves the chances.
+     * spawn and saves the chances. Functional spec §8.12.
      */
     @Override
     protected void dropCustomDeathLoot(ServerLevel level, DamageSource source, boolean killedByPlayer) {
@@ -419,6 +433,7 @@ public class BoundVex extends Vex {
      * here first (Part 3 spec §5.2), under the rules of the death path: nothing drops when the {@code mob_drops} game
      * rule is off ({@code shouldDropLoot}), and a stack with Curse of Vanishing ({@code PREVENT_EQUIPMENT_DROP}, as in
      * {@code Mob.dropCustomDeathLoot}) is not dropped. A stack that is not dropped is cleared with the vex.
+     * Functional spec §5.4, §8.12.
      */
     @Override
     public void checkDespawn() {
@@ -477,6 +492,7 @@ public class BoundVex extends Vex {
 
     /**
      * Turns staying on or off; on, the block it stands at becomes the post the vex hovers at (Part 3 spec §2.1).
+     * Functional spec §6.4.
      *
      * @param staying true to stay, false to follow again
      */
@@ -506,7 +522,7 @@ public class BoundVex extends Vex {
      * The summoner while online, alive, in this vex's level and not a spectator (spec §3.1); empty otherwise, and the
      * vex idles. A spectator counts as absent, as vanilla pets ignore a spectating owner
      * ({@code TamableAnimal.unableToMoveToOwner}): twelve visible vexes trailing a spectator would give its position
-     * away.
+     * away. Functional spec §5.2, §5.5.
      *
      * @return the summoner, or empty
      */
@@ -530,7 +546,7 @@ public class BoundVex extends Vex {
      * follow the {@code pvp} rule alone), and nothing while the summoner is not in {@code level}
      * (offline or in another dimension). A courted vex is spared by every player's Bound Vexes, not only the
      * claimant's, for at most the claim's lifetime (a claim older than the longest courtship counts as free). Public
-     * for its GameTests.
+     * for its GameTests. Functional spec §4.7, §7.4, §9.2, §9.6, §9.7.
      *
      * @param level the level the vex is in
      * @param summoner the UUID in the vex's summoner mark
@@ -562,7 +578,7 @@ public class BoundVex extends Vex {
     /**
      * {@link #isPrey(ServerLevel, UUID, LivingEntity)} for this vex: false on a client level, for a vex with no mark,
      * and while the summoner is dead, offline or in another level (spec §10: "as offline until respawn"), so a vex
-     * without a {@link #summoner()} takes and keeps no target.
+     * without a {@link #summoner()} takes and keeps no target. Functional spec §5.5.
      *
      * @param target the candidate
      * @return whether this vex may fight it
@@ -583,7 +599,7 @@ public class BoundVex extends Vex {
      * within {@link GuardArea#REACH} ({@link #withinReach}, whatever the vex holds), or, staying, inside the stay area
      * ({@link #inGuardArea}, Part 3 spec §2.3). The alive clause is a cheap guard: {@code canAttack} already implies it
      * for a living target ({@code LivingEntity.canBeSeenByAnyone}). {@link #keepsTarget} is the same test with a wider
-     * reach for ranged gear; it alone ends a fight.
+     * reach for ranged gear; it alone ends a fight. Functional spec §6.4, §7.5.
      *
      * @param target the candidate, or null
      * @return whether a target goal may pick it
@@ -598,6 +614,7 @@ public class BoundVex extends Vex {
      * {@link RangedGearGoal#MAX_DISTANCE} plus {@link RangedGearGoal#KEEP_MARGIN} instead of {@link GuardArea#REACH}
      * ({@link #withinKeepRange}). Every target goal's {@code canContinueToUse}, which replaces {@code TargetGoal}'s and
      * never calls {@code super} (docs/api-notes.md §21), runs this and nothing else; no goal picks with it.
+     * Functional spec §6.4, §7.5.
      *
      * @param target the held target, or null
      * @return whether the vex keeps it
@@ -620,7 +637,7 @@ public class BoundVex extends Vex {
      * ranged gear keeps a target within {@link RangedGearGoal#MAX_DISTANCE} plus {@link RangedGearGoal#KEEP_MARGIN}
      * (Part 3 spec §4.3). {@link RangedGearGoal} holds such a vex 6 to 10 blocks from its target, beyond the reach;
      * with the reach as the limit it would back off, lose the target, return, take it again and never settle. Only the
-     * keeping widens: {@link #takesTarget} stays with the reach.
+     * keeping widens: {@link #takesTarget} stays with the reach. Functional spec §7.5.
      */
     private boolean withinKeepRange(Entity target) {
         if (VexGear.isRanged(getMainHandItem())) {
@@ -641,6 +658,7 @@ public class BoundVex extends Vex {
      * §3.4): 8×8×7 around the vex ({@link GuardArea#contains}); staying (Part 3 spec §2.3): 13×13×7 around the post
      * point, wherever the vex hangs ({@link GuardArea#containsStaying}). The one box test every goal uses: entity
      * queries take {@link #guardArea()} as the broad phase and keep only what this accepts. Public for its GameTest.
+     * Functional spec §6.4, §7.1.
      *
      * @param other the entity to test
      * @return true when its feet are in the box
@@ -712,6 +730,7 @@ public class BoundVex extends Vex {
      * goal handles a hissing one), and carrying no other player's summoner mark (another player's summons are treated
      * like that player, who is no {@code Enemy}: they are prey for the grudge goal under the PvP rule, so a vex answers
      * a hit, but never a patrol or ally-fight target). {@link #takesTarget} is a separate test.
+     * Functional spec §4.7, §7.1, §7.3.
      *
      * @param target the candidate
      * @return whether the patrol and ally goals may pick it
@@ -775,7 +794,7 @@ public class BoundVex extends Vex {
      * list, and the owner argument is assumed to be this vex's summoner on every call. A zombie villager being cured
      * ({@code AllyAttachments.isBeingCured}) is excluded although {@code Allies.isAllyOf} counts it: it is an ally only
      * so that fangs and golems spare it, and counting it here would make the grudge and ally goals avenge it on whoever
-     * hurt it (another player with PvP on).
+     * hurt it (another player with PvP on). Functional spec §9.4.
      *
      * @param owner the summoner
      * @return the allies in the area
@@ -800,7 +819,7 @@ public class BoundVex extends Vex {
      * {@code Mob.serverAiStep} asks a goal's {@code canUse} only when {@code tickCount + getId()} is even
      * (docs/api-notes.md §21, "The goal clock"), so a plain {@code tickCount % 10} gate never opens for an odd id;
      * keyed the same way, an even interval always lands on a tick where {@code canUse} runs. Every scanning goal reads
-     * its cadence here.
+     * its cadence here. Functional spec §6.2.
      *
      * @param interval ticks between scans; even
      * @return whether this tick is a scan tick
@@ -812,6 +831,7 @@ public class BoundVex extends Vex {
     /**
      * Where this vex hovers and how often it scans, by where it is (Parts 4–5 spec §6.1): the Overworld by day and
      * any modded dimension keep the wide posture; the dark Overworld, the Nether and the End close in overhead.
+     * Functional spec §6.1.
      *
      * @return the posture for this vex's level, now
      */
@@ -827,7 +847,7 @@ public class BoundVex extends Vex {
 
     /**
      * Ticks between this vex's scans: the posture's (10, 4 or 2). Even, so it lands on the goal clock
-     * ({@link #scanDue}).
+     * ({@link #scanDue}). Functional spec §6.2.
      *
      * @return the scan interval
      */
@@ -837,7 +857,7 @@ public class BoundVex extends Vex {
 
     /**
      * The living Bound Vexes {@code summoner} has in every loaded level (spec §3.2); vexes in unloaded chunks are not
-     * counted (spec §13).
+     * counted (spec §13). Functional spec §5.3.
      *
      * @param server the server
      * @param summoner the summoner's UUID
@@ -860,7 +880,7 @@ public class BoundVex extends Vex {
      * summoner (the mark is not synced). The client answers {@code SUCCESS_SERVER} for an empty hand and for a gear
      * item: a client {@code PASS} would send {@code Minecraft.startUseItem} on to the off hand and throw a pearl or
      * raise a shield on each click (docs/api-notes.md §22). The swing comes from the server; a stranger's click is
-     * answered {@code PASS} there and changes nothing.
+     * answered {@code PASS} there and changes nothing. Functional spec §5.6, §6.4, §8.1, §11.7.
      */
     @Override
     protected InteractionResult mobInteract(Player player, InteractionHand hand) {
@@ -900,6 +920,7 @@ public class BoundVex extends Vex {
      * armor and of a shield in the off hand itself ({@code LivingEntity.onEquipItem}, docs/api-notes.md §22), so only
      * the silent cases get the vex's own sound: the main hand, a gift that goes to the stash, and a gift identical to
      * the piece it replaces (vanilla plays no sound when the item and its components do not change).
+     * Functional spec §8.3, §8.13.
      */
     private void give(Player player, ItemStack held, EquipmentSlot slot) {
         ItemStack gift = held.consumeAndReturn(1, player);
@@ -922,7 +943,10 @@ public class BoundVex extends Vex {
         }
     }
 
-    /** Hands the main-hand item to the summoner's empty hand; a conjured item is not handed over (spec §4.4). */
+    /**
+     * Hands the main-hand item to the summoner's empty hand; a conjured item is not handed over (spec §4.4).
+     * Functional spec §8.4, §8.13.
+     */
     private void takeBackWeapon(Player player) {
         ItemStack weapon = getMainHandItem();
         if (weapon.isEmpty() || isConjured(EquipmentSlot.MAINHAND)) {
@@ -940,7 +964,7 @@ public class BoundVex extends Vex {
      * {@code TargetGoal.canContinueToUse} re-sets the same target on every full tick (docs/api-notes.md §21), and those
      * re-sets call nobody. A target {@code getTarget} refuses, a change any listener cancels
      * ({@code LivingChangeTargetEvent}; nothing in this mod cancels a Bound Vex's) and clearing a target call nobody
-     * either: the check that the target was really set guards the cancelled change.
+     * either: the check that the target was really set guards the cancelled change. Functional spec §7.6.
      */
     @Override
     public void setTarget(@Nullable LivingEntity target) {
@@ -976,7 +1000,7 @@ public class BoundVex extends Vex {
      * view vector from the head's yaw against the flat direction to the source (a hit from exactly 90° to the side is
      * blocked, as in vanilla). A hit that would not hurt anyway is no block (it falls through to {@code super}); a
      * block records its attacker through {@code setLastHurtByMob}, so the grudge goal answers it. No durability is
-     * spent.
+     * spent. Functional spec §8.9.
      */
     @Override
     public boolean hurtServer(ServerLevel level, DamageSource source, float damage) {
@@ -1011,6 +1035,7 @@ public class BoundVex extends Vex {
     /**
      * The weapon is never worn down (Part 3 spec §4.5): the hit runs on the stack and a copy of the stack as it was is
      * put back after, so durability and count are restored (only if the vex is still alive after the hit).
+     * Functional spec §8.10.
      */
     @Override
     public boolean doHurtTarget(ServerLevel level, Entity target) {
@@ -1026,7 +1051,7 @@ public class BoundVex extends Vex {
      * Vanilla's {@code Vex.VexChargeAttackGoal}, copied because it is private (docs/api-notes.md §21): fly at the
      * target's eyes and hit it; this is how a Bound Vex uses the sword it holds. It runs only for a vex that fights in
      * melee: the main-hand item picks the fighting style (Part 3 spec §4.3), so ranged and support gear leave it to
-     * {@link RangedGearGoal} and {@link SupportGearGoal}.
+     * {@link RangedGearGoal} and {@link SupportGearGoal}. Functional spec §8.5, §12.2.
      */
     private final class ChargeGoal extends Goal {
         ChargeGoal() {
@@ -1099,7 +1124,7 @@ public class BoundVex extends Vex {
      * (docs/api-notes.md §22), so after a long flight the vex coasts a couple of blocks past the post; the goal
      * therefore waits until the coast is over ({@link #STILL_SPEED_SQR}) before it flies again, and flies at the slow
      * {@link #POST_APPROACH_SPEED} within {@link #POST_NEAR}, so that a second pass cannot overshoot the tolerance. A
-     * vex has no gravity, so once there it hangs still.
+     * vex has no gravity, so once there it hangs still. Functional spec §6.4.
      */
     private final class HoldPostGoal extends Goal {
         HoldPostGoal() {

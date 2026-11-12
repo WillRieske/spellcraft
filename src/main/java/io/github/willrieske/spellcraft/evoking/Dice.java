@@ -20,18 +20,27 @@ import net.minecraft.util.RandomSource;
  * GameTest {@code dice_unscript_all_clears_every_die} fails when one is forgotten.
  *
  * <p>Not {@code ScrollDraw.Dice}: that one is a per-vex roll function; this one is a global scriptable source.
+ *
+ * <p>Functional spec §11.11, §12.1, §13.4, §15.1.
  */
 public final class Dice {
-    /** The Raid kit's rolls: per member, the main-hand item (0-6) then the armor material (0-1). */
+    /**
+     * The Raid kit's rolls: per member, the main-hand item (0-6) then the armor material (0-1). Functional spec §11.11.
+     */
     public static final Dice RAID_KIT = new Dice("RAID_KIT");
 
-    /** The Caster roll at each summon: a roll of 0 in {@code [0, 3)} makes a Caster (1 in 3). */
+    /**
+     * The Caster roll at each summon: a roll of 0 in {@code [0, 3)} makes a Caster (1 in 3). Functional spec §12.1.
+     */
     public static final Dice CASTER_ROLL = new Dice("CASTER_ROLL");
 
-    /** Scroll mobs: per spawning mob the "carries one" roll, then (for a carrier) the spell: 0 Mirror, 1 Ghostrail. */
+    /**
+     * Scroll mobs: per spawning mob the "carries one" roll, then (for a carrier) the spell: 0 Mirror, 1 Ghostrail.
+     * Functional spec §15.1.
+     */
     public static final Dice SCROLL_MOB = new Dice("SCROLL_MOB");
 
-    /** The Mirror confusion roll, {@code [0, MirrorRule.CONFUSION_BOUND)}. */
+    /** The Mirror confusion roll, {@code [0, MirrorRule.CONFUSION_BOUND)}. Functional spec §13.4. */
     public static final Dice MIRROR_CONFUSION = new Dice("MIRROR_CONFUSION");
 
     /** Every instance. A new die must be added here. */

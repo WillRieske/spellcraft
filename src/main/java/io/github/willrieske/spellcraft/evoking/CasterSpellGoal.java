@@ -28,6 +28,8 @@ import org.jspecify.annotations.Nullable;
  * player ({@link Spells#refusedFor}). Priority 2, beside the job goals, and needs no target. A Caster that holds a
  * target may be far from its summoner (it flies to its ring point around the target); the range tests below then
  * simply find nothing to cast on, and nothing here assumes the two stay close.
+ *
+ * <p>Functional spec §12.3, §12.4, §12.5.
  */
 final class CasterSpellGoal extends Goal {
     /** The Caster this goal belongs to. */
@@ -80,6 +82,7 @@ final class CasterSpellGoal extends Goal {
         return ticks;
     }
 
+    // Functional spec §12.5
     @Override
     public void start() {
         ticks = 0;
@@ -119,6 +122,8 @@ final class CasterSpellGoal extends Goal {
      * The scroll and the casting effect go here, not only in {@link #stop()}: the goal selector calls {@code stop()}
      * one or two ticks after {@code done} is set (only on even {@code tickCount + id} ticks), and a test or a player
      * watching right after the spell lands must not see a scroll still in hand.
+     *
+     * <p>Functional spec §12.5.
      */
     private void finish() {
         done = true;
@@ -169,7 +174,11 @@ final class CasterSpellGoal extends Goal {
         ownScroll = null;
     }
 
-    /** Picks the spell and subject for this scan, or false when nothing is worth casting. */
+    /**
+     * Picks the spell and subject for this scan, or false when nothing is worth casting.
+     *
+     * <p>Functional spec §12.3, §12.4.
+     */
     private boolean choose() {
         spell = null;
         subject = null;
@@ -200,6 +209,8 @@ final class CasterSpellGoal extends Goal {
     /**
      * The summoner if it needs Ghostrail (and {@link Spells#refusedFor} does not forbid it: a creative or spectator
      * summoner flies already), else the neediest sibling vex in range, else null.
+     *
+     * <p>Functional spec §12.3.
      */
     private @Nullable LivingEntity emergency(ServerPlayer owner) {
         if (owner.distanceTo(vex) <= CasterRules.RANGE

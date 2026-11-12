@@ -46,12 +46,14 @@ import org.jspecify.annotations.Nullable;
  * {@code requiresUpdateEveryTick} on ticks its {@code canContinueToUse} is not asked, so {@link #tick} returns at
  * once when {@code finished} is set, and the roll is reached only from {@link #tick}. A vanilla vex carries at most one
  * of the two marks.
+ *
+ * <p>Functional spec §9.6, §9.8.
  */
 public final class BribeGoal extends Goal {
     /** The most ticks the approach may take before the goal gives up ({@link Jobs#APPROACH_LIMIT}). */
     public static final int APPROACH_LIMIT = Jobs.APPROACH_LIMIT;
 
-    /** Ticks the emerald is held out before the roll. */
+    /** Ticks the emerald is held out before the roll. Functional spec §9.6. */
     public static final int OFFER_TICKS = 20;
 
     /**
@@ -124,7 +126,7 @@ public final class BribeGoal extends Goal {
 
     /**
      * Whether a living Bound Vex is courting {@code target} right now: from its claim until its roll (spec §3.1).
-     * {@link BoundVex#isPrey} reads it.
+     * {@link BoundVex#isPrey} reads it. Functional spec §9.6.
      *
      * @param target any entity
      * @return true while a Bound Vex that is alive and in the world holds a claim that is not stale
@@ -176,6 +178,7 @@ public final class BribeGoal extends Goal {
         if (owner == null) {
             return false;
         }
+        // Functional spec §9.6, §9.8
         other = vex
                 .level()
                 .getEntitiesOfClass(
@@ -190,7 +193,7 @@ public final class BribeGoal extends Goal {
 
     /**
      * Whether {@code candidate} may be offered an emerald now: a vanilla vex, alive, unmarked, not courted by another
-     * living Bound Vex, and attacking the summoner's side.
+     * living Bound Vex, and attacking the summoner's side. Functional spec §9.6.
      */
     private boolean offerable(ServerPlayer owner, Vex candidate) {
         if (!EntityTypes.VEX.equals(candidate.getType())
@@ -257,7 +260,10 @@ public final class BribeGoal extends Goal {
         offer();
     }
 
-    /** Step 2: the emerald in hand, the villager sound once at the start; after {@link #OFFER_TICKS}, the roll. */
+    /**
+     * Step 2: the emerald in hand, the villager sound once at the start; after {@link #OFFER_TICKS}, the roll.
+     * Functional spec §9.6.
+     */
     private void offer() {
         if (!vex.isConjured(EquipmentSlot.MAINHAND) || !vex.getMainHandItem().is(Items.EMERALD)) {
             vex.conjure(EquipmentSlot.MAINHAND, new ItemStack(Items.EMERALD));
@@ -274,6 +280,7 @@ public final class BribeGoal extends Goal {
     /**
      * Step 3: one roll of {@link BribeRule}, from the dice scripted for this vex or its own random source. The hand
      * goes and the claim is released at once, so a refused vex is prey again from the next target pick.
+     * Functional spec §9.6.
      */
     private void roll() {
         Vex target = other;

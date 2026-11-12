@@ -71,6 +71,9 @@ import net.minecraft.world.phys.Vec3;
 /**
  * Bound Vex GameTests (Evoking II Part 3 spec §3-§5, §8): the stash, drops, saving, giving, taking back, fighting with
  * gear. Shared constants and helpers live in {@link BoundVexTestSupport}.
+ *
+ * <p>Functional spec §4.3, §5.4, §5.6, §6.4, §7.5, §7.9, §8.1, §8.2, §8.3, §8.4, §8.5, §8.6, §8.7, §8.8, §8.9, §8.10,
+ * §8.12, §8.13.
  */
 public final class BoundVexGearGameTests {
     private BoundVexGearGameTests() {}
@@ -170,6 +173,8 @@ public final class BoundVexGearGameTests {
      *
      * <p>Method under test: {@link BoundVex#conjure}, {@link BoundVex#dismiss}, {@link BoundVex#isConjured} and
      * {@link BoundVex#stashed}
+     *
+     * <p>Functional spec §8.13.
      */
     static void conjureAndDismissRoundTrip(GameTestHelper helper) {
         // Arrange
@@ -200,6 +205,8 @@ public final class BoundVexGearGameTests {
      * conjured item in hand, and give the gift back to the hand when the conjure ends.
      *
      * <p>Method under test: {@link BoundVex#stashGift}
+     *
+     * <p>Functional spec §8.13.
      */
     static void giftDuringAConjureWaitsInTheStash(GameTestHelper helper) {
         // Arrange
@@ -223,6 +230,8 @@ public final class BoundVexGearGameTests {
      * killed, should drop exactly the sword (undamaged), the helmet and the shield, and no ingot.
      *
      * <p>Method under test: {@code BoundVex#dropCustomDeathLoot}
+     *
+     * <p>Functional spec §8.12.
      */
     static void deathDropsGivenGearAndNoConjuredItem(GameTestHelper helper) {
         // Arrange
@@ -258,6 +267,8 @@ public final class BoundVexGearGameTests {
      * that was conjured is dismissed on load because the goal that conjured the ingot is not running.
      *
      * <p>Method under test: {@code BoundVex#addAdditionalSaveData} and {@code BoundVex#readAdditionalSaveData}
+     *
+     * <p>Functional spec §8.13.
      */
     static void loadDismissesAConjuredSlotAndGivesTheItemBack(GameTestHelper helper) {
         // Arrange
@@ -358,6 +369,8 @@ public final class BoundVexGearGameTests {
      * <p>Sets the server difficulty, which is global, so it runs alone in the {@code peaceful_gear} batch; the
      * difficulty
      * is restored through {@code whenDone}.
+     *
+     * <p>Functional spec §5.4.
      */
     static void peacefulRemovalDropsGear(GameTestHelper helper) {
         // Arrange
@@ -422,6 +435,8 @@ public final class BoundVexGearGameTests {
      *
      * <p>Method under test: {@link VexGear#kindOf}, {@link VexGear#slotFor}, {@link VexGear#isSupport} and
      * {@link VexGear#isRanged}
+     *
+     * <p>Functional spec §8.2.
      */
     static void kindsAndSlots(GameTestHelper helper) {
         // Arrange
@@ -479,6 +494,8 @@ public final class BoundVexGearGameTests {
      * clicks, empty the hand for the first and hand the iron helmet back for the second.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     *
+     * <p>Functional spec §8.1, §8.3.
      */
     static void givingArmorSwapsThePiece(GameTestHelper helper) {
         // Arrange
@@ -505,6 +522,8 @@ public final class BoundVexGearGameTests {
      * vex's main hand and hand the iron sword to the player's inventory.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     *
+     * <p>Functional spec §8.3.
      */
     static void givingAWeaponReturnsTheSword(GameTestHelper helper) {
         // Arrange
@@ -524,6 +543,8 @@ public final class BoundVexGearGameTests {
      * When the summoner gives a shield, should put it in the vex's off hand and leave the main hand's iron sword.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     *
+     * <p>Functional spec §8.2, §8.3.
      */
     static void givingAShieldUsesTheOffhand(GameTestHelper helper) {
         // Arrange
@@ -544,6 +565,8 @@ public final class BoundVexGearGameTests {
      * hand, the vex holds one, and the iron sword it held is in the inventory.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     *
+     * <p>Functional spec §8.3.
      */
     static void givingTakesOneFromAStack(GameTestHelper helper) {
         // Arrange
@@ -567,6 +590,8 @@ public final class BoundVexGearGameTests {
      * When a creative summoner gives a diamond sword, should keep the sword in the hand and still give the vex one.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     *
+     * <p>Functional spec §8.3.
      */
     static void creativeKeepsItsStack(GameTestHelper helper) {
         // Arrange
@@ -592,6 +617,8 @@ public final class BoundVexGearGameTests {
      * should leave the diamond sword in the vex's main hand and drop exactly one iron sword near the player.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     *
+     * <p>Functional spec §8.3.
      */
     static void aFullInventoryDropsTheReturnedItem(GameTestHelper helper) {
         // Arrange
@@ -620,6 +647,8 @@ public final class BoundVexGearGameTests {
      * the click and change nothing.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     *
+     * <p>Functional spec §8.1, §8.2.
      */
     static void nonGearPasses(GameTestHelper helper) {
         // Arrange
@@ -649,6 +678,8 @@ public final class BoundVexGearGameTests {
      * consumes the action but changes nothing, and does not toggle stay.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     *
+     * <p>Functional spec §8.1, §8.4.
      */
     static void plainEmptyClickTakesTheWeaponOnly(GameTestHelper helper) {
         // Arrange
@@ -683,6 +714,8 @@ public final class BoundVexGearGameTests {
      * inventory.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     *
+     * <p>Functional spec §8.13.
      */
     static void conjuredItemIsNotTaken(GameTestHelper helper) {
         // Arrange
@@ -708,6 +741,8 @@ public final class BoundVexGearGameTests {
      * the helmet in that player's hand and leave the vex's sword on the vex.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     *
+     * <p>Functional spec §5.6.
      */
     static void strangerCannotGiveOrTake(GameTestHelper helper) {
         // Arrange
@@ -732,6 +767,8 @@ public final class BoundVexGearGameTests {
      * When a sneaking summoner clicks holding a helmet, should give the helmet and not toggle stay.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     *
+     * <p>Functional spec §8.1.
      */
     static void sneakWithGearStillGives(GameTestHelper helper) {
         // Arrange
@@ -754,6 +791,8 @@ public final class BoundVexGearGameTests {
      * own ambient sound (vanilla's equip sound stays silent for an identical piece) and hand the first helmet back.
      *
      * <p>Method under test: {@code BoundVex#mobInteract} (protected), through {@link BoundVex#interact}
+     *
+     * <p>Functional spec §8.3.
      */
     static void identicalHelmetSwapIsAudible(GameTestHelper helper) {
         // Arrange
@@ -942,6 +981,8 @@ public final class BoundVexGearGameTests {
      * hurt the second husk more than the first.
      *
      * <p>Method under test: {@code BoundVex#doHurtTarget}
+     *
+     * <p>Functional spec §8.5.
      */
     static void aBetterSwordHitsHarder(GameTestHelper helper) {
         // Arrange
@@ -974,6 +1015,8 @@ public final class BoundVexGearGameTests {
      * durability in 26.3, so the restore is a guard) is worn by the same kind of hit.
      *
      * <p>Method under test: {@code BoundVex#doHurtTarget}
+     *
+     * <p>Functional spec §8.10.
      */
     static void theSwordIsNotWornDown(GameTestHelper helper) {
         // Arrange
@@ -1006,6 +1049,8 @@ public final class BoundVexGearGameTests {
      * never charge, and keep an undamaged bow.
      *
      * <p>Method under test: {@code RangedGearGoal} and {@code VexShots#launch}, through the goal selector
+     *
+     * <p>Functional spec §8.6, §8.10.
      */
     static void aBowVexShootsAndKeepsItsDistance(GameTestHelper helper) {
         // Arrange
@@ -1045,6 +1090,8 @@ public final class BoundVexGearGameTests {
      * throw, not the damage.)
      *
      * <p>Method under test: {@code RangedGearGoal} and {@code VexShots#launch}, through the goal selector
+     *
+     * <p>Functional spec §8.6, §8.10.
      */
     static void aHarmingPotionVexThrowsAtItsTarget(GameTestHelper helper) {
         // Arrange
@@ -1077,6 +1124,8 @@ public final class BoundVexGearGameTests {
      *
      * <p>Method under test: {@code BoundVex#keepsTarget} (package-private), through {@code RangedGearGoal} and the goal
      * selector
+     *
+     * <p>Functional spec §7.5, §8.6.
      */
     static void aFollowingBowVexKeepsItsTargetAtRange(GameTestHelper helper) {
         // Arrange
@@ -1132,6 +1181,8 @@ public final class BoundVexGearGameTests {
      * one potion.
      *
      * <p>Method under test: {@code SupportGearGoal} and {@code VexShots#launch}, through the goal selector
+     *
+     * <p>Functional spec §8.8, §8.10.
      */
     static void aHealingPotionVexThrowsAtAHurtAlly(GameTestHelper helper) {
         // Arrange
@@ -1166,6 +1217,8 @@ public final class BoundVexGearGameTests {
      * potion in a hundred ticks.
      *
      * <p>Method under test: {@code SupportGearGoal} through the goal selector
+     *
+     * <p>Functional spec §8.8.
      */
     static void aHealingPotionVexIgnoresAHealthyAlly(GameTestHelper helper) {
         // Arrange
@@ -1185,6 +1238,8 @@ public final class BoundVexGearGameTests {
      * nobody hurt, should still fly into the orbit band around the summoner.
      *
      * <p>Method under test: {@code FollowSummonerGoal} beside {@code SupportGearGoal}, through the goal selector
+     *
+     * <p>Functional spec §8.8.
      */
     static void aSupportVexStillFollows(GameTestHelper helper) {
         // Arrange
@@ -1222,6 +1277,8 @@ public final class BoundVexGearGameTests {
      * three. A blocked hit makes the attacker the vex's last attacker.
      *
      * <p>Method under test: {@code BoundVex#hurtServer}
+     *
+     * <p>Functional spec §8.9, §8.10.
      */
     static void aShieldBlocksFromTheFront(GameTestHelper helper) {
         // Arrange
@@ -1269,6 +1326,8 @@ public final class BoundVexGearGameTests {
      * When a vex with an empty off hand is hit by a husk to the south while facing south, should take the hit.
      *
      * <p>Method under test: {@code BoundVex#hurtServer}
+     *
+     * <p>Functional spec §8.9.
      */
     static void withoutAShieldNothingIsBlocked(GameTestHelper helper) {
         // Arrange
@@ -1293,6 +1352,8 @@ public final class BoundVexGearGameTests {
      * hits it, should block the hit (vanilla blocks at exactly 90 degrees) and leave its health unchanged.
      *
      * <p>Method under test: {@code BoundVex#hurtServer}
+     *
+     * <p>Functional spec §8.9.
      */
     static void aShieldBlocksAtExactlyNinetyDegrees(GameTestHelper helper) {
         // Arrange
@@ -1318,6 +1379,8 @@ public final class BoundVexGearGameTests {
      * them, should shoot no arrow for a hundred ticks, and shoot one once the golem has moved away.
      *
      * <p>Method under test: {@code RangedGearGoal} (the friendly-fire hold), through the goal selector
+     *
+     * <p>Functional spec §8.7.
      */
     static void aBowVexHoldsFireWithAFriendInTheWay(GameTestHelper helper) {
         // Arrange
@@ -1343,6 +1406,8 @@ public final class BoundVexGearGameTests {
      * a husk with the same kind of source.
      *
      * <p>Method under test: {@code BoundVexEvents#onIncomingDamage}
+     *
+     * <p>Functional spec §7.9.
      */
     static void damageFromAVexToItsSummonerIsCancelled(GameTestHelper helper) {
         // Arrange
@@ -1371,6 +1436,8 @@ public final class BoundVexGearGameTests {
      * the husk's health as it was.
      *
      * <p>Method under test: {@code SupportGearGoal}, through the goal selector
+     *
+     * <p>Functional spec §8.8.
      */
     static void aHealingPotionVexSkipsAnUndeadFriend(GameTestHelper helper) {
         // Arrange
@@ -1396,6 +1463,8 @@ public final class BoundVexGearGameTests {
      * at ten blocks is covered by {@link #aFollowingBowVexKeepsItsTargetAtRange}.
      *
      * <p>Method under test: {@code BoundVex#takesTarget} (package-private), through {@code HurtBySummonerSideGoal}
+     *
+     * <p>Functional spec §7.5.
      */
     static void aFollowingBowVexDoesNotTakeAFarGrudge(GameTestHelper helper) {
         // Arrange: parked, so it keeps its place and the distances stay fixed; the target goals still run
@@ -1425,6 +1494,8 @@ public final class BoundVexGearGameTests {
      * pig by its own melee (the direct entity is the vex).
      *
      * <p>Method under test: {@code BoundVexEvents#onIncomingDamage}
+     *
+     * <p>Functional spec §7.9.
      */
     static void aVexWithoutItsSummonerSparesNonEnemiesAndSiblings(GameTestHelper helper) {
         // Arrange
@@ -1463,6 +1534,8 @@ public final class BoundVexGearGameTests {
      * golem and the sibling unhurt and hurt the husk.
      *
      * <p>Method under test: {@code BoundVexEvents#onIncomingDamage}
+     *
+     * <p>Functional spec §7.9.
      */
     static void theBackstopSparesACalmGolemAndASiblingVex(GameTestHelper helper) {
         // Arrange
@@ -1496,6 +1569,8 @@ public final class BoundVexGearGameTests {
      * leave the summoner's health unchanged and hurt the husk.
      *
      * <p>Method under test: {@code BoundVexEvents#onIncomingDamage}
+     *
+     * <p>Functional spec §7.9.
      */
     static void aPotionFromAVexSparesItsSummoner(GameTestHelper helper) {
         // Arrange
@@ -1523,6 +1598,8 @@ public final class BoundVexGearGameTests {
      * the golem: a vex's legitimate hits stand.
      *
      * <p>Method under test: {@code BoundVexEvents#onIncomingDamage}
+     *
+     * <p>Functional spec §4.3, §7.9.
      */
     static void aGolemMadAtTheSummonerIsHurtByTheVex(GameTestHelper helper) {
         // Arrange
@@ -1549,6 +1626,8 @@ public final class BoundVexGearGameTests {
      * arrow.
      *
      * <p>Method under test: {@code VexShots#launch} (the arrow case), through {@code RangedGearGoal}
+     *
+     * <p>Functional spec §8.6, §8.10.
      */
     static void aPoisonArrowVexShootsATippedArrow(GameTestHelper helper) {
         // Arrange
@@ -1585,6 +1664,8 @@ public final class BoundVexGearGameTests {
      * potion it owns within a hundred ticks and still hold exactly one potion.
      *
      * <p>Method under test: {@code VexShots#launch} (the lingering case), through {@code RangedGearGoal}
+     *
+     * <p>Functional spec §8.6, §8.10.
      */
     static void aLingeringPotionVexThrowsALingeringPotion(GameTestHelper helper) {
         // Arrange
@@ -1616,6 +1697,8 @@ public final class BoundVexGearGameTests {
      *
      * <p>Method under test: {@code RangedGearGoal} (the friendly-fire hold for the summoner), through the goal
      * selector
+     *
+     * <p>Functional spec §8.7.
      */
     static void aBowVexHoldsFireWithTheSummonerInTheWay(GameTestHelper helper) {
         // Arrange
@@ -1644,6 +1727,8 @@ public final class BoundVexGearGameTests {
      * summoner has moved eight blocks from the husk.
      *
      * <p>Method under test: {@code RangedGearGoal} (the friendly-fire hold for a splash), through the goal selector
+     *
+     * <p>Functional spec §8.7.
      */
     static void aPotionVexHoldsFireWithTheSummonerNearTheTarget(GameTestHelper helper) {
         // Arrange
@@ -1670,6 +1755,8 @@ public final class BoundVexGearGameTests {
      * it, and the husk then dies, should fly back to within the post tolerance plus half a block of its post.
      *
      * <p>Method under test: {@code RangedGearGoal} then {@code BoundVex.HoldPostGoal}, through the goal selector
+     *
+     * <p>Functional spec §6.4.
      */
     static void aStayingBowVexReturnsToItsPostWhenTheTargetDies(GameTestHelper helper) {
         // Arrange

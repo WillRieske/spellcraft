@@ -27,19 +27,24 @@ import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
  * §8). The scroll sits in the offhand with a drop chance of 0.5, which vanilla honors only for a player's kill (Looting
  * raises it): that is the parent spec's "loot path for players". Vanilla's own equipment fills only the main hand and
  * runs after {@code FinalizeSpawnEvent}.
+ *
+ * <p>Functional spec §15.1, §15.2, §15.3.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class ScrollMobs {
-    /** An evoker carries a scroll one time in this many. */
+    /** An evoker carries a scroll one time in this many. Functional spec §15.1. */
     public static final int EVOKER_ONE_IN = 4;
 
-    /** A vindicator or pillager carries a scroll one time in this many. */
+    /** A vindicator or pillager carries a scroll one time in this many. Functional spec §15.1. */
     public static final int RAIDER_ONE_IN = 10;
 
-    /** The offhand drop chance of a carried scroll. */
+    /** The offhand drop chance of a carried scroll. Functional spec §15.3. */
     static final float DROP_CHANCE = 0.5F;
 
-    /** Ticks before a mob may cast Ghostrail on itself again (30 seconds; Mirror uses ScrollCasting's cooldown). */
+    /**
+     * Ticks before a mob may cast Ghostrail on itself again (30 seconds; Mirror uses ScrollCasting's cooldown).
+     * Functional spec §15.2.
+     */
     public static final int MOB_GHOSTRAIL_COOLDOWN_TICKS = 600;
 
     /** The cast's purple, the Evoker-spell color of {@code CastingParticles} for a scroll. */
@@ -62,7 +67,7 @@ public final class ScrollMobs {
     }
 
     /**
-     * Gives a new mob a scroll: the carry roll, then the spell (0 Mirror, 1 Ghostrail).
+     * Gives a new mob a scroll: the carry roll, then the spell (0 Mirror, 1 Ghostrail). Functional spec §15.1, §15.3.
      *
      * @param event the finalize-spawn event
      */
@@ -81,7 +86,7 @@ public final class ScrollMobs {
     /**
      * Casts the carried scroll when the mob goes from no target to a target (so a mob that loses its target casts next
      * time it gets one) and the spell's cooldown is over. Instant: a 20-tick wind-up on a fighting illager is easy to
-     * miss. The scroll is not used up.
+     * miss. The scroll is not used up. Functional spec §15.2.
      *
      * @param event the change-target event for any living entity
      */
