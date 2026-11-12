@@ -8,6 +8,7 @@ import io.github.willrieske.spellcraft.spell.rules.EvokerPose.HandOffset;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+/** Functional spec §2.5. */
 class EvokerPoseTest {
     @Nested
     class ArmRotationAt {

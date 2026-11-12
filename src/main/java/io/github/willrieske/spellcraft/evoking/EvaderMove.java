@@ -25,18 +25,20 @@ import org.jspecify.annotations.Nullable;
  * next step) that flies toward it and was not shot from the summoner's side (not a large fireball: Part 5's return owns
  * those). The reversed projectile's new owner is the vex, so it is never deflected twice and the friendly-fire backstop
  * covers it.
+ *
+ * <p>Functional spec §11.10.
  */
 final class EvaderMove {
-    /** How far from the ward's middle a member circles. */
+    /** How far from the ward's middle a member circles. Functional spec §11.10. */
     static final double ORBIT_RADIUS = 2.0;
 
-    /** A hostile whose box is within this many blocks of the ward's box is shoved. */
+    /** A hostile whose box is within this many blocks of the ward's box is shoved. Functional spec §11.10. */
     static final double SHOVE_RANGE = 3.0;
 
     /** Knockback power of a shove. */
     static final double SHOVE_KNOCKBACK = 2.0;
 
-    /** Ticks before the same hostile may be shoved again. */
+    /** Ticks before the same hostile may be shoved again. Functional spec §11.10. */
     static final int SHOVE_PAUSE = 20;
 
     /** A projectile whose box is within this many blocks of the ward's box is deflected. */

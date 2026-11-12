@@ -34,6 +34,8 @@ import net.minecraft.world.phys.Vec3;
 /**
  * GameTests of the Bound Vex's critical hits in the End: the tripled melee hit, what it does not apply to
  * (arrows, spared allies, the Nether) and how it keeps golem mercy and the player-versus-player rule.
+ *
+ * <p>Functional spec §4.4, §7.9, §10.10.
  */
 public final class BoundVexCritGameTests {
     /** How many ticks a husk must hold up its shield before it blocks (the shield's block delay is 5 ticks). */
@@ -106,6 +108,8 @@ public final class BoundVexCritGameTests {
      * in the Overworld, within 0.01 (the Overworld cost is measured, not assumed).
      *
      * <p>Method under test: {@code BoundVexEvents.onIncomingDamage}: the End crit
+     *
+     * <p>Functional spec §10.10.
      */
     static void critInTheEnd(GameTestHelper helper) {
         // Arrange
@@ -128,6 +132,8 @@ public final class BoundVexCritGameTests {
      * When a Bound Vex's arrow (its direct entity is the arrow) deals 4 to a husk in the End, should the husk lose 4.
      *
      * <p>Method under test: {@code BoundVexEvents.onIncomingDamage}: only the vex's own melee crits
+     *
+     * <p>Functional spec §10.10.
      */
     static void critNotForArrows(GameTestHelper helper) {
         // Arrange
@@ -151,6 +157,8 @@ public final class BoundVexCritGameTests {
      * hit does nothing at any size.
      *
      * <p>Method under test: {@code BoundVexEvents.onIncomingDamage}: the backstop comes first
+     *
+     * <p>Functional spec §7.9, §10.10.
      */
     static void critNotWhenSpared(GameTestHelper helper) {
         // Arrange
@@ -184,6 +192,8 @@ public final class BoundVexCritGameTests {
      * golem stop at 25: mercy clamps the tripled hit as it does a plain one.
      *
      * <p>Method under test: {@code BoundVexEvents.onIncomingDamage} and {@code GolemMercy.onDamagePre}
+     *
+     * <p>Functional spec §4.4, §10.10.
      */
     static void critKeepsGolemMercy(GameTestHelper helper) {
         // Arrange
@@ -219,6 +229,8 @@ public final class BoundVexCritGameTests {
      * neither wearing armor).
      *
      * <p>Method under test: {@code BoundVexEvents.onIncomingDamage}: the crit on a player victim
+     *
+     * <p>Functional spec §10.10.
      */
     static void critOnAPlayerUnderThePvpRule(GameTestHelper helper) {
         // Arrange
@@ -254,6 +266,8 @@ public final class BoundVexCritGameTests {
      * the Overworld.
      *
      * <p>Method under test: {@code BoundVexEvents.onIncomingDamage}: the crit is for the End only
+     *
+     * <p>Functional spec §10.10.
      */
     static void noCritInTheNether(GameTestHelper helper) {
         // Arrange
@@ -282,6 +296,8 @@ public final class BoundVexCritGameTests {
      * sound and the critical-hit particles.
      *
      * <p>Method under test: {@code BoundVexEvents.onDamagePost}: the show for a hit that landed
+     *
+     * <p>Functional spec §10.10.
      */
     static void critShownOnALandedHit(GameTestHelper helper) {
         // Arrange
@@ -307,6 +323,8 @@ public final class BoundVexCritGameTests {
      * no harder), should the second hit cost no health and show no crit sound or particles.
      *
      * <p>Method under test: {@code BoundVexEvents.onDamagePost}: a hit the frames absorbed shows nothing
+     *
+     * <p>Functional spec §10.10.
      */
     static void critNotShownInsideTheFrames(GameTestHelper helper) {
         // Arrange
@@ -332,6 +350,8 @@ public final class BoundVexCritGameTests {
      * particles be sent.
      *
      * <p>Method under test: {@code BoundVexEvents.onDamagePost}: a canceled hit shows nothing
+     *
+     * <p>Functional spec §7.9, §10.10.
      */
     static void critNotShownOnASparedAlly(GameTestHelper helper) {
         // Arrange
@@ -368,6 +388,8 @@ public final class BoundVexCritGameTests {
      * (the husk loses no health), should no crit sound or particles be sent.
      *
      * <p>Method under test: {@code BoundVexEvents.onDamagePost}: a hit a shield blocked fully shows nothing
+     *
+     * <p>Functional spec §10.10.
      */
     static void critNotShownOnAFullyBlockedHit(GameTestHelper helper) {
         // Arrange

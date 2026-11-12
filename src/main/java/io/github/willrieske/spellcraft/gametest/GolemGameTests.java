@@ -39,6 +39,8 @@ import net.minecraft.world.level.gamerules.GameRules;
 /**
  * Iron golems as allies, the trail's golem clause, golem mercy and forgiveness, and the rule that a golem never targets
  * a summon (Evoking II spec §2.3). Registered in {@link SpellcraftGameTests}.
+ *
+ * <p>Functional spec §4.1, §4.2, §4.3, §4.4, §4.5, §4.6.
  */
 public final class GolemGameTests {
     static final BlockPos SPOT = new BlockPos(1, 1, 1);
@@ -129,6 +131,8 @@ public final class GolemGameTests {
      * second player should still be an ally of the first.
      *
      * <p>Method under test: {@link Allies#isAllyOf}, {@link Allies#isMadAt}, and {@link Allies#mayHaveAllies}
+     *
+     * <p>Functional spec §4.1, §4.3, §4.4.
      */
     static void alliesUnlessMad(GameTestHelper helper) {
         // Arrange
@@ -179,6 +183,8 @@ public final class GolemGameTests {
      * <p>Method under test: {@link Allies#isMadAt}, and {@link Allies#isAllyOf}
      *
      * <p>Changes a game rule, so it runs in the {@code universal_anger} environment, restored afterwards.
+     *
+     * <p>Functional spec §4.3.
      */
     static void universalAnger(GameTestHelper helper) {
         // Arrange
@@ -207,6 +213,8 @@ public final class GolemGameTests {
      * golem stepping into a flame no ledger entry owns (the negative control) should burn.
      *
      * <p>Method under test: {@link TrailFires#isSpared}
+     *
+     * <p>Functional spec §4.2.
      */
     static void trailSparesEveryGolem(GameTestHelper helper) {
         // Arrange
@@ -245,6 +253,8 @@ public final class GolemGameTests {
      * nothing and leave no grudge.
      *
      * <p>Method under test: {@link GolemMercy#onDamagePre}, and {@link GolemMercy#onDamagePost}
+     *
+     * <p>Functional spec §4.4, §4.5.
      */
     static void mercyClampsAFangBite(GameTestHelper helper) {
         // Arrange
@@ -291,6 +301,8 @@ public final class GolemGameTests {
      * remember the player (vanilla gets mad on its own); when a player hits a golem already at 20, should nothing land.
      *
      * <p>Method under test: {@link GolemMercy#onDamagePre}, and {@link GolemMercy#onDamagePost}
+     *
+     * <p>Functional spec §4.4, §4.5.
      */
     static void mercySwordWolfAndSummon(GameTestHelper helper) {
         // Arrange
@@ -333,6 +345,8 @@ public final class GolemGameTests {
      * at 25 with no grudge: a tame wolf is the player's side whether or not its owner is online.
      *
      * <p>Method under test: {@link GolemMercy#onDamagePre}, and {@link GolemMercy#onDamagePost}
+     *
+     * <p>Functional spec §4.4, §4.5.
      */
     static void mercyOfflineWolfOwner(GameTestHelper helper) {
         // Arrange
@@ -359,6 +373,8 @@ public final class GolemGameTests {
      * a wolf nobody owns, should all three land at 20: mercy is only for the player's side.
      *
      * <p>Method under test: {@link GolemMercy#onDamagePre}
+     *
+     * <p>Functional spec §4.4.
      */
     static void otherDamageUntouched(GameTestHelper helper) {
         // Arrange
@@ -396,6 +412,8 @@ public final class GolemGameTests {
      * should it take it (the control); told to target the summon while it has the zombie, should it keep the zombie.
      *
      * <p>Method under test: {@link GolemMercy#onChangeTarget}
+     *
+     * <p>Functional spec §4.6.
      */
     static void neverTargetsASummon(GameTestHelper helper) {
         // Arrange

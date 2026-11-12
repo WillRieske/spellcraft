@@ -12,6 +12,8 @@ import net.minecraft.world.phys.AABB;
  * To keep a target it runs {@code super}'s checks (sight: dropped after 60 unseen ticks; they end by re-setting the
  * target, which calls no wolves for an unchanged target) and then {@code BoundVex.keepsTarget}, the wider test for ranged gear (a target that became
  * an ally, died or left reach is dropped), because vanilla's never re-checks the selector.
+ *
+ * <p>Functional spec §7.1, §7.5.
  */
 final class NearestHostileGoal extends NearestAttackableTargetGoal<LivingEntity> {
     private final BoundVex vex;

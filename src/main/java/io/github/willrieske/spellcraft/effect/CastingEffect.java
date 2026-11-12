@@ -9,6 +9,8 @@ import net.minecraft.world.effect.MobEffectCategory;
  * A short effect the server puts on a casting player (spec §2): its only job is to carry a mod particle type in the
  * player's synced effect-particle list, so every client knows the player is casting and which spell. Applied with
  * {@code visible = true} (the sync) and {@code showIcon = false} (no HUD); the client hides it from the inventory.
+ *
+ * <p>Functional spec §2.5.
  */
 public final class CastingEffect extends MobEffect {
     /** The Evoking mint, shared with {@code ModEffects.EVOKING}. The icon script writes it as RGB. */

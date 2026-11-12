@@ -7,6 +7,7 @@ import net.jqwik.api.Group;
 import net.jqwik.api.Property;
 import net.jqwik.api.constraints.FloatRange;
 
+/** Functional spec §4.4, §4.5. */
 class GolemMercyRulePropertiesTest {
     // jqwik refuses static @Group classes, so ClassCanBeStatic cannot apply.
     @Group

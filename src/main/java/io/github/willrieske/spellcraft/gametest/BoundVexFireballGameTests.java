@@ -30,6 +30,8 @@ import net.neoforged.neoforge.event.EventHooks;
 /**
  * GameTests of the fireball return in the Nether and the End: a ghast fireball aimed at the summoner is sent
  * back, what it is left alone for, and how it passes through the summoner's own vexes.
+ *
+ * <p>Functional spec §10.6, §10.7.
  */
 public final class BoundVexFireballGameTests {
     /** How far a fireball test's room reaches sideways (a ghast is 4 wide and stands 9 blocks off). */
@@ -206,6 +208,8 @@ public final class BoundVexFireballGameTests {
      * the ghast's eyes, and the vex hang at the fireball.
      *
      * <p>Method under test: {@code VexFireballs.onImpact}
+     *
+     * <p>Functional spec §10.6.
      */
     static void fireballReturnedToTheGhast(GameTestHelper helper) {
         // Arrange
@@ -244,6 +248,8 @@ public final class BoundVexFireballGameTests {
      * should it fly straight back {@code (-0.3, 0, -1.2)} and belong to the summoner.
      *
      * <p>Method under test: {@code VexFireballs.sendBack}: no heading, straight back
+     *
+     * <p>Functional spec §10.6.
      */
     static void fireballReversedWithoutAGhast(GameTestHelper helper) {
         // Arrange
@@ -268,6 +274,8 @@ public final class BoundVexFireballGameTests {
      * When a stone wall stands between the vex and the ghast, should the fireball fly straight back, not at the ghast.
      *
      * <p>Method under test: {@code VexFireballs.sendBack}: the ghast must be in the vex's sight
+     *
+     * <p>Functional spec §10.6.
      */
     static void fireballReversedWhenTheGhastIsHidden(GameTestHelper helper) {
         // Arrange
@@ -348,6 +356,8 @@ public final class BoundVexFireballGameTests {
      * reach, should the impact come to {@code outcome}.
      *
      * <p>Method under test: {@code VexFireballs.onImpact}: {@link VexFireballs#NEAR_PLAYER}, measured to the body
+     *
+     * <p>Functional spec §10.6.
      */
     private static void fireballHitNearPlayer(GameTestHelper helper, HitMaker maker, Outcome outcome) {
         // Arrange
@@ -396,6 +406,8 @@ public final class BoundVexFireballGameTests {
      * its owner and the vex stay as they were.
      *
      * <p>Method under test: {@code VexFireballs.onImpact}: the cases it leaves alone
+     *
+     * <p>Functional spec §10.6.
      */
     private static void fireballLeftAlone(GameTestHelper helper, Alone why) {
         // Arrange
@@ -435,6 +447,8 @@ public final class BoundVexFireballGameTests {
      *
      * <p>Method under test: {@code VexFireballs.nearestVexOf}: the vex must be summoned by that player
      *
+     * <p>Functional spec §10.6.
+     *
      * @param marked true for a vex of a second mock player, false for an unmarked vex
      */
     private static void fireballLeftAloneWithAStrangersVex(GameTestHelper helper, boolean marked) {
@@ -466,6 +480,8 @@ public final class BoundVexFireballGameTests {
      * canceled and the fireball keep its owner and velocity (vanilla then flies it on past the vex).
      *
      * <p>Method under test: {@code VexFireballs.strikesOwnersVex}
+     *
+     * <p>Functional spec §10.7.
      */
     static void fireballPassesThroughYourVexes(GameTestHelper helper) {
         passesThroughYourVexes(helper, Level.NETHER);
@@ -476,6 +492,8 @@ public final class BoundVexFireballGameTests {
      * impact be canceled and the fireball keep its owner and velocity: the pass-through is not Nether only.
      *
      * <p>Method under test: {@code VexFireballs.onImpact}: the pass-through holds in every dimension
+     *
+     * <p>Functional spec §10.7.
      */
     static void fireballPassesThroughYourVexesInTheEnd(GameTestHelper helper) {
         passesThroughYourVexes(helper, Level.END);
@@ -509,6 +527,8 @@ public final class BoundVexFireballGameTests {
      * When a fireball a player owns is about to hit another player's Bound Vex, should the impact stand.
      *
      * <p>Method under test: {@code VexFireballs.strikesOwnersVex}: only the owner's own vexes
+     *
+     * <p>Functional spec §10.7.
      */
     static void fireballHitsAnotherPlayersVex(GameTestHelper helper) {
         // Arrange
@@ -529,6 +549,8 @@ public final class BoundVexFireballGameTests {
      * When a ghast's fireball is about to hit a Bound Vex with no player near it, should the impact stand.
      *
      * <p>Method under test: {@code VexFireballs.strikesOwnersVex}: only a player's fireball passes through
+     *
+     * <p>Functional spec §10.7.
      */
     static void fireballOfAGhastHitsAVex(GameTestHelper helper) {
         // Arrange
@@ -549,6 +571,8 @@ public final class BoundVexFireballGameTests {
      * one go to the fireball.
      *
      * <p>Method under test: {@code VexFireballs.nearestVexOf}
+     *
+     * <p>Functional spec §10.6.
      */
     static void fireballNearestVexActs(GameTestHelper helper) {
         // Arrange
@@ -580,6 +604,8 @@ public final class BoundVexFireballGameTests {
      * within a block of its post point.
      *
      * <p>Method under test: {@code VexFireballs.onImpact}: a staying vex acts too
+     *
+     * <p>Functional spec §10.6.
      */
     static void fireballStayingVexActs(GameTestHelper helper) {
         // Arrange
@@ -609,6 +635,8 @@ public final class BoundVexFireballGameTests {
      * ghast with the one hit vanilla gives a fireball whose owner is a player.
      *
      * <p>Method under test: {@code VexFireballs.sendBack}: the summoner becomes the owner
+     *
+     * <p>Functional spec §10.6.
      */
     static void fireballKillsTheGhast(GameTestHelper helper) {
         // Arrange

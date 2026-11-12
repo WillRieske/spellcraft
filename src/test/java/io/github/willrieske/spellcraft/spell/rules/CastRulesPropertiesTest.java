@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 
+/** Functional spec §1.3, §13.1, §14.1. */
 class CastRulesPropertiesTest {
     @Property
     void neverDispelsAnUndispellableSpell(

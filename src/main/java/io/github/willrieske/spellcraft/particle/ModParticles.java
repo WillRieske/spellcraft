@@ -11,6 +11,8 @@ import net.neoforged.neoforge.registries.DeferredRegister;
  * The casting particles (spec §7). Each is the particle of one casting effect: vanilla syncs it in the caster's
  * effect-particle list to every client, which is how clients learn that a player is casting. The client draws
  * nothing for them (its providers return null) and adds the evoker's hand particles itself.
+ *
+ * <p>Functional spec §2.5, §12.5.
  */
 public final class ModParticles {
     public static final DeferredRegister<ParticleType<?>> PARTICLE_TYPES =

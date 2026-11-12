@@ -45,6 +45,8 @@ import net.minecraft.world.scores.Scoreboard;
 /**
  * GameTests for the rows of the spec's "Edge cases" table and the save wiring (spec §6, table G1–G28). Uses the
  * helpers in {@link TrailGameTests}. Registered in {@link SpellcraftGameTests}.
+ *
+ * <p>Functional spec §4.2.
  */
 public final class TrailEdgeCaseGameTests {
     /** Neighbors of A for G25: a flammable block and TNT. */
@@ -89,7 +91,11 @@ public final class TrailEdgeCaseGameTests {
         helper.succeed();
     }
 
-    /** Puts the owner on a team, so it runs in the {@code team_mutation} batch and removes the team after. */
+    /**
+     * Puts the owner on a team, so it runs in the {@code team_mutation} batch and removes the team after.
+     *
+     * <p>Functional spec §4.2.
+     */
     static void g23OfflineOwner(GameTestHelper helper) {
         floors(helper);
         ServerPlayer owner = trailingPlayer(helper);

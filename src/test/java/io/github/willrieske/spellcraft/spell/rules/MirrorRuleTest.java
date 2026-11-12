@@ -9,6 +9,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+/** Functional spec §13.1, §13.2, §13.3, §13.4, §13.6. */
 class MirrorRuleTest {
     @Nested
     class Redirects {

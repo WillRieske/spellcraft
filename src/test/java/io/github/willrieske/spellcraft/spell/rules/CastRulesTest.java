@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+/** Functional spec §1.3, §13.1, §14.1. */
 class CastRulesTest {
     @ParameterizedTest(name = "{0}: sneaking={1} active={2} mode={3} -> {4}")
     @CsvSource({

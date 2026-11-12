@@ -27,6 +27,8 @@ import net.minecraft.world.item.equipment.Equippable;
  *
  * <p>The sizes and offsets ({@link #HEAD_FIT}, {@link #CHEST_FIT}, {@link #LEGS_FIT}) are a first guess from the
  * models' geometry, never seen on screen: Will's eye decides them in the playtest (checklist, Part 3).
+ *
+ * <p>Functional spec §8.11.
  */
 public class BoundVexArmorLayer extends RenderLayer<VexRenderState, VexModel> {
     /** One model pixel in blocks: {@code ModelPart} poses are in sixteenths of a block. */

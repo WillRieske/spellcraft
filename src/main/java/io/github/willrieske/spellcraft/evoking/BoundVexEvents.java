@@ -49,13 +49,18 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  * stay; a moved vex is a new entity instance that keeps its mark (an attachment) and its stay flag (saved as NBT).
  * Each follower draws its ring cell on its own, so two may share one (harmless for vexes, which clip). The same class
  * resets the job goals' claims when the server stops ({@link #onServerStopped}).
+ *
+ * <p>Functional spec §6.5, §7.9, §9.7, §10.9, §10.10, §11.11.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class BoundVexEvents {
-    /** How far from the leaving summoner a following vex comes along. */
+    /** How far from the leaving summoner a following vex comes along. Functional spec §6.5. */
     public static final double PORTAL_RANGE = 16.0;
 
-    /** In the End every melee hit by a Bound Vex does this many times its damage (Parts 4–5 spec §7.2). */
+    /**
+     * In the End every melee hit by a Bound Vex does this many times its damage (Parts 4–5 spec §7.2).
+     * Functional spec §10.10.
+     */
     public static final float END_CRIT = 3.0F;
 
     /** How many critical-hit particles a crit shows. */
@@ -76,7 +81,7 @@ public final class BoundVexEvents {
     /**
      * Notes the followers while the player still stands where they leave. The event is posted before every teleport,
      * same-dimension ones (pearls, chorus fruit, {@code /tp}) included (docs/api-notes.md §21); those, which no
-     * changed-dimension event follows, only drop an old note.
+     * changed-dimension event follows, only drop an old note. Functional spec §6.5.
      *
      * @param event the travel event
      */
@@ -93,7 +98,7 @@ public final class BoundVexEvents {
     }
 
     /**
-     * Brings the noted followers to ring cells one block up around the arrived player.
+     * Brings the noted followers to ring cells one block up around the arrived player. Functional spec §6.5.
      *
      * @param event the changed-dimension event, posted after the player's move
      */
@@ -114,7 +119,7 @@ public final class BoundVexEvents {
      * above (docs/api-notes.md §21). This event carries the <em>old</em> player, removed from its level but still
      * holding its level and position, before the new player exists. Last priority, so any other listener's change of
      * the destination is already in the transition. A respawn after a death (the flag is false) takes no note and
-     * drops a stale one.
+     * drops a stale one. Functional spec §6.5.
      *
      * @param event the respawn-position event
      */
@@ -134,7 +139,7 @@ public final class BoundVexEvents {
     }
 
     /**
-     * Brings the followers noted for the End exit to ring cells around the respawned player.
+     * Brings the followers noted for the End exit to ring cells around the respawned player. Functional spec §6.5.
      *
      * @param event the respawn event; only one that says the End was conquered brings anything
      */
@@ -173,6 +178,8 @@ public final class BoundVexEvents {
      * That is before armor and before golem mercy's clamp ({@code LivingDamageEvent.Pre}, later in the pipeline), so
      * mercy still stops a golem at 25. What the crit shows waits for the hit to land ({@link #onDamagePost}).
      *
+     * <p>Functional spec §7.9, §10.9, §10.10.
+     *
      * @param event the incoming-damage event, before armor and reductions
      */
     @SubscribeEvent
@@ -190,7 +197,7 @@ public final class BoundVexEvents {
         }
     }
 
-    /** The friendly-fire backstop of {@link #onIncomingDamage}, for damage {@code vex} caused. */
+    /** The friendly-fire backstop of {@link #onIncomingDamage}, for damage {@code vex} caused. Functional spec §7.9. */
     private static void backstop(LivingIncomingDamageEvent event, BoundVex vex) {
         ServerPlayer owner = vex.summoner().orElse(null);
         LivingEntity victim = event.getEntity();
@@ -207,6 +214,7 @@ public final class BoundVexEvents {
      * Whether {@code victim} is spared a firework rocket's blast fired by {@code vex} (the Raid's rockets, Parts 6-7
      * spec §4.4): the blast reaches 5 blocks, so beyond the usual sparing ({@link #spares}) it hurts only what the vex
      * may hunt ({@link BoundVex#huntable}) and fight, and not the farm animals and neutral mobs around the enemy.
+     * Functional spec §11.11.
      */
     private static boolean sparesFromRocket(
             DamageSource source, BoundVex vex, ServerPlayer owner, LivingEntity victim) {
@@ -218,7 +226,7 @@ public final class BoundVexEvents {
      * Whether the absent-summoner branch of the friendly-fire backstop spares {@code victim} from indirect damage by
      * {@code vex}, whose summoner is not here: the vex has a summoner mark, and the victim is no {@code Enemy} or
      * carries the same mark. Shared by the damage handler and the knockback handler, so a blast moves exactly those
-     * it does not hurt.
+     * it does not hurt. Functional spec §7.9.
      */
     private static boolean sparesWithoutOwner(BoundVex vex, LivingEntity victim) {
         return vex.summonerId().isPresent()
@@ -229,7 +237,7 @@ public final class BoundVexEvents {
     /**
      * Whether {@code source} is a Bound Vex's own melee hit in the End: the vex is the causing entity and the direct
      * entity (not an arrow or a potion), and stands in the End. The test both crit handlers share: the tripling
-     * ({@link #onIncomingDamage}) and the show ({@link #onDamagePost}).
+     * ({@link #onIncomingDamage}) and the show ({@link #onDamagePost}). Functional spec §10.10.
      */
     static boolean isEndMelee(DamageSource source) {
         return source.getEntity() instanceof BoundVex vex
@@ -242,7 +250,7 @@ public final class BoundVexEvents {
      * Vex's End melee hit ({@link #isEndMelee}) that did damage and caused its side effects. A hit that
      * invulnerability frames absorbed ends before this event, a hit a shield blocked fully inflicted nothing, and a
      * canceled hit never gets here, so none of them shows anything. (A harder hit inside the frames inflicts only the
-     * difference and, like vanilla's hurt sound, shows nothing.)
+     * difference and, like vanilla's hurt sound, shows nothing.) Functional spec §10.10.
      *
      * @param event the post-damage event, after the health changed
      */
@@ -270,7 +278,7 @@ public final class BoundVexEvents {
 
     /**
      * Whether the friendly-fire backstop spares {@code victim} from {@code vex}, whose summoner {@code owner} is here:
-     * the summoner themselves, or anything the vex may not fight ({@link BoundVex#isPrey}).
+     * the summoner themselves, or anything the vex may not fight ({@link BoundVex#isPrey}). Functional spec §7.9.
      */
     private static boolean spares(BoundVex vex, ServerPlayer owner, LivingEntity victim) {
         return victim.getUUID().equals(owner.getUUID()) || !vex.isPrey(victim);
@@ -281,6 +289,7 @@ public final class BoundVexEvents {
      * even when the damage was canceled. A crystal's blast never moves a Bound Vex; a blast a Bound Vex caused never
      * moves its summoner or anyone the friendly-fire backstop spares. When the vex's summoner is absent, that is
      * exactly the victims whose damage the absent-summoner branch cancels ({@link #sparesWithoutOwner}).
+     * Functional spec §10.9.
      *
      * @param event the knockback for one entity, after the damage and before the push
      */
@@ -335,7 +344,7 @@ public final class BoundVexEvents {
     /**
      * A bribed vex that joins a level (loaded from a save, or arrived from another dimension, which reports
      * {@code loadedFromDisk() == false}, docs/api-notes.md §23) has its goals stripped again and the flee goal put
-     * back (spec §3.2); its 200 ticks start over. Keyed on the saved mark, server side only.
+     * back (spec §3.2); its 200 ticks start over. Keyed on the saved mark, server side only. Functional spec §9.7.
      *
      * @param event the join event
      */
@@ -348,7 +357,7 @@ public final class BoundVexEvents {
 
     /**
      * The one "note" step: the living, non-staying Bound Vexes of {@code player} within {@link #PORTAL_RANGE} of it in
-     * the level it stands in now, kept for {@link #bring}. Replaces the player's earlier note.
+     * the level it stands in now, kept for {@link #bring}. Replaces the player's earlier note. Functional spec §6.5.
      */
     private static void note(ServerPlayer player) {
         if (player.isSpectator()) {
@@ -374,7 +383,7 @@ public final class BoundVexEvents {
 
     /**
      * The one "bring" step: each still-living noted vex in {@code from} lands on a ring cell one block up around the
-     * arrived {@code player}.
+     * arrived {@code player}. Functional spec §6.5.
      */
     private static void bring(ServerPlayer player, List<UUID> followers, ResourceKey<Level> fromDimension) {
         ServerLevel to = player.level();

@@ -24,7 +24,11 @@ import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.phys.Vec3;
 
-/** GameTests of the Shield team move (Parts 6-7 spec section 4.1). */
+/**
+ * GameTests of the Shield team move (Parts 6-7 spec section 4.1).
+ *
+ * <p>Functional spec §8.9, §11.8.
+ */
 final class BoundVexTeamMoveShieldGameTests {
     private BoundVexTeamMoveShieldGameTests() {}
 
@@ -81,6 +85,8 @@ final class BoundVexTeamMoveShieldGameTests {
      * movement, not its position.
      *
      * <p>Method under test: {@code ShieldMove.tick}: approach, lunge and bash
+     *
+     * <p>Functional spec §11.8.
      */
     static void bashesForFourAndKnocksBack(GameTestHelper helper) {
         // Arrange
@@ -107,6 +113,8 @@ final class BoundVexTeamMoveShieldGameTests {
      * (5 to 8.5).
      *
      * <p>Method under test: {@code ShieldMove.tick}: the back-off
+     *
+     * <p>Functional spec §11.8.
      */
     static void backsOffToAboutSix(GameTestHelper helper) {
         // Arrange
@@ -133,6 +141,8 @@ final class BoundVexTeamMoveShieldGameTests {
      * bash.
      *
      * <p>Method under test: {@code ShieldMove.tick}: the bash clock
+     *
+     * <p>Functional spec §11.8.
      */
     static void bashesAgainAfterFortyTicks(GameTestHelper helper) {
         // Arrange
@@ -220,6 +230,8 @@ final class BoundVexTeamMoveShieldGameTests {
      * does not change.
      *
      * <p>Method under test: {@code BoundVex.hurtServer}: the Part 3 block, with the conjured off-hand shield
+     *
+     * <p>Functional spec §8.9, §11.8.
      */
     static void blocksAHitFromTheFront(GameTestHelper helper) {
         // Arrange
@@ -247,6 +259,8 @@ final class BoundVexTeamMoveShieldGameTests {
      * When a husk hits a Shield member from behind, should the shield not help: the hit lands.
      *
      * <p>Method under test: {@code BoundVex.hurtServer}: a block covers the front only
+     *
+     * <p>Functional spec §8.9, §11.8.
      */
     static void takesAHitFromBehind(GameTestHelper helper) {
         // Arrange

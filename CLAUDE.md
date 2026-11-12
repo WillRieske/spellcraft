@@ -2,6 +2,8 @@
 
 NeoForge mod: Minecraft 26.3, NeoForge 26.3.0.23-beta (pinned; beta), Java 25, ModDevGradle.
 Spec: `docs/superpowers/specs/2026-09-28-upside-down-design.md`.
+Evoking: `docs/superpowers/specs/evoking/evoking-functional-spec.md` says what the spell does, in numbered
+paragraphs; the design specs beside it say how and why.
 Verified API facts: `docs/api-notes.md`. Read that before touching hooks, events or the Mixin.
 Methodology: `~/.claude/development-methodology.md`.
 
@@ -62,6 +64,11 @@ Then grep `build/mc-src` (vanilla `net.minecraft.*` with NeoForge patches applie
   `PlayerGhostrailMixin` (Ghostrail's `noPhysics`) is the one Mixin Part 7 adds; the Part 6 packet rule is unchanged: Part 7 adds no packet.
 - **Error Prone runs with `-Werror`.** Suppress a check only with `@SuppressWarnings("<Check>")`
   plus a comment saying why (e.g. Mixin handlers → `UnusedMethod`).
+- **Evoking paragraph numbers.** Code and tests that implement a paragraph of the Evoking functional spec name it
+  in a comment, written exactly `Functional spec §3.4` (a list is `Functional spec §3.4, §3.5`; no ranges). When
+  Evoking behavior changes, update the functional spec and the comments in the same change; add a new number at the
+  end of a section instead of renumbering. `FunctionalSpecReferencesTest` fails on a number the spec does not have
+  and on a paragraph no code under `src/main` names.
 - **Commits:** conventional (gitlint). The commit gate (`.claude/gate.json`) runs
   `spotlessCheck` and `build`; pre-push runs `runGameTestServer`.
 

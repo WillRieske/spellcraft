@@ -8,7 +8,7 @@
 
 **Tech Stack:** Minecraft 26.3, NeoForge 26.3.0.23-beta (ModDevGradle), Java 25, JUnit 5, jqwik, ArchUnit, AssertJ, Error Prone (`-Werror`), Spotless + palantir-java-format, PIT, pre-commit, gitlint, markdownlint-cli2.
 
-**Spec:** `2026-11-09-evoking-ii-parts-4-5-design.md` ([the Parts 4–5 design spec](../specs/2026-11-09-evoking-ii-parts-4-5-design.md)), §2–§4, §9, §10. "§" below points into it.
+**Spec:** `2026-11-09-evoking-ii-parts-4-5-design.md` ([the Parts 4–5 design spec](../specs/evoking/2026-11-09-evoking-ii-parts-4-5-design.md)), §2–§4, §9, §10. "§" below points into it.
 
 ## Global Constraints
 

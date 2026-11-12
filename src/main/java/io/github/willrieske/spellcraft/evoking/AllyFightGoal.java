@@ -9,6 +9,8 @@ import net.minecraft.world.entity.Mob;
  * nearest {@code BoundVex.huntable} mob (hostile, no creeper, no other player's summon) that an ally mob inside the
  * guard area (an iron golem, a wolf, another Bound Vex; never this vex itself, {@code BoundVex.alliesInGuardArea}) has
  * as its target, if the vex may take it ({@code BoundVex.takesTarget}).
+ *
+ * <p>Functional spec §7.3.
  */
 final class AllyFightGoal extends ScanTargetGoal {
     AllyFightGoal(BoundVex vex) {

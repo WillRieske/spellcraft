@@ -120,6 +120,8 @@ The first build downloads and decompiles Minecraft and takes 5-15 minutes.
 
 - [`CLAUDE.md`](CLAUDE.md): full command list and project rules.
 - [`docs/superpowers/specs/`](docs/superpowers/specs/): designs.
+- [`docs/superpowers/specs/evoking/evoking-functional-spec.md`](docs/superpowers/specs/evoking/evoking-functional-spec.md):
+  everything Strength of Evoking does, in one document.
 - [`docs/playtest-checklist.md`](docs/playtest-checklist.md): what to check by hand in game.
 
 ## License

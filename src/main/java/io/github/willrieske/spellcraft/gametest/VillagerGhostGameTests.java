@@ -52,7 +52,11 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import org.jspecify.annotations.Nullable;
 
-/** GameTests of the villager-ghost records (Parts 6-7 spec §9, §10) and, from Task 12, the ghosts. */
+/**
+ * GameTests of the villager-ghost records (Parts 6-7 spec §9, §10) and, from Task 12, the ghosts.
+ *
+ * <p>Functional spec §14.8, §16.1, §16.2, §16.3, §16.4, §16.5.
+ */
 final class VillagerGhostGameTests {
     /** The environment of the 33-deaths test: it fills the whole record list. */
     private static final String RECORDS = "villager_ghost_records";
@@ -308,6 +312,8 @@ final class VillagerGhostGameTests {
      * When a pillager (an Enemy that is not a Zombie) kills a villager, should a record of the death be written there.
      *
      * <p>Method under test: {@code VillagerGhosts#onDeath}
+     *
+     * <p>Functional spec §16.1.
      */
     static void pillagerKillWritesARecord(GameTestHelper helper) {
         // Arrange (the padded wrapper has already loaded the box; no player is needed)
@@ -328,6 +334,8 @@ final class VillagerGhostGameTests {
      * When a pillager kills a villager of non-default type, profession and level, should the record keep that data.
      *
      * <p>Method under test: {@code VillagerGhosts#onDeath}
+     *
+     * <p>Functional spec §16.3.
      */
     static void recordKeepsTheData(GameTestHelper helper) {
         // Arrange
@@ -350,6 +358,8 @@ final class VillagerGhostGameTests {
      * When a player kills a villager, should no record be written.
      *
      * <p>Method under test: {@code VillagerGhosts#onDeath}
+     *
+     * <p>Functional spec §16.1.
      */
     static void playerKillWritesNone(GameTestHelper helper) {
         // Arrange
@@ -370,6 +380,8 @@ final class VillagerGhostGameTests {
      * When a Bound Vex (an Enemy that carries a summoner mark) kills a villager, should no record be written.
      *
      * <p>Method under test: {@code Allies#isPlayersSide} through {@code VillagerGhosts#onDeath}
+     *
+     * <p>Functional spec §16.1.
      */
     static void boundVexKillWritesNone(GameTestHelper helper) {
         // Arrange
@@ -393,6 +405,8 @@ final class VillagerGhostGameTests {
      * When an iron golem kills a villager, should no record be written.
      *
      * <p>Method under test: {@code VillagerGhosts#onDeath}
+     *
+     * <p>Functional spec §16.1.
      */
     static void golemKillWritesNone(GameTestHelper helper) {
         // Arrange
@@ -413,6 +427,8 @@ final class VillagerGhostGameTests {
      * When lava kills a villager, should no record be written.
      *
      * <p>Method under test: {@code VillagerGhosts#onDeath}
+     *
+     * <p>Functional spec §16.1.
      */
     static void lavaWritesNone(GameTestHelper helper) {
         // Arrange
@@ -432,6 +448,8 @@ final class VillagerGhostGameTests {
      * When a fall kills a villager, should no record be written.
      *
      * <p>Method under test: {@code VillagerGhosts#onDeath}
+     *
+     * <p>Functional spec §16.1.
      */
     static void fallWritesNone(GameTestHelper helper) {
         // Arrange
@@ -451,6 +469,8 @@ final class VillagerGhostGameTests {
      * When the records are encoded and decoded, should the same records come back, oldest first.
      *
      * <p>Method under test: {@code VillagerGhosts#CODEC}
+     *
+     * <p>Functional spec §16.1.
      */
     static void recordsSurviveASave(GameTestHelper helper) {
         // Arrange
@@ -476,6 +496,8 @@ final class VillagerGhostGameTests {
      * included.
      *
      * <p>Method under test: {@code VillagerGhosts#add}
+     *
+     * <p>Functional spec §16.1.
      */
     static void thirtyThreeDeaths(GameTestHelper helper) {
         // Arrange (every villager spawns at one block, so a lookup by position would find the oldest record: the
@@ -513,6 +535,8 @@ final class VillagerGhostGameTests {
      *
      * <p>Sets the server difficulty, which is global, so it runs alone in the {@code villager_ghost_hard} batch; the
      * difficulty is restored through {@code whenDone}.
+     *
+     * <p>Functional spec §16.1.
      */
     static void conversionStillLeavesARecord(GameTestHelper helper) {
         // Arrange
@@ -605,6 +629,8 @@ final class VillagerGhostGameTests {
      * player.
      *
      * <p>Method under test: {@code VillagerGhosts#step}
+     *
+     * <p>Functional spec §16.2.
      */
     static void appears(GameTestHelper helper) {
         // Arrange
@@ -631,6 +657,8 @@ final class VillagerGhostGameTests {
      * When a ghost is sent for a record, should it take the villager's type, profession and level.
      *
      * <p>Method under test: {@code VillagerGhost#bind}
+     *
+     * <p>Functional spec §16.3.
      */
     static void takesTheLook(GameTestHelper helper) {
         // Arrange
@@ -651,6 +679,8 @@ final class VillagerGhostGameTests {
      * cooldown on the record.
      *
      * <p>Method under test: {@code VillagerGhost#tick}
+     *
+     * <p>Functional spec §16.3, §16.4.
      */
     static void castsMirror(GameTestHelper helper) {
         // Arrange
@@ -679,6 +709,8 @@ final class VillagerGhostGameTests {
      * first.
      *
      * <p>Method under test: {@code VillagerGhost#tick}
+     *
+     * <p>Functional spec §16.4.
      */
     static void ghostrailFirst(GameTestHelper helper) {
         // Arrange
@@ -704,6 +736,8 @@ final class VillagerGhostGameTests {
      * Ghostrail, leaving the record's Ghostrail cooldown untouched.
      *
      * <p>Method under test: {@code VillagerGhost#tick}
+     *
+     * <p>Functional spec §16.4.
      */
     static void noGhostrailForCreative(GameTestHelper helper) {
         // Arrange
@@ -730,6 +764,8 @@ final class VillagerGhostGameTests {
      * When the last hostile near the player is gone, should the ghost fade 200 ticks later and the record stay.
      *
      * <p>Method under test: {@code VillagerGhost#tick}
+     *
+     * <p>Functional spec §16.5.
      */
     static void fades(GameTestHelper helper) {
         // Arrange
@@ -755,6 +791,8 @@ final class VillagerGhostGameTests {
      * When the player is at full health with one hostile near (no crowd, nothing hurt), should no ghost be sent.
      *
      * <p>Method under test: {@code VillagerGhosts#step}
+     *
+     * <p>Functional spec §16.2.
      */
     static void notForTheUnhurt(GameTestHelper helper) {
         // Arrange
@@ -774,6 +812,8 @@ final class VillagerGhostGameTests {
      * ghost sent here would puff away at once and be sent again).
      *
      * <p>Method under test: {@code VillagerGhosts#step}
+     *
+     * <p>Functional spec §16.2.
      */
     static void notForAHurtPlayerWithNoHostile(GameTestHelper helper) {
         // Arrange
@@ -795,6 +835,8 @@ final class VillagerGhostGameTests {
      * When the player has no Evoking effect, should no ghost be sent.
      *
      * <p>Method under test: {@code VillagerGhosts#step}
+     *
+     * <p>Functional spec §16.2.
      */
     static void notWithoutEvoking(GameTestHelper helper) {
         // Arrange
@@ -813,6 +855,8 @@ final class VillagerGhostGameTests {
      * When two records are in range and the player is stepped twice, should exactly one ghost help them.
      *
      * <p>Method under test: {@code VillagerGhosts#step}
+     *
+     * <p>Functional spec §16.2.
      */
     static void oneGhostPerPlayer(GameTestHelper helper) {
         // Arrange
@@ -888,6 +932,8 @@ final class VillagerGhostGameTests {
      * When the only record is 60 blocks away (its chunk loaded), should no ghost be sent for it.
      *
      * <p>Method under test: {@code VillagerGhosts#step}
+     *
+     * <p>Functional spec §16.2.
      */
     static void tooFar(GameTestHelper helper) {
         // Arrange, Act & Assert (the shared body marks the three)
@@ -899,6 +945,8 @@ final class VillagerGhostGameTests {
      * sent.
      *
      * <p>Method under test: {@code VillagerGhosts#step}
+     *
+     * <p>Functional spec §16.2.
      */
     static void fortySixBlocksAway(GameTestHelper helper) {
         // Arrange, Act & Assert (the shared body marks the three)
@@ -910,6 +958,8 @@ final class VillagerGhostGameTests {
      * sent.
      *
      * <p>Method under test: {@code VillagerGhosts#step}
+     *
+     * <p>Functional spec §16.2.
      */
     static void fiftyBlocksAway(GameTestHelper helper) {
         // Arrange, Act & Assert (the shared body marks the three)
@@ -921,6 +971,8 @@ final class VillagerGhostGameTests {
      * landing refuses a spell that is redundant in creative), and the ghost go on to cast Mirror.
      *
      * <p>Method under test: {@code ScrollCasting#land} through {@code VillagerGhost#tick}
+     *
+     * <p>Functional spec §16.4.
      */
     static void creativeDuringWindUp(GameTestHelper helper) {
         // Arrange (below a quarter of the health: the ghost starts a Ghostrail wind-up as soon as it is near)
@@ -952,6 +1004,8 @@ final class VillagerGhostGameTests {
      * When something hurts a ghost, should it take no damage and be neither pickable nor attackable.
      *
      * <p>Method under test: {@code VillagerGhost#hurtServer}
+     *
+     * <p>Functional spec §16.3.
      */
     static void cannotBeHurt(GameTestHelper helper) {
         // Arrange
@@ -977,6 +1031,8 @@ final class VillagerGhostGameTests {
      * targets.
      *
      * <p>Method under test: {@code EvokingCaster#request} through {@code Fangs.isTarget}
+     *
+     * <p>Functional spec §16.3.
      */
     static void fangsIgnoreTheGhost(GameTestHelper helper) {
         // Arrange
@@ -1097,6 +1153,8 @@ final class VillagerGhostGameTests {
      * When two ready records are in range (10 and 25 blocks), should the ghost be sent for the 10-block one.
      *
      * <p>Method under test: {@code VillagerGhosts#step}
+     *
+     * <p>Functional spec §16.2.
      */
     static void nearestRecordWins(GameTestHelper helper) {
         // Arrange
@@ -1121,6 +1179,8 @@ final class VillagerGhostGameTests {
      * sent for the ready one.
      *
      * <p>Method under test: {@code VillagerGhosts#step}
+     *
+     * <p>Functional spec §16.2.
      */
     static void readyBeatsNearest(GameTestHelper helper) {
         // Arrange
@@ -1146,6 +1206,8 @@ final class VillagerGhostGameTests {
      * near, cast nothing and leave the record as it was.
      *
      * <p>Method under test: {@code VillagerGhost#tick}
+     *
+     * <p>Functional spec §16.2, §16.4.
      */
     static void spentRecordCastsNothing(GameTestHelper helper) {
         // Arrange
@@ -1204,6 +1266,8 @@ final class VillagerGhostGameTests {
      * and the second player's take the other one (a record with a live ghost is skipped).
      *
      * <p>Method under test: {@code VillagerGhosts#step}
+     *
+     * <p>Functional spec §16.2.
      */
     static void liveGhostRecordSkipped(GameTestHelper helper) {
         // Arrange
@@ -1260,6 +1324,8 @@ final class VillagerGhostGameTests {
      * When a full-health player has three hostiles within 8 blocks (a crowd), should a ghost be sent.
      *
      * <p>Method under test: {@code VillagerGhosts#step}
+     *
+     * <p>Functional spec §16.2.
      */
     static void crowdComes(GameTestHelper helper) {
         // Arrange
@@ -1278,6 +1344,8 @@ final class VillagerGhostGameTests {
      * no ghost be sent.
      *
      * <p>Method under test: {@code VillagerGhosts#step}
+     *
+     * <p>Functional spec §16.2.
      */
     static void crowdNeedsThreeWithin8(GameTestHelper helper) {
         // Arrange
@@ -1297,6 +1365,8 @@ final class VillagerGhostGameTests {
      * though the first began over 360 ticks before), and fade after 200 quiet ticks.
      *
      * <p>Method under test: {@code VillagerGhost#tick}
+     *
+     * <p>Functional spec §16.5.
      */
     static void fadeTiming(GameTestHelper helper) {
         // Arrange
@@ -1326,6 +1396,8 @@ final class VillagerGhostGameTests {
      * When a ghost is sent, should it carry an infinite Ghostrail.
      *
      * <p>Method under test: {@code VillagerGhost#bind}
+     *
+     * <p>Functional spec §14.8.
      */
     static void carriesInfiniteGhostrail(GameTestHelper helper) {
         // Arrange
@@ -1346,6 +1418,8 @@ final class VillagerGhostGameTests {
      * When the helped player turns spectator, should the ghost fade.
      *
      * <p>Method under test: {@code VillagerGhost#tick}
+     *
+     * <p>Functional spec §16.5.
      */
     static void fadesForSpectator(GameTestHelper helper) {
         // Arrange
@@ -1366,6 +1440,8 @@ final class VillagerGhostGameTests {
      * When the helped player dies, should the ghost fade.
      *
      * <p>Method under test: {@code VillagerGhost#tick}
+     *
+     * <p>Functional spec §16.5.
      */
     static void fadesForDeath(GameTestHelper helper) {
         // Arrange
@@ -1388,6 +1464,8 @@ final class VillagerGhostGameTests {
      * (a ghost is sent on 20 and none on 21).
      *
      * <p>Method under test: {@code VillagerGhosts#onPlayerTick}
+     *
+     * <p>Functional spec §16.2.
      */
     static void tickGate(GameTestHelper helper) {
         // Arrange

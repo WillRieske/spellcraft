@@ -14,6 +14,8 @@ import net.minecraft.world.entity.LivingEntity;
  * What every cast that is not a player's hand shares (Parts 6-7 spec §6.2, §8, §9): how long a spell lasts for each
  * kind of subject, how long its cooldown is, the wind-up's look and sounds, and the landing. A Caster Vex, a scroll
  * mob and a villager ghost call these, so a number or a sound changes in one place.
+ *
+ * <p>Functional spec §12.5, §15.2, §16.4.
  */
 public final class ScrollCasting {
     private ScrollCasting() {}

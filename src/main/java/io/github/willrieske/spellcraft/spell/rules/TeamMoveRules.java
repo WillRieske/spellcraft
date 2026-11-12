@@ -4,30 +4,32 @@ package io.github.willrieske.spellcraft.spell.rules;
  * The numbers and choices of the team moves (Parts 6–7 spec §2.2, §2.3, §2.5, §4): how many free vexes a
  * move takes, which enemy earns which move, when a move times out, and the two shapes the vexes fly in.
  * Pure: the Minecraft side reads the world and asks.
+ *
+ * <p>Functional spec §11.3, §11.4, §11.6, §11.10, §11.11, §11.12.
  */
 public final class TeamMoveRules {
-    /** An enemy with at least this much maximum health earns a Raid. */
+    /** An enemy with at least this much maximum health earns a Raid. Functional spec §11.4. */
     public static final double RAID_HEALTH = 99.0;
 
-    /** An enemy with at least this much maximum health earns a Shield. */
+    /** An enemy with at least this much maximum health earns a Shield. Functional spec §11.4. */
     public static final double SHIELD_HEALTH = 31.0;
 
-    /** An enemy with at least this much attack damage that hunts a vex earns a Multishot. */
+    /** An enemy with at least this much attack damage that hunts a vex earns a Multishot. Functional spec §11.4. */
     public static final double MULTISHOT_DAMAGE = 6.0;
 
-    /** The Raid takes every vex there can be. */
+    /** The Raid takes every vex there can be. Functional spec §11.3. */
     public static final int RAID_SIZE = 12;
 
-    /** Ticks a Shield, Multishot or Raid lasts at most (120 s). */
+    /** Ticks a Shield, Multishot or Raid lasts at most (120 s). Functional spec §11.6. */
     public static final int LIMIT_TICKS = 2400;
 
-    /** Ticks an Evader lasts at most (60 s). */
+    /** Ticks an Evader lasts at most (60 s). Functional spec §11.6. */
     public static final int EVADER_LIMIT_TICKS = 1200;
 
-    /** Ticks a move kind cannot start again after it ends (30 s). */
+    /** Ticks a move kind cannot start again after it ends (30 s). Functional spec §11.6. */
     public static final int COOLDOWN_TICKS = 600;
 
-    /** A move ends when its enemy or ward is farther than this from the summoner. */
+    /** A move ends when its enemy or ward is farther than this from the summoner. Functional spec §11.6. */
     public static final double END_DISTANCE = 48.0;
 
     private static final int SHIELD_SMALL = 3;
@@ -43,7 +45,7 @@ public final class TeamMoveRules {
     private TeamMoveRules() {}
 
     /**
-     * How many vexes a move takes (spec §2.2).
+     * How many vexes a move takes (spec §2.2). Functional spec §11.3.
      *
      * @param move the move
      * @param free how many free vexes the summoner has (for Multishot, counting the targeted one)
@@ -60,7 +62,7 @@ public final class TeamMoveRules {
     }
 
     /**
-     * Whether an enemy is one a move is fought against (spec §2.3, §3.4).
+     * Whether an enemy is one a move is fought against (spec §2.3, §3.4). Functional spec §11.4, §11.12.
      *
      * @param move the move
      * @param maxHealth the enemy's maximum health
@@ -77,7 +79,8 @@ public final class TeamMoveRules {
     }
 
     /**
-     * Whether a summoner or ally is hurt enough for an Evader guard: below half health (spec §2.3).
+     * Whether a summoner or ally is hurt enough for an Evader guard: below half health (spec §2.3). Functional spec
+     * §11.4, §11.6.
      *
      * @param health the current health
      * @param maxHealth the maximum health
@@ -90,6 +93,7 @@ public final class TeamMoveRules {
     /**
      * The enemy-side order of the automatic triggers (spec §2.3): Raid, then Shield, then Multishot. An enemy that
      * earns a Raid but cannot start one (fewer than 12 free vexes, or the Raid cooling) falls through to a Shield.
+     * Functional spec §11.4.
      *
      * @param maxHealth the enemy's maximum health
      * @param attackDamage the enemy's attack damage, 0 when it has none
@@ -119,7 +123,7 @@ public final class TeamMoveRules {
     }
 
     /**
-     * The game time a move runs out (spec §2.5).
+     * The game time a move runs out (spec §2.5). Functional spec §11.6.
      *
      * @param move the move
      * @param startTick the game time it started
@@ -134,7 +138,7 @@ public final class TeamMoveRules {
     }
 
     /**
-     * Whether an enemy or ward is too far from the summoner for the move to go on (spec §2.5).
+     * Whether an enemy or ward is too far from the summoner for the move to go on (spec §2.5). Functional spec §11.6.
      *
      * @param distanceSqr the squared distance
      * @return true beyond {@link #END_DISTANCE}
@@ -144,7 +148,8 @@ public final class TeamMoveRules {
     }
 
     /**
-     * Where a Raid member stands across the grid (spec §4.4): 4 columns, 1.5 blocks apart, centered.
+     * Where a Raid member stands across the grid (spec §4.4): 4 columns, 1.5 blocks apart, centered. Functional spec
+     * §11.11.
      *
      * @param cell the member's cell, 0 to 11 in roster order
      * @return the sideways offset from the grid's center line, -2.25 to 2.25
@@ -157,7 +162,7 @@ public final class TeamMoveRules {
 
     /**
      * Where a Raid member stands along the grid's depth (spec §4.4): 3 rows, 1.5 blocks apart; row 0 is the front
-     * row, nearest the enemy.
+     * row, nearest the enemy. Functional spec §11.11.
      *
      * @param cell the member's cell, 0 to 11 in roster order
      * @return the offset from the grid's center, toward the summoner: -1.5, 0 or 1.5
@@ -176,6 +181,7 @@ public final class TeamMoveRules {
 
     /**
      * The angle an Evader member circles at (spec §4.3): the members spread evenly and the circle turns 6° a tick.
+     * Functional spec §11.10.
      *
      * @param slot the member's place in the roster
      * @param count how many members there are

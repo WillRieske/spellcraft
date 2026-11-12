@@ -34,6 +34,8 @@ import net.minecraft.world.phys.Vec3;
 /**
  * GameTests of the drowning push: the rescue that pushes a drowning summoner up to the surface, who it
  * is not for, how it ends, and the precedence of the lava pull over it.
+ *
+ * <p>Functional spec §10.1, §10.2, §10.5.
  */
 public final class BoundVexDrowningGameTests {
     private BoundVexDrowningGameTests() {}
@@ -112,6 +114,8 @@ public final class BoundVexDrowningGameTests {
      * the vex at their side.
      *
      * <p>Method under test: {@code VexRescues.tick}, {@code RescuePush.drowningPush} through it
+     *
+     * <p>Functional spec §10.1, §10.5.
      */
     static void drowningPush(GameTestHelper helper) {
         // Arrange
@@ -161,6 +165,8 @@ public final class BoundVexDrowningGameTests {
      * When a stone block caps the water, should no rescue start (a push would pin the player to the roof).
      *
      * <p>Method under test: {@code VexRescues.hasWayUp} through {@code tick}
+     *
+     * <p>Functional spec §10.5.
      */
     static void drowningNotUnderACeiling(GameTestHelper helper) {
         drowningNotFor(helper, player -> {}, true, 40);
@@ -170,6 +176,8 @@ public final class BoundVexDrowningGameTests {
      * When the player still has 100 air, should no rescue start.
      *
      * <p>Method under test: {@code VexRescues.tick}: the low-air threshold
+     *
+     * <p>Functional spec §10.5.
      */
     static void drowningNotWithAirLeft(GameTestHelper helper) {
         drowningNotFor(helper, player -> {}, false, 100);
@@ -179,6 +187,8 @@ public final class BoundVexDrowningGameTests {
      * When the player has Water Breathing, should no rescue start.
      *
      * <p>Method under test: {@code VexRescues.tick}: who gets the drowning push
+     *
+     * <p>Functional spec §10.2.
      */
     static void drowningNotWithWaterBreathing(GameTestHelper helper) {
         drowningNotFor(
@@ -189,6 +199,8 @@ public final class BoundVexDrowningGameTests {
      * When the player has Conduit Power, should no rescue start.
      *
      * <p>Method under test: {@code VexRescues.tick}: who gets the drowning push
+     *
+     * <p>Functional spec §10.2.
      */
     static void drowningNotWithConduitPower(GameTestHelper helper) {
         drowningNotFor(
@@ -199,6 +211,8 @@ public final class BoundVexDrowningGameTests {
      * When the player is in creative mode, should no rescue start.
      *
      * <p>Method under test: {@code VexRescues.tick}: who gets the drowning push
+     *
+     * <p>Functional spec §10.2.
      */
     static void drowningNotForCreative(GameTestHelper helper) {
         drowningNotFor(helper, player -> player.setGameMode(GameType.CREATIVE), false, 40);
@@ -208,6 +222,8 @@ public final class BoundVexDrowningGameTests {
      * When the player has Ghostrail (it takes no damage and is flying), should no rescue start.
      *
      * <p>Method under test: {@code VexRescues.tick}: a Ghostrail carrier is not rescued
+     *
+     * <p>Functional spec §10.2.
      */
     static void drowningNotForAGhostrailCarrier(GameTestHelper helper) {
         drowningNotFor(
@@ -222,6 +238,8 @@ public final class BoundVexDrowningGameTests {
      * rescue and leave their velocity alone.
      *
      * <p>Method under test: {@code VexRescues.wantsDrowningPush}: passengers are not rescued
+     *
+     * <p>Functional spec §10.2.
      */
     static void drowningNotForPassengers(GameTestHelper helper) {
         // Arrange
@@ -283,6 +301,8 @@ public final class BoundVexDrowningGameTests {
      * When the player rises until their eyes are in air, should the rescue end on the next step.
      *
      * <p>Method under test: {@code VexRescues.drowning}: the end at the surface
+     *
+     * <p>Functional spec §10.5.
      */
     static void drowningEndsAtTheSurface(GameTestHelper helper) {
         // Arrange
@@ -308,6 +328,8 @@ public final class BoundVexDrowningGameTests {
      * When stone closes the water above the player during the rescue, should the rescue end on the next step.
      *
      * <p>Method under test: {@code VexRescues.drowning}: the end when the way up closes
+     *
+     * <p>Functional spec §10.5.
      */
     static void drowningEndsWhenTheWayUpCloses(GameTestHelper helper) {
         // Arrange
@@ -333,6 +355,8 @@ public final class BoundVexDrowningGameTests {
      * When the player gains Water Breathing during the rescue, should the rescue end on the next step.
      *
      * <p>Method under test: {@code VexRescues.drowning}: the player stops needing the rescue
+     *
+     * <p>Functional spec §10.2.
      */
     static void drowningEndsWithWaterBreathing(GameTestHelper helper) {
         // Arrange
@@ -359,6 +383,8 @@ public final class BoundVexDrowningGameTests {
      * again on the step after (drowning has no pause).
      *
      * <p>Method under test: {@code VexRescues.drowning}: the 200-tick limit
+     *
+     * <p>Functional spec §10.5.
      */
     static void drowningEndsAfter200Ticks(GameTestHelper helper) {
         // Arrange
@@ -396,6 +422,8 @@ public final class BoundVexDrowningGameTests {
      * When a player with 40 air is under water in a Nether room, should no rescue start (the rule is Overworld only).
      *
      * <p>Method under test: {@code VexRescues.tick}: the dimension check of the drowning push
+     *
+     * <p>Functional spec §10.5.
      */
     static void drowningOnlyInTheOverworld(GameTestHelper helper) {
         // Arrange

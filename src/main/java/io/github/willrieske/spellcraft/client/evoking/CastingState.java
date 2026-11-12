@@ -10,6 +10,8 @@ import net.minecraft.world.entity.LivingEntity;
  * Which look an entity's casting has, read from vanilla's synced effect-particle list (spec §7): the server puts a
  * casting effect on the caster, and the effect's particle, one of {@link ModParticles}', reaches every client that
  * sees the caster. The accessor is opened by the access transformer (docs/api-notes.md §19).
+ *
+ * <p>Functional spec §2.5.
  */
 public final class CastingState {
     private CastingState() {}

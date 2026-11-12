@@ -37,6 +37,8 @@ import org.jspecify.annotations.Nullable;
  * random point and jumping one block, lives {@link MirrorRule#LIFE_TICKS} ticks of its own, and poofs when its carrier
  * is loaded in its level and no longer has Mirror. For a player carrier it carries the player's summoner mark, so
  * {@code Allies} treat it as the player's own. The client draws it as a stand-in of {@link #copiedType()} (Task 14).
+ *
+ * <p>Functional spec §13.2, §13.3, §13.5, §13.6.
  */
 public final class MirrorImage extends LivingEntity {
     /** Synced: the registry id of the type the image copies, e.g. {@code minecraft:player}. */
@@ -163,6 +165,8 @@ public final class MirrorImage extends LivingEntity {
      * Makes this image a copy of {@code carrier}: the carrier id, the copied type and profile, copies of both hands,
      * and, for a player, the player's summoner mark. Call once, before the image is added to the level.
      *
+     * <p>Functional spec §13.2, §13.5.
+     *
      * @param carrier whoever has the Mirror effect
      */
     public void bind(LivingEntity carrier) {
@@ -201,6 +205,8 @@ public final class MirrorImage extends LivingEntity {
      * Images are not pushable: they overlap each other and the carrier freely, nothing shoves them, and they do not
      * count toward {@code MAX_ENTITY_CRAMMING}. (Overriding {@code doPush} and {@code push} is not enough: a player's
      * {@code doPush(image)} calls {@code image.push(player)}, which moves both.)
+     *
+     * <p>Functional spec §13.3.
      */
     @Override
     public boolean isPushable() {
@@ -215,7 +221,11 @@ public final class MirrorImage extends LivingEntity {
         }
     }
 
-    /** Ends the image when it has no carrier, no life left, or a carrier that lost Mirror. */
+    /**
+     * Ends the image when it has no carrier, no life left, or a carrier that lost Mirror.
+     *
+     * <p>Functional spec §13.6.
+     */
     private void serverTick(ServerLevel server) {
         if (carrierId == null) {
             discard();
@@ -232,7 +242,11 @@ public final class MirrorImage extends LivingEntity {
         }
     }
 
-    /** Walks toward a random point near the carrier; faces where the carrier faces when it has arrived. */
+    /**
+     * Walks toward a random point near the carrier; faces where the carrier faces when it has arrived.
+     *
+     * <p>Functional spec §13.3.
+     */
     @Override
     protected void serverAiStep() {
         super.serverAiStep();
@@ -278,7 +292,7 @@ public final class MirrorImage extends LivingEntity {
         discard();
     }
 
-    /** A dead image may have been the last one: then the carrier's Mirror ends with it. */
+    /** A dead image may have been the last one: then the carrier's Mirror ends with it. Functional spec §13.6. */
     @Override
     public void die(DamageSource source) {
         super.die(source);

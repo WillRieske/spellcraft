@@ -20,9 +20,11 @@ import net.minecraft.world.item.enchantment.Enchantments;
 /**
  * What each team move conjures (Parts 6-7 spec §4): the kit of a member, how to put it back after another item
  * took the hand, and how to take it away. Every kit item is unbreakable.
+ *
+ * <p>Functional spec §11.5, §11.6, §11.7, §11.8, §11.9, §11.10, §11.11.
  */
 final class TeamMoveKits {
-    /** The six plain Raid main-hand weapons, in dice order. */
+    /** The six plain Raid main-hand weapons, in dice order. Functional spec §11.11. */
     private static final List<Item> RAID_WEAPONS = List.of(
             Items.NETHERITE_SWORD,
             Items.DIAMOND_SWORD,
@@ -70,6 +72,7 @@ final class TeamMoveKits {
     static Map<EquipmentSlot, ItemStack> kit(TeamMove move, ServerLevel level, RandomSource random, boolean caster) {
         Map<EquipmentSlot, ItemStack> kit = new EnumMap<>(EquipmentSlot.class);
         switch (move) {
+            // Functional spec §11.8, §11.10
             case SHIELD, EVADER -> {
                 kit.put(EquipmentSlot.MAINHAND, unbreakable(new ItemStack(Items.SHIELD)));
                 kit.put(EquipmentSlot.OFFHAND, unbreakable(new ItemStack(Items.SHIELD)));
@@ -89,7 +92,7 @@ final class TeamMoveKits {
         return kit;
     }
 
-    /** A crossbow enchanted with Multishot I, unbreakable. */
+    /** A crossbow enchanted with Multishot I, unbreakable. Functional spec §11.9. */
     private static ItemStack multishotCrossbow(ServerLevel level) {
         ItemStack crossbow = new ItemStack(Items.CROSSBOW);
         crossbow.enchant(
@@ -99,7 +102,7 @@ final class TeamMoveKits {
 
     /**
      * One of seven main-hand items at even odds, a shield, and head, chest and legs all netherite or all diamond (one
-     * roll per member).
+     * roll per member). Functional spec §11.11.
      */
     private static void raid(Map<EquipmentSlot, ItemStack> kit, RandomSource random) {
         int main = Dice.RAID_KIT.below(random, ROCKET_CROSSBOW + 1);
@@ -109,14 +112,17 @@ final class TeamMoveKits {
         armor(kit, Dice.RAID_KIT.below(random, 2) == 0);
     }
 
-    /** A Caster's Raid kit: the Mirror scroll, a shield, and one armor material from one roll. */
+    /**
+     * A Caster's Raid kit: the Mirror scroll, a shield, and one armor material from one roll.
+     * Functional spec §11.11.
+     */
     private static void raidCaster(Map<EquipmentSlot, ItemStack> kit, RandomSource random) {
         kit.put(EquipmentSlot.MAINHAND, ModItems.scrollFor(Spells.MIRROR));
         kit.put(EquipmentSlot.OFFHAND, unbreakable(new ItemStack(Items.SHIELD)));
         armor(kit, Dice.RAID_KIT.below(random, 2) == 0);
     }
 
-    /** Head, chest and legs, all netherite or all diamond, unbreakable. */
+    /** Head, chest and legs, all netherite or all diamond, unbreakable. Functional spec §11.11. */
     private static void armor(Map<EquipmentSlot, ItemStack> kit, boolean netherite) {
         kit.put(
                 EquipmentSlot.HEAD,
@@ -136,7 +142,7 @@ final class TeamMoveKits {
     }
 
     /**
-     * Conjures every item of {@code kit} into {@code vex} (given gear goes to the stash).
+     * Conjures every item of {@code kit} into {@code vex} (given gear goes to the stash). Functional spec §11.5.
      *
      * @param vex the member
      * @param kit the kit by slot
@@ -148,7 +154,7 @@ final class TeamMoveKits {
     /**
      * Puts back what a rescue's bucket or apple, or anything else, took out of a kit slot: a slot that is not
      * conjured, or whose conjured item is another item, is conjured again. A kit item that is still there is left
-     * alone, so a crossbow fired this tick is not replaced.
+     * alone, so a crossbow fired this tick is not replaced. Functional spec §11.7.
      *
      * @param vex the member
      * @param kit the kit by slot
@@ -163,6 +169,7 @@ final class TeamMoveKits {
 
     /**
      * Dismisses the slots {@code move} conjures into: the conjured items go and the stashed gear returns.
+     * Functional spec §11.6.
      *
      * @param vex the member
      * @param move the move whose kit to take away

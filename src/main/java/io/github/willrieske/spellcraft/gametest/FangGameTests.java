@@ -71,6 +71,8 @@ import net.neoforged.neoforge.network.connection.ConnectionType;
  * ticks plus the wait for the padded chunks; its padded box is cleared to air, so {@link #floor} lays stone under the
  * square). The caster stands at {@link #FEET}, the structure's middle; targets are pigs or a ravager (zombies burn in
  * daylight; a calm iron golem is an ally).
+ *
+ * <p>Functional spec §1.4, §2.1, §2.2, §2.3, §2.4, §2.5, §2.6, §3.1, §3.2, §3.3, §3.4, §3.5, §3.6, §4.1, §4.2, §4.7.
  */
 public final class FangGameTests {
     /** The caster's block (relative): the middle of the 3×3×3 structure, one above its floor layer. */
@@ -397,6 +399,8 @@ public final class FangGameTests {
      * collision top, owned by the caster, with no warmup delay.
      *
      * <p>Method under test: {@link EvokingCaster#request}
+     *
+     * <p>Functional spec §2.2, §2.5, §3.4.
      */
     static void e1CarpetNorth(GameTestHelper helper) {
         // Arrange
@@ -444,6 +448,8 @@ public final class FangGameTests {
      * should the one fang stand on the corner cell taken at the press, not one from the live position.
      *
      * <p>Method under test: {@link EvokingCaster#request}
+     *
+     * <p>Functional spec §3.1, §3.4.
      */
     static void e2CornerNorthEast(GameTestHelper helper) {
         // Arrange
@@ -474,6 +480,8 @@ public final class FangGameTests {
      * second press.
      *
      * <p>Method under test: {@link EvokingCaster#request}
+     *
+     * <p>Functional spec §3.1, §3.3.
      */
     static void e3NoTargetsNotice(GameTestHelper helper) {
         // Arrange
@@ -515,6 +523,8 @@ public final class FangGameTests {
      * summoned vex, should each press find no target.
      *
      * <p>Method under test: {@link EvokingCaster#request}
+     *
+     * <p>Functional spec §3.2, §4.1, §4.2.
      */
     static void e4AlliesAreNotTargets(GameTestHelper helper) {
         // Arrange
@@ -545,6 +555,8 @@ public final class FangGameTests {
      * survival player (with {@code pvp} on), should the cast start.
      *
      * <p>Method under test: {@link EvokingCaster#request}
+     *
+     * <p>Functional spec §3.2.
      */
     static void e5PlayerModes(GameTestHelper helper) {
         // Arrange
@@ -569,6 +581,8 @@ public final class FangGameTests {
      * should they bite the first two and spare the summon.
      *
      * <p>Method under test: {@link Fangs#onIncomingDamage}
+     *
+     * <p>Functional spec §3.5.
      */
     static void e6SpareSummons(GameTestHelper helper) {
         // Arrange
@@ -606,6 +620,8 @@ public final class FangGameTests {
      * it, should the answers be BUSY, COOLING and STARTED in turn.
      *
      * <p>Method under test: {@link EvokingCaster#request}
+     *
+     * <p>Functional spec §2.3.
      */
     static void e7BusyAndCooling(GameTestHelper helper) {
         // Arrange
@@ -636,6 +652,8 @@ public final class FangGameTests {
      * When the caster loses Evoking between the press and the perform, should the step drop the cast: no fangs.
      *
      * <p>Method under test: {@link EvokingCaster#tick}
+     *
+     * <p>Functional spec §2.4.
      */
     static void e13LostEvokingCancels(GameTestHelper helper) {
         // Arrange
@@ -660,6 +678,8 @@ public final class FangGameTests {
      * the request be ignored: no effect, no fangs, no notice (spec row E14).
      *
      * <p>Method under test: {@link EvokingCaster#request}
+     *
+     * <p>Functional spec §2.1, §2.6.
      */
     static void e14IgnoredRequests(GameTestHelper helper) {
         // Arrange
@@ -696,6 +716,8 @@ public final class FangGameTests {
      * cast be dropped: no fangs.
      *
      * <p>Method under test: {@link EvokingCaster#onLogout}
+     *
+     * <p>Functional spec §2.4.
      */
     static void e15LogoutDropsTheCast(GameTestHelper helper) {
         // Arrange
@@ -721,6 +743,8 @@ public final class FangGameTests {
      * around the player.
      *
      * <p>Method under test: {@link Fangs#perform}
+     *
+     * <p>Functional spec §2.4.
      */
     static void e16DimensionChange(GameTestHelper helper) {
         // Arrange
@@ -759,6 +783,8 @@ public final class FangGameTests {
      * cell get one.
      *
      * <p>Method under test: {@link Fangs#perform}
+     *
+     * <p>Functional spec §3.4.
      */
     static void e17UnevenFloor(GameTestHelper helper) {
         // Arrange
@@ -794,6 +820,8 @@ public final class FangGameTests {
      * When the only thing in the square is an armor stand, should the press find no target.
      *
      * <p>Method under test: {@link EvokingCaster#request}
+     *
+     * <p>Functional spec §3.2.
      */
     static void e18ArmorStand(GameTestHelper helper) {
         // Arrange
@@ -813,6 +841,8 @@ public final class FangGameTests {
      * one fang under the pig.
      *
      * <p>Method under test: {@link EvokingCaster#onPlayerTick}
+     *
+     * <p>Functional spec §2.2.
      */
     static void e19PlayerTickEvent(GameTestHelper helper) {
         // Arrange
@@ -835,6 +865,8 @@ public final class FangGameTests {
      * so the perform-time alive check is the only thing that stops the cast.
      *
      * <p>Method under test: {@link EvokingCaster#tick}
+     *
+     * <p>Functional spec §1.4, §2.4.
      */
     static void e23DeathCancels(GameTestHelper helper) {
         // Arrange
@@ -861,6 +893,8 @@ public final class FangGameTests {
      * When the caster dies after a no-targets press, should no notice arrive once the delay has passed.
      *
      * <p>Method under test: {@link EvokingCaster#tick}
+     *
+     * <p>Functional spec §1.4, §3.3.
      */
     static void e23DeathCancelsTheNotice(GameTestHelper helper) {
         // Arrange
@@ -889,6 +923,8 @@ public final class FangGameTests {
      * effect, and no fangs after the warmup.
      *
      * <p>Method under test: {@link EvokingCaster#request}
+     *
+     * <p>Functional spec §1.4, §2.6.
      */
     static void e23DeadRequestIgnored(GameTestHelper helper) {
         // Arrange
@@ -918,6 +954,8 @@ public final class FangGameTests {
      * target: the notice arrives and no fang is placed. E5 is the positive control with {@code pvp} on.
      *
      * <p>Method under test: {@link EvokingCaster#request}
+     *
+     * <p>Functional spec §3.2, §3.3, §4.7.
      */
     static void e24PvpOffNotice(GameTestHelper helper) {
         // Arrange
@@ -996,6 +1034,8 @@ public final class FangGameTests {
      * empty cell: thirteen in all.
      *
      * <p>Method under test: {@link Fangs#snapshot}, through {@link EvokingCaster#request}
+     *
+     * <p>Functional spec §3.4.
      */
     static void iiFootprints(GameTestHelper helper) {
         // Arrange
@@ -1042,6 +1082,8 @@ public final class FangGameTests {
      * height.
      *
      * <p>Method under test: {@link Fangs#snapshot}, through {@link EvokingCaster#request}
+     *
+     * <p>Functional spec §3.1.
      */
     static void iiScanWindow(GameTestHelper helper) {
         // Arrange
@@ -1087,6 +1129,8 @@ public final class FangGameTests {
      * above a target's feet to two below.
      *
      * <p>Method under test: {@link Fangs#snapshot}
+     *
+     * <p>Functional spec §3.4.
      */
     static void iiFloatingTargets(GameTestHelper helper) {
         // Arrange
@@ -1116,6 +1160,8 @@ public final class FangGameTests {
      * ally after the press get no chase.
      *
      * <p>Method under test: {@link Fangs#onEntityTick}
+     *
+     * <p>Functional spec §3.6.
      */
     static void iiChase(GameTestHelper helper) {
         // Arrange
@@ -1166,6 +1212,8 @@ public final class FangGameTests {
      * block, should no chase fang rise (it still stands on its column).
      *
      * <p>Method under test: {@link Fangs#onEntityTick}
+     *
+     * <p>Functional spec §3.6.
      */
     static void iiChaseOncePerTarget(GameTestHelper helper) {
         // Arrange
@@ -1201,6 +1249,8 @@ public final class FangGameTests {
      * its block, should no chase fang rise.
      *
      * <p>Method under test: {@link Fangs#onEntityTick}
+     *
+     * <p>Functional spec §3.6.
      */
     static void iiChaseRange(GameTestHelper helper) {
         // Arrange
@@ -1232,6 +1282,8 @@ public final class FangGameTests {
      * chase fang rise for the corpse (the chase needs a living target).
      *
      * <p>Method under test: {@link Fangs#onEntityTick}
+     *
+     * <p>Functional spec §3.6.
      */
     static void iiChaseDeadTarget(GameTestHelper helper) {
         // Arrange
@@ -1262,6 +1314,8 @@ public final class FangGameTests {
      * before it bites, should no chase fang rise: the floor search finds nothing, so nothing is placed.
      *
      * <p>Method under test: {@link Fangs#onEntityTick}
+     *
+     * <p>Functional spec §3.4, §3.6.
      */
     static void iiChaseNoFloor(GameTestHelper helper) {
         // Arrange

@@ -14,19 +14,21 @@ import net.minecraft.world.entity.npc.villager.AbstractVillager;
 import net.minecraft.world.entity.player.Player;
 
 /**
- * The one ally rule every spell uses (Evoking spec §3, Evoking II §2.3): what vanilla calls an ally (the player itself,
+ * The one ally rule every spell uses (Evoking I spec §3, Evoking II §2.3): what vanilla calls an ally (the player itself,
  * the same team, a tamed animal whose owner is the player, an allay that likes the player), plus the mobs the player
  * summoned ({@link AllyAttachments#SUMMONER}), any other {@code OwnableEntity} the player owns (vanilla's {@code Vex}
  * has an owner but never reports it through {@code isAlliedTo}), every villager and wandering trader, every zombie
  * villager a Bound Vex is curing ({@link AllyAttachments#CURE}, Evoking II Parts 4-5 spec §2.1), and every iron
  * golem that is not mad at the player (on a client level a golem counts as not mad; the spells call this on the
  * server).
+ *
+ * <p>Functional spec §4.1, §4.3, §4.4, §13.5, §16.1.
  */
 public final class Allies {
     private Allies() {}
 
     /**
-     * Whether a spell cast by {@code owner} must spare {@code other}.
+     * Whether a spell cast by {@code owner} must spare {@code other}. Functional spec §4.1, §13.5.
      *
      * @param owner the caster
      * @param other the entity the spell might hit
@@ -43,7 +45,7 @@ public final class Allies {
     /**
      * Whether {@code golem} is mad at {@code owner}: the owner is its target, or its persistent anger names the owner
      * ({@code NeutralMob.isAngryAt}, docs/api-notes.md §20). While it is, the owner's spells and summons may fight it;
-     * the Trailing flame is the exception ({@code TrailFires.isSpared}).
+     * the Trailing flame is the exception ({@code TrailFires.isSpared}). Functional spec §4.3.
      *
      * @param golem the golem
      * @param owner the player
@@ -91,7 +93,7 @@ public final class Allies {
      * indirectMagic(fangs, caster)}), a tamed wolf (every tamed wolf is a player's, even while its owner is offline and
      * {@code getOwner()} cannot resolve it), or any mob carrying a summoner mark (round one's vexes, Bound Vexes from
      * Part 2 on, Mirror images of a player). Lava, falls, other mobs and {@code /kill} are not. Shared by {@code
-     * GolemMercy} and the villager-ghost records.
+     * GolemMercy} and the villager-ghost records. Functional spec §4.4, §16.1.
      *
      * @param source the damage
      * @return true if a player's side caused it

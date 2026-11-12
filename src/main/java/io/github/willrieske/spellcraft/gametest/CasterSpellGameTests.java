@@ -31,7 +31,11 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
-/** GameTests of a Caster's casting and of a Caster in a Raid (Parts 6-7 spec §6.2). */
+/**
+ * GameTests of a Caster's casting and of a Caster in a Raid (Parts 6-7 spec §6.2).
+ *
+ * <p>Functional spec §8.13, §11.11, §12.3, §12.4, §12.5, §13.2.
+ */
 final class CasterSpellGameTests {
     /** Ticks the Raid tests wait for the Raid to settle after the gather. */
     private static final int SETTLE_TICKS = 150;
@@ -143,6 +147,8 @@ final class CasterSpellGameTests {
      * 20-tick wind-up: the summoner gets the effect and 13 images, the Caster's cooldown starts and the scroll is gone.
      *
      * <p>Method under test: {@code CasterSpellGoal}: Mirror
+     *
+     * <p>Functional spec §12.4, §12.5, §13.2.
      */
     static void castsMirror(GameTestHelper helper) {
         // Arrange
@@ -166,6 +172,8 @@ final class CasterSpellGameTests {
      * neither once the spell lands.
      *
      * <p>Method under test: {@code CasterSpellGoal}: the wind-up's look
+     *
+     * <p>Functional spec §12.5.
      */
     static void windUpLook(GameTestHelper helper) {
         // Arrange
@@ -188,6 +196,8 @@ final class CasterSpellGameTests {
      * conjured.
      *
      * <p>Method under test: {@code CasterSpellGoal}: the stash returns
+     *
+     * <p>Functional spec §8.13, §12.5.
      */
     static void givesTheItemBack(GameTestHelper helper) {
         // Arrange
@@ -208,6 +218,8 @@ final class CasterSpellGameTests {
      * Mirror not yet: Ghostrail is checked before Mirror.
      *
      * <p>Method under test: {@code CasterSpellGoal.choose}: Ghostrail before Mirror
+     *
+     * <p>Functional spec §12.4.
      */
     static void ghostrailBeforeMirror(GameTestHelper helper) {
         // Arrange
@@ -228,6 +240,8 @@ final class CasterSpellGameTests {
      * When a Caster casts Ghostrail, should its saved ready time be the game time of the cast plus 4800.
      *
      * <p>Method under test: {@code CasterSpellGoal.finish}: the Ghostrail cooldown
+     *
+     * <p>Functional spec §12.3.
      */
     static void ghostrailCooldownIs4800(GameTestHelper helper) {
         // Arrange
@@ -249,6 +263,8 @@ final class CasterSpellGameTests {
      * When the hurt summoner is 17 blocks from the Caster, should the Caster cast nothing: its range is 16.
      *
      * <p>Method under test: {@code CasterSpellGoal.emergency}: the 16-block range
+     *
+     * <p>Functional spec §12.3.
      */
     static void ghostrailRangeIs16(GameTestHelper helper) {
         // Arrange
@@ -272,6 +288,8 @@ final class CasterSpellGameTests {
      * When the summoner already has Mirror and two hostiles stand in the guard area, should the Caster not cast.
      *
      * <p>Method under test: {@code CasterSpellGoal.choose}: Mirror needs a summoner without it
+     *
+     * <p>Functional spec §12.4.
      */
     static void noMirrorWhenSummonerHasIt(GameTestHelper helper) {
         // Arrange
@@ -293,6 +311,8 @@ final class CasterSpellGameTests {
      * Ghostrail landed, and the Raid kit (a Mirror scroll) be in hand instead.
      *
      * <p>Method under test: {@code CasterSpellGoal.stop}: a Raid preempts the wind-up
+     *
+     * <p>Functional spec §12.5.
      */
     static void raidDismissesAWindUp(GameTestHelper helper) {
         // Arrange
@@ -336,6 +356,8 @@ final class CasterSpellGameTests {
      * itself. No Ghostrail lands, no cooldown is spent, and the Raid kit's Mirror scroll is in the main hand.
      *
      * <p>Method under test: {@code CasterSpellGoal.tick}: a Raid preempts the last wind-up tick
+     *
+     * <p>Functional spec §12.5.
      */
     static void raidOnTheLastWindUpTick(GameTestHelper helper) {
         // Arrange
@@ -391,6 +413,8 @@ final class CasterSpellGameTests {
      * cast again, its cooldown holding.
      *
      * <p>Method under test: {@code CasterSpellGoal}: the Mirror cooldown
+     *
+     * <p>Functional spec §12.4.
      */
     static void cooldownBlocksASecond(GameTestHelper helper) {
         // Arrange
@@ -409,6 +433,8 @@ final class CasterSpellGameTests {
      * When only one hostile stands in the guard area, should the Caster not cast Mirror.
      *
      * <p>Method under test: {@code CasterSpellGoal}: Mirror needs two hostiles
+     *
+     * <p>Functional spec §12.4.
      */
     static void oneHostileIsNotEnough(GameTestHelper helper) {
         // Arrange
@@ -425,6 +451,8 @@ final class CasterSpellGameTests {
      * When the summoner is below a quarter of its health, should the Caster cast Ghostrail on it.
      *
      * <p>Method under test: {@code CasterSpellGoal}: Ghostrail on the summoner
+     *
+     * <p>Functional spec §12.3.
      */
     static void ghostrailOnTheHurtSummoner(GameTestHelper helper) {
         // Arrange
@@ -442,6 +470,8 @@ final class CasterSpellGameTests {
      * on the sibling and not on the summoner.
      *
      * <p>Method under test: {@code CasterSpellGoal}: Ghostrail on a sibling vex
+     *
+     * <p>Functional spec §12.3.
      */
     static void ghostrailOnAHurtVex(GameTestHelper helper) {
         // Arrange
@@ -462,6 +492,8 @@ final class CasterSpellGameTests {
      * When the summoner's eyes are inside a block, should the Caster cast Ghostrail on it.
      *
      * <p>Method under test: {@code CasterSpellGoal}: Ghostrail for a summoner in a wall
+     *
+     * <p>Functional spec §12.3.
      */
     static void ghostrailInAWall(GameTestHelper helper) {
         // Arrange
@@ -480,6 +512,8 @@ final class CasterSpellGameTests {
      * cooldown untouched; the control is {@code ghostrailOnTheHurtSummoner}, the same scene in survival.
      *
      * <p>Method under test: {@code CasterSpellGoal}: {@code Spells.refusedFor}
+     *
+     * <p>Functional spec §12.3.
      */
     static void noGhostrailForCreative(GameTestHelper helper) {
         // Arrange
@@ -502,6 +536,8 @@ final class CasterSpellGameTests {
      * spent: no cooldown and no spell.
      *
      * <p>Method under test: {@code CasterSpellGoal.stop}
+     *
+     * <p>Functional spec §12.5.
      */
     static void interruptionSpendsNothing(GameTestHelper helper) {
         // Arrange
@@ -536,6 +572,8 @@ final class CasterSpellGameTests {
      * exactly one Caster spend its Mirror cooldown.
      *
      * <p>Method under test: {@code CasterSpellGoal}: the subject must still qualify at the end of the wind-up
+     *
+     * <p>Functional spec §12.5.
      */
     static void twoCastersOneCast(GameTestHelper helper) {
         // Arrange
@@ -560,6 +598,8 @@ final class CasterSpellGameTests {
      * still conjured.
      *
      * <p>Method under test: {@code RaidMove.tick}: the Caster's cast and kit
+     *
+     * <p>Functional spec §11.11.
      */
     static void raidCastsMirror(GameTestHelper helper) {
         // Arrange
@@ -592,6 +632,8 @@ final class CasterSpellGameTests {
      * cooldown stays 0 and no second set of images appears.
      *
      * <p>Method under test: {@code RaidMove.tick}: the Caster skips a cast the summoner does not need
+     *
+     * <p>Functional spec §11.11.
      */
     static void raidSkipsTheCast(GameTestHelper helper) {
         // Arrange
@@ -614,6 +656,8 @@ final class CasterSpellGameTests {
      * ended.
      *
      * <p>Method under test: {@code RaidMove.tick}: the Caster holds its cell
+     *
+     * <p>Functional spec §11.11.
      */
     static void raidHoldsItsCell(GameTestHelper helper) {
         // Arrange
@@ -641,6 +685,8 @@ final class CasterSpellGameTests {
      * reach and hurt it.
      *
      * <p>Method under test: {@code RaidMove.tick}: a Caster never attacks
+     *
+     * <p>Functional spec §11.11.
      */
     static void raidCasterNeverAttacks(GameTestHelper helper) {
         // Arrange

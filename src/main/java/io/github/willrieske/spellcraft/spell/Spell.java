@@ -12,6 +12,6 @@ import net.minecraft.world.effect.MobEffectInstance;
  * so config edits apply to the next cast). No registry: spells are constants in {@link Spells}.
  */
 public record Spell(Identifier id, Holder<MobEffect> effect, SpellRules rules, IntSupplier durationTicks) {
-    /** Duration for spells that never run out; the HUD shows "∞". */
+    /** Duration for spells that never run out; the HUD shows "∞". Functional spec §1.1. */
     public static final IntSupplier INFINITE = () -> MobEffectInstance.INFINITE_DURATION;
 }

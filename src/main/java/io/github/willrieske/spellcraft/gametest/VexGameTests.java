@@ -50,6 +50,8 @@ import net.minecraft.world.scores.Scoreboard;
  * {@code BoundVexTargetGameTests} and {@code BoundVexJobGameTests} cover their goals). The summoning tests register
  * through {@code FangGameTests.addPadded} (padding 13), so a vex flying about its origin reaches no
  * other test. The two tests that add a scoreboard team run in the {@code team_mutation} batch, as the Trail tests do.
+ *
+ * <p>Functional spec §2.2, §2.4, §4.1, §4.2, §5.1, §5.2, §5.4, §5.5, §7.4.
  */
 public final class VexGameTests {
     private static final BlockPos FEET = FangGameTests.FEET;
@@ -92,6 +94,8 @@ public final class VexGameTests {
      *
      * <p>Method under test: {@link EvokingCaster#request}, then {@link EvokingCaster#tick} and {@link
      * VexSummons#summon}
+     *
+     * <p>Functional spec §2.2, §5.1, §5.2.
      */
     static void e8ThreeBesideTheCaster(GameTestHelper helper) {
         // Arrange
@@ -143,6 +147,8 @@ public final class VexGameTests {
      * players share one scoreboard name, so the team briefly holds every mock player of the batch and must be gone
      * before the tick ends. Do not add a {@code runAfterDelay}. The body ends in its first tick, so its
      * {@code finally} discards the vexes along with the team.
+     *
+     * <p>Functional spec §5.1.
      */
     static void e9JoinTheTeam(GameTestHelper helper) {
         // Arrange
@@ -172,6 +178,8 @@ public final class VexGameTests {
      * the decision is tested through the exact call {@code TrailFireBlock} makes.
      *
      * <p>Method under test: {@link TrailFires#isSpared}, through {@link AllyAttachments#SUMMONER}
+     *
+     * <p>Functional spec §4.1, §4.2.
      */
     static void e12TrailSparesSummons(GameTestHelper helper) {
         // Arrange
@@ -206,6 +214,8 @@ public final class VexGameTests {
      * and the player.
      *
      * <p>Method under test: {@link EvokingCaster#tick}, then {@link VexSummons#summon}
+     *
+     * <p>Functional spec §2.4.
      */
     static void e16SummonedInTheNether(GameTestHelper helper) {
         // Arrange
@@ -237,6 +247,8 @@ public final class VexGameTests {
      *
      * <p>Sets the server difficulty, which is global, so it runs alone in the {@code peaceful} batch; the difficulty
      * is restored through {@code whenDone}.
+     *
+     * <p>Functional spec §5.4.
      */
     static void peacefulNotice(GameTestHelper helper) {
         // Arrange
@@ -284,6 +296,8 @@ public final class VexGameTests {
      *
      * <p>Puts the summoner on a team, so it runs in the {@code team_mutation} batch. Synchronous on purpose: mock
      * players share one scoreboard name, so the stranger is checked before the team exists.
+     *
+     * <p>Functional spec §4.1, §5.5, §7.4.
      */
     static void preyRule(GameTestHelper helper) {
         // Arrange

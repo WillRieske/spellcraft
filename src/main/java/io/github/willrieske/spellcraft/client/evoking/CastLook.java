@@ -3,6 +3,8 @@ package io.github.willrieske.spellcraft.client.evoking;
 /**
  * What an entity is casting, for the casting look (Parts 6-7 spec §6.4); client-only, separate from the packet's
  * {@code EvokerSpell}.
+ *
+ * <p>Functional spec §2.5, §12.5, §16.4.
  */
 public enum CastLook {
     /** A fang cast: the evoker's dark fang color. */

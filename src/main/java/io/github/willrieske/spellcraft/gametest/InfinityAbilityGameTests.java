@@ -15,7 +15,11 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.level.storage.TagValueOutput;
 
-/** Ability-sync GameTests for Strength of Infinity. Registered in {@link SpellcraftGameTests}. */
+/**
+ * Ability-sync GameTests for Strength of Infinity. Registered in {@link SpellcraftGameTests}.
+ *
+ * <p>Functional spec §14.7.
+ */
 @SuppressWarnings("deprecation") // Every test asserts on Abilities#mayfly; see AbilitySync#sync for why.
 public final class InfinityAbilityGameTests {
     /** {@code inventoryMenu} slot numbers: 36 = hotbar 0, 37 = hotbar 1 (docs/api-notes.md §11). */
@@ -92,7 +96,11 @@ public final class InfinityAbilityGameTests {
         helper.succeed();
     }
 
-    /** Creative and spectator own their flags: with Infinity active the sync leaves them and sets no mark. */
+    /**
+     * Creative and spectator own their flags: with Infinity active the sync leaves them and sets no mark.
+     *
+     * <p>Functional spec §14.7.
+     */
     private static void leavesModeFlagsAlone(GameTestHelper helper, GameType mode) {
         ServerPlayer player = MockPlayers.inLevel(helper, mode);
         Abilities abilities = player.getAbilities();

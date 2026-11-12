@@ -42,6 +42,8 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
  * flies or teleports, that need headroom, or that park many vexes register through {@code
  * FangGameTests.addPadded} (padding 13); the rest run inside the shared 3x3x3 box. Shared constants and helpers
  * live in {@link BoundVexTestSupport}.
+ *
+ * <p>Functional spec §5.2, §5.3, §5.5, §5.6, §6.4, §7.1, §8.1, §8.13.
  */
 public final class BoundVexCapGameTests {
     private static final int WARMUP = EvokerSpell.WARMUP_TICKS;
@@ -88,6 +90,8 @@ public final class BoundVexCapGameTests {
      *
      * <p>Method under test: {@link EvokingCaster#request}, through {@link BoundVex#countOwnedBy} and
      * {@link VexCap#toSummon}
+     *
+     * <p>Functional spec §5.3.
      */
     static void capRefusesAtTwelve(GameTestHelper helper) {
         // Arrange
@@ -123,6 +127,8 @@ public final class BoundVexCapGameTests {
      *
      * <p>Method under test: {@link EvokingCaster#request} then {@link EvokingCaster#tick}, through
      * {@code VexSummons.summon(level, player, count)}
+     *
+     * <p>Functional spec §5.3.
      */
     static void capTopsUpToTwelve(GameTestHelper helper, int alive) {
         // Arrange
@@ -151,6 +157,8 @@ public final class BoundVexCapGameTests {
      * count none of them for this summoner, whose press starts.
      *
      * <p>Method under test: {@link BoundVex#countOwnedBy}, through {@link EvokingCaster#request}
+     *
+     * <p>Functional spec §5.3.
      */
     static void capIsPerSummoner(GameTestHelper helper) {
         // Arrange
@@ -188,6 +196,8 @@ public final class BoundVexCapGameTests {
      * count spans every loaded level (spec §3.2). A count of this level alone would see eleven and start.
      *
      * <p>Method under test: {@link BoundVex#countOwnedBy}, through {@link EvokingCaster#request}
+     *
+     * <p>Functional spec §5.3.
      */
     static void capCountsEveryLevel(GameTestHelper helper) {
         // Arrange
@@ -226,6 +236,8 @@ public final class BoundVexCapGameTests {
      * nothing, and a plain (un-sneaked) empty-hand click by the summoner should be consumed and change nothing.
      *
      * <p>Method under test: {@code BoundVex.mobInteract} (protected), through {@code Mob.interact}
+     *
+     * <p>Functional spec §5.6, §6.4, §8.1.
      */
     static void stayToggle(GameTestHelper helper) {
         // Arrange
@@ -282,6 +294,8 @@ public final class BoundVexCapGameTests {
      * result type is what it pins; the playtest checklist covers the rest.
      *
      * <p>Method under test: {@code BoundVex.mobInteract} (protected), through {@code Mob.interact}
+     *
+     * <p>Functional spec §6.4, §8.1.
      */
     static void stayToggleKeepsTheOffHandItem(GameTestHelper helper) {
         // Arrange
@@ -309,6 +323,8 @@ public final class BoundVexCapGameTests {
      *
      * <p>Method under test: {@link BoundVex#summoner}, {@link BoundVex#isPrey(LivingEntity)},
      * {@link BoundVex#removeWhenFarAway}, {@link BoundVex#requiresCustomPersistence}
+     *
+     * <p>Functional spec §5.2.
      */
     static void idlesWithoutASummoner(GameTestHelper helper) {
         // Arrange
@@ -332,6 +348,8 @@ public final class BoundVexCapGameTests {
      *
      * <p>Method under test: {@code BoundVex.addAdditionalSaveData}/{@code readAdditionalSaveData} (protected), through
      * {@link GameTestSupport#reloaded}
+     *
+     * <p>Functional spec §5.2, §8.13.
      */
     static void saveKeepsStayAndMark(GameTestHelper helper) {
         // Arrange
@@ -357,6 +375,8 @@ public final class BoundVexCapGameTests {
      *
      * <p>Method under test: {@code BoundVex}'s constructor ({@code xpReward}), through
      * {@code LivingEntity.getExperienceReward}
+     *
+     * <p>Functional spec §5.2.
      */
     static void givesNoExperience(GameTestHelper helper) {
         // Arrange
@@ -375,6 +395,8 @@ public final class BoundVexCapGameTests {
      * respawn"): no summoner, and a husk that was prey a moment ago no longer is.
      *
      * <p>Method under test: {@link BoundVex#summoner}, {@link BoundVex#isPrey(LivingEntity)}
+     *
+     * <p>Functional spec §5.5.
      */
     static void idlesWithADeadSummoner(GameTestHelper helper) {
         // Arrange
@@ -398,6 +420,8 @@ public final class BoundVexCapGameTests {
      * vex's level): no summoner, and a husk that was prey a moment ago no longer is.
      *
      * <p>Method under test: {@link BoundVex#summoner}, {@link BoundVex#isPrey(LivingEntity)}
+     *
+     * <p>Functional spec §5.5.
      */
     static void idlesWithTheSummonerElsewhere(GameTestHelper helper) {
         // Arrange: staying, so the trip to the Nether does not carry the vex along (then no instance is left here)
@@ -422,6 +446,8 @@ public final class BoundVexCapGameTests {
      * back in survival, the summoner and the prey are back.
      *
      * <p>Method under test: {@link BoundVex#summoner}, {@link BoundVex#isPrey(LivingEntity)}
+     *
+     * <p>Functional spec §5.5.
      */
     static void idlesWithASpectatingSummoner(GameTestHelper helper) {
         // Arrange
@@ -447,6 +473,8 @@ public final class BoundVexCapGameTests {
      * ticks), should count two: a dying vex must not count toward the cap (a press just after a kill could be refused).
      *
      * <p>Method under test: {@link BoundVex#countOwnedBy}
+     *
+     * <p>Functional spec §5.3.
      */
     static void countSkipsADyingVex(GameTestHelper helper) {
         // Arrange
@@ -472,6 +500,8 @@ public final class BoundVexCapGameTests {
      * vexes in the shared box would sit near the edge of a neighbor's vex search.
      *
      * <p>Method under test: {@link EvokingCaster#request}
+     *
+     * <p>Functional spec §5.3.
      */
     static void capRefusalIsSilent(GameTestHelper helper) {
         // Arrange
@@ -505,6 +535,8 @@ public final class BoundVexCapGameTests {
      * past the face (or past the top), outside. Every goal asks this one method.
      *
      * <p>Method under test: {@link BoundVex#inGuardArea}
+     *
+     * <p>Functional spec §7.1.
      */
     static void guardAreaEdges(GameTestHelper helper) {
         // Arrange

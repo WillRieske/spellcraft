@@ -14,6 +14,8 @@ import net.minecraft.world.level.Level;
 /**
  * A single-use scroll for one {@link Spell}. Every use goes through {@link CastRules}; both sides decide (so a
  * refusal shows no swing), and only the server changes state.
+ *
+ * <p>Functional spec §1.3, §13.1, §14.1.
  */
 public class SpellScrollItem extends Item {
     public static final String REFUSED_KEY = "message.spellcraft.scroll_not_needed";

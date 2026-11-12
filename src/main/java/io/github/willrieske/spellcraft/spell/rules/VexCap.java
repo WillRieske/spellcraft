@@ -3,9 +3,11 @@ package io.github.willrieske.spellcraft.spell.rules;
 /**
  * How many Bound Vexes one V press summons (Evoking II spec §3.2): a batch of three while there is room for a whole
  * batch, the remainder up to the cap when there is room for less, and none at the cap.
+ *
+ * <p>Functional spec §5.1, §5.3.
  */
 public final class VexCap {
-    /** The most Bound Vexes one summoner may have alive at once. */
+    /** The most Bound Vexes one summoner may have alive at once. Functional spec §5.3. */
     public static final int CAP = 12;
 
     /** How many one press summons while they all fit. */

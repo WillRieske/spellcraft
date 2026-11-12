@@ -7,6 +7,8 @@ import java.util.Objects;
  * {@code InfinityAbilities}). Infinity grants {@code mayfly} and {@code instabuild}; Ghostrail grants
  * {@code mayfly} and {@code flying}. {@code invulnerable} is deliberately absent. A source's "mark" records that
  * it, not vanilla or another mod, set the flags, so a revoke is never applied twice.
+ *
+ * <p>Functional spec §14.2, §14.6, §14.7.
  */
 public final class GrantedAbilities {
     /**

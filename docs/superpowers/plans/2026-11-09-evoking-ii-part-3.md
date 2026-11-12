@@ -8,7 +8,7 @@
 
 **Tech Stack:** Minecraft 26.3, NeoForge 26.3.0.23-beta (ModDevGradle), Java 25, JUnit 5, jqwik, ArchUnit, AssertJ, Error Prone (`-Werror`), Spotless + palantir-java-format, PIT, pre-commit, gitlint, markdownlint-cli2.
 
-**Spec:** `2026-11-09-evoking-ii-part-3-gear-and-stay-design.md` ([the Part 3 design spec](../specs/2026-11-09-evoking-ii-part-3-gear-and-stay-design.md)); "§" below points into it. Its parent is `2026-11-07-evoking-ii-design.md` ("parent §").
+**Spec:** `2026-11-09-evoking-ii-part-3-gear-and-stay-design.md` ([the Part 3 design spec](../specs/evoking/2026-11-09-evoking-ii-part-3-gear-and-stay-design.md)); "§" below points into it. Its parent is `2026-11-07-evoking-ii-design.md` ("parent §").
 
 ## Global Constraints
 

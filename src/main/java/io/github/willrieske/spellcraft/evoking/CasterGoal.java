@@ -10,6 +10,8 @@ import net.minecraft.world.phys.Vec3;
  * A Caster with a target keeps {@link CasterRules#KEEP_MIN} to {@link CasterRules#KEEP_MAX} blocks from it, looking at
  * it, and never melees or shoots (Parts 6-7 spec §6.2). Priority 3: above the follow goal, below the team move, job and
  * casting goals.
+ *
+ * <p>Functional spec §12.2.
  */
 final class CasterGoal extends Goal {
     /** The distance the Caster flies to when it has to move: the middle of the band. */

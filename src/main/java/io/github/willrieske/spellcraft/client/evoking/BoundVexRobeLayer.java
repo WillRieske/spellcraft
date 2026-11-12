@@ -17,6 +17,8 @@ import net.minecraft.resources.Identifier;
  * scale alone moves the 2-pixel body out by only about 0.06 pixel, too little to rule out z-fighting at range, so the
  * z offset does that job and the growth is for the look. The texture is transparent on the head and the wings, so only
  * the body and the arms are dressed. Both are first guesses for Will's eye (playtest checklist, Part 7).
+ *
+ * <p>Functional spec §12.1.
  */
 public final class BoundVexRobeLayer extends RenderLayer<VexRenderState, VexModel> {
     /** The robe texture, 32 x 32 like the vex's. */

@@ -23,7 +23,11 @@ import net.minecraft.world.entity.npc.villager.VillagerData;
 import net.minecraft.world.entity.npc.villager.VillagerProfession;
 import net.minecraft.world.entity.npc.villager.VillagerType;
 
-/** Draws the type, profession and level textures of a ghost translucent and tinted (vanilla's layer draws cutout). */
+/**
+ * Draws the type, profession and level textures of a ghost translucent and tinted (vanilla's layer draws cutout).
+ *
+ * <p>Functional spec §16.3.
+ */
 public final class VillagerGhostProfessionLayer extends RenderLayer<VillagerRenderState, VillagerModel> {
     /** The level badge names, by villager level. */
     private static final Map<Integer, Identifier> LEVEL_LOCATIONS = Map.of(

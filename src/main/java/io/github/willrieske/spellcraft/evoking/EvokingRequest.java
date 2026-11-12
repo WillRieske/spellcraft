@@ -15,6 +15,8 @@ import net.neoforged.neoforge.network.codec.NeoForgeStreamCodecs;
  * command: {@link EvokingNetwork#handle} validates everything. Two kinds: {@link Kind#CAST} (the argument is the
  * {@link EvokerSpell} ordinal) and {@link Kind#TEAM_MOVE} (the {@link TeamMove} ordinal, Shield 0 to Raid 3).
  *
+ * <p>Functional spec §2.6.
+ *
  * @param kind what the key asks for
  * @param arg the ordinal of the spell or the move
  */

@@ -14,12 +14,14 @@ import net.minecraft.world.phys.Vec3;
 /**
  * Where a rescued player can be put or pulled to (Parts 4–5 spec §6.2, §6.4): a standable spot is a feet block with
  * a sturdy top under it and two blocks of air, so lava, water, portals and gateways never count.
+ *
+ * <p>Functional spec §10.3, §10.11.
  */
 final class StandableSpots {
-    /** How far sideways the lava pull looks for a shore. */
+    /** How far sideways the lava pull looks for a shore. Functional spec §10.3. */
     static final double SHORE_RANGE = 6.0;
 
-    /** How far sideways the void catch looks for a landing. */
+    /** How far sideways the void catch looks for a landing. Functional spec §10.11. */
     static final int LANDING_RANGE = 32;
 
     /** Every column offset {@code (dx, dz)} within {@link #LANDING_RANGE} blocks, nearest first. */
@@ -45,6 +47,7 @@ final class StandableSpots {
      * The nearest standable spot for a player in lava at {@code from}: within {@link #SHORE_RANGE} blocks sideways,
      * and from one block below their feet block to two above. Equally near spots resolve in the order {@code
      * BlockPos.betweenClosed} walks a box (z outermost, then y, x innermost): the first found wins.
+     * Functional spec §10.3.
      *
      * @param level the level
      * @param from the player's position
@@ -89,7 +92,7 @@ final class StandableSpots {
 
     /**
      * The nearest column to {@code from} within {@link #LANDING_RANGE} blocks whose top is a standable spot. A column
-     * with no blocks, or in an unloaded chunk, reports the level's lowest Y and is skipped.
+     * with no blocks, or in an unloaded chunk, reports the level's lowest Y and is skipped. Functional spec §10.11.
      *
      * @param level the level
      * @param from the falling player's position

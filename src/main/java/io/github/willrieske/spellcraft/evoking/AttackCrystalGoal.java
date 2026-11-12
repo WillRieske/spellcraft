@@ -25,15 +25,17 @@ import org.jspecify.annotations.Nullable;
  * damage and push are held back by {@link BoundVexEvents}). A vex that cannot get there gives the crystal up after
  * {@link #LIMIT} ticks and takes none for {@link Jobs#RETRY_DELAY} ticks, so another vex can have it. The goal ends
  * when the crystal is gone, the vex gets a target, its summoner leaves or the dragon dies.
+ *
+ * <p>Functional spec §9.8, §10.8.
  */
 public final class AttackCrystalGoal extends Goal {
-    /** How far a following vex looks for a crystal. */
+    /** How far a following vex looks for a crystal. Functional spec §10.8. */
     static final double RANGE = 32.0;
 
     /** How near the point above the crystal the vex strikes from. */
     static final double STRIKE = 2.0;
 
-    /** A vex gives a crystal up after this long. */
+    /** A vex gives a crystal up after this long. Functional spec §10.8. */
     static final int LIMIT = 200;
 
     /** How far above the crystal's feet the vex flies to. */
@@ -42,6 +44,7 @@ public final class AttackCrystalGoal extends Goal {
     /**
      * The crystals being attacked: crystal UUID to the claiming vex, so two vexes never share one. A claim whose vex is
      * dead or removed is free, because such a vex never runs {@code stop()}. Cleared when the server stops.
+     * Functional spec §10.8.
      */
     private static final Jobs.Claims CLAIMS = new Jobs.Claims();
 
@@ -93,7 +96,7 @@ public final class AttackCrystalGoal extends Goal {
 
     /**
      * Whether the level's dragon fight has a living dragon: crystals are fought only then, so the ones a player places
-     * to bring the dragon back are left alone.
+     * to bring the dragon back are left alone. Functional spec §10.8.
      *
      * @param level the level
      * @return true in the End while its dragon lives
@@ -149,6 +152,7 @@ public final class AttackCrystalGoal extends Goal {
         CLAIMS.prune();
         Predicate<EndCrystal> free = candidate ->
                 candidate.isAlive() && !candidate.isInvulnerable() && !CLAIMS.heldByAnother(candidate, vex);
+        // Functional spec §9.8, §10.8
         List<EndCrystal> crystals = vex.isStaying()
                 ? level.getEntitiesOfClass(
                         EndCrystal.class,

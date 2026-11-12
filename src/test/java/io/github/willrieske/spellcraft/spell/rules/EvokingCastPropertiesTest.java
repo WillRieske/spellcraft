@@ -16,6 +16,7 @@ import net.jqwik.api.Group;
 import net.jqwik.api.Property;
 import net.jqwik.api.Provide;
 
+/** Functional spec §2.2, §2.3, §3.3. */
 class EvokingCastPropertiesTest {
     /**
      * One key press: how many ticks pass first, which spell, and whether fangs found targets (ignored for vexes).

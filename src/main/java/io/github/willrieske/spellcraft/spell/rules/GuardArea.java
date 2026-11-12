@@ -6,18 +6,23 @@ package io.github.willrieske.spellcraft.spell.rules;
  * Staying (Part 3 spec §2.3): 13 × 13 × 7 around the post point. Offsets are from
  * the vex's {@code Entity.position()} (its feet) to the other entity's {@code position()} (its feet), never eyes or
  * box centers.
+ *
+ * <p>Functional spec §6.4, §7.1, §7.5.
  */
 public final class GuardArea {
-    /** Half the box's width, east–west and north–south. */
+    /** Half the box's width, east–west and north–south. Functional spec §7.1. */
     public static final double HALF_WIDTH = 4.0;
 
-    /** Half the box's height. */
+    /** Half the box's height. Functional spec §7.1. */
     public static final double HALF_HEIGHT = 3.5;
 
-    /** How far a following vex keeps fighting a target. */
+    /** How far a following vex keeps fighting a target. Functional spec §7.5. */
     public static final double REACH = 7.25;
 
-    /** Half the width of the box a staying vex defends around its post: 13 blocks across (Part 3 spec §2.3). */
+    /**
+     * Half the width of the box a staying vex defends around its post: 13 blocks across (Part 3 spec §2.3).
+     * Functional spec §6.4.
+     */
     public static final double STAY_HALF_WIDTH = 6.5;
 
     /**

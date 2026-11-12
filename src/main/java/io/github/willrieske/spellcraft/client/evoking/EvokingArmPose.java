@@ -22,6 +22,8 @@ import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEve
  * {@code SPELLCRAFT_EVOKING} constant to {@code HumanoidModel.ArmPose} with {@link #PROXY}'s parameters (two-handed,
  * does not affect the offhand pose, this transformer); a render-state modifier sets both arms to it on every player
  * {@link CastingState} says is casting, which covers third person, other players and the inventory doll.
+ *
+ * <p>Functional spec §2.5.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID, value = Dist.CLIENT)
 public final class EvokingArmPose {

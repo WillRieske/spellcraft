@@ -9,6 +9,7 @@ import net.jqwik.api.Property;
 import net.jqwik.api.constraints.DoubleRange;
 import net.jqwik.api.constraints.Scale;
 
+/** Functional spec §6.1, §6.2. */
 class GuardPosturePropertiesTest {
     // jqwik refuses static @Group classes, so ClassCanBeStatic cannot apply.
     @Group

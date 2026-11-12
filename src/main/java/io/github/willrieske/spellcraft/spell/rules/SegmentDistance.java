@@ -3,6 +3,8 @@ package io.github.willrieske.spellcraft.spell.rules;
 /**
  * The distance from a point to a line segment: how close a friend stands to an arrow's flight (Evoking II Part 3 spec
  * §4.3 "Friendly fire"). Coordinates are plain doubles so this class needs no Minecraft types.
+ *
+ * <p>Functional spec §8.7.
  */
 public final class SegmentDistance {
     /** A segment whose squared length is below this counts as a single point. */

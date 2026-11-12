@@ -29,6 +29,8 @@ import net.minecraft.world.phys.Vec3;
  * Bound Vex GameTests (Evoking II Part 3 spec §2, §8): the post, the hover and the stay area. Every test flies a vex
  * or places hostiles several blocks out, so each registers through {@code FangGameTests.addPadded} (padding 13).
  * Shared constants and helpers live in {@link BoundVexTestSupport}.
+ *
+ * <p>Functional spec §6.4, §7.1, §7.5.
  */
 public final class BoundVexStayGameTests {
     private BoundVexStayGameTests() {}
@@ -85,6 +87,8 @@ public final class BoundVexStayGameTests {
      * then hang there: over the next sixty ticks it never leaves the tolerance (no wander).
      *
      * <p>Method under test: {@code BoundVex.HoldPostGoal}, through the goal selector
+     *
+     * <p>Functional spec §6.4.
      */
     static void returnsToItsPostAndHovers(GameTestHelper helper) {
         // Arrange
@@ -114,6 +118,8 @@ public final class BoundVexStayGameTests {
      * so a long flight's coast does not make it overshoot and wobble by up to half a block unnoticed.
      *
      * <p>Method under test: {@code BoundVex.HoldPostGoal}, through the goal selector
+     *
+     * <p>Functional spec §6.4.
      */
     static void returnsFromFarAndSettles(GameTestHelper helper) {
         // Arrange
@@ -187,6 +193,8 @@ public final class BoundVexStayGameTests {
      *
      * <p>Method under test: {@code NearestHostileGoal}, through {@link BoundVex#inGuardArea} and
      * {@link BoundVex#guardArea}
+     *
+     * <p>Functional spec §6.4, §7.1.
      */
     static void attacksAHostileInsideTheArea(GameTestHelper helper) {
         // Arrange
@@ -206,6 +214,8 @@ public final class BoundVexStayGameTests {
      * forty ticks: it is outside the 13-block stay area.
      *
      * <p>Method under test: {@code NearestHostileGoal}, through {@link BoundVex#inGuardArea}
+     *
+     * <p>Functional spec §6.4, §7.1.
      */
     static void ignoresAHostileOutsideTheArea(GameTestHelper helper) {
         // Arrange
@@ -230,6 +240,8 @@ public final class BoundVexStayGameTests {
      * the two swap.
      *
      * <p>Method under test: {@link BoundVex#inGuardArea}
+     *
+     * <p>Functional spec §6.4, §7.1.
      */
     static void areaIsMeasuredFromThePostNotTheVex(GameTestHelper helper) {
         // Arrange
@@ -257,6 +269,8 @@ public final class BoundVexStayGameTests {
      * drop it within thirty ticks: it left the stay area.
      *
      * <p>Method under test: {@link BoundVex#keepsTarget}, through {@code ScanTargetGoal.canContinueToUse}
+     *
+     * <p>Functional spec §6.4, §7.5.
      */
     static void dropsATargetThatLeavesTheArea(GameTestHelper helper) {
         // Arrange
@@ -280,6 +294,8 @@ public final class BoundVexStayGameTests {
      * blocks away) and stay is switched off, should drop it within thirty ticks: beyond the following reach of 7.25.
      *
      * <p>Method under test: {@link BoundVex#keepsTarget}, through {@code ScanTargetGoal.canContinueToUse}
+     *
+     * <p>Functional spec §7.5.
      */
     static void stayOffDropsAFarTarget(GameTestHelper helper) {
         // Arrange

@@ -12,6 +12,8 @@ import net.minecraft.world.entity.ai.goal.Goal;
  * start, so {@link VexRescues} conjures then, and this goal conjures again if the preempted job's {@code stop}
  * dismisses it; a job that held the hand gives it back in its {@code stop} and the item follows here. A vex with no
  * AI never runs this goal; {@link VexRescues} conjures for it at the tail's start.
+ *
+ * <p>Functional spec §10.1.
  */
 final class RescueGoal extends Goal {
     /** The rescuing vex. */

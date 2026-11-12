@@ -13,9 +13,11 @@ import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.scores.PlayerTeam;
 
 /**
- * The vex summon (Evoking spec §6, Evoking II §3.1–§3.2): Bound Vexes beside the summoner, marked with the
+ * The vex summon (Evoking I spec §6, Evoking II §3.1–§3.2): Bound Vexes beside the summoner, marked with the
  * summoner attachment, with no life limit. How many is the caster's call ({@code VexCap}); the goals are the mob's
  * own.
+ *
+ * <p>Functional spec §5.1, §5.2, §12.1.
  */
 public final class VexSummons {
     private VexSummons() {}
@@ -34,7 +36,7 @@ public final class VexSummons {
     /**
      * Summons {@code count} Bound Vexes beside {@code summoner}: random ring cells one block up, iron swords from
      * {@code finalizeSpawn}, the summoner's team if it has one, the summoner mark, a bound origin at the cell. Each vex
-     * is rolled a Caster 1 in 3.
+     * is rolled a Caster 1 in 3. Functional spec §5.1, §12.1.
      *
      * @param level the level to summon in
      * @param summoner the player who summons them

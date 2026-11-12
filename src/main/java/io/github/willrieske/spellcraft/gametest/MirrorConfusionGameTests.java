@@ -20,6 +20,8 @@ import net.minecraft.world.entity.monster.zombie.Husk;
 
 /**
  * GameTests of the Mirror confusion (Parts 6-7 spec §7.2: 13 of 14, any mob, never a golem onto a player's images).
+ *
+ * <p>Functional spec §13.4.
  */
 public final class MirrorConfusionGameTests {
     private MirrorConfusionGameTests() {}

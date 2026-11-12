@@ -38,21 +38,23 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 
 /**
- * The fang cast (Evoking spec §5 as amended by Evoking II §2.2): at the press, the square ahead of the caster, the
+ * The fang cast (Evoking I spec §5 as amended by Evoking II §2.2): at the press, the square ahead of the caster, the
  * block columns every target in it covers, and the floor under each; one warmup later, a vanilla {@link EvokerFangs}
  * on each of those spots, placed the way the evoker places its own. A fang remembers its target: when it bites and the
  * target has stepped off its columns, one more fang (a chase fang, which chases nothing itself) rises under the
  * target's new footprint. Also the guard that keeps a player's fangs off the player's summons (spec §3).
+ *
+ * <p>Functional spec §2.4, §3.1, §3.2, §3.3, §3.4, §3.5, §3.6, §4.2, §4.7.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class Fangs {
-    /** How far below the caster's feet the target scan reaches: fourteen blocks. */
+    /** How far below the caster's feet the target scan reaches: fourteen blocks. Functional spec §3.1. */
     public static final int SCAN_DEPTH = 14;
 
-    /** How far above the caster's feet the target scan reaches: six blocks. */
+    /** How far above the caster's feet the target scan reaches: six blocks. Functional spec §3.1. */
     public static final int SCAN_HEIGHT = 6;
 
-    /** A chase fang follows a target at most this far from the caster. */
+    /** A chase fang follows a target at most this far from the caster. Functional spec §3.6. */
     public static final double CHASE_RANGE = 16.0;
 
     /**
@@ -62,7 +64,7 @@ public final class Fangs {
      */
     public static final int BITE_TICK = 8;
 
-    /** The evoker's floor window around one target's feet: one block up, two down. */
+    /** The evoker's floor window around one target's feet: one block up, two down. Functional spec §3.4. */
     private static final int FLOOR_UP = 1;
 
     private static final int FLOOR_DOWN = 2;
@@ -87,6 +89,7 @@ public final class Fangs {
 
     /**
      * What the press fixed (spec §2.2): the fangs are placed from this, not from where anything has walked to.
+     * Functional spec §3.4, §3.5.
      *
      * @param dimension the level the caster stood in
      * @param feet the caster's block; every fang of the cast faces away from it
@@ -123,7 +126,7 @@ public final class Fangs {
      * columns are the ones its bounding box covers ({@link FangFootprints#columns}) inside the square, the caster's
      * column excluded ({@link FangFootprints#inSquare}); each column with a floor in the window around the target's
      * feet is a spot, and a spot two targets share goes to the first (one fang per spot). A target over no floor, or
-     * whose spots are all taken, gets nothing.
+     * whose spots are all taken, gets nothing. Functional spec §3.1, §3.3, §3.4.
      */
     static Optional<Snapshot> snapshot(ServerLevel level, ServerPlayer caster) {
         BlockPos feet = caster.blockPosition();
@@ -171,6 +174,7 @@ public final class Fangs {
      * A target (spec glossary): an enemy a mob could attack, attackable, and neither the caster nor an ally. A player
      * counts only when the caster may harm that player ({@link ServerPlayer#canHarmPlayer}: the {@code pvp} game rule;
      * teammates are already spared by the ally rule), so fangs never start a cast whose bites vanilla would refuse.
+     * Functional spec §3.2, §4.2, §4.7.
      */
     // Entities compare by id (docs/api-notes.md §8); this asks "is it the caster".
     @SuppressWarnings("ReferenceEquality")
@@ -186,6 +190,7 @@ public final class Fangs {
      * Places the fangs of {@code snapshot}: one per spot, facing away from the caster's block at the press, no warmup
      * delay, each recorded for the chase. Nothing happens in another dimension than the snapshot's. Spots whose chunk
      * is not entity-ticking get none ({@link ServerLevel#isPositionEntityTicking}; no chunk is loaded or waited on).
+     * Functional spec §2.4, §3.4.
      *
      * @param level the level to place the fangs in
      * @param caster the owner of the fangs
@@ -208,7 +213,7 @@ public final class Fangs {
 
     /**
      * One fang on {@code spot}, delay 0, facing away from {@code feet}. Empty when the spot's chunk is not
-     * entity-ticking: a fang there would be saved with the chunk and bite later.
+     * entity-ticking: a fang there would be saved with the chunk and bite later. Functional spec §3.4, §3.5.
      */
     private static Optional<EvokerFangs> place(ServerLevel level, ServerPlayer caster, BlockPos feet, Spot spot) {
         int x = spot.column().x();
@@ -228,6 +233,7 @@ public final class Fangs {
     /**
      * The floor for a target whose feet are at block height {@code feetY}: {@link #findFloor} over the window from
      * {@link #FLOOR_UP} above to {@link #FLOOR_DOWN} below. The press and the chase share it so they search alike.
+     * Functional spec §3.4.
      */
     private static OptionalDouble floorUnder(ServerLevel level, Column column, int feetY) {
         return findFloor(level, column.x(), column.z(), feetY + FLOOR_UP, feetY - FLOOR_DOWN);
@@ -261,6 +267,7 @@ public final class Fangs {
      * caster, no ally, and standing on none of the columns of its own footprint at the press, one fang rises under
      * each column of the target's current footprint that has a floor, with no record. One chase per target per cast:
      * the first of a footprint's fangs to reach the bite tick settles it, whether or not a fang is placed.
+     * Functional spec §3.6.
      *
      * <p>The caster's absence ({@code getPlayerByUUID} returning null) ends the chase quietly; that exit is covered
      * by reasoning only, not by a GameTest.
@@ -342,6 +349,7 @@ public final class Fangs {
      * A player's fangs never bite the player's allies (spec §3). Vanilla already skips {@code isAlliedTo} allies; this
      * adds the summoner path (a vex the player called is no vanilla ally of the player). A fang whose caster has since
      * logged out has no owner and bites like a vanilla ownerless fang; accepted (a one-second window).
+     * Functional spec §3.5, §4.2.
      *
      * @param event the incoming-damage event for any living entity
      */

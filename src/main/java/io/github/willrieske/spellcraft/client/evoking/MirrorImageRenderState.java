@@ -5,6 +5,8 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The render state of a Mirror image: the stand-in's own render state, drawn by the dispatcher (Parts 6-7 spec §7.2).
+ *
+ * <p>Functional spec §13.2.
  */
 public final class MirrorImageRenderState extends EntityRenderState {
     /** The state of the stand-in for this frame, or null when no stand-in could be made. */

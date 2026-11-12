@@ -12,6 +12,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+/** Functional spec §14.2, §14.6, §14.7. */
 class GrantedAbilitiesTest {
     /** The plan that changes nothing and keeps no mark. */
     private static final Plan NOTHING = new Plan(false, false, false, false, false, false);

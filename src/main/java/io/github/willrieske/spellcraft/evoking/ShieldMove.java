@@ -14,12 +14,14 @@ import net.minecraft.world.phys.Vec3;
  * apply), knockback 1.5 away from the vex, the shield-block sound at the enemy, a swing. A lunge that has not landed
  * after 40 ticks gives up. After either it flies off to 6 blocks and holds there, looking at the enemy, until the
  * clock is ready.
+ *
+ * <p>Functional spec §11.8.
  */
 final class ShieldMove {
-    /** Beyond this many blocks from the enemy a member flies in at half speed. */
+    /** Beyond this many blocks from the enemy a member flies in at half speed. Functional spec §11.8. */
     static final double APPROACH_RANGE = 7.0;
 
-    /** A member that has bashed (or given up) flies off to this distance and holds there. */
+    /** A member that has bashed (or given up) flies off to this distance and holds there. Functional spec §11.8. */
     static final double BACK_OFF = 6.0;
 
     /**
@@ -31,13 +33,13 @@ final class ShieldMove {
     /** A lunging member bashes when its box is within this many blocks of the enemy's box. */
     static final double BASH_REACH = 1.5;
 
-    /** Health a bash takes. */
+    /** Health a bash takes. Functional spec §11.8. */
     static final float BASH_DAMAGE = 4.0F;
 
     /** Knockback power of a bash. */
     static final double BASH_KNOCKBACK = 1.5;
 
-    /** Ticks between one member's bashes, and the longest a lunge may last. */
+    /** Ticks between one member's bashes, and the longest a lunge may last. Functional spec §11.8. */
     static final int BASH_INTERVAL = 40;
 
     private ShieldMove() {}

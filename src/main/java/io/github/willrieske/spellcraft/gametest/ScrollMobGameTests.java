@@ -44,7 +44,11 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.EventHooks;
 
-/** GameTests of the mobs that carry scrolls (Parts 6-7 spec §8) and the Ghostrail chase goal (§7.3). */
+/**
+ * GameTests of the mobs that carry scrolls (Parts 6-7 spec §8) and the Ghostrail chase goal (§7.3).
+ *
+ * <p>Functional spec §14.8, §15.1, §15.2, §15.3.
+ */
 final class ScrollMobGameTests {
     /** The environment of the tests that script {@link Dice#SCROLL_MOB}. */
     private static final String DICE = "scroll_mob_dice";
@@ -131,6 +135,8 @@ final class ScrollMobGameTests {
      * offhand.
      *
      * <p>Method under test: {@code ScrollMobs.onFinalizeSpawn}
+     *
+     * <p>Functional spec §15.1.
      */
     static void evokerSpawn(GameTestHelper helper) {
         // Arrange
@@ -147,6 +153,8 @@ final class ScrollMobGameTests {
      * When an evoker spawns with a scroll, should the offhand drop chance be 0.5.
      *
      * <p>Method under test: {@code ScrollMobs.onFinalizeSpawn}
+     *
+     * <p>Functional spec §15.3.
      */
     static void dropChanceIsHalf(GameTestHelper helper) {
         // Arrange
@@ -162,6 +170,8 @@ final class ScrollMobGameTests {
      * When the dice roll 0 then 1 for a pillager, should it spawn with a Ghostrail scroll in its offhand.
      *
      * <p>Method under test: {@code ScrollMobs.onFinalizeSpawn}
+     *
+     * <p>Functional spec §15.1.
      */
     static void pillagerGhostrail(GameTestHelper helper) {
         // Arrange
@@ -178,6 +188,8 @@ final class ScrollMobGameTests {
      * When the evoker's carry die rolls its last side (3), should the evoker carry nothing, and the die be 4-sided.
      *
      * <p>Method under test: {@code ScrollMobs.onFinalizeSpawn}
+     *
+     * <p>Functional spec §15.1.
      */
     static void evokerRollIsOneInFour(GameTestHelper helper) {
         // Arrange
@@ -195,6 +207,8 @@ final class ScrollMobGameTests {
      * 10-sided.
      *
      * <p>Method under test: {@code ScrollMobs.onFinalizeSpawn}
+     *
+     * <p>Functional spec §15.1.
      */
     static void pillagerRollIsOneInTen(GameTestHelper helper) {
         // Arrange
@@ -211,6 +225,8 @@ final class ScrollMobGameTests {
      * When an evoker with a Mirror scroll takes a target, should it get Mirror at once with 13 images of itself.
      *
      * <p>Method under test: {@code ScrollMobs.onChangeTarget}
+     *
+     * <p>Functional spec §15.2.
      */
     static void castsMirror(GameTestHelper helper) {
         // Arrange
@@ -230,6 +246,8 @@ final class ScrollMobGameTests {
      * a second time.
      *
      * <p>Method under test: {@code ScrollMobs.onChangeTarget}
+     *
+     * <p>Functional spec §15.2.
      */
     static void cooldownHolds(GameTestHelper helper) {
         // Arrange
@@ -252,6 +270,8 @@ final class ScrollMobGameTests {
      * cooldown end 600 ticks from now.
      *
      * <p>Method under test: {@code ScrollMobs.onChangeTarget}
+     *
+     * <p>Functional spec §14.8, §15.2.
      */
     static void castsGhostrail(GameTestHelper helper) {
         // Arrange
@@ -277,6 +297,8 @@ final class ScrollMobGameTests {
      * cast nothing.
      *
      * <p>Method under test: {@code ScrollMobs.onChangeTarget}: only the three raiders cast
+     *
+     * <p>Functional spec §15.2.
      */
     static void onlyRaidersCast(GameTestHelper helper) {
         // Arrange
@@ -297,6 +319,8 @@ final class ScrollMobGameTests {
      * the cast's game time plus 600 and the second target change cast nothing.
      *
      * <p>Method under test: {@code ScrollMobs.onChangeTarget}: the 600-tick cooldown
+     *
+     * <p>Functional spec §15.2.
      */
     static void ghostrailCooldownIs600(GameTestHelper helper) {
         // Arrange
@@ -325,6 +349,8 @@ final class ScrollMobGameTests {
      * When a pillager loses its target after a cast and the cooldown is over, should it cast on the next target.
      *
      * <p>Method under test: {@code ScrollMobs.onChangeTarget}: a lost target is a new fight
+     *
+     * <p>Functional spec §15.2.
      */
     static void castsOnTheNextTarget(GameTestHelper helper) {
         // Arrange
@@ -369,6 +395,8 @@ final class ScrollMobGameTests {
      * When a player kills an evoker that carries a scroll, should the scroll drop.
      *
      * <p>Method under test: {@code ScrollMobs}: the offhand scroll is the player-kill loot
+     *
+     * <p>Functional spec §15.3.
      */
     static void dropsOnAPlayerKill(GameTestHelper helper) {
         // Arrange
@@ -385,6 +413,8 @@ final class ScrollMobGameTests {
      * When something other than a player kills an evoker that carries a scroll, should the scroll not drop.
      *
      * <p>Method under test: {@code ScrollMobs}: the offhand scroll is the player-kill loot
+     *
+     * <p>Functional spec §15.3.
      */
     static void keepsItOnAnotherKill(GameTestHelper helper) {
         // Arrange
@@ -401,6 +431,8 @@ final class ScrollMobGameTests {
      * When an evoker with an empty offhand takes a target, should it cast neither spell.
      *
      * <p>Method under test: {@code ScrollMobs.onChangeTarget}
+     *
+     * <p>Functional spec §15.2.
      */
     static void noScrollNoCast(GameTestHelper helper) {
         // Arrange
@@ -419,6 +451,8 @@ final class ScrollMobGameTests {
      * and the cooldown cleared.
      *
      * <p>Method under test: {@code ScrollMobs.onChangeTarget}
+     *
+     * <p>Functional spec §15.2.
      */
     static void noRecastOnASwitch(GameTestHelper helper) {
         // Arrange
@@ -443,6 +477,8 @@ final class ScrollMobGameTests {
      * burst, and the evoker keep the scroll.
      *
      * <p>Method under test: {@code ScrollMobs.onChangeTarget}
+     *
+     * <p>Functional spec §15.2.
      */
     static void soundBurstAndScroll(GameTestHelper helper) {
         // Arrange
@@ -520,6 +556,8 @@ final class ScrollMobGameTests {
      * the target through the wall and end up within 2 blocks of it.
      *
      * <p>Method under test: {@code GhostrailChaseGoal}
+     *
+     * <p>Functional spec §14.8.
      */
     static void chasesThroughAWall(GameTestHelper helper) {
         // Arrange

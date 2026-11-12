@@ -44,6 +44,8 @@ import net.minecraft.world.scores.Scoreboard;
  *
  * <p>Every test that lights a flame in the level's ledger forgets its owner at the end ({@link #forget}): the tests
  * share one level, and a leftover entry at a reused structure position would otherwise be another test's business.
+ *
+ * <p>Functional spec §4.1, §4.2.
  */
 public final class TrailGameTests {
     /** Relative positions in the 3×3×3 structure: four standing spots at y = 1, each over its own floor block. */
@@ -280,6 +282,8 @@ public final class TrailGameTests {
     /**
      * Puts the owner on a team, so it runs in the {@code team_mutation} batch (shared with G23; both bodies are
      * synchronous, so neither sees the other's team) and removes the team after.
+     *
+     * <p>Functional spec §4.1, §4.2.
      */
     static void g7SparesOwnerAndAllies(GameTestHelper helper) {
         floors(helper);
@@ -310,7 +314,11 @@ public final class TrailGameTests {
         helper.succeed();
     }
 
-    /** The owner has no team here, so only the tame-ownership path can spare the pet. */
+    /**
+     * The owner has no team here, so only the tame-ownership path can spare the pet.
+     *
+     * <p>Functional spec §4.1, §4.2.
+     */
     static void g7bSparesATamedPet(GameTestHelper helper) {
         floors(helper);
         ServerPlayer owner = trailingPlayer(helper);
@@ -330,6 +338,8 @@ public final class TrailGameTests {
      * has no team and no owner, so only the attachment can spare it.
      *
      * <p>Method under test: {@link TrailFires#isSpared}, through {@link AllyAttachments#SUMMONER}
+     *
+     * <p>Functional spec §4.1, §4.2.
      */
     static void g7dSparesASummonedMob(GameTestHelper helper) {
         // Arrange
@@ -356,6 +366,8 @@ public final class TrailGameTests {
     /**
      * An allay has no team and is not an {@code OwnableEntity}, yet vanilla allies it to the player it likes
      * ({@code Allay.considersEntityAsAlly}); guards the {@code isSpared} fast path.
+     *
+     * <p>Functional spec §4.1, §4.2.
      */
     static void g7cSparesALikedAllay(GameTestHelper helper) {
         floors(helper);

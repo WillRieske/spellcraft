@@ -31,7 +31,11 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-/** GameTests of the Multishot team move (Parts 6-7 spec section 4.2). */
+/**
+ * GameTests of the Multishot team move (Parts 6-7 spec section 4.2).
+ *
+ * <p>Functional spec §11.9.
+ */
 final class BoundVexTeamMoveMultishotGameTests {
     private BoundVexTeamMoveMultishotGameTests() {}
 

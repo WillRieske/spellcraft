@@ -6,6 +6,8 @@ import java.util.Objects;
 /**
  * Scribing's draw (spec §5): roll the option's top-tier chance, then pick evenly within the chosen pool. An
  * empty pool falls back to the other one.
+ *
+ * <p>Functional spec §1.2, §13.1, §14.1.
  */
 public final class ScrollDraw {
     /** The enchanting table's three options; option {@code n} costs {@code n + 1} lapis and levels. */

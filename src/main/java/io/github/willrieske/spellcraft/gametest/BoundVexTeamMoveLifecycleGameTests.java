@@ -40,7 +40,11 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
-/** GameTests of how a team move runs and ends (Parts 6-7 spec section 2.5). */
+/**
+ * GameTests of how a team move runs and ends (Parts 6-7 spec section 2.5).
+ *
+ * <p>Functional spec §8.12, §11.6, §11.7.
+ */
 final class BoundVexTeamMoveLifecycleGameTests {
     private BoundVexTeamMoveLifecycleGameTests() {}
 
@@ -146,6 +150,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * message, the Shield cooling.
      *
      * <p>Method under test: {@link TeamMoves#tick}: the enemy-dead rule
+     *
+     * <p>Functional spec §11.6.
      */
     static void enemyDies(GameTestHelper helper) {
         // Arrange
@@ -166,6 +172,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * When the move enemy is removed from the level, should the next tick end the move.
      *
      * <p>Method under test: {@link TeamMoves#tick}: the enemy-removed rule
+     *
+     * <p>Functional spec §11.6.
      */
     static void enemyRemoved(GameTestHelper helper) {
         // Arrange
@@ -185,6 +193,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * is loaded) the next tick should end it.
      *
      * <p>Method under test: {@link TeamMoves#tick}: the 48-block rule
+     *
+     * <p>Functional spec §11.6.
      */
     static void enemyBeyond48(GameTestHelper helper) {
         // Arrange
@@ -206,6 +216,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * When 2399 ticks have passed, should the move still run; one more tick and it should end (the limit is 2400).
      *
      * <p>Method under test: {@link TeamMoves#tick}: the time limit
+     *
+     * <p>Functional spec §11.6.
      */
     static void timeLimit(GameTestHelper helper) {
         // Arrange
@@ -226,6 +238,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * start cooling.
      *
      * <p>Method under test: {@link TeamMoves#tick}: the Evader time limit
+     *
+     * <p>Functional spec §11.6.
      */
     static void evaderTimeLimit(GameTestHelper helper) {
         // Arrange
@@ -249,6 +263,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * When the ward of an Evader is healed to half health, should the next tick end the move.
      *
      * <p>Method under test: {@link TeamMoves#tick}: the ward-healed rule
+     *
+     * <p>Functional spec §11.6.
      */
     static void wardHealed(GameTestHelper helper) {
         // Arrange
@@ -273,6 +289,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * When every member dies, should the next tick end the move with the husk still alive.
      *
      * <p>Method under test: {@link TeamMoves#tick}: the empty-roster rule
+     *
+     * <p>Functional spec §11.6.
      */
     static void rosterEmpty(GameTestHelper helper) {
         // Arrange
@@ -293,6 +311,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * When the summoner dies (a dead player is still ticked), should the next tick end the move.
      *
      * <p>Method under test: {@link TeamMoves#tick}: the summoner-absent rule
+     *
+     * <p>Functional spec §11.6.
      */
     static void summonerDies(GameTestHelper helper) {
         // Arrange
@@ -312,6 +332,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * When the summoner turns spectator, should the next tick end the move.
      *
      * <p>Method under test: {@link TeamMoves#tick}: the summoner-absent rule
+     *
+     * <p>Functional spec §11.6.
      */
     static void summonerSpectates(GameTestHelper helper) {
         // Arrange
@@ -331,6 +353,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * lifted past the 16-block follow range, stay behind alive in the test level) and end the move.
      *
      * <p>Method under test: {@link TeamMoves#tick}: members in another level leave the roster
+     *
+     * <p>Functional spec §11.6.
      */
     static void summonerChangesLevel(GameTestHelper helper) {
         // Arrange
@@ -354,6 +378,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * Evader still be able to start.
      *
      * <p>Method under test: {@link TeamMoves#tick}, {@link TeamMoves#start}: the 30-second cooldown
+     *
+     * <p>Functional spec §11.6.
      */
     static void cooldownPerKind(GameTestHelper helper) {
         // Arrange
@@ -376,6 +402,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * dropped, with no cooldown remembered.
      *
      * <p>Method under test: {@link TeamMoves#onLogout}
+     *
+     * <p>Functional spec §11.6.
      */
     static void logoutReleasesKits(GameTestHelper helper) {
         // Arrange
@@ -400,6 +428,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * roster while the move goes on.
      *
      * <p>Method under test: {@link TeamMoves#tick}: pruning the roster; {@code BoundVex#dropCustomDeathLoot}
+     *
+     * <p>Functional spec §8.12, §11.7.
      */
     static void deadMemberDropsNoKit(GameTestHelper helper) {
         // Arrange
@@ -503,6 +533,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * cooling.
      *
      * <p>Method under test: {@link TeamMoves#tick}: the ward-dead rule (spec section 2.5)
+     *
+     * <p>Functional spec §11.6.
      */
     static void wardDies(GameTestHelper helper) {
         // Arrange
@@ -528,6 +560,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * kind can start again).
      *
      * <p>Method under test: {@link TeamMoves#age}, {@link TeamMoves#cooling}: the 30-second cooldown ends
+     *
+     * <p>Functional spec §11.6.
      */
     static void cooldownLastsThirtySeconds(GameTestHelper helper) {
         // Arrange
@@ -630,6 +664,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * tick drop it from the roster and the move go on with the others.
      *
      * <p>Method under test: {@link TeamMoves#tick}: pruning a member that is no longer marked
+     *
+     * <p>Functional spec §11.7.
      */
     static void memberMarkedNoneIsDropped(GameTestHelper helper) {
         // Arrange
@@ -653,6 +689,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * drop it from the roster (the level cannot find it) and the move go on.
      *
      * <p>Method under test: {@link TeamMoves#tick}: pruning a member the level cannot find
+     *
+     * <p>Functional spec §11.7.
      */
     static void removedMemberIsDropped(GameTestHelper helper) {
         // Arrange
@@ -705,6 +743,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * go on with the other two.
      *
      * <p>Method under test: {@link TeamMoves#tick}: pruning; {@code BoundVex#dropCustomDeathLoot} for a Multishot kit
+     *
+     * <p>Functional spec §8.12, §11.7.
      */
     static void multishotContinuesAndDropsNoKit(GameTestHelper helper) {
         membersDieAndTheMoveGoesOn(helper, TeamMove.MULTISHOT, 3, bigHusk(helper, beside(helper)), 1);
@@ -715,6 +755,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * or armor piece, and the Raid go on with the other seven.
      *
      * <p>Method under test: {@link TeamMoves#tick}: pruning; {@code BoundVex#dropCustomDeathLoot} for a Raid kit
+     *
+     * <p>Functional spec §8.12, §11.7.
      */
     static void raidContinuesAndDropsNoKit(GameTestHelper helper) {
         membersDieAndTheMoveGoesOn(helper, TeamMove.RAID, 12, foe(helper, EntityTypes.RAVAGER, beside(helper)), 5);
@@ -732,6 +774,8 @@ final class BoundVexTeamMoveLifecycleGameTests {
      * should its team-move goal run again with the kit still on.
      *
      * <p>Method under test: {@link TeamMoveGoal} against {@code FleeCreeperGoal}, in the real goal selector
+     *
+     * <p>Functional spec §11.7.
      */
     static void fleeKeepsTheKitAndResumes(GameTestHelper helper) {
         // Arrange (full-AI vexes, so the selector decides)

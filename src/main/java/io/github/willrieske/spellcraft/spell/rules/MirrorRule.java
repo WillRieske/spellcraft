@@ -1,23 +1,27 @@
 package io.github.willrieske.spellcraft.spell.rules;
 
-/** The numbers of Mirror (Parts 6-7 spec §7.2). */
+/**
+ * The numbers of Mirror (Parts 6-7 spec §7.2).
+ *
+ * <p>Functional spec §13.1, §13.2, §13.3, §13.4, §13.6.
+ */
 public final class MirrorRule {
-    /** Images a Mirror makes. */
+    /** Images a Mirror makes. Functional spec §13.2. */
     public static final int IMAGES = 13;
 
-    /** Sides of the confusion die: a roll of 0 to 13. */
+    /** Sides of the confusion die: a roll of 0 to 13. Functional spec §13.4. */
     public static final int CONFUSION_BOUND = 14;
 
-    /** Ticks an image lives on its own (6 minutes). */
+    /** Ticks an image lives on its own (6 minutes). Functional spec §13.6. */
     public static final int LIFE_TICKS = 7200;
 
-    /** Ticks a Mirror effect lasts (6 minutes). */
+    /** Ticks a Mirror effect lasts (6 minutes). Functional spec §13.1. */
     public static final int DURATION_TICKS = 7200;
 
-    /** How far from its carrier an image wanders. */
+    /** How far from its carrier an image wanders. Functional spec §13.3. */
     public static final double WANDER_RADIUS = 6.0;
 
-    /** A mob picking a carrier is confused only by images this close to the carrier. */
+    /** A mob picking a carrier is confused only by images this close to the carrier. Functional spec §13.4. */
     public static final double CONFUSION_RANGE = 16.0;
 
     private MirrorRule() {}

@@ -30,34 +30,39 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
  * each request, keeps every player's pure {@link EvokingCast} timers, and performs the pending spell on the player tick
  * once its warmup has passed. The map is transient, like {@code TrailLayer}'s trackers: dropped on logout and when the
  * server stops, so a relog forgets cooldowns.
+ *
+ * <p>Functional spec §1.4, §2.2, §2.3, §2.4, §2.6, §3.3, §5.3, §5.4.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class EvokingCaster {
     /** What a request did. Only {@code STARTED} starts a cast. */
     public enum Request {
-        /** No Evoking, dead, or a spectator. */
+        /** No Evoking, dead, or a spectator. Functional spec §2.6. */
         IGNORED,
-        /** Another cast's arms are still up. */
+        /** Another cast's arms are still up. Functional spec §2.3. */
         BUSY,
-        /** This spell's interval has not passed. */
+        /** This spell's interval has not passed. Functional spec §2.3. */
         COOLING,
-        /** Fangs with nothing to bite: only the notice, one warmup later. */
+        /** Fangs with nothing to bite: only the notice, one warmup later. Functional spec §3.3. */
         NO_TARGETS,
-        /** Vexes on Peaceful, where the Bound Vex type cannot be created: only the notice, at once; no cooldown. */
+        /**
+         * Vexes on Peaceful, where the Bound Vex type cannot be created: only the notice, at once; no cooldown.
+         * Functional spec §5.4.
+         */
         PEACEFUL,
-        /** Vexes at the cap of twelve: only the notice, at once; no cast, no cooldown. */
+        /** Vexes at the cap of twelve: only the notice, at once; no cast, no cooldown. Functional spec §5.3. */
         CAPPED,
         /** The cast started. */
         STARTED
     }
 
-    /** Lang key of the action-bar notice. */
+    /** Lang key of the action-bar notice. Functional spec §3.3. */
     public static final String NO_TARGETS_KEY = "message.spellcraft.no_targets";
 
-    /** Lang key of the notice for a vex request on Peaceful. */
+    /** Lang key of the notice for a vex request on Peaceful. Functional spec §5.4. */
     public static final String PEACEFUL_KEY = "message.spellcraft.peaceful_vexes";
 
-    /** Lang key of the notice for a vex request at the cap. */
+    /** Lang key of the notice for a vex request at the cap. Functional spec §5.3. */
     public static final String TOO_MANY_KEY = "message.spellcraft.too_many_vexes";
 
     /** One player's timers and, for a pending fang cast, the snapshot taken at the press. */
@@ -79,6 +84,7 @@ public final class EvokingCaster {
      * notice at once and starts nothing; for vexes at the cap of twelve Bound Vexes, sends the too-many notice at once
      * and starts nothing; for fangs, scans for targets and schedules only the notice when there are none;
      * otherwise starts the cast (prepare sound, casting effect, timers).
+     * Functional spec §2.2, §2.3, §2.6, §3.3, §5.3, §5.4.
      *
      * @param player the server-side player who pressed the key
      * @param spell the spell whose key was pressed
@@ -139,6 +145,7 @@ public final class EvokingCaster {
     /**
      * One step for {@code player}: drops the entry without Evoking, else performs the pending spell or sends the
      * no-targets notice once due. Public so GameTests can step without waiting for a tick.
+     * Functional spec §2.4, §3.3.
      *
      * @param player the server-side player to step
      */
@@ -166,7 +173,7 @@ public final class EvokingCaster {
     }
 
     /**
-     * Drops the entry of a player who left.
+     * Drops the entry of a player who left. Functional spec §2.4.
      *
      * @param event the logout event
      */
@@ -185,6 +192,7 @@ public final class EvokingCaster {
         CASTINGS.clear();
     }
 
+    // Functional spec §1.4, §2.2, §2.4
     private static void perform(ServerPlayer player, EvokerSpell spell, Casting casting) {
         if (!player.isAlive()) {
             return;

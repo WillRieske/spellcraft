@@ -34,6 +34,8 @@ import net.minecraft.world.phys.Vec3;
  * only plays its sound. The aim and the spawn follow the skeleton ({@code
  * AbstractSkeleton.performRangedAttack}) for arrows and the witch ({@code Witch.performRangedAttack}) for potions,
  * through the two {@code Projectile.spawnProjectileUsingShoot} helpers (docs/api-notes.md §22).
+ *
+ * <p>Functional spec §8.6, §8.7, §8.8, §8.10, §11.9, §11.11.
  */
 final class VexShots {
     /** Arrow launch speed: the skeleton's. */
@@ -63,17 +65,23 @@ final class VexShots {
     /** Rocket inaccuracy: a rocket is aimed tightly, since its one explosion does the damage. */
     static final float ROCKET_INACCURACY = 1.0F;
 
-    /** How close to the line of an arrow a friend's middle may be before the vex holds its fire (Part 3 spec §4.3). */
+    /**
+     * How close to the line of an arrow a friend's middle may be before the vex holds its fire (Part 3 spec §4.3).
+     * Functional spec §8.7.
+     */
     static final double LINE_CLEARANCE = 1.0;
 
-    /** How close to its target a friend may be before the vex holds back a splash potion (Part 3 spec §4.3). */
+    /**
+     * How close to its target a friend may be before the vex holds back a splash potion (Part 3 spec §4.3).
+     * Functional spec §8.7.
+     */
     static final double SPLASH_CLEARANCE = 4.0;
 
     private VexShots() {}
 
     /**
      * Shoots or throws a copy of the main-hand item at {@code at}; the held stack is untouched. Does nothing for an
-     * item that is not launchable, or on the client.
+     * item that is not launchable, or on the client. Functional spec §8.6, §8.8, §8.10.
      *
      * @param vex the shooter
      * @param at the target (an enemy, or a friend to heal)
@@ -115,7 +123,10 @@ final class VexShots {
         return new Vec3(at.getX(), at.getY(1.0 / 3.0), at.getZ());
     }
 
-    /** A volley: three plain arrows, loaded by hand, fired through the crossbow (Parts 6-7 spec §4.2). */
+    /**
+     * A volley: three plain arrows, loaded by hand, fired through the crossbow (Parts 6-7 spec §4.2).
+     * Functional spec §11.9.
+     */
     static void volley(BoundVex vex, LivingEntity at) {
         ItemStack weapon = vex.getMainHandItem();
         if (!(vex.level() instanceof ServerLevel level) || !(weapon.getItem() instanceof CrossbowItem crossbow)) {
@@ -135,7 +146,7 @@ final class VexShots {
      * hand is the kit item and the sound; the rocket itself is spawned the way {@link #shootArrow} spawns an arrow,
      * aimed straight at {@link #aimPoint}. {@code CrossbowItem.performShooting} with a target would lift the aim by a
      * fifth of the flat distance for an arrow's drop, and a rocket shot at an angle has no gravity, so it would fly
-     * that lifted line over a short enemy.
+     * that lifted line over a short enemy. Functional spec §11.11.
      */
     static void rocket(BoundVex vex, LivingEntity at) {
         if (!(vex.level() instanceof ServerLevel level)
@@ -171,7 +182,7 @@ final class VexShots {
      * point the arrow is aimed at ({@link #aimPoint}: the target's lower body, not its eyes); for a thrown potion, a
      * friend within {@link #SPLASH_CLEARANCE} of the target. Only the center line is checked: a Multishot volley fans
      * out to +-10 degrees, so a friend 1.2 to 1.5 blocks off the line at 7 blocks can stand in a flank arrow's path;
-     * the friendly-fire backstop cancels that damage, so such an arrow is wasted, not harmful.
+     * the friendly-fire backstop cancels that damage, so such an arrow is wasted, not harmful. Functional spec §8.7.
      */
     static boolean friendInTheWay(BoundVex vex, LivingEntity target) {
         return friendInTheWay(vex, target, Set.of());
@@ -217,7 +228,10 @@ final class VexShots {
         return SegmentDistance.distanceToSegment(point.x, point.y, point.z, a.x, a.y, a.z, b.x, b.y, b.z);
     }
 
-    /** The skeleton's aim: {@link #aimPoint}, lifted by a fifth of the flat distance for the arrow's drop. */
+    /**
+     * The skeleton's aim: {@link #aimPoint}, lifted by a fifth of the flat distance for the arrow's drop. The arrow
+     * cannot be picked up: Functional spec §8.6.
+     */
     private static void shootArrow(
             ServerLevel level, BoundVex vex, AbstractArrow arrow, ItemStack ammo, LivingEntity at) {
         Vec3 aim = aimPoint(at);

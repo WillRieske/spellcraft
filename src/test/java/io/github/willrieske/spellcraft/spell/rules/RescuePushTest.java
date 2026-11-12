@@ -7,6 +7,7 @@ import io.github.willrieske.spellcraft.spell.rules.RescuePush.Vector;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+/** Functional spec §10.3, §10.5, §10.6. */
 class RescuePushTest {
     private static final double EPS = 1.0e-9;
 

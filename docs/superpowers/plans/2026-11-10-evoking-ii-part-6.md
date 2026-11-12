@@ -6867,7 +6867,7 @@ git commit -m "feat(evoking): the Raid team move gathers in a grid, charges and 
 **Files:**
 
 - Modify: `README.md`, `src/main/templates/META-INF/neoforge.mods.toml`, `docs/playtest-checklist.md`, `docs/mutation-testing.md`, `docs/api-notes.md` (§25 corrections), `CLAUDE.md` (verify only; Task 8 changed it)
-- Modify: `docs/superpowers/specs/2026-11-10-evoking-ii-parts-6-7-design.md` (only the as-built sentences listed below)
+- Modify: `docs/superpowers/specs/evoking/2026-11-10-evoking-ii-parts-6-7-design.md` (only the as-built sentences listed below)
 - Modify: `src/test/java/…/spell/rules/TeamMoveRulesTest.java` and its siblings (the tests Step 4 adds to kill surviving mutants; the commit stages `src/test`)
 
 - [x] **Step 1: README**

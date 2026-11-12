@@ -26,6 +26,8 @@ import net.minecraft.world.phys.Vec3;
  * rescuer shows the apple as the tail. {@link VexRescues} is the dispatcher: it calls the hooks here from its tick, its
  * logout handler and its server-stop clear, and keeps the rescue itself. This class holds what only the catch needs:
  * the need test, the landing search with its pause, and the two per-player maps. All state is transient.
+ *
+ * <p>Functional spec §10.11.
  */
 final class VoidCatch {
     /** How far down a falling player is checked for ground. */

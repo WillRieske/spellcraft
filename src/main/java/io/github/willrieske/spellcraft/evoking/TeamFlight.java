@@ -8,12 +8,14 @@ import net.minecraft.world.phys.Vec3;
  * Flying and looking for the team moves: the vex's own move control, as the charge goal uses it (spec §4).
  * Public so the GameTests can check {@link #boxGap} and {@link #ringPoint}; {@code flyTo}, {@code lookAt} and the
  * speed constants stay package-private.
+ *
+ * <p>Functional spec §11.8.
  */
 public final class TeamFlight {
     /** The charge goal's speed modifier: "normal speed". */
     static final double NORMAL = 1.0;
 
-    /** Half of {@link #NORMAL}. */
+    /** Half of {@link #NORMAL}. Functional spec §11.8. */
     static final double HALF = 0.5;
 
     /** The push a vex gets toward its wanted point at speed 1.0, per tick (the move control's {@code 0.05}). */

@@ -41,6 +41,8 @@ import org.slf4j.Logger;
  * and when its two spells may be cast again. At most {@link GhostRecords#MAX} are kept; a new one drops the oldest.
  * Saved with the level; a ghost is the visit, the record is the memory. The spawner sends a {@link VillagerGhost}
  * from a record to a player in need.
+ *
+ * <p>Functional spec §16.1, §16.2, §16.5.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class VillagerGhosts extends SavedData {
@@ -89,10 +91,10 @@ public final class VillagerGhosts extends SavedData {
         }
     }
 
-    /** A record is only considered within this many blocks of the player. */
+    /** A record is only considered within this many blocks of the player. Functional spec §16.2. */
     static final double RANGE = 48.0;
 
-    /** Ticks between two checks of each player. */
+    /** Ticks between two checks of each player. Functional spec §16.2. */
     private static final int STEP_INTERVAL = 20;
 
     /** Logs the records a load skips. */
@@ -121,7 +123,7 @@ public final class VillagerGhosts extends SavedData {
             i -> i.group(LENIENT_RECORDS.fieldOf("records").forGetter(ghosts -> ghosts.records))
                     .apply(i, VillagerGhosts::new));
 
-    /** The saved-data type; one file per level. */
+    /** The saved-data type; one file per level. Functional spec §16.1, §16.5. */
     public static final SavedDataType<VillagerGhosts> TYPE =
             new SavedDataType<>(Spellcraft.id("villager_ghosts"), VillagerGhosts::new, CODEC);
 
@@ -162,7 +164,7 @@ public final class VillagerGhosts extends SavedData {
     }
 
     /**
-     * Adds a record, dropping the oldest past {@link GhostRecords#MAX}.
+     * Adds a record, dropping the oldest past {@link GhostRecords#MAX}. Functional spec §16.1.
      *
      * @param record the new record
      */
@@ -222,7 +224,7 @@ public final class VillagerGhosts extends SavedData {
     /**
      * A villager that dies to a monster (an {@code Enemy} that is not on a player's side) leaves a record. The event
      * fires before a zombie's conversion of the villager, which is why a villager a zombie then converts still leaves
-     * one.
+     * one. Functional spec §16.1.
      *
      * @param event the death event for any living entity
      */
@@ -259,6 +261,8 @@ public final class VillagerGhosts extends SavedData {
      * {@link #RANGE} blocks and its chunk ticks entities (a ghost added to a chunk that does not tick would never
      * move or fade); among the candidates with no ghost out, the nearest one with a ready spell is chosen, and only
      * when none is ready the nearest.
+     *
+     * <p>Functional spec §16.2.
      *
      * @param player a player
      */

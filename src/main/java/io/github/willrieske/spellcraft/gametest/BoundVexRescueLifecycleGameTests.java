@@ -33,6 +33,8 @@ import net.minecraft.world.phys.Vec3;
  * GameTests of a summoner who leaves a rescue unfinished: dying while it pulls them out of lava or while its tail
  * shows the bucket, and changing dimension at either moment. The rescue must be gone, the rescuer released and the
  * conjured bucket dismissed, and no vex may stay pinned to the summoner's side.
+ *
+ * <p>Functional spec §6.5.
  */
 public final class BoundVexRescueLifecycleGameTests {
     /** How many ticks after the lava rescue starts it is asserted to run. */
@@ -267,6 +269,8 @@ public final class BoundVexRescueLifecycleGameTests {
      * not be pulled to the side.
      *
      * <p>Method under test: {@code VexRescues.tick} and {@code VexRescues.holds}: a rescuer in another level
+     *
+     * <p>Functional spec §6.5.
      */
     static void changesDimensionMidPull(GameTestHelper helper) {
         // Arrange
@@ -296,6 +300,8 @@ public final class BoundVexRescueLifecycleGameTests {
      * rescue to keep, no vex keep the conjured bucket, and a vex put eight blocks away not be pulled to the side.
      *
      * <p>Method under test: {@code VexRescues.tick} and {@code VexRescues.holds}: a tail whose rescuer is gone
+     *
+     * <p>Functional spec §6.5.
      */
     static void changesDimensionMidTail(GameTestHelper helper) {
         // Arrange
@@ -327,6 +333,8 @@ public final class BoundVexRescueLifecycleGameTests {
      * is in another level, and take the conjured bucket away.
      *
      * <p>Method under test: {@code VexRescues.holds}: the level clause
+     *
+     * <p>Functional spec §6.5.
      */
     static void changesDimensionLeavingTheRescuerBehind(GameTestHelper helper) {
         // Arrange

@@ -53,6 +53,8 @@ import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
  * teleports, that need headroom, or that park many vexes register through {@code FangGameTests.addPadded}
  * (padding 13); the rest run inside the shared 3x3x3 box. Shared constants and helpers live in {@link
  * BoundVexTestSupport}.
+ *
+ * <p>Functional spec §4.7, §5.2, §6.2, §7.1, §7.2, §7.3, §7.4, §7.5, §7.6.
  */
 public final class BoundVexTargetGameTests {
     /**
@@ -356,6 +358,8 @@ public final class BoundVexTargetGameTests {
      * husk as its target and never the summoner.
      *
      * <p>Method under test: {@code NearestHostileGoal} (package-private), through the target selector
+     *
+     * <p>Functional spec §7.1, §7.4.
      */
     static void attacksAHostile(GameTestHelper helper) {
         // Arrange
@@ -379,6 +383,8 @@ public final class BoundVexTargetGameTests {
      * become the target (the control: the vex and its line of sight work here).
      *
      * <p>Method under test: {@code NearestHostileGoal} (package-private): its {@code Enemy} filter
+     *
+     * <p>Functional spec §7.1.
      */
     static void ignoresAPigButNotAHusk(GameTestHelper helper) {
         // Arrange
@@ -403,6 +409,8 @@ public final class BoundVexTargetGameTests {
      *
      * <p>Method under test: {@code NearestHostileGoal}'s creeper exclusion and {@code HurtBySummonerSideGoal}'s
      * own-hurt memory (both package-private)
+     *
+     * <p>Functional spec §7.1, §7.2.
      */
     static void ignoresACreeperUntilProvoked(GameTestHelper helper) {
         // Arrange
@@ -424,6 +432,8 @@ public final class BoundVexTargetGameTests {
      * When a husk hurts the summoner, should take the husk as its target.
      *
      * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the summoner's attacker
+     *
+     * <p>Functional spec §7.2.
      */
     static void targetsWhatHurtTheSummoner(GameTestHelper helper) {
         // Arrange
@@ -449,6 +459,8 @@ public final class BoundVexTargetGameTests {
      * its target even though a pig is not hostile.
      *
      * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the summoner's victim
+     *
+     * <p>Functional spec §7.2.
      */
     static void targetsWhatTheSummonerHit(GameTestHelper helper) {
         // Arrange
@@ -467,6 +479,8 @@ public final class BoundVexTargetGameTests {
      * When a husk hurts the summoner's tamed wolf inside the guard area, should take the husk as its target.
      *
      * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): an ally's attacker
+     *
+     * <p>Functional spec §7.2.
      */
     static void targetsWhatHurtAnAlly(GameTestHelper helper) {
         // Arrange
@@ -487,6 +501,8 @@ public final class BoundVexTargetGameTests {
      * When the summoner's tamed wolf inside the guard area has a husk as its target, should take that husk too.
      *
      * <p>Method under test: {@code AllyFightGoal} (package-private)
+     *
+     * <p>Functional spec §7.3.
      */
     static void joinsAnAllysFight(GameTestHelper helper) {
         // Arrange
@@ -509,6 +525,8 @@ public final class BoundVexTargetGameTests {
      * should be joined (the control: the goal works here).
      *
      * <p>Method under test: {@code BoundVex.huntable}, through {@code AllyFightGoal} (package-private)
+     *
+     * <p>Functional spec §7.3.
      */
     static void allyGoalSkipsACreeper(GameTestHelper helper) {
         allyGoalSkips(helper, calmCreeper(helper, PREY_SPOT));
@@ -521,6 +539,8 @@ public final class BoundVexTargetGameTests {
      *
      * <p>Method under test: {@code BoundVex.huntable}'s {@code Enemy} test, through {@code AllyFightGoal}
      * (package-private)
+     *
+     * <p>Functional spec §7.3.
      */
     static void allyGoalSkipsAPig(GameTestHelper helper) {
         allyGoalSkips(helper, pigHere(helper, PREY_SPOT));
@@ -560,6 +580,8 @@ public final class BoundVexTargetGameTests {
      *
      * <p>Method under test: {@code BoundVex.huntable}, through {@code NearestHostileGoal} (package-private); the
      * {@code pvp} rule is the server's default, which the setup asserts
+     *
+     * <p>Functional spec §4.7, §7.1, §7.2.
      */
     static void patrolIgnoresAnotherPlayersVex(GameTestHelper helper) {
         // Arrange
@@ -585,6 +607,8 @@ public final class BoundVexTargetGameTests {
      *
      * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the summoner's attacker, where the
      * attacker carries another player's mark and {@link BoundVex#isPrey(ServerLevel, UUID, LivingEntity)} allows it
+     *
+     * <p>Functional spec §4.7, §7.2.
      */
     static void answersAnotherPlayersVexThatHurtTheSummoner(GameTestHelper helper) {
         // Arrange
@@ -623,6 +647,8 @@ public final class BoundVexTargetGameTests {
      * sixteen blocks, and not to a sitting one.
      *
      * <p>Method under test: {@link BoundVex#setTarget}, through the target selector
+     *
+     * <p>Functional spec §7.6.
      */
     static void callsTheSummonersWolves(GameTestHelper helper) {
         // Arrange
@@ -651,6 +677,8 @@ public final class BoundVexTargetGameTests {
      * sphere).
      *
      * <p>Method under test: {@link BoundVex#setTarget}
+     *
+     * <p>Functional spec §7.6.
      */
     static void wolfCallSkipsTheWrongWolves(GameTestHelper helper) {
         // Arrange
@@ -692,6 +720,8 @@ public final class BoundVexTargetGameTests {
      * tick), should not call a wolf that has gone idle; clearing the target should call nobody either.
      *
      * <p>Method under test: {@link BoundVex#setTarget}
+     *
+     * <p>Functional spec §7.6.
      */
     static void wolfCallOnlyOnANewTarget(GameTestHelper helper) {
         // Arrange
@@ -719,6 +749,8 @@ public final class BoundVexTargetGameTests {
      * ({@code Wolf.wantsToAttack}); a husk taken next should call it (the control).
      *
      * <p>Method under test: {@link BoundVex#setTarget}
+     *
+     * <p>Functional spec §7.6.
      */
     static void wolfCallSkipsACreeper(GameTestHelper helper) {
         // Arrange
@@ -747,6 +779,8 @@ public final class BoundVexTargetGameTests {
      * the grudge and ally goals, which never call {@code super}, are tested below.
      *
      * <p>Method under test: {@code NearestHostileGoal.canContinueToUse} (package-private), through the target selector
+     *
+     * <p>Functional spec §7.5.
      */
     static void dropsATargetOutOfReach(GameTestHelper helper) {
         // Arrange: both outside the shared box, so the barrier shell is not in the way
@@ -770,6 +804,8 @@ public final class BoundVexTargetGameTests {
      * {@code keepsTarget}'s reach clause is the only distance bound it has.
      *
      * <p>Method under test: {@link BoundVex#keepsTarget}, through {@code HurtBySummonerSideGoal.canContinueToUse}
+     *
+     * <p>Functional spec §7.5.
      */
     static void dropsAGrudgeTargetOutOfReach(GameTestHelper helper) {
         // Arrange: both outside the shared box, so the barrier shell is not in the way
@@ -799,6 +835,8 @@ public final class BoundVexTargetGameTests {
      * calls {@code super}, so {@code keepsTarget}'s reach clause is the only distance bound it has.
      *
      * <p>Method under test: {@link BoundVex#keepsTarget}, through {@code AllyFightGoal.canContinueToUse}
+     *
+     * <p>Functional spec §7.5.
      */
     static void dropsAnAllyFightTargetOutOfReach(GameTestHelper helper) {
         // Arrange: both outside the shared box, so the barrier shell is not in the way
@@ -827,6 +865,8 @@ public final class BoundVexTargetGameTests {
      * should drop the target within a few ticks.
      *
      * <p>Method under test: {@link BoundVex#keepsTarget}, through {@code HurtBySummonerSideGoal.canContinueToUse}
+     *
+     * <p>Functional spec §7.5.
      */
     static void dropsANewAlly(GameTestHelper helper) {
         // Arrange
@@ -848,6 +888,8 @@ public final class BoundVexTargetGameTests {
      * once the mark is back, should take the husk (the control: the vex ticks and sees the husk).
      *
      * <p>Method under test: {@link BoundVex#isPrey(LivingEntity)}, through every target goal
+     *
+     * <p>Functional spec §5.2.
      */
     static void noSummonerNoTarget(GameTestHelper helper) {
         // Arrange
@@ -895,6 +937,8 @@ public final class BoundVexTargetGameTests {
      * limit is "older than 100", not "100 or older".
      *
      * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the freshness window
+     *
+     * <p>Functional spec §7.2.
      */
     static void ignoresAStaleMemory(GameTestHelper helper) {
         // Arrange: the mock summoner's clock advances by one each tick, so the test sets it back at the end of every
@@ -924,6 +968,8 @@ public final class BoundVexTargetGameTests {
      * own attacker: the first memory in the spec's order wins.
      *
      * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the memory order
+     *
+     * <p>Functional spec §7.2.
      */
     static void ownAttackerComesFirst(GameTestHelper helper) {
         // Arrange
@@ -973,6 +1019,8 @@ public final class BoundVexTargetGameTests {
      *
      * <p>Method under test: {@code BoundVex.alliesInGuardArea}, through {@code HurtBySummonerSideGoal} and
      * {@code AllyFightGoal}
+     *
+     * <p>Functional spec §7.2, §7.3.
      */
     static void ignoresAnAllyOutsideTheArea(GameTestHelper helper) {
         // Arrange: the husk is seven blocks north of the vex (within reach, outside the box), the wolf six
@@ -1010,6 +1058,8 @@ public final class BoundVexTargetGameTests {
      * with the wolf 3.9 blocks east, should take the husk.
      *
      * <p>Method under test: {@code BoundVex.alliesInGuardArea} (package-private): the feet test after the broad phase
+     *
+     * <p>Functional spec §7.2, §7.3.
      */
     static void ignoresAnAllyWhoseBoxOnlyTouchesTheArea(GameTestHelper helper) {
         // Arrange: the husk is five blocks north (within reach, outside the box)
@@ -1039,6 +1089,8 @@ public final class BoundVexTargetGameTests {
      * outside), should take no target over forty ticks; with the husk 3.9 blocks north, should take it.
      *
      * <p>Method under test: {@code NearestHostileGoal} (package-private): the feet test in its selector
+     *
+     * <p>Functional spec §7.1.
      */
     static void ignoresAHostileWhoseBoxOnlyTouchesTheArea(GameTestHelper helper) {
         // Arrange: the vex is outside the structure's barrier shell, which would block its sight
@@ -1064,6 +1116,8 @@ public final class BoundVexTargetGameTests {
      * the wall gone, should take the husk.
      *
      * <p>Method under test: {@code NearestHostileGoal} (package-private): its line-of-sight requirement
+     *
+     * <p>Functional spec §7.1.
      */
     static void patrolNeedsLineOfSight(GameTestHelper helper) {
         // Arrange: outside the barrier shell, a three-high wall between the vex and a husk three blocks north of it
@@ -1112,6 +1166,8 @@ public final class BoundVexTargetGameTests {
      * own checks do not catch it), should drop it.
      *
      * <p>Method under test: {@code NearestHostileGoal} (package-private): {@code canContinueToUse}
+     *
+     * <p>Functional spec §7.5.
      */
     static void patrolDropsAHuskThatBecomesAnAlly(GameTestHelper helper) {
         // Arrange
@@ -1135,6 +1191,8 @@ public final class BoundVexTargetGameTests {
      * When the husk the ally goal holds (a wolf's target) becomes an ally of the summoner, should drop it.
      *
      * <p>Method under test: {@code AllyFightGoal} (package-private): {@code canContinueToUse}
+     *
+     * <p>Functional spec §7.5.
      */
     static void allyGoalDropsAHuskThatBecomesAnAlly(GameTestHelper helper) {
         // Arrange
@@ -1162,6 +1220,8 @@ public final class BoundVexTargetGameTests {
      * the pig: the summoner's victim (third) comes before an ally's attacker (fourth).
      *
      * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the memory order
+     *
+     * <p>Functional spec §7.2.
      */
     static void summonersVictimComesBeforeAnAllysAttacker(GameTestHelper helper) {
         // Arrange
@@ -1191,6 +1251,8 @@ public final class BoundVexTargetGameTests {
      * vanilla at that age.
      *
      * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the freshness window
+     *
+     * <p>Functional spec §7.2.
      */
     static void ignoresAStaleAttackerOfTheSummoner(GameTestHelper helper) {
         // Arrange: the mock summoner's clock advances by one each tick, so the test sets it back at the end of every
@@ -1226,6 +1288,8 @@ public final class BoundVexTargetGameTests {
      * hurting the summoner now (second) comes before the mob it last swung at (third), spec §3.4 item 1.
      *
      * <p>Method under test: {@code HurtBySummonerSideGoal} (package-private): the memory order
+     *
+     * <p>Functional spec §7.2.
      */
     static void summonersAttackerComesBeforeItsVictim(GameTestHelper helper) {
         // Arrange
@@ -1254,6 +1318,8 @@ public final class BoundVexTargetGameTests {
      * simply refused for lack of a target.
      *
      * <p>Method under test: {@link BoundVex#keepsTarget}, through {@code HurtBySummonerSideGoal.canUse}
+     *
+     * <p>Functional spec §7.5.
      */
     static void ignoresATargetInAnotherDimension(GameTestHelper helper) {
         // Arrange
@@ -1322,6 +1388,8 @@ public final class BoundVexTargetGameTests {
      *
      * <p>Method under test: {@code BoundVex.scanDue} (package-private), through {@code canUse} of
      * {@code HurtBySummonerSideGoal}, {@code AllyFightGoal} and {@code NearestHostileGoal}
+     *
+     * <p>Functional spec §6.2.
      */
     static void scansOnlyOnTheSharedClock(GameTestHelper helper) {
         // Arrange

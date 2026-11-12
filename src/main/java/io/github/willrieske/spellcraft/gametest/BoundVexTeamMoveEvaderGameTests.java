@@ -26,7 +26,11 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
-/** GameTests of the Evader team move (Parts 6-7 spec section 4.3). */
+/**
+ * GameTests of the Evader team move (Parts 6-7 spec section 4.3).
+ *
+ * <p>Functional spec §11.10.
+ */
 final class BoundVexTeamMoveEvaderGameTests {
     private BoundVexTeamMoveEvaderGameTests() {}
 

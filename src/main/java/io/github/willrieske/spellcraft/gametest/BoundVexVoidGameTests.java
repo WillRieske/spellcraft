@@ -39,6 +39,8 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 /**
  * GameTests of the void catch: the End rescue that carries a falling summoner to the last ground or a landing
  * spot, who is caught and by which vex, and how the last-ground and no-landing records are kept and cleared.
+ *
+ * <p>Functional spec §10.1, §10.2, §10.11.
  */
 public final class BoundVexVoidGameTests {
     /** How far the void tests' places reach: the landing search looks 32 blocks, the farthest platform is 40 away. */
@@ -150,6 +152,8 @@ public final class BoundVexVoidGameTests {
      * apple, and, 20 steps later, end it with the sword back in the rescuer's hand.
      *
      * <p>Method under test: {@code VexRescues.tick}, {@code StandableSpots.landing} through it
+     *
+     * <p>Functional spec §10.1, §10.11.
      */
     static void voidCatch(GameTestHelper helper) {
         // Arrange
@@ -204,6 +208,8 @@ public final class BoundVexVoidGameTests {
      * above the End's lowest Y, moving down with nothing below them, should one step teleport them back onto it.
      *
      * <p>Method under test: {@code VexRescues.tick}, {@code VoidRule.needsCatch} through it: the near-floor case
+     *
+     * <p>Functional spec §10.11.
      */
     static void voidCatchFallingNearTheFloor(GameTestHelper helper) {
         // Arrange
@@ -236,6 +242,8 @@ public final class BoundVexVoidGameTests {
     /**
      * When a player is ten blocks above the End's lowest Y with a landing platform near, should one step catch no one
      * when a stone block is five blocks under them (and they fall), or when they are not moving down.
+     *
+     * <p>Functional spec §10.11.
      *
      * @param helper the test helper
      * @param stoneBelow whether a stone block stands under the player's column
@@ -271,6 +279,8 @@ public final class BoundVexVoidGameTests {
      * memory, should the catch put them back on it (the memory pauses only the landing search).
      *
      * <p>Method under test: {@code VexRescues.tick}: the last-ground fallback and its memory
+     *
+     * <p>Functional spec §10.11.
      */
     static void voidCatchUsesLastGround(GameTestHelper helper) {
         // Arrange
@@ -310,6 +320,8 @@ public final class BoundVexVoidGameTests {
      * When the platform a player last stood on is gone before they fall, should no catch start.
      *
      * <p>Method under test: {@code VoidCatch.catchFromVoid}: the last ground must still be standable
+     *
+     * <p>Functional spec §10.11.
      */
     static void voidCatchLastGroundGone(GameTestHelper helper) {
         // Arrange
@@ -342,6 +354,8 @@ public final class BoundVexVoidGameTests {
     /**
      * When a vex {@code east} blocks away from a player under the floor stands near a landing platform, should the
      * catch start only if the vex is within 64 blocks.
+     *
+     * <p>Functional spec §10.1.
      *
      * @param helper the test helper
      * @param east how far east of the player's column the vex is
@@ -376,6 +390,8 @@ public final class BoundVexVoidGameTests {
      *
      * <p>Method under test: {@code VoidCatch.catchFromVoid}: vanilla's teleport dismounts the player (the catch
      * relies on it)
+     *
+     * <p>Functional spec §10.2, §10.11.
      */
     static void voidCatchDismounts(GameTestHelper helper) {
         // Arrange
@@ -415,6 +431,8 @@ public final class BoundVexVoidGameTests {
      * then not flying (caught).
      *
      * <p>Method under test: {@code VexRescues.tick}: creative players are caught, flying ones are not
+     *
+     * <p>Functional spec §10.2, §10.11.
      */
     static void voidCatchCreative(GameTestHelper helper) {
         // Arrange
@@ -449,6 +467,8 @@ public final class BoundVexVoidGameTests {
      * When a player with Ghostrail is under the floor, should no catch start (it takes no damage and is flying).
      *
      * <p>Method under test: {@code VexRescues.tick}: a Ghostrail carrier is not rescued
+     *
+     * <p>Functional spec §10.2.
      */
     static void voidCatchNotForAGhostrailCarrier(GameTestHelper helper) {
         // Arrange
@@ -478,6 +498,8 @@ public final class BoundVexVoidGameTests {
      * When a player glides (elytra flight) under the floor, should no catch start.
      *
      * <p>Method under test: {@code VexRescues.tick}: gliding players are left alone
+     *
+     * <p>Functional spec §10.11.
      */
     static void voidCatchNotWhileGliding(GameTestHelper helper) {
         // Arrange
@@ -506,6 +528,8 @@ public final class BoundVexVoidGameTests {
      * land on another column, never in the portal.
      *
      * <p>Method under test: {@code StandableSpots.landing}: a column whose top is not standable is skipped
+     *
+     * <p>Functional spec §10.11.
      */
     static void voidCatchSkipsAPortalColumn(GameTestHelper helper) {
         // Arrange
@@ -580,6 +604,8 @@ public final class BoundVexVoidGameTests {
      * the End).
      *
      * <p>Method under test: {@code VoidCatch.needsCatch}: the dimension check
+     *
+     * <p>Functional spec §10.11.
      */
     static void voidNotInTheOverworld(GameTestHelper helper) {
         // Arrange
@@ -622,6 +648,8 @@ public final class BoundVexVoidGameTests {
      * the player, never away; wherever it is after its first ticks it is within 64 blocks.
      *
      * <p>Method under test: {@code VexRescues.nearestRescuer} with a vex that runs its goals
+     *
+     * <p>Functional spec §10.1.
      */
     static void voidCatchByAFollowingVex(GameTestHelper helper) {
         // Arrange
@@ -647,6 +675,8 @@ public final class BoundVexVoidGameTests {
      * When the only vex beside the fall point is told to stay, should no catch start.
      *
      * <p>Method under test: {@code VexRescues.holds}: a staying vex does not rescue
+     *
+     * <p>Functional spec §10.1.
      */
     static void voidCatchNotByAStayingVex(GameTestHelper helper) {
         // Arrange

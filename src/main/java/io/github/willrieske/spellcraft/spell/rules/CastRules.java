@@ -1,6 +1,10 @@
 package io.github.willrieske.spellcraft.spell.rules;
 
-/** The one decision every scroll use goes through. Runs on both sides; only the server acts on it. */
+/**
+ * The one decision every scroll use goes through. Runs on both sides; only the server acts on it.
+ *
+ * <p>Functional spec §1.3, §13.1, §14.1.
+ */
 public final class CastRules {
     private CastRules() {}
 

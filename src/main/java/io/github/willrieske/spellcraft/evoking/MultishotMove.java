@@ -14,9 +14,11 @@ import net.minecraft.world.phys.Vec3;
  * no friend in the way, it fires a volley of three arrows from the conjured crossbow. The roster's other members are
  * not friends in the way (the slots keep them off each other's lines; a Bound Vex outside the roster, the summoner and
  * allies still hold the fire).
+ *
+ * <p>Functional spec §11.9.
  */
 final class MultishotMove {
-    /** The distance of a member's slot from the enemy. */
+    /** The distance of a member's slot from the enemy. Functional spec §11.9. */
     static final double HOLD = 7.0;
 
     /** A member farther than this many blocks from its slot, sideways, flies to it. */
@@ -25,7 +27,7 @@ final class MultishotMove {
     /** A member farther than this many blocks above or below its slot flies to the slot's height (a vex bobs). */
     static final double SLOT_HEIGHT_TOLERANCE = 3.0;
 
-    /** Ticks between one member's volleys. */
+    /** Ticks between one member's volleys. Functional spec §11.9. */
     static final int SHOT_INTERVAL = 40;
 
     /** The angle between neighboring slots on the arc, in degrees (about 3 blocks apart at {@link #HOLD}). */

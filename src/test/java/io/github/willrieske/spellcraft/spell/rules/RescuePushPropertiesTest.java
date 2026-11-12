@@ -10,6 +10,7 @@ import net.jqwik.api.Group;
 import net.jqwik.api.Property;
 import net.jqwik.api.constraints.DoubleRange;
 
+/** Functional spec §10.3, §10.5, §10.6. */
 class RescuePushPropertiesTest {
     private static final double EPS = 1.0e-9;
 

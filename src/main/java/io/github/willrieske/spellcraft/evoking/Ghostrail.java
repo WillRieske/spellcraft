@@ -28,10 +28,12 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
  * the void still land), the white-smoke trail, the hold on a mob carrier ({@code noPhysics}, no gravity), and the
  * end (push out of blocks, give gravity back). Nothing here depends on the order of the two Post-tick handlers:
  * the end only moves the carrier and never touches abilities.
+ *
+ * <p>Functional spec §14.3, §14.4, §14.5, §14.6, §14.8.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class Ghostrail {
-    /** How far from a carrier that ends inside blocks to look for a free spot. */
+    /** How far from a carrier that ends inside blocks to look for a free spot. Functional spec §14.6. */
     static final int SEARCH_RADIUS = 8;
 
     /** Trail particles per tick, at the carrier's previous position. */
@@ -73,7 +75,8 @@ public final class Ghostrail {
     }
 
     /**
-     * One step for {@code carrier}. Public so GameTests step a mock player or a mob by hand.
+     * One step for {@code carrier}. Public so GameTests step a mock player or a mob by hand. The trail:
+     * Functional spec §14.4. The hold on a mob carrier: Functional spec §14.8.
      *
      * @param carrier a player or a mob that may carry Ghostrail
      */
@@ -135,6 +138,8 @@ public final class Ghostrail {
      * When the carrier's box collides with blocks: the nearest standable spot its box fits on within
      * {@link #SEARCH_RADIUS} blocks, else the nearest free spot that holds no liquid or fire, else the spot the effect
      * began at if that is still free, else it stays (and suffocates as vanilla would; accepted, a playtest note).
+     *
+     * <p>Functional spec §14.6.
      */
     private static void pushOut(ServerLevel level, LivingEntity carrier) {
         if (level.noCollision(carrier, carrier.getBoundingBox())) {
@@ -231,7 +236,7 @@ public final class Ghostrail {
 
     /**
      * Cancels every hit on a carrier except {@code /kill} and the void, so a carrier that dives under the world
-     * still dies there.
+     * still dies there. Functional spec §14.3.
      *
      * @param event the incoming-damage event
      */

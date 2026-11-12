@@ -19,13 +19,15 @@ import net.neoforged.neoforge.event.tick.EntityTickEvent;
  * converts, stays frozen, and is released if the cure never began. The mark is saved, so a zombie villager unloaded
  * mid-cure keeps converting when it loads again, with its smoke, and is released by the same rules. The vanilla facts
  * (the tick order, the conversion events) are docs/api-notes.md §23.
+ *
+ * <p>Functional spec §9.4, §9.5.
  */
 @EventBusSubscriber(modid = Spellcraft.MODID)
 public final class CureEvents {
     /**
      * Ticks after which a mark on a zombie villager that is not converting is stale: the vex died, was unloaded or
      * never finished (steps 1-3 take at most 150 ticks). This releases a freeze whose goal can no longer run
-     * {@code stop}.
+     * {@code stop}. Functional spec §9.5.
      */
     public static final long RELEASE_AFTER = 300L;
 
@@ -42,7 +44,7 @@ public final class CureEvents {
      * {@code CLOUD} particles over its body, and it stays frozen. Not converting and the mark older than
      * {@link #RELEASE_AFTER}: unfreeze, remove the mark. Not converting and the mark younger: nothing (the goal is
      * still working). On the tick a conversion finishes the old zombie villager is already removed when this fires
-     * (docs/api-notes.md §23), so it is skipped.
+     * (docs/api-notes.md §23), so it is skipped. Functional spec §9.4, §9.5.
      *
      * @param event the post-tick event for any entity
      */
@@ -74,7 +76,7 @@ public final class CureEvents {
     /**
      * Vanilla's conversion copies {@code NoAI} to the villager, so a villager made from a frozen zombie villager would
      * stand still: when the old mob carried the cure mark (still readable here, the new villager gets no attachments,
-     * docs/api-notes.md §23), the new one gets its AI back.
+     * docs/api-notes.md §23), the new one gets its AI back. Functional spec §9.4.
      *
      * @param event the post-conversion event: the old mob and its outcome
      */

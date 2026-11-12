@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+/** Functional spec §10.11. */
 class VoidRuleTest {
     private static boolean noGround() {
         return false;

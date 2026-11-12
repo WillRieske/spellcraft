@@ -19,6 +19,8 @@ import org.jspecify.annotations.Nullable;
  * that can start wins: Raid, Shield, Multishot (each against the nearest candidate that earns it), then Evader.
  * Multishot is detected here, from {@code getTarget()}, not from the target event: a brain mob (a piglin brute, the
  * warden) writes its target without always firing it.
+ *
+ * <p>Functional spec §11.4.
  */
 final class TeamMoveTriggers {
     /** The enemy-side moves in trigger order. */

@@ -15,15 +15,17 @@ import org.jspecify.annotations.Nullable;
  * swing it reacts to, and golems never target Bound Vexes, so the swing is aimed at someone else. The head, not the
  * body: a golem winding up a swing turns its head to its target first (docs/api-notes.md §21). One dart per swing:
  * the goal waits out the swing's ten ticks before it can start again.
+ *
+ * <p>Functional spec §7.8.
  */
 public final class DodgeGolemGoal extends Goal {
-    /** How near a swinging golem must be, feet to feet (a sphere around the vex). */
+    /** How near a swinging golem must be, feet to feet (a sphere around the vex). Functional spec §7.8. */
     public static final double NOTICE_RANGE = 3.0;
 
     /** How squarely the golem must face the vex: the dot of two unit vectors. */
     static final double FACING = 0.5;
 
-    /** How far the vex darts. */
+    /** How far the vex darts. Functional spec §7.8. */
     static final double DART = 3.0;
 
     /** A golem's swing animation lasts this many ticks. */

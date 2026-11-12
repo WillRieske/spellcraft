@@ -52,12 +52,17 @@ import org.jspecify.annotations.Nullable;
  * see that constant). The apple and the potion are conjured ({@code BoundVex.conjure}), so nothing drops if the vex
  * dies. The vanilla facts (the private {@code startConverting}, opened by the access transformer; the potion stack;
  * the particle options) are docs/api-notes.md §23.
+ *
+ * <p>Functional spec §4.6, §9.3, §9.4, §9.5, §9.8.
  */
 public final class CureZombieVillagerGoal extends Goal {
-    /** The most ticks the approach may take before the goal gives up ({@link Jobs#APPROACH_LIMIT}). */
+    /**
+     * The most ticks the approach may take before the goal gives up ({@link Jobs#APPROACH_LIMIT}).
+     * Functional spec §9.5.
+     */
     public static final int APPROACH_LIMIT = Jobs.APPROACH_LIMIT;
 
-    /** Ticks of the apple step. */
+    /** Ticks of the apple step. Functional spec §9.4. */
     public static final int APPLE_TICKS = 30;
 
     /** Ticks of the potion step. */
@@ -66,10 +71,13 @@ public final class CureZombieVillagerGoal extends Goal {
     /** The tick of the potion step on which the potion is thrown. */
     public static final int THROW_TICK = 10;
 
-    /** Ticks vanilla's conversion takes once begun (20 seconds). */
+    /** Ticks vanilla's conversion takes once begun (20 seconds). Functional spec §9.4. */
     public static final int CONVERSION_TICKS = 400;
 
-    /** Ticks after giving up an approach during which this vex starts no cure ({@link Jobs#RETRY_DELAY}). */
+    /**
+     * Ticks after giving up an approach during which this vex starts no cure ({@link Jobs#RETRY_DELAY}).
+     * Functional spec §9.5.
+     */
     public static final int RETRY_DELAY = Jobs.RETRY_DELAY;
 
     /** Ticks between the eat sound and crumbs in the apple step. */
@@ -109,7 +117,7 @@ public final class CureZombieVillagerGoal extends Goal {
      * {@code stop()}. So is a claim whose zombie villager no longer carries the cure mark (the 300-tick rule in
      * {@link CureEvents} released it): a vex that stops ticking mid-job holds nothing, and {@link #canContinueToUse}
      * drops its job when it wakes. Cleared when the server stops. Like {@code RepairGolemGoal}'s map, the prune in
-     * {@code canUse} only frees memory.
+     * {@code canUse} only frees memory. Functional spec §9.3.
      */
     private static final Jobs.Claims CLAIMS = new Jobs.Claims();
 
@@ -161,7 +169,7 @@ public final class CureZombieVillagerGoal extends Goal {
      * The cure potion (spec §2.2): a splash potion with no effects and weakness's color, so the throw, the glass break
      * and the gray splash look like a weakness potion while nobody standing near is weakened (vanilla's
      * {@code startConverting} removes the zombie villager's weakness anyway). Stacks have no value {@code equals}:
-     * compare with {@code ItemStack.matches}.
+     * compare with {@code ItemStack.matches}. Functional spec §9.4.
      *
      * @return a new stack
      */
@@ -189,6 +197,7 @@ public final class CureZombieVillagerGoal extends Goal {
         if (owner == null) {
             return false;
         }
+        // Functional spec §9.3, §9.8
         subject = vex
                 .level()
                 .getEntitiesOfClass(
@@ -204,7 +213,7 @@ public final class CureZombieVillagerGoal extends Goal {
     /**
      * Whether {@code candidate} may be taken now: alive, not converting, not a statue, not marked (the mark is what
      * keeps a second vex off a subject), and either this vex has no target or the candidate is attacking the summoner's
-     * side.
+     * side. Functional spec §9.3.
      */
     private boolean curable(ServerPlayer owner, ZombieVillager candidate) {
         if (!candidate.isAlive()
@@ -230,6 +239,7 @@ public final class CureZombieVillagerGoal extends Goal {
         if (subject == null) {
             return;
         }
+        // Functional spec §9.3
         subject.setNoAi(true);
         subject.setData(AllyAttachments.CURE, subject.level().getGameTime());
         CLAIMS.claim(subject, vex);
@@ -243,7 +253,7 @@ public final class CureZombieVillagerGoal extends Goal {
     /**
      * Ends every iron golem's fight with {@code claimed} within {@link #GOLEM_CALM_RADIUS} blocks: its target is
      * cleared. The mark is already set, so {@code GolemMercy} cancels the golem's target goals picking it again (a
-     * null target is never canceled).
+     * null target is never canceled). Functional spec §4.6.
      */
     private static void calmGolems(ZombieVillager claimed) {
         UUID id = claimed.getUUID();
@@ -260,7 +270,7 @@ public final class CureZombieVillagerGoal extends Goal {
      * Continues while the subject is alive, still carries the cure mark and no other vex has claimed it, the summoner
      * is here, the steps are not finished and the approach has not timed out. Deliberately not the vex's target (spec
      * §2.2). A subject that lost its mark was released by {@link CureEvents} (and another vex may have claimed it
-     * since): a vex that wakes after that drops the job.
+     * since): a vex that wakes after that drops the job. Functional spec §9.5.
      */
     @Override
     public boolean canContinueToUse() {
@@ -317,7 +327,10 @@ public final class CureZombieVillagerGoal extends Goal {
         }
     }
 
-    /** Step 2: the golden apple in hand; every few ticks the eat sound and the crumbs at the mouth. */
+    /**
+     * Step 2: the golden apple in hand; every few ticks the eat sound and the crumbs at the mouth.
+     * Functional spec §9.4.
+     */
     private void apple() {
         if (!vex.isConjured(EquipmentSlot.MAINHAND) || !vex.getMainHandItem().is(Items.GOLDEN_APPLE)) {
             vex.conjure(EquipmentSlot.MAINHAND, new ItemStack(Items.GOLDEN_APPLE));
@@ -346,6 +359,7 @@ public final class CureZombieVillagerGoal extends Goal {
     /**
      * Steps 3 and 4: the cure potion in hand, the head turned away for the first {@link #THROW_TICK} ticks, the throw
      * at the zombie villager's feet on the tenth, and at the end of {@link #POTION_TICKS} the conversion begins.
+     * Functional spec §9.4.
      */
     private void potion() {
         if (subject == null) {
@@ -390,7 +404,7 @@ public final class CureZombieVillagerGoal extends Goal {
     /**
      * Step 4, reached only while {@link #tick} found the vex still holding its subject: unless a player fed the
      * zombie villager by hand meanwhile (vanilla's conversion and that player's discount are left as they are), begin
-     * the conversion in the summoner's name; then the hand goes and the goal ends.
+     * the conversion in the summoner's name; then the hand goes and the goal ends. Functional spec §9.4, §9.5.
      */
     private void begin(ZombieVillager target) {
         if (!target.isConverting()) {
@@ -403,7 +417,7 @@ public final class CureZombieVillagerGoal extends Goal {
     /**
      * Ends the goal. Before step 4 this is the abort: the hand is dismissed, the claim released, and a zombie villager
      * that still exists and is not converting is unfrozen and loses its cure mark. After step 4 the mark and the freeze
-     * stay for {@link CureEvents} to end with the conversion.
+     * stay for {@link CureEvents} to end with the conversion. Functional spec §9.5.
      */
     @Override
     public void stop() {
