@@ -1417,4 +1417,4 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
 - **Saved equipment.** `LivingEntity.addAdditionalSaveData` writes the equipment under the `equipment` key (`EntityEquipment.CODEC`,
   `LivingEntity.java:795`) and `readAdditionalSaveData` reads it (`:856`), so `MirrorImage` saves the copied main-hand and offhand items
   through its `super` call and writes no equipment of its own (it adds only `caster`, `life_ticks`, `copied_type` and `profile`).
-- **Baseline.** `./gradlew runGameTestServer`: `All 650 required tests passed` on 2026-11-10 (Part 6 ended at 650); `All 788 required tests passed` on 2026-11-12 (Part 7 ended at 788). Every Part 7 gate is the Part 6 number plus the tests registered so far.
+- **Baseline.** `./gradlew runGameTestServer`: `All 650 required tests passed` on 2026-11-10 (Part 6 ended at 650); `All 788 required tests passed` on 2026-11-12 at the plan's end, and `All 824 required tests passed` after the branch-review fixes (Part 7 ended at 824). Every Part 7 gate is the Part 6 number plus the tests registered so far.

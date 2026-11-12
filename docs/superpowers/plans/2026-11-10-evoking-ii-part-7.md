@@ -1,6 +1,6 @@
 # Evoking II Part 7: Casters, Mirror, Ghostrail, Scroll Mobs and Villager Ghosts Implementation Plan
 
-**Status:** implemented 2026-11-12
+**Status:** implemented 2026-11-12; playtest pending
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

@@ -14,7 +14,7 @@ Run from the repo root. In the Bash tool use `./gradlew`; in PowerShell use `.\g
 | `./gradlew test` | Unit tests: JUnit 5 + jqwik + ArchUnit (seconds) |
 | `./gradlew build` | spotlessCheck + Error Prone/`-Xlint:all -Werror` + tests + jar |
 | `./gradlew spotlessApply` | Format (palantir-java-format) |
-| `./gradlew runGameTestServer` | GameTests (server rules and common Mixins); non-zero exit on failure. The task fails after 8 minutes (`build.gradle` `timeout`): a timeout means a hung test (a test whose structure chunks never tick never starts and never times out), not a slow machine. |
+| `./gradlew runGameTestServer` | GameTests (server rules and common Mixins); non-zero exit on failure. The task fails after 8 minutes (`build.gradle` `timeout`): a timeout most likely means a hung test (a test whose structure chunks never tick never starts and never times out). A full run took 2-4 minutes on 2026-11-12 (824 tests); raise the limit if the suite outgrows it. |
 | `./gradlew runGameTestServer "-PgameTests=spellcraft:bound_vex_gear_*"` | Only the GameTests whose ID matches the selector (wildcards allowed), for the inner loop while writing a test. A selector that matches nothing fails. Never a substitute for the full run: a name cannot tell which tests a change affects, and the gates run every test. |
 | `./gradlew runData` | Headless client-dist boot (loads client classes and config specs); the only automated check of client code, and it proves the `ArmPose` enum wiring (`EvokingArmPoseCheck`); it never fires `RegisterRenderers`, so no renderer, layer, model or particle provider is constructed and no texture is resolved: a green `runData` is no proof of the renderers |
 | `./gradlew runClient` | Dev client, for Will's playtest only |

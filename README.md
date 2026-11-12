@@ -72,8 +72,8 @@ A NeoForge mod for Minecraft that adds spells cast from scrolls. It has six:
     and it may drop the scroll (Looting helps).
   - **Villager ghosts.** A villager a monster kills leaves a ghost. When you have Strength of Evoking and are
     hurt below half health or have three monsters close, with a monster near, the nearest villager death within
-    48 blocks of you sends its ghost: it floats to you, casts the spells on you and fades when the fight is
-    over. Only one ghost helps at a time. A villager killed by lava, a fall or your own side leaves none.
+    48 blocks of you sends its ghost (one whose spells are ready, if any is): it floats to you, casts the spells
+    on you and fades when the fight is over. Only one ghost helps at a time. A villager killed by lava, a fall or your own side leaves none.
 
 - <img src="src/main/resources/assets/spellcraft/textures/item/mirror_scroll.png" alt="" width="24" height="24"> **Strength of Mirror**: for six minutes (not configurable) thirteen copies of you stand around you
   and wander near you. A monster that picks you as its target almost always (13 times in 14) picks a copy instead; any mob is

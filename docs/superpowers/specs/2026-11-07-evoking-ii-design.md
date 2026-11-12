@@ -1,7 +1,7 @@
 # Spellcraft: Evoking II, Bound Vexes (design)
 
 **Date:** 2026-11-07
-**Status:** implemented 2026-11-12 via `2026-11-10-evoking-ii-part-7.md`
+**Status:** implemented 2026-11-12 via `2026-11-10-evoking-ii-part-7.md`; playtest pending
 <!-- child-plans: 2026-11-07-evoking-ii-part-1.md, 2026-11-08-evoking-ii-part-2.md, 2026-11-09-evoking-ii-part-3.md, 2026-11-09-evoking-ii-part-4.md, 2026-11-10-evoking-ii-part-5.md, 2026-11-10-evoking-ii-part-6.md, 2026-11-10-evoking-ii-part-7.md -->
 **Shape:** built in seven parts (§1), each with its own plan, branch and PR
 **Written by:** brainstorm with Will on 2026-11-07; §13 lists the decisions Will did not state
