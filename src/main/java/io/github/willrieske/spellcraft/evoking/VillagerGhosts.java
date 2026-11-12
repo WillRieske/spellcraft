@@ -219,9 +219,9 @@ public final class VillagerGhosts extends SavedData {
      * Sends a ghost to {@code player} when they are in need and an enemy is near (spec §9). The conditions run
      * cheapest first: the player's own state, then one query for the hostiles within {@link CasterRules#RANGE} (none:
      * no ghost, because the ghost's own "still needed" test is the same query, so a ghost sent for a hurt player with
-     * no enemy would puff away at once and be sent again), then the need, and only then the level-wide scans for a
-     * ghost already helping and for the records already out. Public so GameTests step a mock player, which gets no
-     * player tick.
+     * no enemy would puff away at once and be sent again), then the need, and only then the level-wide scans: one
+     * for a ghost already helping and, when a loaded record is in range, one for the records already out. Public so
+     * GameTests step a mock player, which gets no player tick.
      *
      * @param player a player
      */
@@ -240,11 +240,16 @@ public final class VillagerGhosts extends SavedData {
         if (!GhostNeed.inNeed(player.getHealth(), player.getMaxHealth(), crowd) || helping(level, player)) {
             return;
         }
-        Set<UUID> out = recordsWithLiveGhost(level);
-        get(level).records().stream()
+        List<Record> near = get(level).records().stream()
                 .filter(record -> record.pos().distToCenterSqr(player.position()) <= RANGE * RANGE
-                        && level.isLoaded(record.pos())
-                        && !out.contains(record.id()))
+                        && level.isLoaded(record.pos()))
+                .toList();
+        if (near.isEmpty()) {
+            return;
+        }
+        Set<UUID> out = recordsWithLiveGhost(level);
+        near.stream()
+                .filter(record -> !out.contains(record.id()))
                 .min(Comparator.comparingDouble(record -> record.pos().distToCenterSqr(player.position())))
                 .ifPresent(record -> spawn(level, record, player));
     }

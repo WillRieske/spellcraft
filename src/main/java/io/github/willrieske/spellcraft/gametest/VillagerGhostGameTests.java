@@ -66,10 +66,10 @@ final class VillagerGhostGameTests {
      */
     private static final String RANGE_FAR = "villager_ghost_range_far";
 
-    /** The environment of the 40-block test; see {@link #RANGE_FAR}. */
+    /** The environment of the 46-block test; see {@link #RANGE_FAR}. */
     private static final String RANGE_NEAR = "villager_ghost_range_near";
 
-    /** The environment of the 56-block test; see {@link #RANGE_FAR}. */
+    /** The environment of the 50-block test; see {@link #RANGE_FAR}. */
     private static final String RANGE_EDGE = "villager_ghost_range_edge";
 
     private VillagerGhostGameTests() {}
@@ -157,14 +157,14 @@ final class VillagerGhostGameTests {
                 VillagerGhostGameTests::tooFar);
         FangGameTests.addPadded(
                 RANGE_NEAR,
-                "villager_ghost_is_sent_for_a_record_40_blocks_away",
+                "villager_ghost_is_sent_for_a_record_46_blocks_away",
                 400,
-                VillagerGhostGameTests::fortyBlocksAway);
+                VillagerGhostGameTests::fortySixBlocksAway);
         FangGameTests.addPadded(
                 RANGE_EDGE,
-                "villager_ghost_is_not_sent_for_a_record_56_blocks_away",
+                "villager_ghost_is_not_sent_for_a_record_50_blocks_away",
                 400,
-                VillagerGhostGameTests::fiftySixBlocksAway);
+                VillagerGhostGameTests::fiftyBlocksAway);
         FangGameTests.addPadded(
                 HELP,
                 "villager_ghost_casts_no_ghostrail_when_the_player_turns_creative_in_the_wind_up",
@@ -773,7 +773,7 @@ final class VillagerGhostGameTests {
         VillagerGhosts.Record record = ScrollTestSupport.record(helper, at(helper, east, 0.0, 0.0));
         ChunkPos chunk = ChunkPos.containing(record.pos());
         level.setChunkForced(chunk.x(), chunk.z(), true);
-        level.getChunk(chunk.x(), chunk.z());
+        level.getChunk(chunk.x(), chunk.z()); // loads the chunk now (the return value is not needed)
         whenDone(helper, () -> ghosts(helper, record).forEach(Entity::discard));
         helper.assertTrue(level.isLoaded(record.pos()), "setup: the record's chunk is loaded");
         return record;
@@ -819,24 +819,25 @@ final class VillagerGhostGameTests {
     }
 
     /**
-     * When the only record is 40 blocks away (inside the 48-block reach, its chunk loaded), should a ghost be sent.
-     *
-     * <p>Method under test: {@code VillagerGhosts#step}
-     */
-    static void fortyBlocksAway(GameTestHelper helper) {
-        // Arrange, Act & Assert (the shared body marks the three)
-        stepForRecordAt(helper, 40.0, 1, "one ghost for a record within 48 blocks");
-    }
-
-    /**
-     * When the only record is 56 blocks away (just outside the 48-block reach, its chunk loaded), should no ghost be
+     * When the only record is 46 blocks away (just inside the 48-block reach, its chunk loaded), should a ghost be
      * sent.
      *
      * <p>Method under test: {@code VillagerGhosts#step}
      */
-    static void fiftySixBlocksAway(GameTestHelper helper) {
+    static void fortySixBlocksAway(GameTestHelper helper) {
         // Arrange, Act & Assert (the shared body marks the three)
-        stepForRecordAt(helper, 56.0, 0, "no ghost for a record 56 blocks away");
+        stepForRecordAt(helper, 46.0, 1, "one ghost for a record within 48 blocks");
+    }
+
+    /**
+     * When the only record is 50 blocks away (just outside the 48-block reach, its chunk loaded), should no ghost be
+     * sent.
+     *
+     * <p>Method under test: {@code VillagerGhosts#step}
+     */
+    static void fiftyBlocksAway(GameTestHelper helper) {
+        // Arrange, Act & Assert (the shared body marks the three)
+        stepForRecordAt(helper, 50.0, 0, "no ghost for a record 50 blocks away");
     }
 
     /**
