@@ -1,5 +1,6 @@
 package io.github.willrieske.spellcraft.evoking;
 
+import com.mojang.logging.LogUtils;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.github.willrieske.spellcraft.Spellcraft;
@@ -33,6 +34,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
+import org.slf4j.Logger;
 
 /**
  * The villager-ghost records of one level (Parts 6-7 spec §9): where a villager died to a monster, what it looked like
@@ -54,6 +56,17 @@ public final class VillagerGhosts extends SavedData {
                         Codec.LONG.fieldOf("mirror_ready").forGetter(Record::mirrorReadyAt),
                         Codec.LONG.fieldOf("ghostrail_ready").forGetter(Record::ghostrailReadyAt))
                 .apply(i, Record::new));
+
+        /**
+         * Whether the ghost of this record could cast a spell at game time {@code now}: its Mirror or its Ghostrail
+         * cooldown is over (the same {@link CasterRules#ready} test the ghost's own cast uses).
+         *
+         * @param now the level's game time
+         * @return true when at least one of the two spells is ready
+         */
+        boolean hasReadySpell(long now) {
+            return CasterRules.ready(now, mirrorReadyAt) || CasterRules.ready(now, ghostrailReadyAt);
+        }
 
         /**
          * This record with a new Mirror cooldown end.
@@ -82,9 +95,30 @@ public final class VillagerGhosts extends SavedData {
     /** Ticks between two checks of each player. */
     private static final int STEP_INTERVAL = 20;
 
+    /** Logs the records a load skips. */
+    private static final Logger LOGGER = LogUtils.getLogger();
+
+    /**
+     * The records as a list: saved as a plain list, loaded leniently. A record that no longer decodes (a profession
+     * or villager type that a removed mod added) is logged and skipped, so it does not take the others with it:
+     * vanilla reads a saved-data file that fails to parse as empty, and the next save would overwrite the file.
+     */
+    private static final Codec<List<Record>> LENIENT_RECORDS = Codec.of(
+            Record.CODEC.listOf(),
+            Codec.PASSTHROUGH
+                    .listOf()
+                    .map(entries -> entries.stream()
+                            .flatMap(entry -> Record.CODEC
+                                    .parse(entry)
+                                    .resultOrPartial(
+                                            error -> LOGGER.warn("Skipping a villager ghost record: {}", error))
+                                    .stream())
+                            .toList()),
+            "LenientRecords");
+
     /** The save format: the list, oldest first. */
     public static final Codec<VillagerGhosts> CODEC = RecordCodecBuilder.create(
-            i -> i.group(Record.CODEC.listOf().fieldOf("records").forGetter(ghosts -> ghosts.records))
+            i -> i.group(LENIENT_RECORDS.fieldOf("records").forGetter(ghosts -> ghosts.records))
                     .apply(i, VillagerGhosts::new));
 
     /** The saved-data type; one file per level. */
@@ -221,7 +255,10 @@ public final class VillagerGhosts extends SavedData {
      * no ghost, because the ghost's own "still needed" test is the same query, so a ghost sent for a hurt player with
      * no enemy would puff away at once and be sent again), then the need, and only then the level-wide scans: one
      * for a ghost already helping and, when a loaded record is in range, one for the records already out. Public so
-     * GameTests step a mock player, which gets no player tick.
+     * GameTests step a mock player, which gets no player tick. A record is a candidate when it is within
+     * {@link #RANGE} blocks and its chunk ticks entities (a ghost added to a chunk that does not tick would never
+     * move or fade); among the candidates with no ghost out, the nearest one with a ready spell is chosen, and only
+     * when none is ready the nearest.
      *
      * @param player a player
      */
@@ -242,15 +279,21 @@ public final class VillagerGhosts extends SavedData {
         }
         List<Record> near = get(level).records().stream()
                 .filter(record -> record.pos().distToCenterSqr(player.position()) <= RANGE * RANGE
-                        && level.isLoaded(record.pos()))
+                        && level.isPositionEntityTicking(record.pos()))
                 .toList();
         if (near.isEmpty()) {
             return;
         }
         Set<UUID> out = recordsWithLiveGhost(level);
-        near.stream()
-                .filter(record -> !out.contains(record.id()))
-                .min(Comparator.comparingDouble(record -> record.pos().distToCenterSqr(player.position())))
+        List<Record> free =
+                near.stream().filter(record -> !out.contains(record.id())).toList();
+        long now = level.getGameTime();
+        Comparator<Record> nearest =
+                Comparator.comparingDouble(record -> record.pos().distToCenterSqr(player.position()));
+        free.stream()
+                .filter(record -> record.hasReadySpell(now))
+                .min(nearest)
+                .or(() -> free.stream().min(nearest))
                 .ifPresent(record -> spawn(level, record, player));
     }
 

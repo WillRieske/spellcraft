@@ -12,11 +12,12 @@ import net.minecraft.resources.Identifier;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Draws a villager ghost (Parts 6-7 spec §9): the villager model with the base villager texture, translucent and tinted
- * pale blue (alpha 0.6), plus a copy of vanilla's profession layer that draws the type, profession and level textures
- * with the same tint. Vanilla's {@code VillagerRenderer} needs a {@code Villager} and the profession layer's helpers
- * are private and draw with {@code entityCutout}, which ignores alpha; hence the renderer and the layer are this mod's
- * own. The villager model's arms are one crossed part, so a ghost shows particles and sounds only when it casts.
+ * Draws a villager ghost (Parts 6-7 spec §9): the villager model with the base villager texture, translucent and
+ * tinted pale blue (alpha 0.6), plus a copy of vanilla's profession layer that draws the type, profession and
+ * level textures with the same tint. Vanilla's {@code VillagerRenderer} needs a {@code Villager} and the
+ * profession layer's helpers are private and draw with {@code entityCutout}, which ignores alpha; hence the
+ * renderer and the layer are this mod's own. The villager model's arms are one crossed part, so a ghost shows
+ * particles and sounds only when it casts.
  */
 public final class VillagerGhostRenderer
         extends LivingEntityRenderer<VillagerGhost, VillagerRenderState, VillagerModel> {

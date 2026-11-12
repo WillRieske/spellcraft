@@ -728,8 +728,10 @@ an evoker), not the Caster vex.
   within 8 blocks), with **at least one such hostile within 16 blocks** (the ghost's own "still
   needed" test, so spawn and fade agree: a hurt player with no enemy near gets no ghost that would
   puff away at once and be sent again), and with **no ghost already helping them**: the nearest record in their level
-  whose death position is within 48 blocks of them, whose chunk is loaded, and that has no live
-  ghost, spawns a `VillagerGhost` at its death position. **Amends the parent §9.5:** at most one
+  whose death position is within 48 blocks of them, whose chunk ticks entities, and that has no live
+  ghost, spawns a `VillagerGhost` at its death position; among those records, one whose Mirror or
+  Ghostrail cooldown is over is preferred to a nearer spent one (the nearest spent record is sent
+  only when none is ready). **Amends the parent §9.5:** at most one
   ghost per player, so a village massacre does not send a crowd.
 - **The ghost** (`VillagerGhost extends LivingEntity`, `spellcraft:villager_ghost`, `MISC`, sized
   like a villager): synced `VillagerData` (for the look), transient record id and helped player.

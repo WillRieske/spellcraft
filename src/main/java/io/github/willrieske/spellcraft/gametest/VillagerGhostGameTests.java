@@ -19,18 +19,22 @@ import io.github.willrieske.spellcraft.evoking.VillagerGhosts;
 import io.github.willrieske.spellcraft.spell.rules.EvokerSpell;
 import io.github.willrieske.spellcraft.spell.rules.GhostRecords;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.animal.golem.IronGolem;
@@ -44,6 +48,8 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import org.jspecify.annotations.Nullable;
 
 /** GameTests of the villager-ghost records (Parts 6-7 spec §9, §10) and, from Task 12, the ghosts. */
@@ -71,6 +77,18 @@ final class VillagerGhostGameTests {
 
     /** The environment of the 50-block test; see {@link #RANGE_FAR}. */
     private static final String RANGE_EDGE = "villager_ghost_range_edge";
+
+    /**
+     * The environment of the fade-timing test: a husk stays near the player for about 400 ticks, so no other test may
+     * share it (the quiet rule counts any hostile within 16 blocks).
+     */
+    private static final String FADE_TIMING = "villager_ghost_fade_timing";
+
+    /** The environment of the ready-beats-nearest test: record selection is level-wide, so it runs alone. */
+    private static final String READY_FIRST = "villager_ghost_ready_first";
+
+    /** The environment of the spent-record test: with another ready record in range the ghost would go there. */
+    private static final String SPENT = "villager_ghost_spent";
 
     private VillagerGhostGameTests() {}
 
@@ -180,6 +198,64 @@ final class VillagerGhostGameTests {
                 "villager_ghost_whose_record_was_dropped_discards_itself",
                 400,
                 VillagerGhostGameTests::droppedRecord);
+        registerSelectionTests();
+    }
+
+    /** Registers the GameTests of the record selection, the need rules and the fade conditions (branch review). */
+    private static void registerSelectionTests() {
+        FangGameTests.addPadded(
+                SHARED,
+                "villager_ghost_records_load_leniently_past_one_bad_record",
+                VillagerGhostGameTests::loadsLeniently);
+        FangGameTests.addPadded(
+                HELP, "villager_ghost_is_sent_for_the_nearest_record", 400, VillagerGhostGameTests::nearestRecordWins);
+        FangGameTests.addPadded(
+                READY_FIRST,
+                "villager_ghost_is_sent_for_a_ready_record_before_a_nearer_spent_one",
+                400,
+                VillagerGhostGameTests::readyBeatsNearest);
+        FangGameTests.addPadded(
+                SPENT,
+                "villager_ghost_for_a_spent_record_comes_and_casts_nothing",
+                400,
+                VillagerGhostGameTests::spentRecordCastsNothing);
+        FangGameTests.addPadded(
+                HELP,
+                "villager_ghost_a_record_with_a_live_ghost_goes_to_the_next_player",
+                400,
+                VillagerGhostGameTests::liveGhostRecordSkipped);
+        FangGameTests.addPadded(
+                HELP,
+                "villager_ghost_is_sent_to_a_healthy_player_among_three_hostiles_within_8_blocks",
+                400,
+                VillagerGhostGameTests::crowdComes);
+        FangGameTests.addPadded(
+                HELP,
+                "villager_ghost_is_not_sent_to_a_healthy_player_with_only_two_hostiles_within_8_blocks",
+                400,
+                VillagerGhostGameTests::crowdNeedsThreeWithin8);
+        FangGameTests.addPadded(
+                FADE_TIMING,
+                "villager_ghost_stays_through_the_quiet_period_and_a_returning_hostile_resets_it",
+                800,
+                VillagerGhostGameTests::fadeTiming);
+        FangGameTests.addPadded(
+                HELP,
+                "villager_ghost_carries_an_infinite_ghostrail",
+                400,
+                VillagerGhostGameTests::carriesInfiniteGhostrail);
+        FangGameTests.addPadded(
+                HELP,
+                "villager_ghost_fades_when_the_helped_player_turns_spectator",
+                400,
+                VillagerGhostGameTests::fadesForSpectator);
+        FangGameTests.addPadded(
+                HELP, "villager_ghost_fades_when_the_helped_player_dies", 400, VillagerGhostGameTests::fadesForDeath);
+        FangGameTests.addPadded(
+                HELP,
+                "villager_ghost_player_tick_event_steps_on_tick_20_and_not_21",
+                400,
+                VillagerGhostGameTests::tickGate);
     }
 
     /**
@@ -954,5 +1030,377 @@ final class VillagerGhostGameTests {
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(ghost.isRemoved(), "the ghost discarded itself"))
                 .thenSucceed();
+    }
+
+    /**
+     * The live ghosts helping {@code player}.
+     *
+     * @param helper the test helper
+     * @param player the helped player
+     * @return their ghosts
+     */
+    private static List<VillagerGhost> helping(GameTestHelper helper, ServerPlayer player) {
+        return helper
+                .getLevel()
+                .getEntities(
+                        EntityTypeTest.forClass(VillagerGhost.class),
+                        ghost -> ghost.isAlive()
+                                && ghost.helpedId()
+                                        .filter(player.getUUID()::equals)
+                                        .isPresent())
+                .stream()
+                .map(VillagerGhost.class::cast)
+                .toList();
+    }
+
+    /**
+     * When the saved list holds two records and one of them is corrupted (its villager data is no longer a
+     * compound), should the decode return the good record and skip the bad one.
+     *
+     * <p>Method under test: {@code VillagerGhosts#CODEC}
+     */
+    static void loadsLeniently(GameTestHelper helper) {
+        // Arrange
+        VillagerData data = sampleVillagerData(helper);
+        VillagerGhosts ghosts = VillagerGhosts.get(helper.getLevel());
+        VillagerGhosts.Record good = new VillagerGhosts.Record(UUID.randomUUID(), new BlockPos(7, 70, 9), data, 1L, 2L);
+        VillagerGhosts.Record bad = new VillagerGhosts.Record(UUID.randomUUID(), new BlockPos(8, 70, 9), data, 3L, 4L);
+        ghosts.add(good);
+        ghosts.add(bad);
+        whenDone(helper, () -> {
+            ghosts.remove(good.id());
+            ghosts.remove(bad.id());
+        });
+        CompoundTag encoded = (CompoundTag)
+                VillagerGhosts.CODEC.encodeStart(NbtOps.INSTANCE, ghosts).getOrThrow();
+        int[] badPos = {8, 70, 9};
+        for (Tag entry : encoded.getListOrEmpty("records")) {
+            CompoundTag record = (CompoundTag) entry;
+            if (record.getIntArray("pos")
+                    .filter(pos -> Arrays.equals(pos, badPos))
+                    .isPresent()) {
+                record.put("data", StringTag.valueOf("a profession that no longer exists"));
+            }
+        }
+
+        // Act
+        VillagerGhosts decoded =
+                VillagerGhosts.CODEC.parse(NbtOps.INSTANCE, encoded).getOrThrow();
+
+        // Assert
+        helper.assertTrue(decoded.find(good.id()).filter(good::equals).isPresent(), "the good record comes back");
+        helper.assertTrue(decoded.find(bad.id()).isEmpty(), "the bad record is skipped");
+        helper.succeed();
+    }
+
+    /**
+     * When two ready records are in range (10 and 25 blocks), should the ghost be sent for the 10-block one.
+     *
+     * <p>Method under test: {@code VillagerGhosts#step}
+     */
+    static void nearestRecordWins(GameTestHelper helper) {
+        // Arrange
+        Scene scene = scene(helper, true, false);
+        VillagerGhosts.Record near = loadedRecord(helper, 10.0);
+        VillagerGhosts.Record far = loadedRecord(helper, 25.0);
+
+        helper.startSequence()
+                .thenWaitUntil(() -> awaitTicking(helper, near, far))
+                // Act
+                .thenExecute(() -> VillagerGhosts.step(scene.player()))
+                // Assert
+                .thenExecute(() -> {
+                    helper.assertValueEqual(ghosts(helper, near).size(), 1, "a ghost for the nearer record");
+                    helper.assertValueEqual(ghosts(helper, far).size(), 0, "none for the farther one");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the record at 10 blocks has both spells on cooldown and the one at 25 blocks is ready, should the ghost be
+     * sent for the ready one.
+     *
+     * <p>Method under test: {@code VillagerGhosts#step}
+     */
+    static void readyBeatsNearest(GameTestHelper helper) {
+        // Arrange
+        Scene scene = scene(helper, true, false);
+        VillagerGhosts.Record spent = loadedRecord(helper, 10.0);
+        VillagerGhosts.Record ready = loadedRecord(helper, 25.0);
+        spend(helper, spent);
+
+        helper.startSequence()
+                .thenWaitUntil(() -> awaitTicking(helper, spent, ready))
+                // Act
+                .thenExecute(() -> VillagerGhosts.step(scene.player()))
+                // Assert
+                .thenExecute(() -> {
+                    helper.assertValueEqual(ghosts(helper, ready).size(), 1, "a ghost for the ready record");
+                    helper.assertValueEqual(ghosts(helper, spent).size(), 0, "none for the spent one");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the only record has both spells on cooldown, should a ghost still come (nothing better exists) and, once
+     * near, cast nothing and leave the record as it was.
+     *
+     * <p>Method under test: {@code VillagerGhost#tick}
+     */
+    static void spentRecordCastsNothing(GameTestHelper helper) {
+        // Arrange
+        Scene scene = scene(helper, true, true);
+        ServerPlayer player = scene.player();
+        VillagerGhosts.Record spent = spend(helper, scene.record());
+
+        // Act
+        VillagerGhosts.step(player);
+
+        // Assert
+        helper.assertValueEqual(ghosts(helper, spent).size(), 1, "the only record is sent");
+        VillagerGhost ghost = ghosts(helper, spent).get(0);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ghost.distanceTo(player) <= 3.0, "the ghost is near"))
+                .thenIdle(60)
+                .thenExecute(() -> {
+                    helper.assertTrue(!player.hasEffect(ModEffects.MIRROR), "no Mirror");
+                    helper.assertTrue(!player.hasEffect(ModEffects.GHOSTRAIL), "no Ghostrail");
+                    helper.assertTrue(saved(helper, scene).equals(spent), "the record is unchanged");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * Puts both spells of {@code record} on a cooldown that outlasts the test.
+     *
+     * @param helper the test helper
+     * @param record the record
+     * @return the record as it is saved now
+     */
+    private static VillagerGhosts.Record spend(GameTestHelper helper, VillagerGhosts.Record record) {
+        VillagerGhosts ghosts = VillagerGhosts.get(helper.getLevel());
+        long until = helper.getLevel().getGameTime() + 1_000_000L;
+        ghosts.setMirrorReadyAt(record.id(), until);
+        ghosts.setGhostrailReadyAt(record.id(), until);
+        return ghosts.find(record.id()).orElseThrow();
+    }
+
+    /**
+     * Asserts that the chunk of every record has its entities loaded and ticking.
+     *
+     * @param helper the test helper
+     * @param records the records
+     */
+    private static void awaitTicking(GameTestHelper helper, VillagerGhosts.Record... records) {
+        for (VillagerGhosts.Record record : records) {
+            helper.assertTrue(
+                    helper.getLevel().areEntitiesActuallyLoadedAndTicking(ChunkPos.containing(record.pos())),
+                    "setup: the record's chunk is entity-ticking");
+        }
+    }
+
+    /**
+     * When two players in need stand in range of two records, should the first player's ghost take the nearer record
+     * and the second player's take the other one (a record with a live ghost is skipped).
+     *
+     * <p>Method under test: {@code VillagerGhosts#step}
+     */
+    static void liveGhostRecordSkipped(GameTestHelper helper) {
+        // Arrange
+        Scene first = scene(helper, true, false);
+        ServerPlayer second = MockPlayers.inLevel(helper, GameType.SURVIVAL);
+        second.addEffect(EvokingGameTests.evoking());
+        MockPlayers.moveTo(helper, second, FangGameTests.STAND, FangGameTests.NORTH);
+        second.setHealth(second.getMaxHealth() * 0.4F);
+        VillagerGhosts.Record near = ScrollTestSupport.record(helper, at(helper, 8.0, 0.0, 0.0));
+        VillagerGhosts.Record far = ScrollTestSupport.record(helper, at(helper, 10.0, 0.0, 0.0));
+        whenDone(helper, () -> {
+            ghosts(helper, near).forEach(Entity::discard);
+            ghosts(helper, far).forEach(Entity::discard);
+        });
+
+        // Act
+        VillagerGhosts.step(first.player());
+        VillagerGhosts.step(second);
+
+        // Assert
+        helper.assertValueEqual(ghosts(helper, near).size(), 1, "one ghost for the nearer record");
+        helper.assertValueEqual(ghosts(helper, far).size(), 1, "one ghost for the other record");
+        helper.assertTrue(
+                helping(helper, first.player()).size() == 1
+                        && helping(helper, second).size() == 1,
+                "one ghost for each player");
+        helper.assertTrue(
+                ghosts(helper, near)
+                        .get(0)
+                        .helpedId()
+                        .filter(first.player().getUUID()::equals)
+                        .isPresent(),
+                "the first player's ghost came from the nearer record");
+        helper.succeed();
+    }
+
+    /**
+     * A full-health player with a record 10 blocks east and husks at the given offsets.
+     *
+     * @param helper the test helper
+     * @param husks pairs of east and south offsets, one pair per husk
+     * @return the scene (its husk is null; the husks are discarded when the test ends)
+     */
+    private static Scene healthyAmong(GameTestHelper helper, double[]... husks) {
+        Scene scene = scene(helper, false, true);
+        scene.player().setHealth(scene.player().getMaxHealth());
+        for (double[] husk : husks) {
+            hostileAt(helper, at(helper, husk[0], 0.0, husk[1]));
+        }
+        return scene;
+    }
+
+    /**
+     * When a full-health player has three hostiles within 8 blocks (a crowd), should a ghost be sent.
+     *
+     * <p>Method under test: {@code VillagerGhosts#step}
+     */
+    static void crowdComes(GameTestHelper helper) {
+        // Arrange
+        Scene scene = healthyAmong(helper, new double[] {3.0, 0.0}, new double[] {0.0, 3.0}, new double[] {-3.0, 0.0});
+
+        // Act
+        VillagerGhosts.step(scene.player());
+
+        // Assert
+        helper.assertValueEqual(ghosts(helper, scene.record()).size(), 1, "a ghost for a crowd");
+        helper.succeed();
+    }
+
+    /**
+     * When a full-health player has three hostiles within 16 blocks but only two within 8 (the third is at 9), should
+     * no ghost be sent.
+     *
+     * <p>Method under test: {@code VillagerGhosts#step}
+     */
+    static void crowdNeedsThreeWithin8(GameTestHelper helper) {
+        // Arrange
+        Scene scene = healthyAmong(helper, new double[] {3.0, 0.0}, new double[] {0.0, 3.0}, new double[] {-9.0, 0.0});
+
+        // Act
+        VillagerGhosts.step(scene.player());
+
+        // Assert
+        helper.assertTrue(helping(helper, scene.player()).isEmpty(), "no ghost for only two hostiles within 8 blocks");
+        helper.succeed();
+    }
+
+    /**
+     * When the last hostile is gone, should the ghost still be there 150 ticks later; when a hostile then returns for
+     * a while, should the quiet count start over (the ghost is still there 150 ticks into the second quiet stretch,
+     * though the first began over 360 ticks before), and fade after 200 quiet ticks.
+     *
+     * <p>Method under test: {@code VillagerGhost#tick}
+     */
+    static void fadeTiming(GameTestHelper helper) {
+        // Arrange
+        Scene scene = scene(helper, true, true);
+        VillagerGhosts.step(scene.player());
+        VillagerGhost ghost = ghosts(helper, scene.record()).get(0);
+        Husk[] returned = new Husk[1];
+
+        // Act & Assert
+        scene.husk().discard();
+        helper.startSequence()
+                .thenIdle(150)
+                .thenExecute(() -> {
+                    helper.assertTrue(!ghost.isRemoved(), "still there 150 ticks into the quiet period");
+                    returned[0] = hostileAt(helper, at(helper, 3.0, 0.0, 0.0));
+                })
+                .thenIdle(60)
+                .thenExecute(() -> returned[0].discard())
+                .thenIdle(150)
+                .thenExecute(() -> helper.assertTrue(
+                        !ghost.isRemoved(), "still there 150 ticks into the second quiet period: the count restarted"))
+                .thenWaitUntil(() -> helper.assertTrue(ghost.isRemoved(), "the ghost faded after 200 quiet ticks"))
+                .thenSucceed();
+    }
+
+    /**
+     * When a ghost is sent, should it carry an infinite Ghostrail.
+     *
+     * <p>Method under test: {@code VillagerGhost#bind}
+     */
+    static void carriesInfiniteGhostrail(GameTestHelper helper) {
+        // Arrange
+        Scene scene = scene(helper, true, true);
+
+        // Act
+        VillagerGhosts.step(scene.player());
+
+        // Assert
+        VillagerGhost ghost = ghosts(helper, scene.record()).get(0);
+        helper.assertTrue(ghost.hasEffect(ModEffects.GHOSTRAIL), "the ghost has Ghostrail");
+        MobEffectInstance ghostrail = ghost.getEffect(ModEffects.GHOSTRAIL);
+        helper.assertTrue(ghostrail != null && ghostrail.isInfiniteDuration(), "and it is infinite");
+        helper.succeed();
+    }
+
+    /**
+     * When the helped player turns spectator, should the ghost fade.
+     *
+     * <p>Method under test: {@code VillagerGhost#tick}
+     */
+    static void fadesForSpectator(GameTestHelper helper) {
+        // Arrange
+        Scene scene = scene(helper, true, true);
+        VillagerGhosts.step(scene.player());
+        VillagerGhost ghost = ghosts(helper, scene.record()).get(0);
+
+        // Act
+        scene.player().setGameMode(GameType.SPECTATOR);
+
+        // Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ghost.isRemoved(), "the ghost faded"))
+                .thenSucceed();
+    }
+
+    /**
+     * When the helped player dies, should the ghost fade.
+     *
+     * <p>Method under test: {@code VillagerGhost#tick}
+     */
+    static void fadesForDeath(GameTestHelper helper) {
+        // Arrange
+        Scene scene = scene(helper, true, true);
+        VillagerGhosts.step(scene.player());
+        VillagerGhost ghost = ghosts(helper, scene.record()).get(0);
+
+        // Act
+        scene.player().kill(helper.getLevel());
+
+        // Assert
+        helper.assertTrue(!scene.player().isAlive(), "setup: the player is dead");
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ghost.isRemoved(), "the ghost faded"))
+                .thenSucceed();
+    }
+
+    /**
+     * When the player's post-tick event fires at {@code tickCount} 21 and then 20, should only the 20 step the player
+     * (a ghost is sent on 20 and none on 21).
+     *
+     * <p>Method under test: {@code VillagerGhosts#onPlayerTick}
+     */
+    static void tickGate(GameTestHelper helper) {
+        // Arrange
+        Scene scene = scene(helper, true, true);
+        ServerPlayer player = scene.player();
+
+        // Act & Assert
+        player.tickCount = 21;
+        NeoForge.EVENT_BUS.post(new PlayerTickEvent.Post(player));
+        helper.assertTrue(ghosts(helper, scene.record()).isEmpty(), "no ghost on tick 21");
+        player.tickCount = 20;
+        NeoForge.EVENT_BUS.post(new PlayerTickEvent.Post(player));
+        helper.assertValueEqual(ghosts(helper, scene.record()).size(), 1, "a ghost on tick 20");
+        helper.succeed();
     }
 }
