@@ -5582,7 +5582,7 @@ git commit -m "feat(evoking): a robe, arms-up pose and casting particles for Cas
 
 As Task 13, no GameTest reaches client code, and `./gradlew runData` never fires `RegisterRenderers` (`docs/api-notes.md:883-889`): for this task it proves **compilation only**, and the first render of both renderers is Will's playtest (Task 15). Read the sources named in api-notes §26 before writing: every client call below is checked against `build/mc-src`. Javadoc omitted from a snippet below (constructors, overrides, private fields and constants) is still required in the code you commit.
 
-- [ ] **Step 1: Write the renderers**
+- [x] **Step 1: Write the renderers**
 
 `MirrorImageRenderState`:
 
@@ -5908,11 +5908,11 @@ event.registerEntityRenderer(ModEntities.MIRROR_IMAGE.get(), MirrorImageRenderer
 event.registerEntityRenderer(ModEntities.VILLAGER_GHOST.get(), VillagerGhostRenderer::new);
 ```
 
-- [ ] **Step 2: Run the checks**
+- [x] **Step 2: Run the checks**
 
 Run: `./gradlew spotlessApply build`, `./gradlew runData`. Expected: PASS. This proves compilation and that the client distribution boots, nothing more: `runData` does not construct the renderers (api-notes §26), so a `NoSuchFieldError`, a missing model layer or a missing texture surfaces only at the first render, in Will's playtest (Task 15). Read the model-layer and texture names against `build/mc-src` once more before committing.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 Run `./gradlew runGameTestServer` twice first (expected `All N required tests passed`, where N is the total Task 12 recorded: this task adds no GameTest).
 
@@ -5920,6 +5920,8 @@ Run `./gradlew runGameTestServer` twice first (expected `All N required tests pa
 git add src
 git commit -m "feat(evoking): renderers for Mirror images and villager ghosts"
 ```
+
+> **As built (`be07a02`):** matches plan.
 
 ---
 
