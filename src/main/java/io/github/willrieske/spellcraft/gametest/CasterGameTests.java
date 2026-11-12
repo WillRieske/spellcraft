@@ -46,6 +46,7 @@ final class CasterGameTests {
 
     private CasterGameTests() {}
 
+    /** Registers every Caster flag, roll, goal and Raid-kit GameTest. */
     static void registerAll() {
         FangGameTests.addPadded(
                 "caster_dice", "caster_scripted_roll_makes_a_caster", CasterGameTests::scriptedRollMakesACaster);

@@ -19,6 +19,7 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.level.block.Block;
@@ -87,6 +88,8 @@ public final class GhostrailGameTests {
                 GhostrailGameTests::endingTakesAFreeSpot);
         FangGameTests.addPadded(
                 SHARED, "ghostrail_ending_with_no_standable_spot_skips_lava", GhostrailGameTests::endingSkipsLava);
+        FangGameTests.addPadded(
+                SHARED, "ghostrail_ending_with_no_standable_spot_skips_fire", GhostrailGameTests::endingSkipsFire);
         FangGameTests.addPadded(
                 SHARED,
                 "ghostrail_ending_overlapping_a_wall_nudges_to_its_own_block",
@@ -545,6 +548,39 @@ public final class GhostrailGameTests {
         endGhostrail(player);
         // Assert
         helper.assertFalse(level.containsAnyLiquid(player.getBoundingBox()), "not in the lava");
+        helper.assertValueEqual(
+                player.blockPosition().getX(),
+                helper.absolutePos(FangGameTests.FEET).getX() + 6,
+                "in the free pocket");
+        helper.succeed();
+    }
+
+    /**
+     * When Ghostrail ends inside stone with no standable spot, a fire pocket nearer and a free pocket farther, should
+     * the player land in the free pocket and not in the fire.
+     *
+     * <p>Method under test: {@code Ghostrail#tick}: the push-out's fallback skips fire.
+     */
+    static void endingSkipsFire(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = plainPlayer(helper);
+        ServerLevel level = helper.getLevel();
+        stoneAround(helper, FangGameTests.FEET);
+        floorlessPocket(helper, 6);
+        // Fire in both blocks of the pocket (stone above): any box that fits there holds fire. Flags 2 skip the
+        // neighbor update that would burn it out.
+        for (int dy = 0; dy <= 1; dy++) {
+            level.setBlock(
+                    helper.absolutePos(FangGameTests.FEET.offset(3, dy, 0)),
+                    Blocks.FIRE.defaultBlockState(),
+                    Block.UPDATE_CLIENTS);
+        }
+        // Act
+        endGhostrail(player);
+        // Assert
+        helper.assertFalse(
+                level.getBlockStates(player.getBoundingBox()).anyMatch(state -> state.is(BlockTags.FIRE)),
+                "not in the fire");
         helper.assertValueEqual(
                 player.blockPosition().getX(),
                 helper.absolutePos(FangGameTests.FEET).getX() + 6,

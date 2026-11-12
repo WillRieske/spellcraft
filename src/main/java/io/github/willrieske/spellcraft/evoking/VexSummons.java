@@ -33,7 +33,8 @@ public final class VexSummons {
 
     /**
      * Summons {@code count} Bound Vexes beside {@code summoner}: random ring cells one block up, iron swords from
-     * {@code finalizeSpawn}, the summoner's team if it has one, the summoner mark, a bound origin at the cell.
+     * {@code finalizeSpawn}, the summoner's team if it has one, the summoner mark, a bound origin at the cell. Each vex
+     * is rolled a Caster 1 in 3.
      *
      * @param level the level to summon in
      * @param summoner the player who summons them

@@ -23,6 +23,7 @@ import net.minecraft.world.level.GameType;
 public final class SpellScrollGameTests {
     private SpellScrollGameTests() {}
 
+    /** Registers every spell-scroll and {@code Spells.cast} GameTest. */
     static void registerAll() {
         FangGameTests.addPadded(
                 SHARED, "spell_scroll_mirror_gives_the_effect_for_7200_ticks", SpellScrollGameTests::mirrorScroll);

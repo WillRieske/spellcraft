@@ -42,7 +42,8 @@ public final class GhostNeed {
      * @param health the player's health
      * @param maxHealth the player's maximum health, positive
      * @param hostiles how many hostiles (already filtered by the caller) are close
-     * @return true when a ghost should come
+     * @return true when the player is in need (a ghost also needs a hostile within 16 blocks; the caller checks
+     *     that)
      * @throws IllegalArgumentException if {@code hostiles} is negative, {@code health} is negative, or
      *     {@code maxHealth} is not positive
      */

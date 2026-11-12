@@ -155,8 +155,8 @@ class SpellAssetsTest {
     }
 
     /**
-     * When the casting effect and the Mirror image are named in the lang file, should their keys exist: a missing one
-     * would show a raw key in game. Task 12 adds the ghost's key to this test when that entity arrives.
+     * When the casting effect, the Mirror image and the villager ghost are named in the lang file, should their keys
+     * exist: a missing one would show a raw key in game.
      *
      * <p>Method under test: the lang file against the Part 7 names
      */
