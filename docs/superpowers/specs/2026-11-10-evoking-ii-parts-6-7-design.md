@@ -465,6 +465,10 @@ in `addAdditionalSaveData` (a portal copy keeps it). A `/summon`ed vex is not a 
   Because goals are added in `registerGoals` (which runs in the constructor, before `CASTER` is
   known), both sets are registered and each `canUse` checks `isCaster()`.
 - **Casting** (a `CasterSpellGoal` at priority 2, beside the job goals, needing no target):
+  - A Caster scans for a cast to make in this order: **Ghostrail** first (so a summoner in
+    trouble is helped before a Mirror is considered, as the villager ghost does), then Mirror. The
+    numbers (the 4–6 block band, the 1 in 3 roll, the 20-tick wind-up, the cooldowns, the 16-block
+    range, the two-hostile threshold) live in the pure `CasterRules`, the Caster's one home for them.
   - **Mirror** on the summoner when ≥ 2 hostiles (`huntable`, `isPrey`) are in the Caster's guard
     area (a staying Caster's guard area is its stay box around the post), the summoner is within 16 blocks and has no Mirror effect, and this Caster's Mirror
     cooldown (6 minutes, 7200 ticks, saved as a game time) is over.
@@ -475,7 +479,9 @@ in `addAdditionalSaveData` (a portal copy keeps it). A `/summon`ed vex is not a 
     creative or spectator player (§7.1: they fly already).
   - The cast takes **20 ticks**: the Caster holds a conjured scroll of the spell in its main hand
     (stashing the given item), carries the casting effect (§6.4), and plays
-    `EVOKER_PREPARE_SUMMON` at the start and `EVOKER_CAST_SPELL` at the end. At the end, if the
+    `EVOKER_PREPARE_SUMMON` at the start and `EVOKER_CAST_SPELL` at the end. A Caster in a
+    wind-up is not "busy" (`Jobs.busy` asks only the four job goals), so it is still free for a Raid:
+    the Raid preempts the goal, which dismisses the scroll and spends no cooldown. At the end, if the
     subject still qualifies (alive, in range, without the effect), the spell is applied to it
     (§7.1) and the cooldown starts; either way the scroll and the casting effect are dismissed at
     that moment. A Caster interrupted (flee, rescue) dismisses the scroll and spends no cooldown.
@@ -504,7 +510,7 @@ A new marker effect **`spellcraft:casting_scroll`** (hidden from the HUD like th
 effects, with a new particle type the client maps to a purple `#B24CFF`) is put on any non-player
 caster for its wind-up (Casters, villager ghosts). `CastingState.of(entity)` returns
 `Optional<EvokerSpell>` today, and `EvokerSpell`'s ordinals are the packet's `CAST` argument, so it
-is not extended: `CastingState.of` returns a new client-side `CastLook` enum (`FANGS`, `VEXES`,
+is not extended: `CastingState.of` returns an `Optional<CastLook>` (a new client-side enum: `FANGS`, `VEXES`,
 `SCROLL`) instead, and its callers map from it.
 `CastingParticles` then draws the two hand particles for **every living entity in render range**
 whose `CastingState` is present, not only players (hand offsets from `EvokerPose`, scaled by the
@@ -529,8 +535,9 @@ lang, item models and item definitions as for the others. Durations are constant
 Ghostrail 4800 for players): no new config (parent §1).
 
 **Casting by others.** `Spells.cast(LivingEntity target, Spell spell, int ticks)` (extracted from
-`SpellScrollItem.apply`) applies the effect (`MobEffectInstance(effect, ticks, 0, false, false,
-true)`); the scroll's own path calls it with the spell's duration. There is no separate on-apply
+`SpellScrollItem.apply`; public, and it returns whether the effect was added or lengthened) applies
+the effect (`MobEffectInstance(effect, ticks, 0, false, false, true)`); the scroll's own path calls
+it with the spell's duration. There is no separate on-apply
 action: what a spell does when it starts lives in its effect (`MirrorEffect.onEffectAdded` spawns
 the images, `MobEffect.java:108`; Ghostrail's per-tick sync grants flight), so a scroll, a Caster,
 a mob, a ghost and `/effect give` all behave the same. Vanilla calls `onEffectAdded` for a fresh
@@ -554,7 +561,8 @@ edit.
 In this section the **carrier** is whoever has the Mirror effect (a player, a Caster's summoner,
 an evoker), not the Caster vex.
 
-- **On apply** (`MirrorEffect.onEffectAdded`, any `LivingEntity` carrier): spawn **13** Mirror images on the ring cells
+- **On apply** (`MirrorEffect.onEffectAdded`, any `LivingEntity` carrier): first poof any images the
+  carrier still has (a recast in the tick after a removal never doubles the set), then spawn **13** Mirror images on the ring cells
   (`VexRing`, Chebyshev 2–3, standable ones first, then any other cell where the image's box touches no
   block, then the carrier's own spot for the rest: an image is never placed inside a block) around the carrier. Each
   image is given copies of the carrier's main-hand and offhand items at spawn (`setItemSlot`,
@@ -565,11 +573,14 @@ an evoker), not the Caster vex.
   images with it at once: vanilla does not clear a dead player's effects (they stay until the respawn),
   so a `LivingDeathEvent` handler poofs a dying carrier's images, and a mob's removal (killed or
   discarded; `MobEffect.onMobRemoved`) poofs them too. A carrier that is merely unloaded leaves them to
-  their own life. When the last live image of a caster dies, the caster's Mirror effect is removed. So "no images alive" and "no Mirror
+  their own life. When the last live image of a caster dies or runs out of life, the caster's Mirror effect is removed
+  (`MirrorImages.afterEnd`, which excludes the ending image, as it may still be listed that tick). So "no images alive" and "no Mirror
   effect" are the same thing, and the Caster's and ghost's "no images" test reads the effect.
 - **Images** (`MirrorImage extends LivingEntity`, `spellcraft:mirror_image`, `MobCategory.MISC`,
-  sized like the caster at spawn, synced `copiedType` (the carrier's type id) and an optional
-  `ResolvableProfile` (players), saved `caster` UUID (the carrier) and `lifeTicks`; attributes
+  sized like the caster at spawn, synced `copiedType` (the carrier's type id) and a
+  `ResolvableProfile` (players), all four saved: `caster` UUID (the carrier), `life_ticks`, `copied_type`
+  and `profile`, so a reload keeps the look; the held items are saved by vanilla's own `equipment`
+  key, and `MirrorImage` writes none of its own; attributes
   `MAX_HEALTH` 10 and `MOVEMENT_SPEED` 0.25 registered in `EntityAttributeCreationEvent`):
   - health 10, no armor, no attack, not pushable at all (`isPushable` is false: they overlap each other
     and the carrier freely, shove nothing and do not count toward entity cramming);
@@ -608,7 +619,8 @@ an evoker), not the Caster vex.
   golem is never redirected onto a player's images**: they carry the player's mark, which
   `GolemMercy` already refuses as a golem target. **Amends the parent §9.3:** any
   mob, not only hostiles (a golem going for an evoker with images is confused too; a mob picking a
-  player is usually hostile anyway). A mob already targeting an image is not re-rolled. Brain mobs
+  player is usually hostile anyway). A mob already targeting a live image of this carrier keeps it (the change is cancelled,
+  with no roll); one targeting another carrier's image is not blocked; no roll is spent either way. Brain mobs
   that write their target without the event are not confused (accepted; a playtest note).
 
 ### 7.3 Ghostrail
@@ -624,11 +636,11 @@ an evoker), not the Caster vex.
   floor), and a spectator keeps vanilla's own `noPhysics`. The predicate is shared code
   (`AbilitySync.ghostrailPassesThroughBlocks`); the Mixin calls it.
 - **Flight (players):** a player's `mayfly` comes from the game mode, Infinity or Ghostrail.
-  The abilities sync of `InfinityAbilitySync` is generalized into one per-tick sync that grants
+  The abilities sync of `InfinityAbilitySync` is generalized (and renamed `AbilitySync`) into one per-tick sync that grants
   what any source needs and, when a source ends, restores the game mode's abilities
   (`gameMode().updatePlayerAbilities`) and re-grants what the others still need, then
-  `onUpdateAbilities()`. The decision is a pure function (`GrantedAbilities.decide(gameMode,
-  infinity, ghostrail, granted)`, extending `InfinityAbilities`); Ghostrail grants `mayfly`
+  `onUpdateAbilities()`. The decision is a pure function (`GrantedAbilities.decide(State)`, which returns a `Plan`: whether to
+  reset, what to grant and both marks; it replaces `InfinityAbilities`, which is gone); Ghostrail grants `mayfly`
   and `flying`, and is tracked by its own **saved** `GRANTED`-style mark (as Infinity's is), so a
   revoke is never applied twice and a relog mid-effect does not leave `mayfly` on for good.
   `flying` is set on apply and re-asserted every tick while the effect lasts, as spectator mode
@@ -639,7 +651,8 @@ an evoker), not the Caster vex.
 - **Trail:** every tick, 2 `WHITE_SMOKE` particles at the carrier's previous position
   (`sendParticles`).
 - **Start spot:** when the effect is added (`onEffectAdded`), the carrier's block position is
-  remembered (an attachment, not saved) if it is a standable spot. `onGround` is not updated while
+  remembered (an attachment, not saved) if it is a standable spot (a recast before the end keeps the
+  earlier spot when the new one is not standable). `onGround` is not updated while
   `noPhysics` moves an entity (`Entity.java:748-754`), so positions are not recorded during the
   effect.
 - **Ending** (expiry, dispel, milk; detected by the same per-tick poll, which also catches
@@ -654,7 +667,8 @@ an evoker), not the Caster vex.
   its **original** `NoGravity` back (from the mark; an effect removed and cast again before the end ran
   keeps the first original), then the push-out. Pathfinding would walk
   around the wall Ghostrail is for, and `Mob.serverAiStep` overwrites a wanted position set from
-  outside the goals, so **scroll-carrying mobs** (§8) get a `GhostrailChaseGoal` (installed on
+  outside the goals, so **every evoker, vindicator and pillager** (§8) gets a `GhostrailChaseGoal` when it joins a level,
+  whether or not it carries a scroll (installed on
   `EntityJoinLevelEvent`, goal priority 0, flag `MOVE`): while the mob has Ghostrail and a target,
   it stops the navigation and sets the mob's velocity straight at the target's middle at 0.3
   blocks per tick (no gravity, so it can rise and sink). Any other mob given Ghostrail by command
@@ -681,6 +695,8 @@ an evoker), not the Caster vex.
   `Vindicator` or `Pillager` 1 time in 10; Mirror or Ghostrail at even odds (dice). The offhand
   drop chance is set to **0.5**: vanilla drops it only on a player's kill (with Looting raising
   it), which is "the loot path for players" of the parent.
+- **The chase goal:** on `EntityJoinLevelEvent` every evoker, vindicator and pillager gets the
+  `GhostrailChaseGoal` (§7.3), a scroll or not.
 - **When:** on `LivingChangeTargetEvent` where such a mob goes from no target to a target (the old
   target null, the new one not) and that spell's cooldown is over (an attachment of game times,
   saved):
@@ -704,8 +720,9 @@ an evoker), not the Caster vex.
   villager's `VillagerData` (type, profession, level), the game times its Mirror and Ghostrail
   cooldowns end. At most **32** records per level; adding a 33rd drops the oldest (the pure
   `GhostRecords` list rule).
-- **Appear:** `VillagerGhosts.step(ServerPlayer)` (public, for GameTests) runs every 20 ticks of
-  the player's `tickCount` from `PlayerTickEvent.Post`, for each player with the Evoking effect, alive, not a spectator,
+- **Appear:** `VillagerGhosts.step(ServerPlayer)` (a public seam, for GameTests; the 20-tick gate is in
+  the `PlayerTickEvent.Post` handler, `onPlayerTick`, not in `step`) runs every 20 ticks of
+  the player's `tickCount`, for each player with the Evoking effect, alive, not a spectator,
   **in need** (below half health, or ≥ 3 hostiles that are `huntable` and `isPrey` for them
   within 8 blocks), with **at least one such hostile within 16 blocks** (the ghost's own "still
   needed" test, so spawn and fade agree: a hurt player with no enemy near gets no ghost that would
@@ -830,7 +847,7 @@ trail; an evoker with a scroll casting; the ghost's look, flight and fade.
 
 **Docs:** README (Casters, the two spells, scroll mobs, ghosts), mod description (six spells),
 `docs/api-notes.md` §26 (every vanilla fact used), playtest checklist, mutation testing, the
-parent's inline notes, `CLAUDE.md` (the Mixin list gains the Ghostrail Mixin), scribing docs if
+parent's inline notes, `CLAUDE.md` (it has no Mixin list, so one sentence names the Ghostrail Mixin), scribing docs if
 any list the pools.
 
 **Version (a release step, not a plan task):** after the Part 7 plan is done, `mod_version`
@@ -845,16 +862,16 @@ Part 6: `spell.rules.TeamMove`, `TeamMoveRules`; `evoking.TeamMoves`, `TeamMoveG
 lang; GameTests; docs.
 
 Part 7: `spell.rules.SpellDeclarations`, `GhostrailDuration`, `GrantedAbilities` (from
-`InfinityAbilities`), `GhostRecords`, `GhostNeed`, `MirrorRule`; `spell.Spells`, `ModItems`,
+`InfinityAbilities`, which is gone), `GhostRecords`, `GhostNeed`, `MirrorRule`, `CasterRules`; `spell.Spells`, `ModItems`,
 `SpellScrollItem`, `Allies` (`isPlayersSide`), `GolemMercy`; `effect.ModEffects`, `MirrorEffect`,
-`GhostrailEffect`; `mixin.PlayerGhostrailMixin`; `infinity.InfinityAbilitySync` → shared sync;
+`GhostrailEffect`; `mixin.PlayerGhostrailMixin`; `infinity.InfinityAbilitySync` → `infinity.AbilitySync` (the shared sync);
 `evoking.BoundVex` (Caster), `CasterGoal`, `CasterSpellGoal`, `ScrollCasting`, `VexSummons`,
 `TeamMoveKits`, `TeamMoveTriggers`, `MirrorImage`,
 `MirrorImages` (events), `ScrollMobs`, `GhostrailChaseGoal`, `Ghostrail` (the per-tick driver),
 `VexRescues` (skip Ghostrail), `Jobs` (Part 6: `busy`), `VillagerGhost`, `VillagerGhosts` (SavedData + spawner),
 `ModEntities`; `particle.ModParticles`; `client.evoking.BoundVexModel`, `BoundVexRobeLayer`,
-`BoundVexRenderer`, `BoundVexRenderState`, `CastingState`, `CastingParticles`,
-`MirrorImageRenderer`, `VillagerGhostRenderer`, the ghost profession layer; `scripts/spell_icons.py`,
+`BoundVexRenderer`, `BoundVexRenderState`, `CastingState`, `CastLook`, `CastingParticles`,
+`MirrorImageRenderer`, `MirrorImageRenderState`, `VillagerGhostRenderer`, the ghost profession layer; `scripts/spell_icons.py`,
 `scripts/robe_texture.py`; assets; GameTests; docs; `gradle.properties`.
 
 ## 13. Not built
@@ -893,6 +910,9 @@ walls).
 | Mirror effect and images | The effect ends when the last image dies | "No images" and "no effect" then mean one thing. |
 | Who images confuse | Any mob picking the caster | A golem going for an evoker should be fooled too. |
 | Player image skin | A mannequin stand-in; the skin is read from the client's skin render cache into the render state | A never-ticked mannequin never applies its own skin; the cache is the path that resolves an offline player's skin. |
+| Caster and ghost: which spell first | Ghostrail, then Mirror | Help someone in trouble before adding images. |
+| Image save | Type, profile, caster and life saved by the image; held items by vanilla's `equipment` key | A reload keeps the look without a new field. |
+| Chase goal install | On every evoker, vindicator and pillager that joins a level | A command can give any of them Ghostrail, and a mob that gets a scroll later still chases. |
 | Ghostrail vs. `/kill` and the void | Both still land | A ghost under the world must not fall forever. |
 | Mob Ghostrail steering | A chase goal on scroll mobs, straight at the target | Pathfinding walks around the wall Ghostrail is for, and a wanted position set outside the goals is overwritten. |
 | Ghostrail and rescues | No rescue for a carrier | It takes no damage and is flying. |

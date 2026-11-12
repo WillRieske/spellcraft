@@ -1414,4 +1414,7 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   all before a `GameTestSupport.whenDone` listener runs. An unforce there can hit the next test's chunk. Force-load a chunk only in a
   test that runs alone in its own environment, and leave the unforce to the runner. (2026-11-12: a full run hung that way; the
   `runGameTestServer` task now has an 8-minute timeout in `build.gradle`.)
-- **Baseline.** `./gradlew runGameTestServer`: `All 650 required tests passed` on 2026-11-10 (Part 6 ended at 650). Every Part 7 gate is this number plus the tests registered so far.
+- **Saved equipment.** `LivingEntity.addAdditionalSaveData` writes the equipment under the `equipment` key (`EntityEquipment.CODEC`,
+  `LivingEntity.java:795`) and `readAdditionalSaveData` reads it (`:856`), so `MirrorImage` saves the copied main-hand and offhand items
+  through its `super` call and writes no equipment of its own (it adds only `caster`, `life_ticks`, `copied_type` and `profile`).
+- **Baseline.** `./gradlew runGameTestServer`: `All 650 required tests passed` on 2026-11-10 (Part 6 ended at 650); `All 788 required tests passed` on 2026-11-12 (Part 7 ended at 788). Every Part 7 gate is the Part 6 number plus the tests registered so far.

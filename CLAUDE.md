@@ -14,15 +14,16 @@ Run from the repo root. In the Bash tool use `./gradlew`; in PowerShell use `.\g
 | `./gradlew test` | Unit tests: JUnit 5 + jqwik + ArchUnit (seconds) |
 | `./gradlew build` | spotlessCheck + Error Prone/`-Xlint:all -Werror` + tests + jar |
 | `./gradlew spotlessApply` | Format (palantir-java-format) |
-| `./gradlew runGameTestServer` | GameTests (server rules and common Mixins); non-zero exit on failure. |
+| `./gradlew runGameTestServer` | GameTests (server rules and common Mixins); non-zero exit on failure. The task fails after 8 minutes (`build.gradle` `timeout`): a timeout means a hung test (a test whose structure chunks never tick never starts and never times out), not a slow machine. |
 | `./gradlew runGameTestServer "-PgameTests=spellcraft:bound_vex_gear_*"` | Only the GameTests whose ID matches the selector (wildcards allowed), for the inner loop while writing a test. A selector that matches nothing fails. Never a substitute for the full run: a name cannot tell which tests a change affects, and the gates run every test. |
-| `./gradlew runData` | Headless client-dist boot (loads client classes and config specs); the only automated check of client code, and it proves the `ArmPose` enum wiring (`EvokingArmPoseCheck`) |
+| `./gradlew runData` | Headless client-dist boot (loads client classes and config specs); the only automated check of client code, and it proves the `ArmPose` enum wiring (`EvokingArmPoseCheck`); it never fires `RegisterRenderers`, so no renderer, layer, model or particle provider is constructed and no texture is resolved: a green `runData` is no proof of the renderers |
 | `./gradlew runClient` | Dev client, for Will's playtest only |
 | `powershell -ExecutionPolicy Bypass -File scripts\Deploy-TestEnv.ps1` | Gate checks + GameTests, then launch the dev client (or keep a current one); asks before stopping a stale one. `-CheckOnly`: status only. Exit codes in the script header |
 | `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Path scripts/tests -EnableExit"` | Deploy-script unit tests (Pester 3.4; by hand, not in CI) |
 | `./gradlew pitest` | Mutation testing of the pure core (on demand) |
 | `./gradlew test jacocoTestReport` | Coverage report (on demand) |
 | `python scripts/spell_icons.py` | Regenerate every spell's scroll and effect icon (one glyph per spell) |
+| `python scripts/robe_texture.py` | Regenerate the Caster's robe texture (`bound_vex_robe.png`) |
 | `python -m unittest discover -s scripts -p "test_*.py"` | Icon-script tests (also a pre-commit hook) |
 
 A cold build (fresh clone, cleared Gradle cache, or a NeoForge bump) takes 5–15 min. Run it
@@ -58,6 +59,7 @@ Then grep `build/mc-src` (vanilla `net.minecraft.*` with NeoForge patches applie
 - **Mixins only where no event exists**, `require = 1`, handlers are thin and call shared code. Common
   Mixins live in `…spellcraft.mixin` (`spellcraft.mixins.json`), client ones in `…spellcraft.client.mixin`
   (`spellcraft.client.mixins.json`); a Mixin config's package holds only Mixins.
+  `PlayerGhostrailMixin` (Ghostrail's `noPhysics`) is the one Mixin Part 7 adds; the Part 6 packet rule is unchanged: Part 7 adds no packet.
 - **Error Prone runs with `-Werror`.** Suppress a check only with `@SuppressWarnings("<Check>")`
   plus a comment saying why (e.g. Mixin handlers → `UnusedMethod`).
 - **Commits:** conventional (gitlint). The commit gate (`.claude/gate.json`) runs
