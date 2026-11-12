@@ -12,12 +12,11 @@ import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.resources.Identifier;
 
 /**
- * Draws the vex model again with the robe texture for a Caster (Parts 6-7 spec §6.3), scaled up about the body and
- * drawn with {@code RenderTypes.entityCutoutZOffset} (26.3 has no {@code entityCutoutNoCull}; {@code entityCutout}
- * is the no-cull variant; the z-offset variant exists for exactly this overlay case). The scale alone moves the 2-pixel
- * body out by only about 0.06 pixel, too little to rule out z-fighting at range, so the z offset does that job and the
- * growth is for the look. The texture is transparent on the head and the wings, so only the body and the arms are
- * dressed. Both are first guesses for Will's eye (playtest checklist, Part 7).
+ * Draws the vex model again with the robe texture for a Caster (Parts 6-7 spec §6.3), scaled up about the body. The
+ * robe uses {@code RenderTypes.entityCutoutZOffset} so that it draws over the body it hugs without z-fighting. The
+ * scale alone moves the 2-pixel body out by only about 0.06 pixel, too little to rule out z-fighting at range, so the
+ * z offset does that job and the growth is for the look. The texture is transparent on the head and the wings, so only
+ * the body and the arms are dressed. Both are first guesses for Will's eye (playtest checklist, Part 7).
  */
 public final class BoundVexRobeLayer extends RenderLayer<VexRenderState, VexModel> {
     /** The robe texture, 32 x 32 like the vex's. */
@@ -38,6 +37,7 @@ public final class BoundVexRobeLayer extends RenderLayer<VexRenderState, VexMode
         super(renderer);
     }
 
+    /** Draws the robe over a Caster's body and arms; nothing for a plain vex or an invisible one. */
     @Override
     public void submit(
             PoseStack poseStack,

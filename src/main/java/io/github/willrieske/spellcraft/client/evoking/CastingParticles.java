@@ -26,19 +26,22 @@ import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsE
  */
 @EventBusSubscriber(modid = Spellcraft.MODID, value = Dist.CLIENT)
 public final class CastingParticles {
-    /** The evoker's spell colors ({@code SpellcasterIllager.IllagerSpell}): fangs, vexes, then a scroll's purple. */
+    /** The evoker's fangs spell color ({@code SpellcasterIllager.IllagerSpell}). */
     private static final ColorParticleOption FANGS_COLOR =
             ColorParticleOption.create(ParticleTypes.ENTITY_EFFECT, 0.4F, 0.3F, 0.35F);
 
+    /** The pale gray-blue of a vexes cast (#B3B3CC). */
     private static final ColorParticleOption VEXES_COLOR =
             ColorParticleOption.create(ParticleTypes.ENTITY_EFFECT, 0.7F, 0.7F, 0.8F);
 
+    /** The purple of a scroll cast (#B24CFF). */
     private static final ColorParticleOption SCROLL_COLOR =
             ColorParticleOption.create(ParticleTypes.ENTITY_EFFECT, 0xFFB24CFF);
 
     /** A player's standing height in blocks: {@code EvokerPose.HAND_HEIGHT} and the hand offset are for this size. */
     private static final float PLAYER_HEIGHT = 1.8F;
 
+    /** Hides the three casting effects from the HUD and the inventory; one instance serves all three. */
     private static final IClientMobEffectExtensions HIDDEN = new IClientMobEffectExtensions() {
         @Override
         public boolean isVisibleInInventory(MobEffectInstance instance) {
@@ -79,8 +82,8 @@ public final class CastingParticles {
 
     /**
      * Adds the two hand particles for every casting living entity in the level, skipping the tick while the game is
-     * paused
-     * or the level's tick rate is frozen (the particle engine does not tick then, so the particles would pile up).
+     * paused or the level's tick rate is frozen (the particle engine does not tick then, so the particles would
+     * pile up).
      *
      * @param event the game-bus event
      */
