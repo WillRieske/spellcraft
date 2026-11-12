@@ -4697,7 +4697,7 @@ git commit -m "feat(evoking): villagers that monsters kill leave a saved record"
   - `VillagerGhost extends LivingEntity` (public final): synced `VillagerData` (`EntityDataSerializers.VILLAGER_DATA`); `VillagerData villagerData()`; `Optional<UUID> recordId()`; `Optional<UUID> helpedId()`; `void bind(VillagerGhosts.Record record, ServerPlayer player)` (call it **after** the ghost is positioned: it casts Ghostrail, whose start-spot probe reads the block at the ghost's position); `void fade()` (POOF particles, `VEX_DEATH` at volume 0.3, `discard`). Not saved (`shouldBeSaved` false), invulnerable (`setPermanentlyInvulnerable(true)`, so vanilla's `canBeSeenAsEnemy` is false), not attackable (`isAttackable()` and `attackable()` both false: fangs, a vindicator or a wither must not target it), not pickable, no gravity, no physics; moves by setting its own position toward the spot 2 blocks from the player at the player's eye height (at most its `MOVEMENT_SPEED` attribute in blocks per tick, easing in; the spec said velocity, position is simpler for a no-physics entity and gives the same motion); carries an infinite Ghostrail from the spawn. Like any Ghostrail carrier it can still be removed by `/kill` and the void (the invulnerable flag does not stop `GENERIC_KILL`); the record stays.
   - `VillagerGhosts.step(ServerPlayer)` (public static; the body of the 20-tick check; `onPlayerTick` runs it when `player.tickCount % 20 == 0`): a living, non-spectating player with the Evoking effect gets a ghost only when **all** hold, checked cheapest first: **at least one hostile** (`huntable` and `isPrey` for them) within `CasterRules.RANGE` of them (the ghost's own "still needed" test, so spawn and fade agree: a hurt player with no enemy near gets no ghost that would puff away at once); they are **in need** (`GhostNeed.inNeed(health, max, crowd)` with `crowd` the hostiles among those within `GhostNeed.CROWD_RANGE`); **no ghost is already helping** them; and a record exists in their level within 48 blocks, whose chunk is loaded and which has no live ghost (the nearest wins).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `VillagerGhostGameTests.registerAll` (all `FangGameTests.addPadded(ENV, name, 400, …)`: ghosts take up to 250 ticks). The tests that fill the record list register in their own environments so the level-wide 32-record cap is never near (Task 11's budget note): the help tests in `HELP = "villager_ghost_help"`, the fade test in `FADE = "villager_ghost_fade"` (the 200-tick quiet rule counts any hostile within 16 blocks, and the shared batch's padding is only 13, so a neighbor's ravager near its box edge could keep the ghost alive past the test's budget):
 
@@ -4771,11 +4771,11 @@ static void appears(GameTestHelper helper) {
 
 Add `"entity.spellcraft.villager_ghost": "Villager Ghost",` to the lang file (after `"entity.spellcraft.mirror_image"`) and the `.contains("\"entity.spellcraft.villager_ghost\"")` line of `SpellAssetsTest.part7NamesAreEnglish`.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `./gradlew compileJava` (FAIL: `VillagerGhost` does not exist).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `ModEntities`:
 
@@ -5132,11 +5132,11 @@ private static void spawn(ServerLevel level, Record record, ServerPlayer player)
 
 (The three scans `helping`, `hasLiveGhost` and the hostile query are the only world queries of a step; `ServerLevel.getEntities(EntityTypeTest, Predicate)` walks every entity of the level, which is why the cheap player and need checks come first and a player who is neither hurt nor near an enemy costs one box query every 20 ticks.)
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew runGameTestServer "-PgameTests=spellcraft:villager_ghost_*"`, `"-PgameTests=spellcraft:ghostrail_*"`. Expected: PASS. In the as-built note, record the one divergence from the spec: the ghost moves by `setPos`, not by velocity.
 
-- [ ] **Step 5: Gates and commit**
+- [x] **Step 5: Gates and commit**
 
 Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All 782 required tests passed` both times (the Task 11 total plus the 15 `villager_ghost_*` tests registered in this task).
 
@@ -5144,6 +5144,8 @@ Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expec
 git add src
 git commit -m "feat(evoking): villager ghosts that come to a player in need and cast for them"
 ```
+
+> **As built (`4a481bf`):** diverged — 788 GameTests (plan 782 + offset 3 + 3 added in review): the reach test moved out of HELP into its own environment, and the plan's optional boundary pair was built as 46 and 50 blocks (tighter than its 'about 40 / about 56'), each alone in its own environment with the record's chunk force-loaded and the unforce left to the runner (an unforce from a whenDone listener hung a full run, see api-notes §26); a creative-in-the-wind-up test added; step scans for live ghosts once and only when a loaded record is in range; reason: review fix round 1 and its re-review minors, re-review approved
 
 ### Task 13: The Caster's look: the robe, the arms-up pose, the casting particles
 
@@ -6025,3 +6027,4 @@ git commit -m "docs(evoking): Part 7 in the README, playtest items, mutation tes
 | 9 | `f871ee5` | CasterSpellGameTests scene floor is 8 blocks, not 3 (Mirror images wander up to 6 blocks and fell off a 3-block floor; spec has no ledge avoidance); review minors fixed in f871ee5 (dismiss once, exact cast-timing bound, choose() clears its pick); reason: implementer report, review approved |
 | 10 | `ea7c862` | chasesThroughAWall keeps the player vulnerable (Mob.asValidTarget rejects an invulnerable target via canBeSeenAsEnemy, so the plan's setTarget was dropped) and empties the pillager's main hand instead; floored scenes use radius 12 for Mirror image wander room; EVOKER_CAST_SPELL has no .value() in 26.3; MOB_GHOSTRAIL_COOLDOWN_TICKS made public for the test; RED was compile-time; reason: implementer report, review approved |
 | 11 | `ff499bf` | no RED capture (production code written before the tests compiled); `VillagerGhosts.Record` carries `@SuppressWarnings("AvoidCommonTypeNames")` (Error Prone rejects the name the spec mandates); test helpers discard their villagers and any converted zombie villager when done; reason: implementer report, review approved (its minors are fixed first in Task 12). |
+| 12 | `4a481bf` | 788 GameTests (plan 782 + offset 3 + 3 added in review): the reach test moved out of HELP into its own environment, and the plan's optional boundary pair was built as 46 and 50 blocks (tighter than its 'about 40 / about 56'), each alone in its own environment with the record's chunk force-loaded and the unforce left to the runner (an unforce from a whenDone listener hung a full run, see api-notes §26); a creative-in-the-wind-up test added; step scans for live ghosts once and only when a loaded record is in range; reason: review fix round 1 and its re-review minors, re-review approved |
