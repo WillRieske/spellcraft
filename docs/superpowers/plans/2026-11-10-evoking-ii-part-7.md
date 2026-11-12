@@ -1,6 +1,6 @@
 # Evoking II Part 7: Casters, Mirror, Ghostrail, Scroll Mobs and Villager Ghosts Implementation Plan
 
-**Status:** not started; Part 6 (`feat/evoking-ii-part-6`) is built and is merged into `main` before this branch (`feat/evoking-ii-part-7`) is cut
+**Status:** implemented 2026-11-12
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
