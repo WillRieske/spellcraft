@@ -19,6 +19,8 @@ import io.github.willrieske.spellcraft.evoking.FleeCreeperGoal;
 import io.github.willrieske.spellcraft.evoking.TeamMoveGoal;
 import io.github.willrieske.spellcraft.evoking.TeamMoves;
 import io.github.willrieske.spellcraft.evoking.VexRescues;
+import io.github.willrieske.spellcraft.spell.Spells;
+import io.github.willrieske.spellcraft.spell.rules.GhostrailDuration;
 import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import java.util.List;
 import java.util.Optional;
@@ -84,6 +86,12 @@ public final class BoundVexLavaGameTests {
         padded(
                 "bound_vex_world_lava_pull_not_for_creative",
                 helper -> lavaPullNotForTheUnhurt(helper, player -> player.setGameMode(GameType.CREATIVE), false));
+        padded(
+                "bound_vex_world_lava_pull_not_for_a_ghostrail_carrier",
+                helper -> lavaPullNotForTheUnhurt(
+                        helper,
+                        player -> Spells.cast(player, Spells.GHOSTRAIL, GhostrailDuration.PLAYER_TICKS),
+                        false));
         padded("bound_vex_world_lava_pull_not_for_passengers", BoundVexLavaGameTests::lavaPullNotForPassengers);
         padded(
                 "bound_vex_world_lava_pull_not_with_a_staying_vex",

@@ -16,7 +16,7 @@ public final class ModEffects {
     public static final DeferredHolder<MobEffect, MobEffect> UPSIDE_DOWN =
             MOB_EFFECTS.register("upside_down", () -> new MarkerEffect(MobEffectCategory.NEUTRAL, 0x7F5AF0));
 
-    /** Strength of Infinity. Its abilities are synced each server tick by {@code InfinityAbilitySync}. */
+    /** Strength of Infinity. Its abilities are synced each server tick by {@code AbilitySync}. */
     public static final DeferredHolder<MobEffect, MobEffect> INFINITY =
             MOB_EFFECTS.register("infinity", InfinityEffect::new);
 
@@ -35,6 +35,20 @@ public final class ModEffects {
     /** On a player for the 100 ticks a vex summon keeps the arms up; carries {@code ModParticles.CASTING_VEXES}. */
     public static final DeferredHolder<MobEffect, MobEffect> CASTING_VEXES =
             MOB_EFFECTS.register("casting_vexes", () -> new CastingEffect(ModParticles.CASTING_VEXES));
+
+    /** Strength of Mirror. {@code MirrorEffect.onEffectAdded} spawns the images; they end with the effect. */
+    public static final DeferredHolder<MobEffect, MobEffect> MIRROR = MOB_EFFECTS.register("mirror", MirrorEffect::new);
+
+    /** Strength of Ghostrail. {@code Ghostrail} runs it every tick; the Mixin lets a player through blocks. */
+    public static final DeferredHolder<MobEffect, MobEffect> GHOSTRAIL =
+            MOB_EFFECTS.register("ghostrail", GhostrailEffect::new);
+
+    /**
+     * On a non-player caster for the 20 ticks a scroll cast keeps the hands lit; carries
+     * {@code ModParticles.CASTING_SCROLL}.
+     */
+    public static final DeferredHolder<MobEffect, MobEffect> CASTING_SCROLL =
+            MOB_EFFECTS.register("casting_scroll", () -> new CastingEffect(ModParticles.CASTING_SCROLL));
 
     private ModEffects() {}
 }

@@ -2,7 +2,7 @@ package io.github.willrieske.spellcraft.gametest;
 
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
-import io.github.willrieske.spellcraft.infinity.InfinityAbilitySync;
+import io.github.willrieske.spellcraft.infinity.AbilitySync;
 import io.github.willrieske.spellcraft.infinity.InfinityAttachments;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.protocol.game.ServerboundSetCreativeModeSlotPacket;
@@ -16,7 +16,7 @@ import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.level.storage.TagValueOutput;
 
 /** Ability-sync GameTests for Strength of Infinity. Registered in {@link SpellcraftGameTests}. */
-@SuppressWarnings("deprecation") // Every test asserts on Abilities#mayfly; see InfinityAbilitySync#sync for why.
+@SuppressWarnings("deprecation") // Every test asserts on Abilities#mayfly; see AbilitySync#sync for why.
 public final class InfinityAbilityGameTests {
     /** {@code inventoryMenu} slot numbers: 36 = hotbar 0, 37 = hotbar 1 (docs/api-notes.md §11). */
     private static final int MENU_HOTBAR_0 = 36;
@@ -44,7 +44,7 @@ public final class InfinityAbilityGameTests {
     private static ServerPlayer granted(GameTestHelper helper, GameType mode) {
         ServerPlayer player = MockPlayers.inLevel(helper, mode);
         player.addEffect(InfinityGameTests.infinite());
-        InfinityAbilitySync.sync(player);
+        AbilitySync.sync(player);
         return player;
     }
 
@@ -62,7 +62,7 @@ public final class InfinityAbilityGameTests {
         ServerPlayer player = granted(helper, GameType.SURVIVAL);
         player.getAbilities().flying = true;
         player.removeAllEffects();
-        InfinityAbilitySync.sync(player);
+        AbilitySync.sync(player);
         Abilities abilities = player.getAbilities();
         helper.assertFalse(abilities.mayfly, "flight revoked");
         helper.assertFalse(abilities.instabuild, "creative building revoked");
@@ -74,11 +74,11 @@ public final class InfinityAbilityGameTests {
     static void modeSwitchResumes(GameTestHelper helper) {
         ServerPlayer player = granted(helper, GameType.SURVIVAL);
         player.setGameMode(GameType.CREATIVE);
-        InfinityAbilitySync.sync(player);
+        AbilitySync.sync(player);
         helper.assertFalse(player.getData(InfinityAttachments.GRANTED), "creative owns the flags");
         player.setGameMode(GameType.SURVIVAL);
         helper.assertFalse(player.getAbilities().mayfly, "precondition: vanilla reset the flags");
-        InfinityAbilitySync.sync(player);
+        AbilitySync.sync(player);
         helper.assertTrue(player.getAbilities().mayfly, "flight regained in survival");
         helper.assertTrue(player.getAbilities().instabuild, "creative building regained in survival");
         helper.succeed();
@@ -87,7 +87,7 @@ public final class InfinityAbilityGameTests {
     static void leavesOtherFlight(GameTestHelper helper) {
         ServerPlayer player = MockPlayers.inLevel(helper, GameType.SURVIVAL);
         player.getAbilities().mayfly = true; // as another mod would
-        InfinityAbilitySync.sync(player);
+        AbilitySync.sync(player);
         helper.assertTrue(player.getAbilities().mayfly, "unmarked flags are never touched");
         helper.succeed();
     }
@@ -100,7 +100,7 @@ public final class InfinityAbilityGameTests {
         boolean instabuild = abilities.instabuild;
         boolean invulnerable = abilities.invulnerable;
         player.addEffect(InfinityGameTests.infinite());
-        InfinityAbilitySync.sync(player);
+        AbilitySync.sync(player);
         helper.assertFalse(player.getData(InfinityAttachments.GRANTED), "no mark in " + mode);
         helper.assertValueEqual(abilities.mayfly, mayfly, "mayfly as vanilla");
         helper.assertValueEqual(abilities.instabuild, instabuild, "instabuild as vanilla");
@@ -128,7 +128,7 @@ public final class InfinityAbilityGameTests {
                 new ServerboundSetCreativeModeSlotPacket(MENU_HOTBAR_0, new ItemStack(Items.DIAMOND)));
         helper.assertTrue(player.getInventory().getItem(0).is(Items.DIAMOND), "accepted with Infinity");
         player.removeAllEffects();
-        InfinityAbilitySync.sync(player);
+        AbilitySync.sync(player);
         player.connection.handleSetCreativeModeSlot(
                 new ServerboundSetCreativeModeSlotPacket(MENU_HOTBAR_1, new ItemStack(Items.EMERALD)));
         helper.assertTrue(player.getInventory().getItem(1).isEmpty(), "rejected after Infinity ends");

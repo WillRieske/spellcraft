@@ -1,8 +1,8 @@
 # Spellcraft: Evoking II, Bound Vexes (design)
 
 **Date:** 2026-11-07
-**Status:** plan written (`2026-11-08-evoking-ii-part-2.md`); phase 6 plan not yet written
-<!-- child-plans: 2026-11-07-evoking-ii-part-1.md, 2026-11-08-evoking-ii-part-2.md, 2026-11-09-evoking-ii-part-3.md, 2026-11-09-evoking-ii-part-4.md, 2026-11-10-evoking-ii-part-5.md -->
+**Status:** implemented 2026-11-12 via `2026-11-10-evoking-ii-part-7.md`; playtest pending
+<!-- child-plans: 2026-11-07-evoking-ii-part-1.md, 2026-11-08-evoking-ii-part-2.md, 2026-11-09-evoking-ii-part-3.md, 2026-11-09-evoking-ii-part-4.md, 2026-11-10-evoking-ii-part-5.md, 2026-11-10-evoking-ii-part-6.md, 2026-11-10-evoking-ii-part-7.md -->
 **Shape:** built in seven parts (§1), each with its own plan, branch and PR
 **Written by:** brainstorm with Will on 2026-11-07; §13 lists the decisions Will did not state
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
@@ -649,6 +649,8 @@ At summon, each Bound Vex rolls **1 in 3** for `CASTER`. A Caster:
 - is still a Bound Vex for everything else (follow, stay, gear it is given, portals, rescues). It
   takes part only in Raids among the team moves.
 
+**Amended by the Parts 6–7 spec §6.2:** a Caster tries Ghostrail before Mirror, and its numbers live in the pure `CasterRules`.
+
 ### 9.2 The two spells (framework spells)
 
 Both are real spells: declarations, effects, scrolls, glyphs, lang, scribing pool, cast rules,
@@ -658,6 +660,8 @@ MIRROR, GHOSTRAIL]`; `ModItems` registers both scrolls; `SpellDeclarationsTest`,
 `CastRulesTest.decidesEveryCase` and `SpellAssetsTest` gain rows for both; the scribing tests'
 **top-tier pool now holds two spells** (Infinity and Ghostrail), so any test that expects the
 top roll to be an Infinity scroll accepts either, and the lower pool gains Mirror.
+
+**Amended by the Parts 6–7 spec §7.1:** `Spells.cast` applies an effect for any caster, and `Spells.refusedFor` is the one creative refusal for casters that are not scrolls.
 
 | | Mirror | Ghostrail |
 |---|---|---|
@@ -696,6 +700,8 @@ caster at walking speed, faces where the caster faces when idle.
 - Images are allies of the caster (`Allies`: `MirrorImage.caster == owner`), so the caster's own
   spells spare them.
 
+**Amended by the Parts 6–7 spec §7.2:** the stand-in is a mannequin whose skin the renderer reads from the skin cache; the effect ends with its last image; a carrier's death poofs its images; confusion applies to any mob, not only hostile ones.
+
 ### 9.4 Ghostrail's mechanics
 
 `GhostrailEffect` (a `MobEffect` with a tick):
@@ -718,6 +724,8 @@ caster at walking speed, faces where the caster faces when idle.
 - **Duration by carrier:** 4 minutes for players and Bound Vexes; 40 ticks for hostile mobs
   (§9.2); infinite for villager ghosts.
 
+**Amended by the Parts 6–7 spec §7.3:** the Mixin wraps the first `isSpectator()` call and only survival and adventure players get it; one shared abilities sync (`AbilitySync`) replaces the per-spell grants; `/kill` and void damage still land; hostile mobs are steered by a chase goal.
+
 ### 9.5 Villager ghosts
 
 - **Record:** `LivingDeathEvent` for a `Villager` killed by anything that is not a player or a
@@ -738,6 +746,8 @@ caster at walking speed, faces where the caster faces when idle.
 - **Looks:** `VillagerGhostRenderer` draws the villager model with the recorded profession skin at
   alpha 0.6 and a pale tint (`RenderType.entityTranslucent`). Not a `Mob`, no AI beyond the flight
   goal; nothing targets it (not `attackable`).
+
+**Amended by the Parts 6–7 spec §9:** only monster kills leave records, a ghost needs a hostile within 16 blocks as well as the need, one ghost helps a player at a time, and the ghost moves by position each tick.
 
 ## 10. Error handling
 
@@ -765,7 +775,9 @@ caster at walking speed, faces where the caster faces when idle.
   §5:** the flag is `syncVelocity` (`hurtMarked` does not exist in 26.3).
 - **Ghostrail ending inside bedrock or deep stone:** search up to 8 blocks for a free space; if
   none, teleport to the carrier's last ground position (tracked as §3.3 for players with Evoking,
-  and by the effect itself for any carrier, each tick they are on ground).
+  and by the effect itself for any carrier, each tick they are on ground). **Amended by the Parts 6–7
+  spec §7.3 and §10:** the fallback is the spot where the effect started (positions during the effect
+  are inside walls), and if that is no longer free the carrier stays put and suffocates as vanilla would.
 - **Ghostrail on a creative player:** redundant; the cast is refused like Infinity's rule.
 - **Mirror images in a non-ticking chunk:** they are entities with their own life counter; a
   reloaded image keeps its remaining life and poofs when due.
@@ -829,7 +841,9 @@ GameTests per part (the plan names them; the shape):
   villager death by zombie and none by the player; ghost appears when in need and fades. **Amended by
   the Parts 6–7 spec §11:** the full Part 7 test list is there.
 
-`runData` proves the new renderers, layers and key mappings load. ArchUnit rules unchanged;
+`runData` proves the new renderers, layers and key mappings load. **Amended by the Parts 6–7 spec §11:**
+`runData` never fires `RegisterRenderers`, so it proves only that the client code compiles and the specs load;
+the first render of each new renderer, layer, model and particle provider is the playtest's. ArchUnit rules unchanged;
 `pitest` after each pure-core change with `docs/mutation-testing.md` rows.
 
 **Playtest items** (added per part to `docs/playtest-checklist.md`, a new "Evoking II" section):
@@ -884,7 +898,7 @@ list gains the Ghostrail one), `docs/mutation-testing.md`. `mod_version` gets a 
 | End crits | 3× | "+++" read as "much stronger". |
 | Shield / Raid thresholds | 31 / 99 max health | Will's numbers; vanilla mobs listed in §8. |
 | Multishot trigger | Attacker `ATTACK_DAMAGE ≥ 6` | "Strong melee monster". |
-| Move gear | Conjured | Will's A. |
+| Move gear | Conjured (**Amended by the Parts 6–7 spec §4 and §14:** the kits are made per vex, rolled where the parent listed choices, and all gear is unbreakable) | Will's A. |
 | Move time limits | 120 s (Evader 60 s), 30 s cooldown | Keeps a move from running forever. |
 | Manual keys | J cycles, K goes | Unbound in vanilla (scancodes 13, 14); G and H are taken (§7.3). |
 | Caster odds and look | 1 in 3; torn purple-and-magenta robe | Will. |
@@ -894,6 +908,6 @@ list gains the Ghostrail one), `docs/mutation-testing.md`. `mod_version` gets a 
 | Mirror copies | 13 for 6 minutes, health 10 | Will; health is a guess, images die like mobs. |
 | Image confusion | 13/14 redirect of a hostile's target | Thirteen copies and one real you. |
 | Villager ghosts | Records in `SavedData`, appear when in need, fade, return; 32 per level | Will: appear, disappear, appear again. |
-| Ghost trigger | Below half health or ≥ 3 hostiles within 8 blocks | "When you need help". |
-| Which villagers leave ghosts | Not those killed by a player's side | A murdered villager should not help its murderer. |
+| Ghost trigger | Below half health or ≥ 3 hostiles within 8 blocks (**Amended by the Parts 6–7 spec §9 and §14:** and a hostile within 16 blocks) | "When you need help". |
+| Which villagers leave ghosts | Not those killed by a player's side (**Amended by the Parts 6–7 spec §9:** only those killed by a monster) | A murdered villager should not help its murderer. |
 | Version | Patch releases per part as Will asks; 1.3.0 after Part 7 | Will tagged Part 2 as 1.2.1 and asked for Part 3 as a patch. |

@@ -1,5 +1,7 @@
 package io.github.willrieske.spellcraft.evoking;
 
+import io.github.willrieske.spellcraft.spell.ModItems;
+import io.github.willrieske.spellcraft.spell.Spells;
 import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import java.util.EnumMap;
 import java.util.List;
@@ -62,9 +64,10 @@ final class TeamMoveKits {
      * @param move the move
      * @param level the level, for the enchantment lookup
      * @param random the source for unscripted rolls
+     * @param caster whether the member is a Caster (a Raid kit differs)
      * @return the kit by slot
      */
-    static Map<EquipmentSlot, ItemStack> kit(TeamMove move, ServerLevel level, RandomSource random) {
+    static Map<EquipmentSlot, ItemStack> kit(TeamMove move, ServerLevel level, RandomSource random, boolean caster) {
         Map<EquipmentSlot, ItemStack> kit = new EnumMap<>(EquipmentSlot.class);
         switch (move) {
             case SHIELD, EVADER -> {
@@ -72,7 +75,13 @@ final class TeamMoveKits {
                 kit.put(EquipmentSlot.OFFHAND, unbreakable(new ItemStack(Items.SHIELD)));
             }
             case MULTISHOT -> kit.put(EquipmentSlot.MAINHAND, multishotCrossbow(level));
-            case RAID -> raid(kit, random);
+            case RAID -> {
+                if (caster) {
+                    raidCaster(kit, random);
+                } else {
+                    raid(kit, random);
+                }
+            }
             case NONE -> {
                 // no kit
             }
@@ -93,12 +102,22 @@ final class TeamMoveKits {
      * roll per member).
      */
     private static void raid(Map<EquipmentSlot, ItemStack> kit, RandomSource random) {
-        // Part 7: a Caster rolls only the armor, gets the shield, and holds the Mirror scroll
         int main = Dice.RAID_KIT.below(random, ROCKET_CROSSBOW + 1);
         Item weapon = main < ROCKET_CROSSBOW ? RAID_WEAPONS.get(main) : Items.CROSSBOW;
         kit.put(EquipmentSlot.MAINHAND, unbreakable(new ItemStack(weapon)));
         kit.put(EquipmentSlot.OFFHAND, unbreakable(new ItemStack(Items.SHIELD)));
-        boolean netherite = Dice.RAID_KIT.below(random, 2) == 0;
+        armor(kit, Dice.RAID_KIT.below(random, 2) == 0);
+    }
+
+    /** A Caster's Raid kit: the Mirror scroll, a shield, and one armor material from one roll. */
+    private static void raidCaster(Map<EquipmentSlot, ItemStack> kit, RandomSource random) {
+        kit.put(EquipmentSlot.MAINHAND, ModItems.scrollFor(Spells.MIRROR));
+        kit.put(EquipmentSlot.OFFHAND, unbreakable(new ItemStack(Items.SHIELD)));
+        armor(kit, Dice.RAID_KIT.below(random, 2) == 0);
+    }
+
+    /** Head, chest and legs, all netherite or all diamond, unbreakable. */
+    private static void armor(Map<EquipmentSlot, ItemStack> kit, boolean netherite) {
         kit.put(
                 EquipmentSlot.HEAD,
                 unbreakable(new ItemStack(netherite ? Items.NETHERITE_HELMET : Items.DIAMOND_HELMET)));

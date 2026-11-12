@@ -24,5 +24,9 @@ public final class ModParticles {
     public static final DeferredHolder<ParticleType<?>, SimpleParticleType> CASTING_VEXES =
             PARTICLE_TYPES.register("casting_vexes", () -> new SimpleParticleType(false));
 
+    /** Carried by {@code ModEffects.CASTING_SCROLL}: a Caster or a villager ghost is casting a scroll. */
+    public static final DeferredHolder<ParticleType<?>, SimpleParticleType> CASTING_SCROLL =
+            PARTICLE_TYPES.register("casting_scroll", () -> new SimpleParticleType(false));
+
     private ModParticles() {}
 }

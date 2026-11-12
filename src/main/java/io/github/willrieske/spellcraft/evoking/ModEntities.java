@@ -2,7 +2,9 @@ package io.github.willrieske.spellcraft.evoking;
 
 import io.github.willrieske.spellcraft.Spellcraft;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
@@ -34,16 +36,56 @@ public final class ModEntities {
                     .noLootTable()
                     .notInPeaceful());
 
+    /**
+     * The Mirror image (Parts 6-7 spec §7.2): a copy of a caster that wanders and can be hit. Not a mob: a living
+     * entity with its own small walk. Sized at spawn like its caster ({@link MirrorImage#getDefaultDimensions}); no
+     * loot table.
+     */
+    public static final DeferredHolder<EntityType<?>, EntityType<MirrorImage>> MIRROR_IMAGE =
+            ENTITIES.registerEntityType(
+                    "mirror_image",
+                    MirrorImage::new,
+                    MobCategory.MISC,
+                    builder -> builder.sized(0.6F, 1.8F).clientTrackingRange(8).noLootTable());
+
+    /**
+     * The villager ghost (Parts 6-7 spec §9): the spirit drawn from a record, sized like a villager. Never saved: it
+     * vanishes with its chunk or a restart, and the record stays. Position updates every tick, because a ghost moves
+     * by position and the default of three ticks would make it look steppy.
+     */
+    public static final DeferredHolder<EntityType<?>, EntityType<VillagerGhost>> VILLAGER_GHOST =
+            ENTITIES.registerEntityType(
+                    "villager_ghost",
+                    VillagerGhost::new,
+                    MobCategory.MISC,
+                    builder -> builder.sized(0.6F, 1.95F)
+                            .clientTrackingRange(8)
+                            .updateInterval(1)
+                            .noSave()
+                            .noLootTable());
+
     private ModEntities() {}
 
     /**
-     * Gives the Bound Vex its attributes (a mod-bus event, received here as {@code SpellcraftGameTests} receives
-     * {@code RegisterGameTestsEvent}).
+     * Gives the Bound Vex, the Mirror image and the villager ghost their attributes (a mod-bus event, received here as
+     * {@code SpellcraftGameTests} receives {@code RegisterGameTestsEvent}).
      *
      * @param event the attribute event
      */
     @SubscribeEvent
     public static void onAttributes(EntityAttributeCreationEvent event) {
         event.put(BOUND_VEX.get(), BoundVex.createAttributes().build());
+        event.put(
+                MIRROR_IMAGE.get(),
+                LivingEntity.createLivingAttributes()
+                        .add(Attributes.MAX_HEALTH, 10.0)
+                        .add(Attributes.MOVEMENT_SPEED, 0.25)
+                        .build());
+        event.put(
+                VILLAGER_GHOST.get(),
+                LivingEntity.createLivingAttributes()
+                        .add(Attributes.MAX_HEALTH, 20.0)
+                        .add(Attributes.MOVEMENT_SPEED, 0.5)
+                        .build());
     }
 }

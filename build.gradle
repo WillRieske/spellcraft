@@ -69,6 +69,14 @@ neoForge {
     }
 }
 
+// A full GameTest run takes about 3 minutes. A test whose structure chunks never start ticking never starts and
+// never times out (GameTestInfo.tick waits for them before it counts ticks), so the server ticks forever and logs a
+// progress line every tick; on 2026-11-12 that output filled the 1 GiB daemon heap in 13 minutes and the build then
+// hung for 7 hours. The timeout fails the run well before that.
+tasks.matching { it.name == 'runGameTestServer' }.configureEach {
+    timeout = java.time.Duration.ofMinutes(8)
+}
+
 configurations {
     runtimeClasspath.extendsFrom localRuntime
 }

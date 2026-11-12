@@ -189,9 +189,9 @@ public final class ScribingGameTests {
 
     /**
      * Mutates global server config, so it runs alone in the {@code scribing_zero} batch. At 0% the draw comes from
-     * the lower pool, which holds every non-extreme spell (Upside-Down, Trailing and Evoking). A random draw cannot
-     * prove all are reachable, so {@code ScrollDraw.draw} itself is run first over {@code Scribing.candidates()} with
-     * dice that pick each index of the lower pool in turn.
+     * the lower pool, which holds every non-extreme spell (Upside-Down, Trailing, Evoking and Mirror). A random draw
+     * cannot prove all are reachable, so {@code ScrollDraw.draw} itself is run first over
+     * {@code Scribing.candidates()} with dice that pick each index of the lower pool in turn.
      */
     static void zeroPercent(GameTestHelper helper) {
         List<Item> lowerPool = new ArrayList<>();
@@ -205,17 +205,20 @@ public final class ScribingGameTests {
         helper.assertTrue(lowerPool.contains(ModItems.TRAILING_SCROLL.get()), "the lower pool holds Trailing");
         helper.assertTrue(lowerPool.contains(ModItems.EVOKING_SCROLL.get()), "the lower pool holds Evoking");
         helper.assertTrue(lowerPool.contains(ModItems.UPSIDE_DOWN_SCROLL.get()), "the lower pool holds Upside-Down");
+        helper.assertTrue(lowerPool.contains(ModItems.MIRROR_SCROLL.get()), "the lower pool holds Mirror");
         drawsOnly(
                 helper,
                 List.of(0, 0, 0),
                 ModItems.UPSIDE_DOWN_SCROLL.get(),
                 ModItems.TRAILING_SCROLL.get(),
-                ModItems.EVOKING_SCROLL.get());
+                ModItems.EVOKING_SCROLL.get(),
+                ModItems.MIRROR_SCROLL.get());
     }
 
     /**
-     * Dice for one draw: the tier roll comes up 0 (not below a 0% chance, so the lower pool), then the pick comes up
-     * {@code pick}. Remembers the bound of the pick, which is the size of the pool drawn from.
+     * Dice for one draw: the tier roll always comes up 0, so a 0% chance selects the lower pool and a 100% chance
+     * selects the top pool; then the pick comes up {@code pick}. Remembers the bound of the pick, which is the size of
+     * the pool drawn from.
      */
     private static final class FixedPick implements ScrollDraw.Dice {
         private final int pick;
@@ -236,8 +239,24 @@ public final class ScribingGameTests {
         }
     }
 
-    /** Mutates global server config, so it runs alone in the {@code scribing_full} batch. */
+    /**
+     * Mutates global server config, so it runs alone in the {@code scribing_full} batch. At 100% the draw comes from
+     * the top tier, which holds Infinity and Ghostrail. A single random draw cannot prove both are reachable, so
+     * {@code ScrollDraw.draw} is run first over {@code Scribing.candidates()} with dice that pick each index of the
+     * top pool in turn.
+     */
     static void hundredPercent(GameTestHelper helper) {
-        drawsOnly(helper, List.of(100, 100, 100), ModItems.INFINITY_SCROLL.get());
+        List<Item> topPool = new ArrayList<>();
+        int poolSize = 1;
+        for (int pick = 0; pick < poolSize; pick++) {
+            FixedPick dice = new FixedPick(pick);
+            Spell drawn = ScrollDraw.draw(0, Scribing.candidates(), List.of(100, 100, 100), dice);
+            topPool.add(ModItems.scrollFor(drawn).getItem());
+            poolSize = dice.poolSize;
+        }
+        helper.assertTrue(topPool.contains(ModItems.INFINITY_SCROLL.get()), "the top pool holds Infinity");
+        helper.assertTrue(topPool.contains(ModItems.GHOSTRAIL_SCROLL.get()), "the top pool holds Ghostrail");
+        helper.assertValueEqual(poolSize, 2, "the top pool holds two spells");
+        drawsOnly(helper, List.of(100, 100, 100), ModItems.INFINITY_SCROLL.get(), ModItems.GHOSTRAIL_SCROLL.get());
     }
 }

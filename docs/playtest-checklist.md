@@ -268,6 +268,30 @@ Survival world, Strength of Evoking on, twelve Bound Vexes out. Give yourself Re
 - [ ] The moves with the Evoking effect gone: the vexes finish the move.
 - [ ] The setting in the in-game config screen: "Team moves" under "Evoking".
 
+## Evoking II (Part 7)
+
+Survival world, Strength of Evoking on, three Bound Vexes out. `/give @s spellcraft:mirror_scroll` and `/give @s spellcraft:ghostrail_scroll`; `/summon evoker` and `/summon zombie` for fights.
+
+- [ ] The scroll icons: Mirror (two facing figures, magenta) and Ghostrail (an arrow through a wall, pale blue) read at 16 x 16 and as effect icons.
+- [ ] First launch of the client after Part 7 (nothing automated constructs the new renderers): summon a Mirror image (cast the scroll), a Caster (`/summon` plus the V key until one rolls) and a villager ghost (kill a villager with a zombie, then get hurt): no crash, a clean log (no missing texture, model layer or field errors) on the first render of each.
+- [ ] Casters: one vex in three wears a torn purple robe. Does it look like a robe (the 1.06 growth and the z-offset render type: no flicker against the body at range; head and wings bare)? Is the trim readable?
+- [ ] A Caster with a target keeps its distance and never attacks; with two zombies near and you beside it, it raises both arms, purple particles rise from its hands, the sounds play, a Mirror scroll shows in its hand for a second, then you have Mirror. A hurt you (below a quarter health, or in a wall) gets Ghostrail first.
+- [ ] A Caster hit while robed: the robe flashes red with the body (both use the hurt overlay).
+- [ ] A Caster in a Raid: it casts Mirror at the start of the gather without the wind-up, then holds its place in the grid and does nothing else.
+- [ ] Mirror: do the thirteen images look like you (your skin from the first frame, slim or wide as yours is, the right size, your held items; no armor: an armored player gets unarmored images, by design)? No "Mannequin" label above or below an image, and one shadow under it, not two stacked? Do the legs walk in step, or lag the walk slightly (the walk animation is smoothed twice)? Do they wander without piling up or walking into walls, flash and fall back when hit, vanish in a puff at the end and when you milk the effect, and when the carrier dies (even on the death screen)?
+- [ ] A Mirror image of an invisible or burning carrier: the stand-in copies the pose but not the on-fire, invisible or glowing flags, so check whether images of an invisible or burning player look acceptable.
+- [ ] A player image's cape: the mannequin stand-in's cape and flight smoothing are never ticked, so the cape may hang still. Is that acceptable?
+- [ ] Mirror and a dimension change: step through a portal with Mirror on; the images stay behind in the old dimension and the effect ends within about a second (a player carrier with no image of theirs in the level loses Mirror, so a scroll can be cast again). The same rule ends a Mirror left over after a relog. Does that feel right?
+- [ ] Mirror in a real fight: do zombies, skeletons, spiders and creepers go for copies about 13 times in 14? Does a mob that keeps the same target for a long time keep going for the copy (the same-target re-set must not re-roll and drag it back to you; no GameTest drives a real target goal)? Does a pillager crossbow or a creeper still reach you? Are brain mobs (piglins, villagers, the Warden) unfooled, as accepted?
+- [ ] A mob's Mirror (an evoker with a scroll): the images look like evokers; a golem going for the evoker goes for an image.
+- [ ] Ghostrail and blocks: a carrier has no collision, so it also triggers no block effects: walk (fly) through a nether portal frame, a pressure plate, cobweb, honey and powder snow and see that nothing reacts. Is that fine?
+- [ ] Ghostrail: fly through a hill and walls, no rubber-banding; the white-smoke trail; fall damage and mob hits do nothing; the end inside a hill moves you out (where, is it the nearest air?), and deep inside stone with nothing within eight blocks it puts you back where you started or leaves you suffocating (accepted).
+- [ ] Ghostrail with Infinity on: ending Ghostrail keeps Infinity's flight; ending Infinity keeps Ghostrail's.
+- [ ] A pillager or evoker with a Ghostrail scroll comes straight at you through a wall for two seconds. Does it look right? Does it stay put behind the wall afterwards?
+- [ ] Scroll mobs: how often a raid party carries scrolls; the scroll drop on a player kill (about half the time).
+- [ ] Villager ghosts: kill a villager with a zombie, then go hurt near it. Does the ghost float in (translucent pale blue, the profession clothes), hover about two blocks from you at your eye height, cast, and fade when the fight is over? Does the translucent texture look right at distance and in the dark? Does it glide smoothly (its update interval is 1 tick) rather than in steps? A hurt you with no monster anywhere near gets no ghost.
+- [ ] Config screen and keys: nothing new (Part 7 adds no setting and no key).
+
 ## Real profile
 
 - [ ] Will installs the new jar. From the repo root, in a normal PowerShell window (the Claude app's shells cannot write under `%APPDATA%`), he runs the command below. It builds, then copies the jar whose name carries `mod_version` into `%APPDATA%\.minecraft\mods` and removes every other `spellcraft-*.jar` there; the old `1.0.0` jar goes away and the `1.2.0` jar is replaced. He then launches the NeoForge 26.3 profile and casts each scroll once.

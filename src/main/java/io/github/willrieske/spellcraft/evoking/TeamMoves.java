@@ -67,8 +67,21 @@ public final class TeamMoves {
      * @return true if it is free
      */
     public static boolean isFree(BoundVex vex, ServerPlayer owner) {
-        // Part 7: and not a Caster (a Caster is free only for a Raid)
+        return isFree(vex, owner, false);
+    }
+
+    /**
+     * {@link #isFree(BoundVex, ServerPlayer)}, with Casters counted when {@code forRaid}: a Caster is free only for a
+     * Raid (Parts 6-7 spec §2.2, §6.2).
+     *
+     * @param vex a Bound Vex
+     * @param owner the summoner
+     * @param forRaid whether the move is a Raid
+     * @return true if it is free
+     */
+    public static boolean isFree(BoundVex vex, ServerPlayer owner, boolean forRaid) {
         return vex.isAlive()
+                && (forRaid || !vex.isCaster())
                 && vex.isSummonedBy(owner.getUUID())
                 && vex.level().equals(owner.level())
                 && !vex.isStaying()
@@ -85,21 +98,33 @@ public final class TeamMoves {
      * @return the free vexes, in query order
      */
     public static List<BoundVex> freeVexes(ServerPlayer owner) {
+        return freeVexes(owner, false);
+    }
+
+    /**
+     * The free vexes of {@code owner} in their level, Casters included when {@code forRaid}.
+     *
+     * @param owner the summoner
+     * @param forRaid whether the move is a Raid
+     * @return the free vexes, in query order
+     */
+    public static List<BoundVex> freeVexes(ServerPlayer owner, boolean forRaid) {
         return owner.level()
                 .getEntitiesOfClass(
-                        BoundVex.class, owner.getBoundingBox().inflate(FREE_RANGE), vex -> isFree(vex, owner));
+                        BoundVex.class, owner.getBoundingBox().inflate(FREE_RANGE), vex -> isFree(vex, owner, forRaid));
     }
 
     /**
      * The free vexes among {@code vexes}, a list the caller already fetched within {@link #FREE_RANGE} of
-     * {@code owner}: the same test as {@link #freeVexes(ServerPlayer)}, without a second query.
+     * {@code owner}: the same test as {@link #freeVexes(ServerPlayer, boolean)}, without a second query.
      *
      * @param owner the summoner
      * @param vexes Bound Vexes found near the summoner
+     * @param forRaid whether Casters count
      * @return those of them that are free, in the order given
      */
-    static List<BoundVex> freeVexes(ServerPlayer owner, List<BoundVex> vexes) {
-        return vexes.stream().filter(vex -> isFree(vex, owner)).toList();
+    static List<BoundVex> freeVexes(ServerPlayer owner, List<BoundVex> vexes, boolean forRaid) {
+        return vexes.stream().filter(vex -> isFree(vex, owner, forRaid)).toList();
     }
 
     /** Lang key prefix of the overlay message each start shows: {@code ...team_move_shield} and so on. */
@@ -142,6 +167,9 @@ public final class TeamMoves {
 
         /** The member's Shield stage. */
         Stage stage = Stage.READY;
+
+        /** Whether a Caster member has already done its one Raid cast (or skipped it). */
+        boolean casterDone;
 
         Member(int cell, Map<EquipmentSlot, ItemStack> kit) {
             this.cell = cell;
@@ -256,14 +284,14 @@ public final class TeamMoves {
         if (existing != null && (existing.active() || existing.cooling(move, now))) {
             return false;
         }
-        List<BoundVex> roster = chooseRoster(move, freeVexes(owner), subject);
+        List<BoundVex> roster = chooseRoster(move, freeVexes(owner, move == TeamMove.RAID), subject);
         if (roster.isEmpty()) {
             return false;
         }
         // Build every kit first: a roll that throws (Dice.below rejects a scripted roll out of range) must leave
         // nothing half started. The roll order is the roster order, so Task 12's script lines up.
         List<Map<EquipmentSlot, ItemStack>> kits = roster.stream()
-                .map(vex -> TeamMoveKits.kit(move, level, vex.getRandom()))
+                .map(vex -> TeamMoveKits.kit(move, level, vex.getRandom(), vex.isCaster()))
                 .toList();
         // A refused start leaves no record behind: it is created only now that the move really starts.
         Move record = STATES.computeIfAbsent(owner.getUUID(), id -> new Move());
@@ -724,12 +752,12 @@ public final class TeamMoves {
         }
     }
 
-    /** Forgets every record and any scripted Raid dice (single-player loads one server per world in the same JVM). */
+    /** Forgets every record and any scripted dice (single-player loads one server per world in the same JVM). */
     static void clear() {
         STATES.clear();
         LAST_REQUEST.clear();
         NEXT_SCAN.clear();
-        Dice.RAID_KIT.unscript();
+        Dice.resetAll();
     }
 
     /**

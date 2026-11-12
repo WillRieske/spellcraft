@@ -99,6 +99,15 @@ public final class SpellcraftGameTests {
         BoundVexTeamMoveMultishotGameTests.registerAll();
         BoundVexTeamMoveEvaderGameTests.registerAll();
         BoundVexTeamMoveRaidGameTests.registerAll();
+        SpellScrollGameTests.registerAll();
+        MirrorGameTests.registerAll();
+        MirrorConfusionGameTests.registerAll();
+        GhostrailFlightGameTests.registerAll();
+        GhostrailGameTests.registerAll();
+        CasterGameTests.registerAll();
+        CasterSpellGameTests.registerAll();
+        ScrollMobGameTests.registerAll();
+        VillagerGhostGameTests.registerAll();
         GolemGameTests.registerAll();
     }
 

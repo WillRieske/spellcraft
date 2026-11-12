@@ -1,6 +1,6 @@
 # Evoking II Part 6: Team Moves Implementation Plan
 
-**Status:** Part 6 built on `feat/evoking-ii-part-6`; the branch review's findings are fixed (`final-fix-report.md`); Part 7 plan not yet written
+**Status:** implemented 2026-11-10
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

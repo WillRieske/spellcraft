@@ -22,6 +22,15 @@ public final class TeamFlight {
     /** How far ahead of the vex, in the push's direction, {@link #steer} sets the wanted point (over a body's size). */
     private static final double STEER_REACH = 2.0;
 
+    /** Within this distance of the spot a vex settles (a spring and damping) instead of flying straight at it. */
+    static final double SETTLE_RANGE = 3.0;
+
+    /** Settling: how strongly a vex is pushed toward the spot, per block of gap. */
+    private static final double SETTLE_POSITION_GAIN = 0.06;
+
+    /** Settling: how strongly a vex is pushed to match the spot's velocity, per block a tick of difference. */
+    private static final double SETTLE_VELOCITY_GAIN = 0.3;
+
     private TeamFlight() {}
 
     /** Orders the vex to fly to {@code spot} at {@code speed}; a vex has no gravity and clips through blocks. */
@@ -38,6 +47,37 @@ public final class TeamFlight {
         double strength = push.length();
         Vec3 direction = strength < 1.0E-6 ? Vec3.ZERO : push.scale(1.0 / strength);
         flyTo(vex, vex.position().add(direction.scale(STEER_REACH)), Math.min(NORMAL, strength / VEX_PUSH_PER_SPEED));
+    }
+
+    /**
+     * Holds the vex at {@code spot}: a spring toward the spot plus damping toward the spot's own step. A vex only
+     * accelerates toward its wanted point and coasts, so a plain "fly to the spot" overshoots and circles; the one
+     * place the spring and damping constants live.
+     *
+     * @param vex the vex
+     * @param spot where to hold
+     * @param spotStep how far the spot moved this tick (zero for a fixed spot)
+     */
+    static void settle(BoundVex vex, Vec3 spot, Vec3 spotStep) {
+        Vec3 push = spot.subtract(vex.position())
+                .scale(SETTLE_POSITION_GAIN)
+                .add(spotStep.subtract(vex.getDeltaMovement()).scale(SETTLE_VELOCITY_GAIN));
+        steer(vex, push);
+    }
+
+    /**
+     * Flies to {@code spot} at normal speed while farther than {@link #SETTLE_RANGE} from it, then {@link #settle}s.
+     *
+     * @param vex the vex
+     * @param spot where to hold
+     * @param spotStep how far the spot moved this tick (zero for a fixed spot)
+     */
+    static void holdAt(BoundVex vex, Vec3 spot, Vec3 spotStep) {
+        if (spot.subtract(vex.position()).length() > SETTLE_RANGE) {
+            flyTo(vex, spot, NORMAL);
+        } else {
+            settle(vex, spot, spotStep);
+        }
     }
 
     /** Turns the vex's head toward {@code target}'s eyes. */

@@ -81,6 +81,15 @@ class SpellIconsTest(unittest.TestCase):
         self.assertEqual((len(spell.glyph[0]), len(spell.glyph)), (7, 8))
         self.assertEqual(spell.ink, (210, 248, 234, 255))  # #D2F8EA
 
+    def test_i8_every_spell_has_its_own_ink(self):
+        """When the six spells are listed, SPELLS should give each its own ink color.
+
+        Function under test: :data:`spell_icons.SPELLS`
+        """
+        inks = [spell.ink for spell in icons.SPELLS]
+        self.assertEqual(len(inks), len(set(inks)))
+        self.assertEqual([spell.id for spell in icons.SPELLS][-2:], ["mirror", "ghostrail"])
+
 
 if __name__ == "__main__":
     unittest.main()

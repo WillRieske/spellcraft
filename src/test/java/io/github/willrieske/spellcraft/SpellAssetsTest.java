@@ -41,6 +41,16 @@ class SpellAssetsTest {
         assertSquarePng(ASSETS.resolve("textures/item/" + name + "_scroll.png"), 16);
     }
 
+    /**
+     * When the robe texture is read, should it be a 32 x 32 PNG: another size would mis-map the vex model's UV layout.
+     *
+     * <p>Method under test: the robe texture file
+     */
+    @Test
+    void robeTextureIs32x32() throws IOException {
+        assertSquarePng(ASSETS.resolve("textures/entity/bound_vex_robe.png"), 32);
+    }
+
     @ParameterizedTest
     @MethodSource("spellNames")
     void effectIconIs18x18(String name) throws IOException {
@@ -142,5 +152,21 @@ class SpellAssetsTest {
                 .contains("\"message.spellcraft.team_move_unavailable\"")
                 .contains("\"message.spellcraft.vex_busy\"")
                 .contains("\"message.spellcraft.team_move_selected\"");
+    }
+
+    /**
+     * When the casting effect, the Mirror image and the villager ghost are named in the lang file, should their keys
+     * exist: a missing one would show a raw key in game.
+     *
+     * <p>Method under test: the lang file against the Part 7 names
+     */
+    @Test
+    void part7NamesAreEnglish() throws IOException {
+        // Arrange
+        String lang = Files.readString(ASSETS.resolve("lang/en_us.json"));
+        // Act & Assert
+        assertThat(lang).contains("\"effect.spellcraft.casting_scroll\"");
+        assertThat(lang).contains("\"entity.spellcraft.mirror_image\"");
+        assertThat(lang).contains("\"entity.spellcraft.villager_ghost\"");
     }
 }

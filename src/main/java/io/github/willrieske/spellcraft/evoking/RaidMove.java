@@ -1,10 +1,15 @@
 package io.github.willrieske.spellcraft.evoking;
 
+import io.github.willrieske.spellcraft.effect.ModEffects;
+import io.github.willrieske.spellcraft.spell.Spells;
+import io.github.willrieske.spellcraft.spell.rules.GhostrailDuration;
 import io.github.willrieske.spellcraft.spell.rules.TeamMoveRules;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -41,15 +46,6 @@ public final class RaidMove {
 
     /** Ticks between one rocketeer's rockets. */
     static final int ROCKET_INTERVAL = 40;
-
-    /** Within this many blocks of the enemy's middle a charging member settles instead of flying straight at it. */
-    private static final double SETTLE_RANGE = 3.0;
-
-    /** Settling: how strongly a member is pushed toward the enemy's middle, per block of gap. */
-    private static final double SETTLE_POSITION_GAIN = 0.06;
-
-    /** Settling: how strongly a member is pushed to match the enemy's velocity, per block a tick of difference. */
-    private static final double SETTLE_VELOCITY_GAIN = 0.3;
 
     private RaidMove() {}
 
@@ -91,13 +87,16 @@ public final class RaidMove {
      * @param level the vex's level
      */
     static void tick(BoundVex vex, TeamMoves.Move record, TeamMoves.Member member, ServerLevel level) {
-        // Part 7: a Caster only gathers, casts Mirror, then holds its cell
         LivingEntity enemy = TeamMoves.subjectOf(level, record);
         if (enemy == null || !enemy.isAlive()) {
             return;
         }
         TeamFlight.lookAt(vex, enemy);
         long now = level.getGameTime();
+        if (vex.isCaster()) {
+            casterTick(vex, record, member, enemy, now);
+            return;
+        }
         if (record.phase == TeamMoves.Phase.GATHER) {
             Vec3 summoner = vex.summoner().map(Entity::position).orElse(vex.position());
             TeamFlight.flyTo(vex, cell(enemy.getEyePosition(), summoner, member.cell), TeamFlight.NORMAL);
@@ -105,6 +104,30 @@ public final class RaidMove {
             rocketeer(vex, record, member, enemy, now);
         } else {
             charger(vex, member, enemy, level, now);
+        }
+    }
+
+    /**
+     * A Caster in a Raid: it flies to its grid cell and holds it for the whole move, and never attacks. At the start of
+     * the gather it casts Mirror on the summoner at once (no wind-up) if the summoner has none, ignoring its own Mirror
+     * cooldown and then setting it. It holds the scroll through the gather (spec §4.4: the scroll is its gather kit)
+     * and empties the conjured main hand only when the charge starts.
+     */
+    private static void casterTick(
+            BoundVex vex, TeamMoves.Move record, TeamMoves.Member member, LivingEntity enemy, long now) {
+        Vec3 summoner = vex.summoner().map(Entity::position).orElse(vex.position());
+        TeamFlight.holdAt(vex, cell(enemy.getEyePosition(), summoner, member.cell), Vec3.ZERO);
+        if (!member.casterDone) {
+            member.casterDone = true;
+            vex.summoner().filter(owner -> !owner.hasEffect(ModEffects.MIRROR)).ifPresent(owner -> {
+                if (ScrollCasting.land(vex, owner, Spells.MIRROR, GhostrailDuration.Kind.PLAYER)) {
+                    vex.setMirrorReadyAt(now + ScrollCasting.cooldownFor(Spells.MIRROR));
+                }
+            });
+        }
+        if (record.phase == TeamMoves.Phase.CHARGE && !vex.getMainHandItem().isEmpty()) {
+            member.kit.put(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+            vex.conjure(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
         }
     }
 
@@ -122,21 +145,14 @@ public final class RaidMove {
     /**
      * Flies the vex's middle to the enemy's middle and holds it there. A vex only accelerates toward its wanted point
      * and coasts, so a plain "fly to the point" overshoots and swings in and out of the enemy's box; inside
-     * {@link #SETTLE_RANGE} the push is a spring to the middle with damping on the vex's own velocity instead, the way
-     * {@code EvaderMove} steers.
+     * {@link TeamFlight#SETTLE_RANGE} the push is a spring to the middle with damping on the vex's own velocity
+     * instead, the way {@code EvaderMove} steers.
      */
     private static void closeIn(BoundVex vex, LivingEntity enemy) {
         Vec3 middle = enemy.getBoundingBox().getCenter().subtract(0.0, vex.getBbHeight() / 2.0, 0.0);
-        Vec3 gap = middle.subtract(vex.position());
-        if (gap.length() > SETTLE_RANGE) {
-            TeamFlight.flyTo(vex, middle, TeamFlight.NORMAL);
-            return;
-        }
         // The enemy's real step, not its velocity field: a mob that was knocked back keeps a stale velocity
         Vec3 enemyStep = enemy.position().subtract(enemy.xOld, enemy.yOld, enemy.zOld);
-        Vec3 push = gap.scale(SETTLE_POSITION_GAIN)
-                .add(enemyStep.subtract(vex.getDeltaMovement()).scale(SETTLE_VELOCITY_GAIN));
-        TeamFlight.steer(vex, push);
+        TeamFlight.holdAt(vex, middle, enemyStep);
     }
 
     /**

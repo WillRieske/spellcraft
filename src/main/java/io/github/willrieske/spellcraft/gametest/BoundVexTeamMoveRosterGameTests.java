@@ -794,12 +794,13 @@ final class BoundVexTeamMoveRosterGameTests {
     }
 
     /**
-     * When rolls are scripted on the Raid dice, should they come back in order and then the random source answer, an
-     * unscript empty the queue, and a scripted roll equal to the bound or below zero throw. (A GameTest, not a unit
-     * test: {@code RandomSource} is not on the unit-test classpath. The script is global, so the test has an
-     * environment of its own.)
+     * When rolls are scripted on the Raid dice, should they come back in order, then running out throw (no fallback to
+     * random while the script is active), an unscript with rolls left throw naming the die and the count (and still
+     * clear it), a clean unscript return the die to the random source, a reset clear silently, and a scripted roll
+     * equal to the bound or below zero throw. (A GameTest, not a unit test: {@code RandomSource} is not on the
+     * unit-test classpath. The script is global, so the test has an environment of its own.)
      *
-     * <p>Method under test: {@link Dice#below}, {@link Dice#script}, {@link Dice#unscript}
+     * <p>Method under test: {@link Dice#below}, {@link Dice#script}, {@link Dice#unscript}, {@link Dice#reset}
      */
     static void diceScriptRules(GameTestHelper helper) {
         // Arrange
@@ -810,36 +811,50 @@ final class BoundVexTeamMoveRosterGameTests {
             // Act
             int first = Dice.RAID_KIT.below(random, 7);
             int second = Dice.RAID_KIT.below(random, 7);
-            int third = Dice.RAID_KIT.below(random, 7);
+            String ranOut = messageOf(() -> Dice.RAID_KIT.below(random, 7));
 
-            // Assert: scripted rolls in order, then the random source
+            // Assert: scripted rolls in order, then a loud failure naming the die
             helper.assertValueEqual(first, 3, "the first scripted roll");
             helper.assertValueEqual(second, 0, "the second scripted roll");
-            helper.assertTrue(third >= 0 && third < 7, "then a random roll in range");
-
-            // Unscript drops what is queued (a queued 6 would throw for bound 1)
-            Dice.RAID_KIT.script(6, 6, 6);
+            helper.assertTrue(ranOut != null && ranOut.contains("RAID_KIT"), "running out throws, naming the die");
             Dice.RAID_KIT.unscript();
-            helper.assertValueEqual(Dice.RAID_KIT.below(random, 1), 0, "an unscripted die answers from the source");
+            int afterwards = Dice.RAID_KIT.below(random, 7);
+            helper.assertTrue(afterwards >= 0 && afterwards < 7, "a clean unscript returns to the random source");
+
+            // Unscript with rolls left throws naming the die and the count, and still clears the die
+            Dice.RAID_KIT.script(6, 6, 6);
+            String leftover = messageOf(Dice.RAID_KIT::unscript);
+            helper.assertTrue(
+                    leftover != null && leftover.contains("RAID_KIT") && leftover.contains("3"),
+                    "leftover rolls fail the unscript, naming the die and the count");
+            helper.assertValueEqual(Dice.RAID_KIT.below(random, 1), 0, "and the die was cleared");
+
+            // unscriptAll fails the same way, after clearing every die; resetAll never fails
+            Dice.CASTER_ROLL.script(1, 1);
+            helper.assertTrue(messageOf(Dice::unscriptAll) != null, "unscriptAll fails on leftover rolls of any die");
+            helper.assertValueEqual(Dice.CASTER_ROLL.below(random, 1), 0, "and cleared it");
+            Dice.RAID_KIT.script(6);
+            Dice.resetAll();
+            helper.assertValueEqual(Dice.RAID_KIT.below(random, 1), 0, "a reset clears silently");
 
             // A scripted roll outside [0, bound) throws
             Dice.RAID_KIT.script(7);
-            helper.assertTrue(throwsOnRoll(random), "a roll equal to the bound throws");
+            helper.assertTrue(messageOf(() -> Dice.RAID_KIT.below(random, 7)) != null, "a roll equal to the bound");
             Dice.RAID_KIT.script(-1);
-            helper.assertTrue(throwsOnRoll(random), "a negative roll throws");
+            helper.assertTrue(messageOf(() -> Dice.RAID_KIT.below(random, 7)) != null, "a negative roll throws");
         } finally {
-            Dice.RAID_KIT.unscript();
+            Dice.resetAll();
         }
         helper.succeed();
     }
 
-    /** Whether the next roll of the Raid dice with bound 7 throws {@link IllegalStateException}. */
-    private static boolean throwsOnRoll(RandomSource random) {
+    /** The message of the {@link IllegalStateException} {@code action} throws, or null when it throws nothing. */
+    private static String messageOf(Runnable action) {
         try {
-            Dice.RAID_KIT.below(random, 7);
-            return false;
+            action.run();
+            return null;
         } catch (IllegalStateException expected) {
-            return true;
+            return expected.getMessage();
         }
     }
 }

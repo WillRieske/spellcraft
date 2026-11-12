@@ -3,8 +3,8 @@ package io.github.willrieske.spellcraft.gametest;
 import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARED;
 
 import io.github.willrieske.spellcraft.effect.ModEffects;
+import io.github.willrieske.spellcraft.infinity.AbilitySync;
 import io.github.willrieske.spellcraft.infinity.DeathStash;
-import io.github.willrieske.spellcraft.infinity.InfinityAbilitySync;
 import io.github.willrieske.spellcraft.infinity.InfinityAttachments;
 import io.github.willrieske.spellcraft.infinity.InfinityDeath;
 import java.util.List;
@@ -127,13 +127,13 @@ public final class InfinityDeathGameTests {
         helper.succeed();
     }
 
-    @SuppressWarnings("deprecation") // Abilities#mayfly is @Deprecated; see InfinityAbilitySync#sync.
+    @SuppressWarnings("deprecation") // Abilities#mayfly is @Deprecated; see AbilitySync#sync.
     static void g4EndsInfinity(GameTestHelper helper) {
         ServerPlayer player = kitted(helper);
-        InfinityAbilitySync.sync(player);
+        AbilitySync.sync(player);
         player.kill(helper.getLevel());
         ServerPlayer respawned = respawn(helper, player);
-        InfinityAbilitySync.sync(respawned);
+        AbilitySync.sync(respawned);
         helper.assertFalse(respawned.hasEffect(ModEffects.INFINITY), "Infinity gone after respawn");
         helper.assertFalse(respawned.getAbilities().mayfly, "no flight");
         helper.assertFalse(respawned.getAbilities().instabuild, "no creative inventory");
@@ -236,7 +236,7 @@ public final class InfinityDeathGameTests {
 
     static void g11Flying(GameTestHelper helper) {
         ServerPlayer player = kitted(helper);
-        InfinityAbilitySync.sync(player);
+        AbilitySync.sync(player);
         player.getAbilities().flying = true;
         player.kill(helper.getLevel());
         helper.assertValueEqual(itemsNear(player), 0, "no item drops");

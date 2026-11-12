@@ -20,8 +20,16 @@ public final class SpellDeclarations {
     public static final SpellRules EVOKING =
             new SpellRules("evoking", SpellTier.AMAZING, SpellRules.Recast.REFUSE, true, false);
 
+    /** Scroll of Mirror: amazing tier, refuses a recast (the images are one set), dispellable, cast in creative too. */
+    public static final SpellRules MIRROR =
+            new SpellRules("mirror", SpellTier.AMAZING, SpellRules.Recast.REFUSE, true, false);
+
+    /** Scroll of Ghostrail: extreme tier, refuses a recast, dispellable, redundant in creative (creative flies). */
+    public static final SpellRules GHOSTRAIL =
+            new SpellRules("ghostrail", SpellTier.EXTREME, SpellRules.Recast.REFUSE, true, true);
+
     /** Every declaration, in declaration order. */
-    public static final List<SpellRules> ALL = List.of(UPSIDE_DOWN, INFINITY, TRAILING, EVOKING);
+    public static final List<SpellRules> ALL = List.of(UPSIDE_DOWN, INFINITY, TRAILING, EVOKING, MIRROR, GHOSTRAIL);
 
     private SpellDeclarations() {}
 }

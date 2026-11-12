@@ -2,12 +2,8 @@ package io.github.willrieske.spellcraft.spell;
 
 import io.github.willrieske.spellcraft.Spellcraft;
 import io.github.willrieske.spellcraft.spell.rules.GolemMercyRule;
-import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.golem.IronGolem;
-import net.minecraft.world.entity.animal.wolf.Wolf;
-import net.minecraft.world.entity.player.Player;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
@@ -33,7 +29,7 @@ public final class GolemMercy {
      */
     @SubscribeEvent
     public static void onDamagePre(LivingDamageEvent.Pre event) {
-        if (event.getEntity() instanceof IronGolem golem && isPlayersSide(event.getSource())) {
+        if (event.getEntity() instanceof IronGolem golem && Allies.isPlayersSide(event.getSource())) {
             event.setNewDamage(GolemMercyRule.clamp(golem.getHealth(), event.getNewDamage()));
         }
     }
@@ -49,7 +45,7 @@ public final class GolemMercy {
     @SubscribeEvent
     public static void onDamagePost(LivingDamageEvent.Post event) {
         if (event.getEntity() instanceof IronGolem golem
-                && isPlayersSide(event.getSource())
+                && Allies.isPlayersSide(event.getSource())
                 && GolemMercyRule.forgives(golem.getHealth())) {
             golem.stopBeingAngry();
         }
@@ -70,18 +66,5 @@ public final class GolemMercy {
                 && (target.hasData(AllyAttachments.SUMMONER) || AllyAttachments.isBeingCured(target))) {
             event.setCanceled(true);
         }
-    }
-
-    /**
-     * Whether the damage comes from a player's side: its causing entity is a player (a sword, or fangs through
-     * {@code indirectMagic(fangs, caster)}), a tamed wolf (every tamed wolf is a player's, even while its owner is
-     * offline and {@code getOwner()} cannot resolve it), or any mob carrying a summoner mark (round one's
-     * vexes, Bound Vexes from Part 2 on). Lava, falls, other mobs and {@code /kill} are not.
-     */
-    private static boolean isPlayersSide(DamageSource source) {
-        Entity cause = source.getEntity();
-        return cause instanceof Player
-                || (cause instanceof Wolf wolf && wolf.isTame())
-                || (cause != null && cause.hasData(AllyAttachments.SUMMONER));
     }
 }
