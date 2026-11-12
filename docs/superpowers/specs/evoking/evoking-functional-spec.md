@@ -1,6 +1,7 @@
 # Spellcraft: Strength of Evoking (functional spec)
 
 **Status:** implemented; describes the mod as of 2026-11-12 (Evoking I and Evoking II Parts 1–7). Playtest pending.
+<!-- organize-docs: pinned -->
 **Audience:** players, and anyone who needs to know what the spell does without reading how it is built.
 **Short version:** [`evoking-kids-guide.md`](evoking-kids-guide.md), the main features in plain words, for a young
 reader.

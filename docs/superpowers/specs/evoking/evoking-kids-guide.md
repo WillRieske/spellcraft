@@ -1,5 +1,7 @@
 # Strength of Evoking: the kids' guide
 
+<!-- organize-docs: pinned -->
+
 This is the short, easy version. It tells you the main things the spell does. For every rule and number,
 see the full guide: [`evoking-functional-spec.md`](evoking-functional-spec.md).
 

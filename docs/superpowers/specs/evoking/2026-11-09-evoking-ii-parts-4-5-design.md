@@ -2,6 +2,7 @@
 
 **Date:** 2026-11-09
 **Status:** implemented 2026-11-10 via `2026-11-10-evoking-ii-part-5.md`; playtest pending
+<!-- organize-docs: pinned -->
 **Current behavior in one place:** [`evoking-functional-spec.md`](evoking-functional-spec.md) (the functional spec; it merges this document with the other Evoking specs).
 <!-- child-plans: 2026-11-09-evoking-ii-part-4.md, 2026-11-10-evoking-ii-part-5.md -->
 **Written by:** `/one-shot`, unattended, on 2026-11-09; §10 lists the decisions Will did not state.

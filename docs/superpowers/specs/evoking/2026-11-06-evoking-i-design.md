@@ -2,6 +2,7 @@
 
 **Date:** 2026-11-06
 **Status:** implemented 2026-11-06 via `2026-11-06-evoking.md`
+<!-- organize-docs: pinned -->
 **Current behavior in one place:** [`evoking-functional-spec.md`](evoking-functional-spec.md) (the functional spec; it merges this document with the other Evoking specs).
 **Written by:** `/one-shot`, unattended, on 2026-11-06; §10 lists the decisions Will did not state.
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
