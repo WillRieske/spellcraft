@@ -9,8 +9,10 @@ import io.github.willrieske.spellcraft.spell.rules.CasterRules;
 import io.github.willrieske.spellcraft.spell.rules.GhostNeed;
 import io.github.willrieske.spellcraft.spell.rules.GhostRecords;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
 import net.minecraft.core.BlockPos;
@@ -18,6 +20,7 @@ import net.minecraft.core.UUIDUtil;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Enemy;
@@ -213,11 +216,12 @@ public final class VillagerGhosts extends SavedData {
     }
 
     /**
-     * Sends a ghost to {@code player} when they are in need and an enemy is near (spec §9). The conditions run cheapest
-     * first: the player's own state, then one query for the hostiles within {@link CasterRules#RANGE} (none: no ghost,
-     * because the ghost's own "still needed" test is the same query, so a ghost sent for a hurt player with no enemy
-     * would puff away at once and be sent again), then the need, and only then the level-wide scans for a ghost already
-     * helping or already out on a record. Public so GameTests step a mock player, which gets no player tick.
+     * Sends a ghost to {@code player} when they are in need and an enemy is near (spec §9). The conditions run
+     * cheapest first: the player's own state, then one query for the hostiles within {@link CasterRules#RANGE} (none:
+     * no ghost, because the ghost's own "still needed" test is the same query, so a ghost sent for a hurt player with
+     * no enemy would puff away at once and be sent again), then the need, and only then the level-wide scans for a
+     * ghost already helping and for the records already out. Public so GameTests step a mock player, which gets no
+     * player tick.
      *
      * @param player a player
      */
@@ -236,10 +240,11 @@ public final class VillagerGhosts extends SavedData {
         if (!GhostNeed.inNeed(player.getHealth(), player.getMaxHealth(), crowd) || helping(level, player)) {
             return;
         }
+        Set<UUID> out = recordsWithLiveGhost(level);
         get(level).records().stream()
                 .filter(record -> record.pos().distToCenterSqr(player.position()) <= RANGE * RANGE
                         && level.isLoaded(record.pos())
-                        && !hasLiveGhost(level, record.id()))
+                        && !out.contains(record.id()))
                 .min(Comparator.comparingDouble(record -> record.pos().distToCenterSqr(player.position())))
                 .ifPresent(record -> spawn(level, record, player));
     }
@@ -276,13 +281,12 @@ public final class VillagerGhosts extends SavedData {
                 .isEmpty();
     }
 
-    /** Whether a live ghost is already out for the record {@code recordId}. */
-    private static boolean hasLiveGhost(ServerLevel level, UUID recordId) {
-        return !level.getEntities(
-                        EntityTypeTest.forClass(VillagerGhost.class),
-                        ghost -> ghost.isAlive()
-                                && ghost.recordId().filter(recordId::equals).isPresent())
-                .isEmpty();
+    /** The ids of the records a live ghost is already out for, from one scan of the level's ghosts. */
+    private static Set<UUID> recordsWithLiveGhost(ServerLevel level) {
+        Set<UUID> ids = new HashSet<>();
+        level.getEntities(EntityTypeTest.forClass(VillagerGhost.class), Entity::isAlive)
+                .forEach(ghost -> ghost.recordId().ifPresent(ids::add));
+        return ids;
     }
 
     /**

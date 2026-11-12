@@ -39,6 +39,7 @@ import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.entity.monster.zombie.ZombieVillager;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.npc.villager.VillagerData;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.AABB;
@@ -58,6 +59,18 @@ final class VillagerGhostGameTests {
 
     /** The environment of the fade test: the 200-tick quiet rule counts any hostile within 16 blocks. */
     private static final String FADE = "villager_ghost_fade";
+
+    /**
+     * The environments of the range tests, one each: they force-load a chunk far from the others, and a record
+     * selection is level-wide (48-block reach), so a record of one must not sit in range of another test's player.
+     */
+    private static final String RANGE_FAR = "villager_ghost_range_far";
+
+    /** The environment of the 40-block test; see {@link #RANGE_FAR}. */
+    private static final String RANGE_NEAR = "villager_ghost_range_near";
+
+    /** The environment of the 56-block test; see {@link #RANGE_FAR}. */
+    private static final String RANGE_EDGE = "villager_ghost_range_edge";
 
     private VillagerGhostGameTests() {}
 
@@ -138,7 +151,25 @@ final class VillagerGhostGameTests {
                 400,
                 VillagerGhostGameTests::oneGhostPerPlayer);
         FangGameTests.addPadded(
-                HELP, "villager_ghost_is_not_sent_for_a_record_beyond_48_blocks", 400, VillagerGhostGameTests::tooFar);
+                RANGE_FAR,
+                "villager_ghost_is_not_sent_for_a_record_beyond_48_blocks",
+                400,
+                VillagerGhostGameTests::tooFar);
+        FangGameTests.addPadded(
+                RANGE_NEAR,
+                "villager_ghost_is_sent_for_a_record_40_blocks_away",
+                400,
+                VillagerGhostGameTests::fortyBlocksAway);
+        FangGameTests.addPadded(
+                RANGE_EDGE,
+                "villager_ghost_is_not_sent_for_a_record_56_blocks_away",
+                400,
+                VillagerGhostGameTests::fiftySixBlocksAway);
+        FangGameTests.addPadded(
+                HELP,
+                "villager_ghost_casts_no_ghostrail_when_the_player_turns_creative_in_the_wind_up",
+                400,
+                VillagerGhostGameTests::creativeDuringWindUp);
         FangGameTests.addPadded(HELP, "villager_ghost_cannot_be_hurt", 400, VillagerGhostGameTests::cannotBeHurt);
         FangGameTests.addPadded(
                 HELP, "villager_ghost_is_no_target_for_fangs", 400, VillagerGhostGameTests::fangsIgnoreTheGhost);
@@ -723,22 +754,121 @@ final class VillagerGhostGameTests {
     }
 
     /**
-     * When the only record is 60 blocks away, should no ghost be sent for it.
+     * A record {@code east} blocks east of the standing spot whose chunk is force-loaded (and loaded now), so that
+     * only the 48-block range can exclude it from {@code step}; any ghost sent for the record is discarded when the
+     * test ends.
+     *
+     * <p>The chunk is never unforced here. The runner unforces every forced chunk when a batch ends, and it does so
+     * before this test's own end listeners run, after it has already placed the next batch and forced that batch's
+     * chunks. An unforce from here could hit a chunk the next test's structure now sits in, and a test whose chunks
+     * never tick never starts and never times out ({@code GameTestInfo.tick}), so the whole run would hang. Each range
+     * test runs alone in its own environment, so the runner's unforce covers it.
+     *
+     * @param helper the test helper
+     * @param east how many blocks east of the standing spot
+     * @return the record
+     */
+    private static VillagerGhosts.Record loadedRecord(GameTestHelper helper, double east) {
+        ServerLevel level = helper.getLevel();
+        VillagerGhosts.Record record = ScrollTestSupport.record(helper, at(helper, east, 0.0, 0.0));
+        ChunkPos chunk = ChunkPos.containing(record.pos());
+        level.setChunkForced(chunk.x(), chunk.z(), true);
+        level.getChunk(chunk.x(), chunk.z());
+        whenDone(helper, () -> ghosts(helper, record).forEach(Entity::discard));
+        helper.assertTrue(level.isLoaded(record.pos()), "setup: the record's chunk is loaded");
+        return record;
+    }
+
+    /**
+     * The range tests' body: a scene with a husk and no record of its own (with a near one, nearest-first and
+     * one-ghost-per-player would pass whatever the range is), a loaded record {@code east} blocks east, then, once that
+     * record's chunk has its entities loaded and ticking (a ghost added to a chunk that does not yet would not show),
+     * one {@code step} and a count of the ghosts sent for the record.
+     *
+     * @param helper the test helper
+     * @param east how many blocks east of the standing spot the record is
+     * @param expected how many ghosts must have been sent for the record
+     * @param message what the count means
+     */
+    private static void stepForRecordAt(GameTestHelper helper, double east, int expected, String message) {
+        // Arrange
+        Scene scene = scene(helper, true, false);
+        VillagerGhosts.Record record = loadedRecord(helper, east);
+        ChunkPos chunk = ChunkPos.containing(record.pos());
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(
+                        helper.getLevel().areEntitiesActuallyLoadedAndTicking(chunk),
+                        "setup: the record's chunk is entity-ticking"))
+                // Act
+                .thenExecute(() -> VillagerGhosts.step(scene.player()))
+                // Assert
+                .thenExecute(
+                        () -> helper.assertValueEqual(ghosts(helper, record).size(), expected, message))
+                .thenSucceed();
+    }
+
+    /**
+     * When the only record is 60 blocks away (its chunk loaded), should no ghost be sent for it.
      *
      * <p>Method under test: {@code VillagerGhosts#step}
      */
     static void tooFar(GameTestHelper helper) {
-        // Arrange (the scene has no record of its own: with a near one, nearest-first and one-ghost-per-player would
-        // pass whatever the range is)
-        Scene scene = scene(helper, true, false);
-        VillagerGhosts.Record far = ScrollTestSupport.record(helper, at(helper, 60.0, 0.0, 0.0));
+        // Arrange, Act & Assert (the shared body marks the three)
+        stepForRecordAt(helper, 60.0, 0, "no ghost for a record beyond 48 blocks");
+    }
 
-        // Act
-        VillagerGhosts.step(scene.player());
+    /**
+     * When the only record is 40 blocks away (inside the 48-block reach, its chunk loaded), should a ghost be sent.
+     *
+     * <p>Method under test: {@code VillagerGhosts#step}
+     */
+    static void fortyBlocksAway(GameTestHelper helper) {
+        // Arrange, Act & Assert (the shared body marks the three)
+        stepForRecordAt(helper, 40.0, 1, "one ghost for a record within 48 blocks");
+    }
 
-        // Assert
-        helper.assertTrue(ghosts(helper, far).isEmpty(), "no ghost for a record beyond 48 blocks");
-        helper.succeed();
+    /**
+     * When the only record is 56 blocks away (just outside the 48-block reach, its chunk loaded), should no ghost be
+     * sent.
+     *
+     * <p>Method under test: {@code VillagerGhosts#step}
+     */
+    static void fiftySixBlocksAway(GameTestHelper helper) {
+        // Arrange, Act & Assert (the shared body marks the three)
+        stepForRecordAt(helper, 56.0, 0, "no ghost for a record 56 blocks away");
+    }
+
+    /**
+     * When the player turns creative during the ghost's Ghostrail wind-up, should the Ghostrail not land (the shared
+     * landing refuses a spell that is redundant in creative), and the ghost go on to cast Mirror.
+     *
+     * <p>Method under test: {@code ScrollCasting#land} through {@code VillagerGhost#tick}
+     */
+    static void creativeDuringWindUp(GameTestHelper helper) {
+        // Arrange (below a quarter of the health: the ghost starts a Ghostrail wind-up as soon as it is near)
+        Scene scene = scene(helper, true, true);
+        ServerPlayer player = scene.player();
+        player.setHealth(3.0F);
+        VillagerGhosts.step(player);
+        VillagerGhost ghost = ghosts(helper, scene.record()).get(0);
+
+        // Act (the wind-up starts on the tick the ghost comes within 3 blocks)
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ghost.distanceTo(player) <= 3.0, "the ghost is near"))
+                .thenExecute(() -> {
+                    helper.assertTrue(!player.hasEffect(ModEffects.GHOSTRAIL), "setup: no Ghostrail yet");
+                    player.setGameMode(GameType.CREATIVE);
+                })
+
+                // Assert
+                .thenWaitUntil(() -> helper.assertTrue(player.hasEffect(ModEffects.MIRROR), "Mirror was cast"))
+                .thenExecute(() -> {
+                    helper.assertTrue(!player.hasEffect(ModEffects.GHOSTRAIL), "no Ghostrail landed");
+                    helper.assertValueEqual(
+                            saved(helper, scene).ghostrailReadyAt(), 0L, "Ghostrail cooldown untouched");
+                })
+                .thenSucceed();
     }
 
     /**
