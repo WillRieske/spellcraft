@@ -5932,7 +5932,7 @@ git commit -m "feat(evoking): renderers for Mirror images and villager ghosts"
 - Modify: `README.md`, `CLAUDE.md`, `src/main/templates/META-INF/neoforge.mods.toml`, `docs/playtest-checklist.md`, `docs/mutation-testing.md`, `docs/api-notes.md` (§26 corrections), `docs/superpowers/specs/2026-11-07-evoking-ii-design.md` (inline notes), `docs/superpowers/specs/2026-11-10-evoking-ii-parts-6-7-design.md` (as-built sentences)
 - Modify: `src/test/…/spell/rules/*Test.java` (the tests Step 5 adds to kill surviving mutants)
 
-- [ ] **Step 1: README**
+- [x] **Step 1: README**
 
 In the opening line change "It has four:" to "It has six:". After the Strength of Evoking bullet's Team moves paragraph (the indented "- **Team moves.**" block), add, in the README's own voice, a block for the Part 7 additions: **Casters** (one Bound Vex in three is a Caster: it wears a torn purple robe, never fights, keeps four to six blocks from its target, and casts Mirror or Ghostrail on you, Ghostrail first when you are in trouble; it joins a Raid only to cast Mirror and hold its place), **scroll mobs** (evokers one time in four, vindicators and pillagers one in ten, spawn with a Mirror or Ghostrail scroll in the offhand and use it on themselves when they get a target; kill one with a player's attack and it may drop the scroll, Looting helps), and **villager ghosts** (a villager a monster kills leaves a ghost: when you have Strength of Evoking and are hurt below half health or have three monsters close, the nearest ghost within 48 blocks of a death floats to you, casts the spells on you and fades when the fight is over; one ghost at a time; killed by lava, a fall or your own side, a villager leaves none). Add two bullets to the spell list, with their icons, in the style of the others, after the Evoking bullet:
 
@@ -5949,11 +5949,11 @@ In the opening line change "It has four:" to "It has six:". After the Strength o
 
 and the last paragraph's list `(upside_down, infinity, trailing or evoking)` becomes `(upside_down, infinity, trailing, evoking, mirror or ghostrail)`.
 
-- [ ] **Step 2: Mod description and CLAUDE.md**
+- [x] **Step 2: Mod description and CLAUDE.md**
 
 `neoforge.mods.toml`: the description line becomes `Spells for Minecraft. Spells so far: Strength of Upside-Down, Strength of Infinity, Strength of Trailing, Strength of Evoking (whose Bound Vexes fight as a team and cast), Strength of Mirror and Strength of Ghostrail.` `CLAUDE.md`: in the Rules bullet "Mixins only where no event exists", append one sentence naming the one Part 7 Mixin: "`PlayerGhostrailMixin` (Ghostrail's `noPhysics`) is the one Mixin Part 7 adds; the Part 6 packet rule is unchanged: Part 7 adds no packet." (CLAUDE.md has no Mixin list today; the spec's "the Mixin list gains the Ghostrail Mixin" is met by this sentence.) Add a row to the Commands table, after the `python scripts/spell_icons.py` row: `` `python scripts/robe_texture.py` | Regenerate the Caster's robe texture (`bound_vex_robe.png`) ``. Correct the `./gradlew runData` row: it loads client classes and config specs and proves the `ArmPose` enum wiring, but it never fires `RegisterRenderers` (api-notes, the `runData` finding), so no renderer, layer, model or particle provider is constructed and no texture is resolved; say so in one clause, so nobody reads a green `runData` as proof of the renderers.
 
-- [ ] **Step 3: Playtest checklist**
+- [x] **Step 3: Playtest checklist**
 
 Add a section "Evoking II (Part 7)" to `docs/playtest-checklist.md`, after "Evoking II (Part 6)" and before "Real profile". One line of setup (survival world, Strength of Evoking on, three Bound Vexes out; `/give @s spellcraft:mirror_scroll` and `ghostrail_scroll`; `/summon evoker` and `/summon zombie` for fights), then `- [ ]` bullets (each is Will's to check; none is claimed working):
 
@@ -5974,15 +5974,15 @@ Add a section "Evoking II (Part 7)" to `docs/playtest-checklist.md`, after "Evok
 - Villager ghosts: kill a villager with a zombie, then go hurt near it. Does the ghost float in (translucent pale blue, the profession clothes), hover about two blocks from you at your eye height, cast, and fade when the fight is over? Does the translucent texture look right at distance and in the dark? Does it glide smoothly (its update interval is 1 tick) rather than in steps? A hurt you with no monster anywhere near gets no ghost.
 - Config screen and keys: nothing new (Part 7 adds no setting and no key).
 
-- [ ] **Step 4: API notes and spec sentences that the code settled**
+- [x] **Step 4: API notes and spec sentences that the code settled**
 
 Re-read §26 against what Tasks 3–14 found; correct every line the sources contradicted and add the facts the tasks needed that §26 did not have (especially: how `FinalizeSpawnEvent` is posted, which `LivingEntity` fields the image renderer could read, the Mirror's `MirrorImage` save of the equipment, `EntityRenderState.nameTag` **and** `scoreText`, which the image renderer both clears). No `(verify)` marker may remain in §26: `git grep -n "(verify)" -- docs/api-notes.md` prints nothing. Fill in the final baseline line with the real totals. In the Parts 6–7 spec, bring these sentences in line with the code as built (and with any divergence the earlier tasks' as-built notes record): §6.2 (a Caster tries Ghostrail before Mirror, as the villager ghost does; a Caster in a wind-up is not "busy"; `CasterRules` is the pure home of its numbers), §6.4 (`CastingState.of` returns `CastLook`), §7.1 (`Spells.cast`), §7.2 (images also save their copied type and profile; a recast poofs the old set first; `MirrorImages.afterEnd`; the ring spawn keeps images out of blocks; the images carry the hands' items only, no armor), §7.3 (`GrantedAbilities.Plan`; `AbilitySync` is the renamed `InfinityAbilitySync`; the spec's `Player.java:243` is right and stays), §8 (the chase goal is installed on every evoker, vindicator and pillager that joins, a scroll or not), §9 (the step is a public seam, the 20-tick gate is in `onPlayerTick`; no ghost without a hostile near; the ghost moves by position), §12 (the new pure classes and `CasterRules`) and §14 (rows for Ghostrail before Mirror, the extra save fields, the chase goal install). The Parts 6–7 spec's §7.1 (one creative refusal for casters that are not scrolls: `Spells.refusedFor`), §9 (a ghost needs a hostile near), §10 (what happens on a carrier's death) and §11 (what `runData` proves) were amended while the plan was reviewed; check that each still matches the code as built. Add the inline "Amended by the Parts 6–7 spec" notes to the parent spec at §9.1, §9.2, §9.3, §9.4, §9.5, §10 (Ghostrail's fallback), §11 and §13 (rows "Move gear", "Ghost trigger", "Which villagers leave ghosts"), in the style of the notes already there (one bold sentence naming the new spec's section and what changed); the notes for §3.1, §7 and §8 are already in.
 
-- [ ] **Step 5: Mutation testing**
+- [x] **Step 5: Mutation testing**
 
 Run: `./gradlew pitest` (background it if it takes over two minutes; read the summary from its report). Add a row to `docs/mutation-testing.md` for this part in the file's format: date, the new classes (`GhostrailDuration`, `GrantedAbilities`, `GhostRecords`, `GhostNeed`, `MirrorRule`, `CasterRules`), killed/total, and each surviving mutant with either the test added to kill it or one line on why it is equivalent. Add the tests that kill non-equivalent survivors, then rerun until only equivalents remain. (`InfinityAbilities` and its tests are gone: say so in the row, since the totals change.)
 
-- [ ] **Step 6: Whole-plan checks**
+- [x] **Step 6: Whole-plan checks**
 
 Run:
 
@@ -5996,7 +5996,7 @@ grep -c "message.spellcraft\|key.spellcraft\|spellcraft.configuration" src/main/
 
 Expected: the first prints nothing (no access-transformer or client Mixin change); the second lists exactly `PlayerGhostrailMixin.java` and `spellcraft.mixins.json`; the `git diff main -- gradle.properties` prints nothing (no version bump); the last two commands print the same number (the message, key and configuration lines of the lang file on `main`, which holds Part 6, and in the working tree: Part 7 adds no message, key or setting). No new `CustomPacketPayload` exists: `git grep -n "CustomPacketPayload" -- src/main/java` lists only `EvokingRequest`.
 
-- [ ] **Step 7: Gates and commit**
+- [x] **Step 7: Gates and commit**
 
 Run: `./gradlew spotlessApply build`, `./gradlew runData`, `./gradlew runGameTestServer` twice (expected `All N required tests passed`, where N is the total Task 12 recorded: this task adds no GameTest), and `python -m unittest discover -s scripts -p "test_*.py"`.
 
@@ -6013,6 +6013,8 @@ Then the docs (skip the first commit if Step 5 added no test):
 git add README.md CLAUDE.md docs src/main
 git commit -m "docs(evoking): Part 7 in the README, playtest items, mutation testing, as-built spec notes"
 ```
+
+> **As built (`2675609`):** diverged — the Step 6 lang-file count was run against f44271d (Part 6's end) instead of main, which does not hold Part 6 yet (32 = 32); GhostNeedTest gained BelowHalf and BelowQuarter refusesNonsense tests (pitest 555/562, the new classes fully killed); three extra playtest bullets and the CLAUDE.md runGameTestServer timeout clause, from the controller; review minors (README structure and ghost-reach wording) fixed in this commit; reason: implementer report, controller rulings, review approved
 
 ---
 
@@ -6033,3 +6035,4 @@ git commit -m "docs(evoking): Part 7 in the README, playtest items, mutation tes
 | 11 | `ff499bf` | no RED capture (production code written before the tests compiled); `VillagerGhosts.Record` carries `@SuppressWarnings("AvoidCommonTypeNames")` (Error Prone rejects the name the spec mandates); test helpers discard their villagers and any converted zombie villager when done; reason: implementer report, review approved (its minors are fixed first in Task 12). |
 | 12 | `4a481bf` | 788 GameTests (plan 782 + offset 3 + 3 added in review): the reach test moved out of HELP into its own environment, and the plan's optional boundary pair was built as 46 and 50 blocks (tighter than its 'about 40 / about 56'), each alone in its own environment with the record's chunk force-loaded and the unforce left to the runner (an unforce from a whenDone listener hung a full run, see api-notes §26); a creative-in-the-wind-up test added; step scans for live ghosts once and only when a loaded record is in range; reason: review fix round 1 and its re-review minors, re-review approved |
 | 13 | `80c98ce` | RED captured only as the missing-PNG failure (the robe script and its tests were written together; SpellAssetsTest.robeTextureIs32x32 added after the PNG existed); CastingParticles gained PLAYER_HEIGHT and SCROLL_COLOR constants; review minors (Javadoc on the casting colors and the robe layer) fixed in 80c98ce; client path proven to compile only, first render is Will's playtest; reason: implementer report, review approved |
+| 15 | `2675609` | the Step 6 lang-file count was run against f44271d (Part 6's end) instead of main, which does not hold Part 6 yet (32 = 32); GhostNeedTest gained BelowHalf and BelowQuarter refusesNonsense tests (pitest 555/562, the new classes fully killed); three extra playtest bullets and the CLAUDE.md runGameTestServer timeout clause, from the controller; review minors (README structure and ghost-reach wording) fixed in this commit; reason: implementer report, controller rulings, review approved |
