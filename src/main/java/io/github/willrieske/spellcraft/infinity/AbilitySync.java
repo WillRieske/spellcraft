@@ -16,7 +16,7 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
  * Keeps each player's creative-style abilities in line with Infinity and Ghostrail, every server tick (Parts 6-7
  * spec §7.3; formerly {@code InfinityAbilitySync}). Vanilla's abilities packet syncs the client, which then opens the
  * creative inventory by itself (docs/api-notes.md §11). The decision is the pure {@link GrantedAbilities}. This
- * class is the one driver of the sync: {@code Ghostrail.tick} (Task 7) does not call it, and the two do not depend
+ * class is the one driver of the sync: {@code Ghostrail.tick} does not call it, and the two do not depend
  * on each other's order in the Post event (a GameTest that steps {@code Ghostrail.tick} by hand and needs the
  * abilities settled calls {@link #sync} itself).
  */

@@ -67,6 +67,81 @@ public final class GhostrailFlightGameTests {
                 SHARED,
                 "ghostrail_flight_creative_player_keeps_creative_flight",
                 GhostrailFlightGameTests::creativeKeepsFlight);
+        FangGameTests.addPadded(
+                SHARED,
+                "ghostrail_flight_adventure_player_gets_no_physics_and_flight",
+                GhostrailFlightGameTests::adventurePassesThrough);
+        SpellcraftGameTests.add(
+                SHARED,
+                "ghostrail_flight_switch_to_creative_clears_the_mark",
+                GhostrailFlightGameTests::switchToCreativeClearsTheMark);
+        SpellcraftGameTests.add(
+                SHARED,
+                "ghostrail_flight_switch_back_to_survival_resumes_the_grant",
+                GhostrailFlightGameTests::switchBackResumes);
+    }
+
+    /**
+     * When an adventure player with Ghostrail runs a full player tick, should have noPhysics, mayfly and flying (the
+     * Mixin and the sync).
+     *
+     * <p>Method under test: {@code AbilitySync#ghostrailPassesThroughBlocks} and {@code AbilitySync#sync}.
+     */
+    static void adventurePassesThrough(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = player(helper, GameType.ADVENTURE);
+        castGhostrail(player);
+        // Act
+        player.doTick();
+        // Assert
+        helper.assertTrue(player.noPhysics, "the Mixin sets noPhysics");
+        helper.assertTrue(player.getAbilities().mayfly, "the sync grants mayfly");
+        helper.assertTrue(player.getAbilities().flying, "the sync sets flying");
+        helper.succeed();
+    }
+
+    /**
+     * When a survival player with Ghostrail switches to creative and is synced, should lose the granted mark (creative
+     * owns the flags).
+     *
+     * <p>Method under test: {@code AbilitySync#sync}.
+     */
+    static void switchToCreativeClearsTheMark(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = player(helper, GameType.SURVIVAL);
+        castGhostrail(player);
+        AbilitySync.sync(player);
+        helper.assertTrue(player.getData(InfinityAttachments.GHOSTRAIL_GRANTED), "precondition: marked");
+        // Act
+        player.setGameMode(GameType.CREATIVE);
+        AbilitySync.sync(player);
+        // Assert
+        helper.assertFalse(player.getData(InfinityAttachments.GHOSTRAIL_GRANTED), "creative owns the flags");
+        helper.succeed();
+    }
+
+    /**
+     * When a survival player with Ghostrail goes creative and back and is synced, should be granted mayfly and flying
+     * again and marked.
+     *
+     * <p>Method under test: {@code AbilitySync#sync}.
+     */
+    static void switchBackResumes(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = player(helper, GameType.SURVIVAL);
+        castGhostrail(player);
+        AbilitySync.sync(player);
+        player.setGameMode(GameType.CREATIVE);
+        AbilitySync.sync(player);
+        player.setGameMode(GameType.SURVIVAL);
+        helper.assertFalse(player.getAbilities().mayfly, "precondition: vanilla reset the flags");
+        // Act
+        AbilitySync.sync(player);
+        // Assert
+        helper.assertTrue(player.getAbilities().mayfly, "flight regained in survival");
+        helper.assertTrue(player.getAbilities().flying, "flying regained in survival");
+        helper.assertTrue(player.getData(InfinityAttachments.GHOSTRAIL_GRANTED), "marked again");
+        helper.succeed();
     }
 
     /** A player of {@code mode} inside this test's area. */

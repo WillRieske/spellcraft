@@ -657,7 +657,8 @@ an evoker), not the Caster vex.
   effect.
 - **Ending** (expiry, dispel, milk; detected by the same per-tick poll, which also catches
   `/effect clear`): if the carrier's box collides with blocks, search outward (up to 8 blocks) for
-  a free spot its box fits on a standable block, else any free spot, and teleport there; if none,
+  a free spot its box fits on a standable block, else any free spot (the fallback skips spots in a liquid or
+  fire), and teleport there; if none,
   to its start spot if that is still free; if none, stay. Then flight is revoked as above and `fallDistance` is 0. A
   player who ends in mid-air falls from there. A carrier that is no longer alive is not moved (no corpse is
   teleported); its mark is cleared and its gravity given back.

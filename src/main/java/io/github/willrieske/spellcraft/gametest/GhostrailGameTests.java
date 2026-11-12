@@ -14,6 +14,7 @@ import io.github.willrieske.spellcraft.spell.rules.GhostrailDuration;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
@@ -80,6 +81,37 @@ public final class GhostrailGameTests {
                 "ghostrail_recast_in_stone_keeps_the_earlier_start_spot",
                 GhostrailGameTests::recastInStoneKeepsTheStart);
         FangGameTests.addPadded(SHARED, "ghostrail_mob_mark_is_saved", GhostrailGameTests::mobMarkIsSaved);
+        FangGameTests.addPadded(
+                SHARED,
+                "ghostrail_ending_with_no_standable_spot_takes_a_free_one",
+                GhostrailGameTests::endingTakesAFreeSpot);
+        FangGameTests.addPadded(
+                SHARED, "ghostrail_ending_with_no_standable_spot_skips_lava", GhostrailGameTests::endingSkipsLava);
+        FangGameTests.addPadded(
+                SHARED,
+                "ghostrail_ending_overlapping_a_wall_nudges_to_its_own_block",
+                GhostrailGameTests::endingNudgesToItsOwnBlock);
+        FangGameTests.addPadded(
+                SHARED, "ghostrail_dead_player_clears_the_mark", GhostrailGameTests::deadPlayerClearsTheMark);
+    }
+
+    /**
+     * A pocket in a stone cube: two air blocks over a torch (no collision, no sturdy top, so nothing in it is
+     * standable but its box fits), {@code dx} blocks east of the feet.
+     */
+    private static void floorlessPocket(GameTestHelper helper, int dx) {
+        ServerLevel level = helper.getLevel();
+        level.setBlock(helper.absolutePos(FangGameTests.FEET.offset(dx, 0, 0)), Blocks.TORCH.defaultBlockState(), 2);
+        level.setBlock(helper.absolutePos(FangGameTests.FEET.offset(dx, 1, 0)), Blocks.AIR.defaultBlockState(), 2);
+        level.setBlock(helper.absolutePos(FangGameTests.FEET.offset(dx, 2, 0)), Blocks.AIR.defaultBlockState(), 2);
+    }
+
+    /** Runs a Ghostrail on {@code player} to its end, in place. */
+    private static void endGhostrail(ServerPlayer player) {
+        Spells.cast(player, Spells.GHOSTRAIL, GhostrailDuration.PLAYER_TICKS);
+        Ghostrail.tick(player);
+        player.removeEffect(ModEffects.GHOSTRAIL);
+        Ghostrail.tick(player);
     }
 
     /** Fills the box between two relative corners with stone; puts air back when the test ends. */
@@ -119,8 +151,11 @@ public final class GhostrailGameTests {
         ServerPlayer player = plainPlayer(helper);
         ServerLevel level = helper.getLevel();
         float full = player.getHealth();
+        // Act
         player.hurtServer(level, level.damageSources().generic(), 5.0F);
+        // Assert
         helper.assertValueEqual(player.getHealth(), full - 5.0F, "control: without Ghostrail the hit lands");
+        // Arrange
         player.setHealth(full);
         player.setInvulnerableTime(0); // the hit above started the invulnerability frames
         Spells.cast(player, Spells.GHOSTRAIL, GhostrailDuration.PLAYER_TICKS);
@@ -205,6 +240,10 @@ public final class GhostrailGameTests {
         Ghostrail.tick(player);
         // Assert
         helper.assertTrue(level.noCollision(player, player.getBoundingBox()), "the player's box is free");
+        BlockPos below = player.blockPosition().below();
+        helper.assertTrue(
+                level.getBlockState(below).isFaceSturdy(level, below, Direction.UP),
+                "the player lands on a solid block (a standable spot)");
         helper.assertTrue(
                 player.blockPosition().distManhattan(helper.absolutePos(FangGameTests.FEET)) <= 24,
                 "within the search");
@@ -310,7 +349,8 @@ public final class GhostrailGameTests {
         husk.removeAllEffects();
         Ghostrail.tick(husk);
         // Assert
-        helper.assertTrue(!husk.noPhysics && !husk.isNoGravity(), "physics and gravity are back");
+        helper.assertFalse(husk.noPhysics, "physics is back");
+        helper.assertFalse(husk.isNoGravity(), "gravity is back");
         helper.assertFalse(husk.hasData(EvokingAttachments.GHOSTRAIL_MARK), "the mark is gone");
         helper.succeed();
     }
@@ -409,7 +449,12 @@ public final class GhostrailGameTests {
      * <p>Method under test: {@code GhostrailDuration#INFINITE}.
      */
     static void infiniteIsVanillas(GameTestHelper helper) {
-        helper.assertValueEqual(GhostrailDuration.INFINITE, MobEffectInstance.INFINITE_DURATION, "the sentinel");
+        // Arrange
+        int infinite = MobEffectInstance.INFINITE_DURATION;
+        // Act
+        int sentinel = GhostrailDuration.INFINITE;
+        // Assert
+        helper.assertValueEqual(sentinel, infinite, "the sentinel");
         helper.succeed();
     }
 
@@ -446,6 +491,106 @@ public final class GhostrailGameTests {
         Husk loaded = (Husk) GameTestSupport.reloaded(helper.getLevel(), husk);
         // Assert
         helper.assertTrue(loaded.hasData(EvokingAttachments.GHOSTRAIL_MARK), "the mark survives a save and load");
+        helper.succeed();
+    }
+
+    /**
+     * When Ghostrail ends inside stone with no standable spot within the search but a free pocket without a floor
+     * (only the any-free-spot fallback can succeed), should the player land in that pocket.
+     *
+     * <p>Method under test: {@code Ghostrail#tick}: the push-out's fallback.
+     */
+    static void endingTakesAFreeSpot(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = plainPlayer(helper);
+        ServerLevel level = helper.getLevel();
+        stoneAround(helper, FangGameTests.FEET);
+        floorlessPocket(helper, 4);
+        // Act
+        endGhostrail(player);
+        // Assert
+        helper.assertTrue(level.noCollision(player, player.getBoundingBox()), "the player's box is free");
+        helper.assertValueEqual(
+                player.blockPosition().getX(),
+                helper.absolutePos(FangGameTests.FEET).getX() + 4,
+                "in the pocket");
+        helper.succeed();
+    }
+
+    /**
+     * When Ghostrail ends inside stone with no standable spot, a lava pocket nearer and a free pocket farther, should
+     * the player land in the free pocket and not in the lava.
+     *
+     * <p>Method under test: {@code Ghostrail#tick}: the push-out's fallback skips liquids.
+     */
+    static void endingSkipsLava(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = plainPlayer(helper);
+        ServerLevel level = helper.getLevel();
+        stoneAround(helper, FangGameTests.FEET);
+        floorlessPocket(helper, 6);
+        level.setBlock(
+                helper.absolutePos(FangGameTests.FEET.offset(3, 0, 0)),
+                Blocks.LAVA.defaultBlockState(),
+                Block.UPDATE_CLIENTS);
+        level.setBlock(
+                helper.absolutePos(FangGameTests.FEET.offset(3, 1, 0)),
+                Blocks.LAVA.defaultBlockState(),
+                Block.UPDATE_CLIENTS);
+        level.setBlock(
+                helper.absolutePos(FangGameTests.FEET.offset(3, 2, 0)),
+                Blocks.AIR.defaultBlockState(),
+                Block.UPDATE_CLIENTS);
+        // Act
+        endGhostrail(player);
+        // Assert
+        helper.assertFalse(level.containsAnyLiquid(player.getBoundingBox()), "not in the lava");
+        helper.assertValueEqual(
+                player.blockPosition().getX(),
+                helper.absolutePos(FangGameTests.FEET).getX() + 6,
+                "in the free pocket");
+        helper.succeed();
+    }
+
+    /**
+     * When Ghostrail ends with the player's box overlapping a wall by a sliver, should they be nudged to the bottom
+     * middle of their own block (ring 0), not to a neighbor.
+     *
+     * <p>Method under test: {@code Ghostrail#tick}: the push-out's search starts at ring 0.
+     */
+    static void endingNudgesToItsOwnBlock(GameTestHelper helper) {
+        // Arrange
+        ScrollTestSupport.floor(helper, 3);
+        stoneBox(helper, FangGameTests.FEET.east(), FangGameTests.FEET.east());
+        ServerPlayer player = plainPlayer(helper);
+        MockPlayers.moveTo(helper, player, FangGameTests.STAND.add(0.4, 0, 0), 0.0F);
+        // Act
+        endGhostrail(player);
+        // Assert
+        helper.assertValueEqual(
+                player.position(),
+                Vec3.atBottomCenterOf(helper.absolutePos(FangGameTests.FEET)),
+                "at its own block's spot");
+        helper.succeed();
+    }
+
+    /**
+     * When a Ghostrail player is killed and stepped, should the mark be cleared (nothing teleports a corpse).
+     *
+     * <p>Method under test: {@code Ghostrail#tick}: a dead carrier.
+     */
+    static void deadPlayerClearsTheMark(GameTestHelper helper) {
+        // Arrange
+        ServerPlayer player = plainPlayer(helper);
+        ServerLevel level = helper.getLevel();
+        Spells.cast(player, Spells.GHOSTRAIL, GhostrailDuration.PLAYER_TICKS);
+        Ghostrail.tick(player);
+        helper.assertTrue(player.hasData(EvokingAttachments.GHOSTRAIL_MARK), "precondition: marked");
+        player.hurtServer(level, level.damageSources().genericKill(), 1000.0F);
+        // Act
+        Ghostrail.tick(player);
+        // Assert
+        helper.assertFalse(player.hasData(EvokingAttachments.GHOSTRAIL_MARK), "the mark is gone");
         helper.succeed();
     }
 }

@@ -8,6 +8,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.LivingEntity;
@@ -132,8 +133,8 @@ public final class Ghostrail {
 
     /**
      * When the carrier's box collides with blocks: the nearest standable spot its box fits on within
-     * {@link #SEARCH_RADIUS} blocks, else the nearest free spot, else the spot the effect began at if that is still
-     * free, else it stays (and suffocates as vanilla would; accepted, a playtest note).
+     * {@link #SEARCH_RADIUS} blocks, else the nearest free spot that holds no liquid or fire, else the spot the effect
+     * began at if that is still free, else it stays (and suffocates as vanilla would; accepted, a playtest note).
      */
     private static void pushOut(ServerLevel level, LivingEntity carrier) {
         if (level.noCollision(carrier, carrier.getBoundingBox())) {
@@ -148,10 +149,14 @@ public final class Ghostrail {
         spot.ifPresent(pos -> teleport(level, carrier, Vec3.atBottomCenterOf(pos)));
     }
 
-    /** The first spot outward from {@code from}, ring by ring, where the box fits (and, if asked, a floor is below). */
+    /**
+     * The first spot outward from {@code from}, ring by ring starting with {@code from} itself (ring 0, for a carrier
+     * that overlaps a wall by a sliver), where the box fits (and, if asked, a floor is below; if not, the spot must
+     * also hold no liquid or fire).
+     */
     private static Optional<BlockPos> search(
             ServerLevel level, LivingEntity carrier, BlockPos from, boolean standable) {
-        for (int ring = 1; ring <= SEARCH_RADIUS; ring++) {
+        for (int ring = 0; ring <= SEARCH_RADIUS; ring++) {
             for (int dx = -ring; dx <= ring; dx++) {
                 for (int dy = -ring; dy <= ring; dy++) {
                     for (int dz = -ring; dz <= ring; dz++) {
@@ -159,7 +164,8 @@ public final class Ghostrail {
                             continue;
                         }
                         BlockPos pos = from.offset(dx, dy, dz);
-                        if (fits(level, carrier, pos) && (!standable || StandableSpots.standable(level, pos))) {
+                        if (fits(level, carrier, pos)
+                                && (standable ? StandableSpots.standable(level, pos) : safe(level, carrier, pos))) {
                             return Optional.of(pos);
                         }
                     }
@@ -169,10 +175,20 @@ public final class Ghostrail {
         return Optional.empty();
     }
 
+    /** The carrier's box with its feet at the bottom middle of {@code pos}. */
+    private static AABB boxAt(LivingEntity carrier, BlockPos pos) {
+        return carrier.getDimensions(carrier.getPose()).makeBoundingBox(Vec3.atBottomCenterOf(pos));
+    }
+
     /** Whether the carrier's box, with its feet at the bottom middle of {@code pos}, touches no block. */
     private static boolean fits(ServerLevel level, LivingEntity carrier, BlockPos pos) {
-        AABB box = carrier.getDimensions(carrier.getPose()).makeBoundingBox(Vec3.atBottomCenterOf(pos));
-        return level.noCollision(carrier, box);
+        return level.noCollision(carrier, boxAt(carrier, pos));
+    }
+
+    /** Whether the carrier's box at {@code pos} holds no liquid (lava, water) and no fire. */
+    private static boolean safe(ServerLevel level, LivingEntity carrier, BlockPos pos) {
+        AABB box = boxAt(carrier, pos);
+        return !level.containsAnyLiquid(box) && level.getBlockStates(box).noneMatch(state -> state.is(BlockTags.FIRE));
     }
 
     /**

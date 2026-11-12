@@ -25,7 +25,7 @@ public final class InfinityAttachments {
     /**
      * True while Ghostrail (not vanilla, Infinity or another mod) set the player's {@code mayfly} and {@code flying}.
      * Saved, so a relog mid-effect does not leave {@code mayfly} on for good. Not copied on death, as {@link #GRANTED}.
-     * Not the same as {@code EvokingAttachments.GHOSTRAIL_MARK} (Task 7): that one records the carrier's original
+     * Not the same as {@code EvokingAttachments.GHOSTRAIL_MARK}: that one records the carrier's original
      * {@code noGravity}, for every kind of carrier; this one records only who set the abilities flags, for players.
      */
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<Boolean>> GHOSTRAIL_GRANTED =
