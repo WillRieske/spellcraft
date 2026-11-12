@@ -52,6 +52,29 @@ A NeoForge mod for Minecraft that adds spells cast from scrolls. It has six:
   vexes spare them too and fight only what the list above says. You, your pets, your fangs and your
   vexes cannot take an iron golem below 25 health; when it gets that low, it calms down and stops
   being mad at you. The keys rebind in Controls. Sneak + scroll or milk turns it off.
+
+  - **Team moves.** Your vexes act as a team. When something big comes close they grab conjured shields and take
+    turns bashing it back (**Shield**); when a strong monster goes after one of them, that vex and two friends pull
+    out crossbows that fire three arrows at once (**Multishot**); when you or an ally of yours drops below half
+    health, up to three vexes circle the hurt one, shove away anything that comes close and knock arrows back
+    (**Evader**); and when a giant (a Ravager, a Warden, the Wither, the Dragon) shows up and all twelve vexes are
+    out, they gear up in netherite and diamond, line up in a 3 × 4 block and charge together while the crossbow
+    vexes fire rockets (**Raid**). The conjured gear vanishes when the move ends and your own gear comes back; a vex
+    in a move answers a click with "That vex is busy". Set `teamMoves` in the server config (section `evoking`) to
+    `MANUAL` to turn the automatic triggers off; then **J** picks a move and **K** starts it. Both keys rebind in
+    Controls, where they sit with the Evoking keys.
+
+  - **Casters.** One Bound Vex in three is a Caster: it wears a torn purple robe, never fights, keeps four to six
+    blocks from its target, and casts Mirror or Ghostrail on you (Ghostrail first when you are in trouble). In a Raid
+    it joins only to cast Mirror and hold its place.
+  - **Scroll mobs.** Evokers one time in four, and vindicators and pillagers one in ten, spawn with a Mirror or
+    Ghostrail scroll in the offhand and use it on themselves when they get a target. Kill one with a player's attack
+    and it may drop the scroll (Looting helps).
+  - **Villager ghosts.** A villager a monster kills leaves a ghost. When you have Strength of Evoking and are
+    hurt below half health or have three monsters close, with a monster near, the nearest villager death within
+    48 blocks of you sends its ghost: it floats to you, casts the spells on you and fades when the fight is
+    over. Only one ghost helps at a time. A villager killed by lava, a fall or your own side leaves none.
+
 - <img src="src/main/resources/assets/spellcraft/textures/item/mirror_scroll.png" alt="" width="24" height="24"> **Strength of Mirror**: for six minutes (not configurable) thirteen copies of you stand around you
   and wander near you. A monster that picks you as its target almost always (13 times in 14) picks a copy instead; any mob is
   fooled, a golem that goes for an evoker with copies included, but an iron golem never goes for a player's copies. The copies are
@@ -60,28 +83,6 @@ A NeoForge mod for Minecraft that adds spells cast from scrolls. It has six:
 - <img src="src/main/resources/assets/spellcraft/textures/item/ghostrail_scroll.png" alt="" width="24" height="24"> **Strength of Ghostrail**: for four minutes (not configurable) you fly through blocks, unhurt (only `/kill` and the
   void still hurt), leaving a trail of white smoke. When it ends inside blocks you are moved to the nearest free spot within eight blocks
   (the spot you started at, if there is none), with no fall damage. Creative players cannot use the scroll; sneak and use the scroll to end it.
-
-- **Team moves.** Your vexes act as a team. When something big comes close they grab conjured shields and take
-  turns bashing it back (**Shield**); when a strong monster goes after one of them, that vex and two friends pull
-  out crossbows that fire three arrows at once (**Multishot**); when you or an ally of yours drops below half
-  health, up to three vexes circle the hurt one, shove away anything that comes close and knock arrows back
-  (**Evader**); and when a giant (a Ravager, a Warden, the Wither, the Dragon) shows up and all twelve vexes are
-  out, they gear up in netherite and diamond, line up in a 3 × 4 block and charge together while the crossbow
-  vexes fire rockets (**Raid**). The conjured gear vanishes when the move ends and your own gear comes back; a vex
-  in a move answers a click with "That vex is busy". Set `teamMoves` in the server config (section `evoking`) to
-  `MANUAL` to turn the automatic triggers off; then **J** picks a move and **K** starts it. Both keys rebind in
-  Controls, where they sit with the Evoking keys.
-
-- **Casters.** One Bound Vex in three is a Caster: it wears a torn purple robe, never fights, keeps four to six
-  blocks from its target, and casts Mirror or Ghostrail on you (Ghostrail first when you are in trouble). In a Raid
-  it joins only to cast Mirror and hold its place.
-- **Scroll mobs.** Evokers one time in four, and vindicators and pillagers one in ten, spawn with a Mirror or
-  Ghostrail scroll in the offhand and use it on themselves when they get a target. Kill one with a player's attack
-  and it may drop the scroll (Looting helps).
-- **Villager ghosts.** A villager a monster kills leaves a ghost. When you have Strength of Evoking and are hurt
-  below half health or have three monsters close, the nearest ghost within 48 blocks of a death floats to you,
-  casts the spells on you and fades when the fight is over. Only one ghost helps at a time. A villager killed by
-  lava, a fall or your own side leaves none.
 
 Each scroll is single-use. Scribe one by putting paper and lapis in an enchanting table: you get
 a random scroll, and more lapis raises the odds of an extreme-tier spell. Creative players can
