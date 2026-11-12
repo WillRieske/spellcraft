@@ -48,6 +48,17 @@ class GhostNeedTest {
         void followsTheSpec(float health, float max, boolean expected) {
             assertThat(GhostNeed.belowHalf(health, max)).isEqualTo(expected);
         }
+
+        /**
+         * When the maximum health is not positive or health is negative, belowHalf should refuse.
+         *
+         * <p>Method under test: {@link GhostNeed#belowHalf(float, float)}
+         */
+        @ParameterizedTest
+        @CsvSource({"5,0", "5,-1", "-1,20"})
+        void refusesNonsense(float health, float max) {
+            assertThatThrownBy(() -> GhostNeed.belowHalf(health, max)).isInstanceOf(IllegalArgumentException.class);
+        }
     }
 
     @Nested
@@ -61,6 +72,17 @@ class GhostNeedTest {
         @CsvSource({"4.9,20,true", "5,20,false", "0,20,true", "20,20,false"})
         void followsTheSpec(float health, float max, boolean expected) {
             assertThat(GhostNeed.belowQuarter(health, max)).isEqualTo(expected);
+        }
+
+        /**
+         * When the maximum health is not positive or health is negative, belowQuarter should refuse.
+         *
+         * <p>Method under test: {@link GhostNeed#belowQuarter(float, float)}
+         */
+        @ParameterizedTest
+        @CsvSource({"5,0", "5,-1", "-1,20"})
+        void refusesNonsense(float health, float max) {
+            assertThatThrownBy(() -> GhostNeed.belowQuarter(health, max)).isInstanceOf(IllegalArgumentException.class);
         }
     }
 
