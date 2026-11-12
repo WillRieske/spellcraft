@@ -5166,7 +5166,7 @@ git commit -m "feat(evoking): villager ghosts that come to a player in need and 
 
 The client code has no GameTest (the client classes never load on the test server). `./gradlew runData` boots the client distribution headlessly, but it only subscribes the `RegisterRenderers` listeners and never fires the event (`docs/api-notes.md:883-889`), so no renderer, layer, model or particle provider is constructed and no texture is resolved: for the client path this task's gate proves **compilation only**. The first render (stand-in creation, `ModelLayers`, the robe texture path, the particle provider) is Will's playtest (Task 15 has an item: launch the client, summon a Mirror image, a Caster and a ghost: no crash, a clean log). Javadoc omitted from a snippet below (constructors, overrides, private fields and constants) is still required in the code you commit.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `scripts/test_robe_texture.py` (stdlib `unittest`, like `test_spell_icons.py`; `decode` below needs no helper from another test module):
 
@@ -5285,11 +5285,11 @@ void robeTextureIs32x32() throws IOException {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `python -m unittest discover -s scripts -p "test_*.py"` (FAIL: no `robe_texture`) and `./gradlew test --tests "*SpellAssetsTest"` (FAIL: no file).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `scripts/robe_texture.py` (reuse `spell_icons.encode_png`, which writes any square 8-bit RGBA PNG):
 
@@ -5551,11 +5551,11 @@ gear.casting = CastingState.of(entity).isPresent();
 
 Update the class Javadocs (the renderer now draws the robe, the pose and the armor).
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `python -m unittest discover -s scripts -p "test_*.py"`, `./gradlew test`, `./gradlew runData`. Expected: PASS. `runData` here proves that the client classes compile and the client distribution boots; it does not construct the renderer, the layer, the model or the particle provider, so a missing texture or a wrong layer name will not show in its log (Task 15's playtest item covers the first render).
 
-- [ ] **Step 5: Gates and commit**
+- [x] **Step 5: Gates and commit**
 
 Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expected: `All N required tests passed` both times, where N is the total Task 12 recorded (this task adds no GameTest).
 
@@ -5563,6 +5563,8 @@ Run: `./gradlew spotlessApply build`, `./gradlew runGameTestServer` twice. Expec
 git add src scripts
 git commit -m "feat(evoking): a robe, arms-up pose and casting particles for Casters"
 ```
+
+> **As built (`80c98ce`):** diverged — RED captured only as the missing-PNG failure (the robe script and its tests were written together; SpellAssetsTest.robeTextureIs32x32 added after the PNG existed); CastingParticles gained PLAYER_HEIGHT and SCROLL_COLOR constants; review minors (Javadoc on the casting colors and the robe layer) fixed in 80c98ce; client path proven to compile only, first render is Will's playtest; reason: implementer report, review approved
 
 ---
 
@@ -6028,3 +6030,4 @@ git commit -m "docs(evoking): Part 7 in the README, playtest items, mutation tes
 | 10 | `ea7c862` | chasesThroughAWall keeps the player vulnerable (Mob.asValidTarget rejects an invulnerable target via canBeSeenAsEnemy, so the plan's setTarget was dropped) and empties the pillager's main hand instead; floored scenes use radius 12 for Mirror image wander room; EVOKER_CAST_SPELL has no .value() in 26.3; MOB_GHOSTRAIL_COOLDOWN_TICKS made public for the test; RED was compile-time; reason: implementer report, review approved |
 | 11 | `ff499bf` | no RED capture (production code written before the tests compiled); `VillagerGhosts.Record` carries `@SuppressWarnings("AvoidCommonTypeNames")` (Error Prone rejects the name the spec mandates); test helpers discard their villagers and any converted zombie villager when done; reason: implementer report, review approved (its minors are fixed first in Task 12). |
 | 12 | `4a481bf` | 788 GameTests (plan 782 + offset 3 + 3 added in review): the reach test moved out of HELP into its own environment, and the plan's optional boundary pair was built as 46 and 50 blocks (tighter than its 'about 40 / about 56'), each alone in its own environment with the record's chunk force-loaded and the unforce left to the runner (an unforce from a whenDone listener hung a full run, see api-notes §26); a creative-in-the-wind-up test added; step scans for live ghosts once and only when a loaded record is in range; reason: review fix round 1 and its re-review minors, re-review approved |
+| 13 | `80c98ce` | RED captured only as the missing-PNG failure (the robe script and its tests were written together; SpellAssetsTest.robeTextureIs32x32 added after the PNG existed); CastingParticles gained PLAYER_HEIGHT and SCROLL_COLOR constants; review minors (Javadoc on the casting colors and the robe layer) fixed in 80c98ce; client path proven to compile only, first render is Will's playtest; reason: implementer report, review approved |
