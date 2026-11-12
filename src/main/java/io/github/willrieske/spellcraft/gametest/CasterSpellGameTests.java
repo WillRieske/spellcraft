@@ -1,6 +1,5 @@
 package io.github.willrieske.spellcraft.gametest;
 
-import static io.github.willrieske.spellcraft.gametest.GameTestSupport.whenDone;
 import static io.github.willrieske.spellcraft.gametest.ScrollTestSupport.at;
 import static io.github.willrieske.spellcraft.gametest.ScrollTestSupport.casterVex;
 import static io.github.willrieske.spellcraft.gametest.ScrollTestSupport.floor;
@@ -12,13 +11,13 @@ import static io.github.willrieske.spellcraft.gametest.SpellcraftGameTests.SHARE
 
 import io.github.willrieske.spellcraft.effect.ModEffects;
 import io.github.willrieske.spellcraft.evoking.BoundVex;
-import io.github.willrieske.spellcraft.evoking.Dice;
 import io.github.willrieske.spellcraft.evoking.RaidMove;
 import io.github.willrieske.spellcraft.evoking.TeamFlight;
 import io.github.willrieske.spellcraft.evoking.TeamMoves;
 import io.github.willrieske.spellcraft.gametest.ScrollTestSupport.RaidScene;
 import io.github.willrieske.spellcraft.spell.ModItems;
 import io.github.willrieske.spellcraft.spell.Spells;
+import io.github.willrieske.spellcraft.spell.rules.CasterRules;
 import io.github.willrieske.spellcraft.spell.rules.MirrorRule;
 import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import java.util.EnumSet;
@@ -87,18 +86,19 @@ final class CasterSpellGameTests {
         FangGameTests.addPadded(
                 SHARED, "caster_no_mirror_when_summoner_has_it", 200, CasterSpellGameTests::noMirrorWhenSummonerHasIt);
         FangGameTests.addPadded(
-                "team_move_dice", "caster_raid_dismisses_a_wind_up", 300, CasterSpellGameTests::raidDismissesAWindUp);
+                SHARED, "caster_raid_dismisses_a_wind_up", 300, CasterSpellGameTests::raidDismissesAWindUp);
         FangGameTests.addPadded(
-                "team_move_dice", "caster_raid_casts_mirror", 300, CasterSpellGameTests::raidCastsMirror);
+                SHARED, "caster_raid_on_the_last_wind_up_tick", 300, CasterSpellGameTests::raidOnTheLastWindUpTick);
         FangGameTests.addPadded(
-                "team_move_dice", "caster_raid_skips_the_cast", 300, CasterSpellGameTests::raidSkipsTheCast);
-        FangGameTests.addPadded(
-                "team_move_dice", "caster_raid_holds_its_cell", 300, CasterSpellGameTests::raidHoldsItsCell);
-        FangGameTests.addPadded(
-                "team_move_dice",
-                "caster_raid_caster_never_attacks",
+                SHARED,
+                "caster_discarded_on_the_last_wind_up_tick",
                 300,
-                CasterSpellGameTests::raidCasterNeverAttacks);
+                CasterSpellGameTests::discardedOnTheLastWindUpTick);
+        FangGameTests.addPadded(SHARED, "caster_raid_casts_mirror", 300, CasterSpellGameTests::raidCastsMirror);
+        FangGameTests.addPadded(SHARED, "caster_raid_skips_the_cast", 300, CasterSpellGameTests::raidSkipsTheCast);
+        FangGameTests.addPadded(SHARED, "caster_raid_holds_its_cell", 300, CasterSpellGameTests::raidHoldsItsCell);
+        FangGameTests.addPadded(
+                SHARED, "caster_raid_caster_never_attacks", 300, CasterSpellGameTests::raidCasterNeverAttacks);
     }
 
     /** A summoner, a parked Caster 3 blocks above them holding a golden sword, and {@code hostiles} husks beside it. */
@@ -119,8 +119,8 @@ final class CasterSpellGameTests {
     private record Scene(ServerPlayer player, BoundVex caster) {}
 
     /**
-     * Starts a Raid with every kit roll scripted to 0 (a sword and netherite for everyone) and steps it every tick.
-     * The die is scripted immediately before the one call that consumes it and unscripted in a {@code finally}.
+     * Starts a Raid and steps it every tick. The kit rolls are left random: no Caster Raid test depends on the
+     * members' swords or armor (the Caster's own kit is the Mirror scroll), so scripting them would assert nothing.
      */
     private static RaidScene startedRaid(GameTestHelper helper, boolean mirrorFirst) {
         RaidScene scene = raidScene(helper);
@@ -130,18 +130,10 @@ final class CasterSpellGameTests {
 
     /** Starts the Raid of {@code scene} as {@link #startedRaid} does, and steps it every tick. */
     private static void startRaid(GameTestHelper helper, RaidScene scene, boolean mirrorFirst) {
-        whenDone(helper, Dice::unscriptAll);
         if (mirrorFirst) {
             Spells.cast(scene.player(), Spells.MIRROR, MirrorRule.DURATION_TICKS);
         }
-        boolean started;
-        try {
-            // 11 ordinary members take 2 rolls each and the Caster takes 1: all zero is a sword and netherite.
-            Dice.RAID_KIT.script(new int[23]);
-            started = TeamMoves.start(scene.player(), TeamMove.RAID, scene.husk());
-        } finally {
-            Dice.unscriptAll();
-        }
+        boolean started = TeamMoves.start(scene.player(), TeamMove.RAID, scene.husk());
         helper.assertTrue(started, "setup: the Raid starts");
         TeamMoveTestSupport.stepEveryTick(helper, scene.player());
     }
@@ -320,6 +312,76 @@ final class CasterSpellGameTests {
                     helper.assertTrue(
                             scene.caster().getMainHandItem().is(ModItems.MIRROR_SCROLL.get()),
                             "the Raid kit's Mirror scroll is in hand");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * Starts the Raid of {@code scene} from inside a wait condition on the tick the Caster's wind-up has run 19 ticks,
+     * so the Caster's 20th tick (the one that would land the spell) is the next one.
+     */
+    private static void startRaidOnTheLastWindUpTick(
+            GameTestHelper helper, RaidScene scene, boolean[] startedOnTick19, Runnable atTick19) {
+        helper.assertTrue(
+                scene.caster().casterWindUpTicks() == CasterRules.WIND_UP_TICKS - 1
+                        && scene.caster().isConjured(EquipmentSlot.MAINHAND),
+                "waiting for wind-up tick 19");
+        startedOnTick19[0] = true;
+        atTick19.run();
+    }
+
+    /**
+     * When a Raid starts on the Caster's wind-up tick 19, should the 20th tick not land the spell: vanilla ticks an
+     * every-tick goal on in-between ticks without asking {@code canContinueToUse}, so the goal checks the team move
+     * itself. No Ghostrail lands, no cooldown is spent, and the Raid kit's Mirror scroll is in the main hand.
+     *
+     * <p>Method under test: {@code CasterSpellGoal.tick}: a Raid preempts the last wind-up tick
+     */
+    static void raidOnTheLastWindUpTick(GameTestHelper helper) {
+        // Arrange
+        RaidScene scene = raidScene(helper);
+        scene.player().setHealth(HURT_HEALTH);
+        boolean[] started = new boolean[1];
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() ->
+                        startRaidOnTheLastWindUpTick(helper, scene, started, () -> startRaid(helper, scene, false)))
+                .thenExecuteAfter(5, () -> {
+                    helper.assertTrue(started[0], "the Raid started on wind-up tick 19");
+                    helper.assertFalse(scene.player().hasEffect(ModEffects.GHOSTRAIL), "no Ghostrail landed");
+                    helper.assertValueEqual(scene.caster().ghostrailReadyAt(), 0L, "no cooldown spent");
+                    helper.assertFalse(scene.caster().hasEffect(ModEffects.CASTING_SCROLL), "the casting look is gone");
+                    helper.assertTrue(
+                            scene.caster().getMainHandItem().is(ModItems.MIRROR_SCROLL.get()),
+                            "the Raid kit's Mirror scroll is in hand");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When a Raid starts on the Caster's wind-up tick 19 and the Caster is discarded in the same tick, should no spell
+     * land and nothing throw: the goal's next tick, if any, finds a removed vex and a started Raid.
+     *
+     * <p>Method under test: {@code CasterSpellGoal.tick}: a discarded Caster at the last wind-up tick
+     */
+    static void discardedOnTheLastWindUpTick(GameTestHelper helper) {
+        // Arrange
+        RaidScene scene = raidScene(helper);
+        scene.player().setHealth(HURT_HEALTH);
+        boolean[] started = new boolean[1];
+
+        // Act & Assert
+        helper.startSequence()
+                .thenWaitUntil(() -> startRaidOnTheLastWindUpTick(helper, scene, started, () -> {
+                    startRaid(helper, scene, false);
+                    scene.caster().discard();
+                }))
+                .thenExecuteAfter(5, () -> {
+                    helper.assertTrue(started[0], "the Raid started on wind-up tick 19");
+                    helper.assertTrue(scene.caster().isRemoved(), "the Caster is gone");
+                    helper.assertFalse(scene.player().hasEffect(ModEffects.GHOSTRAIL), "no Ghostrail landed");
+                    helper.assertValueEqual(scene.caster().ghostrailReadyAt(), 0L, "no cooldown spent");
                 })
                 .thenSucceed();
     }

@@ -481,7 +481,9 @@ in `addAdditionalSaveData` (a portal copy keeps it). A `/summon`ed vex is not a 
     (stashing the given item), carries the casting effect (§6.4), and plays
     `EVOKER_PREPARE_SUMMON` at the start and `EVOKER_CAST_SPELL` at the end. A Caster in a
     wind-up is not "busy" (`Jobs.busy` asks only the four job goals), so it is still free for a Raid:
-    the Raid preempts the goal, which dismisses the scroll and spends no cooldown. At the end, if the
+    the Raid preempts the goal, which dismisses the scroll and spends no cooldown (even a Raid that
+    starts on the last wind-up tick: the goal checks the team move in `tick()` itself, since vanilla
+    ticks an every-tick goal on in-between ticks without asking `canContinueToUse`). At the end, if the
     subject still qualifies (alive, in range, without the effect), the spell is applied to it
     (§7.1) and the cooldown starts; either way the scroll and the casting effect are dismissed at
     that moment. A Caster interrupted (flee, rescue) dismisses the scroll and spends no cooldown.

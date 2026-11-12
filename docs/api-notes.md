@@ -1417,4 +1417,9 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
 - **Saved equipment.** `LivingEntity.addAdditionalSaveData` writes the equipment under the `equipment` key (`EntityEquipment.CODEC`,
   `LivingEntity.java:795`) and `readAdditionalSaveData` reads it (`:856`), so `MirrorImage` saves the copied main-hand and offhand items
   through its `super` call and writes no equipment of its own (it adds only `caster`, `life_ticks`, `copied_type` and `profile`).
-- **Baseline.** `./gradlew runGameTestServer`: `All 650 required tests passed` on 2026-11-10 (Part 6 ended at 650); `All 788 required tests passed` on 2026-11-12 at the plan's end, and `All 824 required tests passed` after the branch-review fixes (Part 7 ended at 824). Every Part 7 gate is the Part 6 number plus the tests registered so far.
+- **Every-tick goals ignore `canContinueToUse` on in-between ticks.** `Mob.serverAiStep` switches goals only every other tick
+  (`GoalSelector.tick(true)`); in between it calls `tickRunningGoals(false)`, which ticks every `requiresUpdateEveryTick()` goal
+  without asking `canContinueToUse`. A goal starts on a switching tick, so its 20th tick falls on an in-between tick. A goal that
+  must stop when state changes outside the selector (a team move starts) has to check it in `tick()` itself, or the 20th tick
+  still acts (`CasterSpellGoal`: a Raid started on wind-up tick 19 still landed the spell, 6 of 6 times in a probe).
+- **Baseline.** `./gradlew runGameTestServer`: `All 650 required tests passed` on 2026-11-10 (Part 6 ended at 650); `All 788 required tests passed` on 2026-11-12 at the plan's end, and `All 824 required tests passed` after the branch-review fixes (Part 7 ended at 824), `All 826 required tests passed` after the deep-review fixes (the last-wind-up-tick Raid tests). Every Part 7 gate is the Part 6 number plus the tests registered so far.

@@ -608,7 +608,7 @@ final class BoundVexTeamMoveLifecycleGameTests {
         ShieldScene scene = shield(helper);
         BoundVex member = scene.vexes().get(0);
         Dice.RAID_KIT.script(5);
-        GameTestSupport.whenDone(helper, Dice.RAID_KIT::unscript);
+        GameTestSupport.whenDone(helper, Dice::resetAll);
 
         // Act
         BoundVexEvents.onServerStopped(new ServerStoppedEvent(helper.getLevel().getServer()));

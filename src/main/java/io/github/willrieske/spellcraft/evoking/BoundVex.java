@@ -165,6 +165,9 @@ public class BoundVex extends Vex {
      */
     private TeamMove teamMove = TeamMove.NONE;
 
+    /** The Caster's casting goal, kept for {@link #casterWindUpTicks} (null until {@code registerGoals} has run). */
+    private @Nullable CasterSpellGoal casterSpellGoal;
+
     public BoundVex(EntityType<? extends BoundVex> type, Level level) {
         super(type, level);
         // No experience: summon-and-kill would farm 3 XP per vex, 3 vexes per press (vanilla's vex gives 3).
@@ -212,7 +215,8 @@ public class BoundVex extends Vex {
         goalSelector.addGoal(2, new CureZombieVillagerGoal(this));
         goalSelector.addGoal(2, new BribeGoal(this));
         goalSelector.addGoal(2, new AttackCrystalGoal(this));
-        goalSelector.addGoal(2, new CasterSpellGoal(this));
+        casterSpellGoal = new CasterSpellGoal(this);
+        goalSelector.addGoal(2, casterSpellGoal);
         goalSelector.addGoal(3, new CasterGoal(this));
         goalSelector.addGoal(3, new RangedGearGoal(this));
         goalSelector.addGoal(3, new ChargeGoal());
@@ -675,6 +679,16 @@ public class BoundVex extends Vex {
     Vec3 postPoint() {
         BlockPos post = getBoundOrigin();
         return Vec3.atBottomCenterOf(post != null ? post : blockPosition());
+    }
+
+    /**
+     * The ticks the Caster's current spell wind-up has run (a test seam: a GameTest starts a Raid on the last wind-up
+     * tick). Meaningful only while a wind-up is in progress.
+     *
+     * @return the wind-up ticks, 0 when the goal does not exist yet
+     */
+    public int casterWindUpTicks() {
+        return casterSpellGoal != null ? casterSpellGoal.windUpTicks() : 0;
     }
 
     /** Returns the team move this vex takes part in, or {@link TeamMove#NONE}. */

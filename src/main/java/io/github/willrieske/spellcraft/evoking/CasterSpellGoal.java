@@ -6,6 +6,7 @@ import io.github.willrieske.spellcraft.spell.Spell;
 import io.github.willrieske.spellcraft.spell.Spells;
 import io.github.willrieske.spellcraft.spell.rules.CasterRules;
 import io.github.willrieske.spellcraft.spell.rules.GhostrailDuration;
+import io.github.willrieske.spellcraft.spell.rules.TeamMove;
 import java.util.Comparator;
 import java.util.EnumSet;
 import net.minecraft.server.level.ServerPlayer;
@@ -13,6 +14,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -43,6 +45,9 @@ final class CasterSpellGoal extends Goal {
     /** Whether the cast has landed or been given up, so the goal can end. */
     private boolean done;
 
+    /** The scroll this goal conjured (compared by identity, so a Raid kit's scroll is never taken), or null. */
+    private @Nullable ItemStack ownScroll;
+
     /** Whether the scroll has been dismissed for this cast, so it is dismissed at most once. */
     private boolean dismissed;
 
@@ -63,7 +68,16 @@ final class CasterSpellGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
-        return !done && subject != null && subject.isAlive();
+        return !done && subject != null && subject.isAlive() && vex.teamMove() == TeamMove.NONE;
+    }
+
+    /**
+     * Ticks into the wind-up, for GameTests (a Raid that starts on the last wind-up tick must still preempt the cast).
+     *
+     * @return the ticks the current wind-up has run
+     */
+    int windUpTicks() {
+        return ticks;
     }
 
     @Override
@@ -74,7 +88,8 @@ final class CasterSpellGoal extends Goal {
         if (spell == null) {
             return;
         }
-        vex.conjure(EquipmentSlot.MAINHAND, ModItems.scrollFor(spell));
+        ownScroll = ModItems.scrollFor(spell);
+        vex.conjure(EquipmentSlot.MAINHAND, ownScroll);
         ScrollCasting.windUp(vex);
     }
 
@@ -85,7 +100,10 @@ final class CasterSpellGoal extends Goal {
 
     @Override
     public void tick() {
-        if (done) {
+        // Vanilla ticks an every-tick goal on in-between ticks without asking canContinueToUse (api-notes §26), so a
+        // team
+        // move that started since the last switching tick must be caught here, or the spell would still land.
+        if (done || !canContinueToUse()) {
             return;
         }
         if (subject != null) {
@@ -135,7 +153,10 @@ final class CasterSpellGoal extends Goal {
             return;
         }
         dismissed = true;
-        vex.dismiss(EquipmentSlot.MAINHAND);
+        // Only the goal's own scroll: a Raid kit may have put its conjured Mirror scroll in the main hand since
+        if (ownScroll != null && vex.getItemBySlot(EquipmentSlot.MAINHAND) == ownScroll) {
+            vex.dismiss(EquipmentSlot.MAINHAND);
+        }
         ScrollCasting.windDown(vex);
     }
 
@@ -145,6 +166,7 @@ final class CasterSpellGoal extends Goal {
         dismissScroll();
         spell = null;
         subject = null;
+        ownScroll = null;
     }
 
     /** Picks the spell and subject for this scan, or false when nothing is worth casting. */

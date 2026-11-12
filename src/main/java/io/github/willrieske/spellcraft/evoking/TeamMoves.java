@@ -757,7 +757,7 @@ public final class TeamMoves {
         STATES.clear();
         LAST_REQUEST.clear();
         NEXT_SCAN.clear();
-        Dice.unscriptAll();
+        Dice.resetAll();
     }
 
     /**

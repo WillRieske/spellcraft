@@ -252,13 +252,17 @@ public final class MirrorConfusionGameTests {
         }
         Husk zombie = zombie(helper);
         // Act
+        int unspent;
         try {
             Dice.MIRROR_CONFUSION.script(0);
             zombie.setTarget(player);
+            // The script is deliberately not spent: drawing it proves no roll was taken (a spent script would throw)
+            unspent = Dice.MIRROR_CONFUSION.below(helper.getLevel().getRandom(), MirrorRule.CONFUSION_BOUND);
         } finally {
             Dice.unscriptAll();
         }
         // Assert
+        helper.assertValueEqual(unspent, 0, "the far images took no roll");
         helper.assertTrue(player.equals(zombie.getTarget()), "the target is still the player");
         helper.succeed();
     }
@@ -276,13 +280,17 @@ public final class MirrorConfusionGameTests {
         Spells.cast(player, Spells.MIRROR, MirrorRule.DURATION_TICKS);
         IronGolem golem = foeAt(helper, EntityTypes.IRON_GOLEM, at(helper, 4.0, 0.0, 0.0));
         // Act
+        int unspent;
         try {
             Dice.MIRROR_CONFUSION.script(0);
             golem.setTarget(player);
+            // The script is deliberately not spent: drawing it proves no roll was taken (a spent script would throw)
+            unspent = Dice.MIRROR_CONFUSION.below(helper.getLevel().getRandom(), MirrorRule.CONFUSION_BOUND);
         } finally {
             Dice.unscriptAll();
         }
         // Assert
+        helper.assertValueEqual(unspent, 0, "the golem took no roll for the player's images");
         helper.assertTrue(player.equals(golem.getTarget()), "the golem is not redirected onto the player's images");
         helper.succeed();
     }

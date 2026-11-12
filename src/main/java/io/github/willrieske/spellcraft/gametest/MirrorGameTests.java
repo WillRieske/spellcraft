@@ -593,8 +593,9 @@ public final class MirrorGameTests {
     }
 
     /**
-     * When every die is scripted with a roll that is out of range for its bound and {@code Dice.unscriptAll()} runs,
-     * should each die answer from the real random source (a leaked script would throw).
+     * When every die is scripted with an unconsumed roll and {@code Dice.unscriptAll()} runs, should it fail loudly (a
+     * leftover script is a test bug) and still clear every die, so each answers from the real random source (a leaked
+     * script would throw).
      *
      * <p>Method under test: {@code Dice#unscriptAll}
      */
@@ -603,10 +604,16 @@ public final class MirrorGameTests {
         RandomSource random = helper.getLevel().getRandom();
         List<Dice> dice = List.of(Dice.RAID_KIT, Dice.CASTER_ROLL, Dice.SCROLL_MOB, Dice.MIRROR_CONFUSION);
         dice.forEach(die -> die.script(5));
-        GameTestSupport.whenDone(helper, Dice::unscriptAll);
+        GameTestSupport.whenDone(helper, Dice::resetAll);
         // Act
-        Dice.unscriptAll();
+        boolean failedLoudly = false;
+        try {
+            Dice.unscriptAll();
+        } catch (IllegalStateException expected) {
+            failedLoudly = true;
+        }
         // Assert
+        helper.assertTrue(failedLoudly, "leftover rolls fail unscriptAll");
         for (Dice die : dice) {
             helper.assertValueEqual(die.below(random, 1), 0, "no script is left: the only roll below 1 is 0");
         }

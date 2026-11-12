@@ -117,7 +117,7 @@ final class ScrollMobGameTests {
 
     /** Spawns a mob with the carry roll and the spell roll scripted, unscripting in a {@code finally}. */
     private static <T extends Mob> T spawnedWithRolls(GameTestHelper helper, EntityType<T> type, int... rolls) {
-        whenDone(helper, Dice::unscriptAll);
+        whenDone(helper, Dice::resetAll);
         try {
             Dice.SCROLL_MOB.script(rolls);
             return spawned(helper, type);

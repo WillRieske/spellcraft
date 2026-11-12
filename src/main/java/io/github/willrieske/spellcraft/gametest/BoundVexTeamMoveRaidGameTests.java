@@ -20,6 +20,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.cow.Cow;
 import net.minecraft.world.entity.monster.Ravager;
@@ -86,20 +87,29 @@ final class BoundVexTeamMoveRaidGameTests {
     }
 
     /**
+     * Starts a Raid with the kit rolls scripted. The die is scripted immediately before the one call that consumes it
+     * and checked (loudly) in a {@code finally}: all 24 rolls (2 per member of 12) must be consumed by the start.
+     */
+    private static boolean startScripted(ServerPlayer player, LivingEntity enemy, int[] script) {
+        try {
+            Dice.RAID_KIT.script(script);
+            return TeamMoves.start(player, TeamMove.RAID, enemy);
+        } finally {
+            Dice.RAID_KIT.unscript();
+        }
+    }
+
+    /**
      * A Raid against a ravager four blocks north of the hang point, with twelve flying vexes south of it, stepped
      * every tick.
      */
     private static Scene<Ravager> scene(GameTestHelper helper) {
-        // Every kit is a sword (roll 0), so no rocket member is a second source of damage; the script is used up by
-        // the start, which is why these tests run in the dice batch
-        Dice.RAID_KIT.script(new int[24]);
-        GameTestSupport.whenDone(helper, Dice.RAID_KIT::unscript);
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
         Vec3 hang = hangPoint(helper);
         Ravager ravager = foe(helper, EntityTypes.RAVAGER, hang.add(0.0, 0.0, -4.0));
         List<BoundVex> vexes = flyingVexes(helper, player, 12, hang.add(0.0, 0.0, 3.0));
-        helper.assertTrue(TeamMoves.start(player, TeamMove.RAID, ravager), "setup: the Raid starts");
-        Dice.RAID_KIT.unscript();
+        // Every kit is a sword (roll 0), so no rocket member is a second source of damage
+        helper.assertTrue(startScripted(player, ravager, new int[24]), "setup: the Raid starts");
         TeamMoveTestSupport.stepEveryTick(helper, player);
         return new Scene<>(player, vexes, ravager);
     }
@@ -173,8 +183,6 @@ final class BoundVexTeamMoveRaidGameTests {
             script[2 * k] = weapons[k];
             script[2 * k + 1] = k % 2;
         }
-        Dice.RAID_KIT.script(script);
-        GameTestSupport.whenDone(helper, Dice.RAID_KIT::unscript);
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
         Vec3 hang = hangPoint(helper);
         Ravager ravager = foe(helper, EntityTypes.RAVAGER, hang.add(0.0, 0.0, -4.0));
@@ -188,8 +196,7 @@ final class BoundVexTeamMoveRaidGameTests {
         flyingVexes(helper, player, 12, hang.add(0.0, 0.0, 3.0));
 
         // Act
-        helper.assertTrue(TeamMoves.start(player, TeamMove.RAID, ravager), "setup: the Raid starts");
-        Dice.RAID_KIT.unscript();
+        helper.assertTrue(startScripted(player, ravager, script), "setup: the Raid starts");
         TeamMoveTestSupport.stepEveryTick(helper, player);
 
         // Assert: the kits
@@ -240,15 +247,12 @@ final class BoundVexTeamMoveRaidGameTests {
         // Arrange (member 0 is the rocket crossbow, the rest swords; everything above the barrier shell)
         int[] script = new int[24];
         script[0] = 6;
-        Dice.RAID_KIT.script(script);
-        GameTestSupport.whenDone(helper, Dice.RAID_KIT::unscript);
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
         Vec3 hang = hangPoint(helper);
         Ravager ravager = foe(helper, EntityTypes.RAVAGER, hang.add(0.0, 0.0, -4.0));
         MockPlayers.moveTo(helper, player, FangGameTests.STAND, NORTH);
         flyingVexes(helper, player, 12, hang.add(0.0, 0.0, 3.0));
-        helper.assertTrue(TeamMoves.start(player, TeamMove.RAID, ravager), "setup: the Raid starts");
-        Dice.RAID_KIT.unscript();
+        helper.assertTrue(startScripted(player, ravager, script), "setup: the Raid starts");
         TeamMoveTestSupport.stepEveryTick(helper, player);
         List<BoundVex> roster = TeamMoves.roster(player);
         BoundVex rocketeer = roster.get(0);
@@ -283,16 +287,13 @@ final class BoundVexTeamMoveRaidGameTests {
      * recorded.
      */
     private static MeleeRun meleeRun(GameTestHelper helper) {
-        Dice.RAID_KIT.script(new int[24]);
-        GameTestSupport.whenDone(helper, Dice.RAID_KIT::unscript);
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
         Vec3 hang = hangPoint(helper);
         Husk husk = bigHusk(helper, hang.add(0.0, 0.0, -4.0));
         setBase(husk, Attributes.MAX_HEALTH, 1000.0);
         husk.setHealth(1000.0F);
         flyingVexes(helper, player, 12, hang.add(0.0, 0.0, 3.0));
-        helper.assertTrue(TeamMoves.start(player, TeamMove.RAID, husk), "setup: the Raid starts");
-        Dice.RAID_KIT.unscript();
+        helper.assertTrue(startScripted(player, husk, new int[24]), "setup: the Raid starts");
         List<BoundVex> roster = TeamMoves.roster(player);
         for (int k = 1; k < roster.size(); k++) {
             roster.get(k).setNoAi(true);
@@ -407,8 +408,6 @@ final class BoundVexTeamMoveRaidGameTests {
     private static Spider rocketScene(GameTestHelper helper, double distance, Cow[] cow) {
         int[] script = new int[24];
         script[0] = 6; // member 0: the rocket crossbow
-        Dice.RAID_KIT.script(script);
-        GameTestSupport.whenDone(helper, Dice.RAID_KIT::unscript);
         ServerPlayer player = FangGameTests.caster(helper, NORTH);
         Vec3 hang = hangPoint(helper);
         Spider spider = foe(helper, EntityTypes.SPIDER, hang.add(0.0, 0.0, -4.0));
@@ -416,8 +415,7 @@ final class BoundVexTeamMoveRaidGameTests {
             cow[0] = foe(helper, EntityTypes.COW, spider.position().add(2.0, 0.0, 0.0));
         }
         flyingVexes(helper, player, 12, hang.add(0.0, 0.0, 3.0));
-        helper.assertTrue(TeamMoves.start(player, TeamMove.RAID, spider), "setup: the Raid starts");
-        Dice.RAID_KIT.unscript();
+        helper.assertTrue(startScripted(player, spider, script), "setup: the Raid starts");
         List<BoundVex> roster = TeamMoves.roster(player);
         for (int k = 1; k < roster.size(); k++) {
             roster.get(k).setNoAi(true);
