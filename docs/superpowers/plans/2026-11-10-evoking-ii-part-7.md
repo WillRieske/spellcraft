@@ -6036,3 +6036,11 @@ git commit -m "docs(evoking): Part 7 in the README, playtest items, mutation tes
 | 12 | `4a481bf` | 788 GameTests (plan 782 + offset 3 + 3 added in review): the reach test moved out of HELP into its own environment, and the plan's optional boundary pair was built as 46 and 50 blocks (tighter than its 'about 40 / about 56'), each alone in its own environment with the record's chunk force-loaded and the unforce left to the runner (an unforce from a whenDone listener hung a full run, see api-notes §26); a creative-in-the-wind-up test added; step scans for live ghosts once and only when a loaded record is in range; reason: review fix round 1 and its re-review minors, re-review approved |
 | 13 | `80c98ce` | RED captured only as the missing-PNG failure (the robe script and its tests were written together; SpellAssetsTest.robeTextureIs32x32 added after the PNG existed); CastingParticles gained PLAYER_HEIGHT and SCROLL_COLOR constants; review minors (Javadoc on the casting colors and the robe layer) fixed in 80c98ce; client path proven to compile only, first render is Will's playtest; reason: implementer report, review approved |
 | 15 | `2675609` | the Step 6 lang-file count was run against f44271d (Part 6's end) instead of main, which does not hold Part 6 yet (32 = 32); GhostNeedTest gained BelowHalf and BelowQuarter refusesNonsense tests (pitest 555/562, the new classes fully killed); three extra playtest bullets and the CLAUDE.md runGameTestServer timeout clause, from the controller; review minors (README structure and ghost-reach wording) fixed in this commit; reason: implementer report, controller rulings, review approved |
+
+## Resume State
+
+- Last completed task: Task 15: Docs, playtest items, mutation testing
+- Commit SHA: 44ad086
+- Checkboxes: 73/73 ticked
+- Next task: none (plan complete)
+- Known-failing tests / caveats: none failing. The Task 12 fix round hung a full GameTest run for 7 h (an unforce in a whenDone listener), fixed in d12e44a; runGameTestServer now times out after 8 min (bf33463). The client renderers (Tasks 13-14) are proven to compile only: the first render and every look item are Will's playtest (docs/playtest-checklist.md, Evoking II Part 7). Next: /review-will on the branch, then /open-pr; release v1.3.0 after the review.
