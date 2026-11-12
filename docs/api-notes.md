@@ -1407,4 +1407,11 @@ Verified against `build/mc-src` (vanilla with NeoForge patches) and `build/nf-sr
   `ClientLevel.entitiesForRendering()` (`ClientLevel.java:465`) returns `Iterable<Entity>`, so the `CastingParticles` loop over every
   living entity in render range filters with `instanceof LivingEntity`.
 - **Test seams.** Batches run one after another; tests inside a batch run at the same time (`SpellcraftGameTests.register`).
+- **Never unforce a chunk from a test's end listener.** `GameTestInfo.tick` (`:96-99`) returns before it counts a tick until every
+  chunk of the test's structure is entity-ticking, so a test whose chunk never ticks never starts and never times out, and the
+  server runs forever. When a batch's last test ends, the runner's own listener (added before the test function runs) unforces
+  every forced chunk, places the next batch and forces that batch's chunks (`GameTestRunner.java:116-122`, `TestInstanceBlockEntity:350`),
+  all before a `GameTestSupport.whenDone` listener runs. An unforce there can hit the next test's chunk. Force-load a chunk only in a
+  test that runs alone in its own environment, and leave the unforce to the runner. (2026-11-12: a full run hung that way; the
+  `runGameTestServer` task now has an 8-minute timeout in `build.gradle`.)
 - **Baseline.** `./gradlew runGameTestServer`: `All 650 required tests passed` on 2026-11-10 (Part 6 ended at 650). Every Part 7 gate is this number plus the tests registered so far.
