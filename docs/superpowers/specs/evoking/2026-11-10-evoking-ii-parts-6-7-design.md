@@ -2,6 +2,7 @@
 
 **Date:** 2026-11-10
 **Status:** implemented 2026-11-12 via `2026-11-10-evoking-ii-part-7.md`; playtest pending
+**Current behavior in one place:** [`evoking-functional-spec.md`](evoking-functional-spec.md) (the functional spec; it merges this document with the other Evoking specs).
 <!-- child-plans: 2026-11-10-evoking-ii-part-6.md, 2026-11-10-evoking-ii-part-7.md -->
 **Written by:** `/one-shot`, unattended, on 2026-11-10; §14 lists the decisions Will did not state.
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
@@ -11,7 +12,7 @@ spec"), whose Part 6 (§7–§8) and Part 7 (§9) this builds;
 ("the Part 3 spec": the stash, conjured slots, the friendly-fire backstop);
 [`2026-11-09-evoking-ii-parts-4-5-design.md`](2026-11-09-evoking-ii-parts-4-5-design.md) ("the
 Parts 4–5 spec": job claims, posture, rescues); and the spell framework,
-[`2026-09-29-infinity-design.md`](2026-09-29-infinity-design.md).
+[`2026-09-29-infinity-design.md`](../2026-09-29-infinity-design.md).
 **Amends:** the parent spec's §3.1 (the `TEAM_MOVE` synced byte becomes a server-only field;
 `CASTER` stays synced), §7.1 (the packet's shape), §7.2 (where team-move state lives), §7.3 (who
 shows "Team moves are automatic", and two more refusal messages), §8 (roster rules, trigger

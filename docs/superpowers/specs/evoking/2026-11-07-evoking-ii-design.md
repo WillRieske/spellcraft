@@ -2,13 +2,14 @@
 
 **Date:** 2026-11-07
 **Status:** implemented 2026-11-12 via `2026-11-10-evoking-ii-part-7.md`; playtest pending
+**Current behavior in one place:** [`evoking-functional-spec.md`](evoking-functional-spec.md) (the functional spec; it merges this document with the other Evoking specs).
 <!-- child-plans: 2026-11-07-evoking-ii-part-1.md, 2026-11-08-evoking-ii-part-2.md, 2026-11-09-evoking-ii-part-3.md, 2026-11-09-evoking-ii-part-4.md, 2026-11-10-evoking-ii-part-5.md, 2026-11-10-evoking-ii-part-6.md, 2026-11-10-evoking-ii-part-7.md -->
 **Shape:** built in seven parts (§1), each with its own plan, branch and PR
 **Written by:** brainstorm with Will on 2026-11-07; §13 lists the decisions Will did not state
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
-**Builds on:** [`2026-11-06-evoking-design.md`](2026-11-06-evoking-design.md) (Evoking: keys, casting,
-fangs, vexes), [`2026-11-04-trailing-design.md`](2026-11-04-trailing-design.md) (allies) and
-[`2026-09-29-infinity-design.md`](2026-09-29-infinity-design.md) (the spell framework).
+**Builds on:** [`2026-11-06-evoking-i-design.md`](2026-11-06-evoking-i-design.md) (Evoking: keys, casting,
+fangs, vexes), [`2026-11-04-trailing-design.md`](../2026-11-04-trailing-design.md) (allies) and
+[`2026-09-29-infinity-design.md`](../2026-09-29-infinity-design.md) (the spell framework).
 **Amended by:** [`2026-11-09-evoking-ii-part-3-gear-and-stay-design.md`](2026-11-09-evoking-ii-part-3-gear-and-stay-design.md)
 (Part 3 as built: stay moves to the sneak click, a staying vex hovers and guards a 13 × 13 area,
 the plain empty-hand click takes the weapon back, version 1.2.2). Where the two differ, that one wins.
@@ -19,7 +20,7 @@ the fireball's owner, rescue limits). Where the two differ, that one wins.
 (Parts 6 and 7 as designed for the build: team-move state, rosters, triggers and each move's
 behavior; the packet's shape; the Caster's goals; Mirror images and confusion; Ghostrail's Mixin,
 flight and damage rules; scroll mobs; which villagers leave ghosts). Where the two differ, that one wins.
-**Amends:** the Evoking spec's §2 keys (F → Y), §5 fangs (a fang per target, not a carpet), §6
+**Amends:** the Evoking I spec's §2 keys (F → Y), §5 fangs (a fang per target, not a carpet), §6
 vexes (vanilla vexes → Bound Vexes), §3 allies (three new ally kinds); the Trailing spec's spared
 rule (iron golems are never lit, §2.3); `CLAUDE.md`'s packet rule (the one packet gains a second
 request kind, §7.1).
@@ -51,7 +52,7 @@ The work is split into seven parts, built in order, each small enough for one pl
 | Term | Meaning |
 |---|---|
 | **Bound Vex** | `spellcraft:bound_vex`, this mod's own mob, a subclass of vanilla `Vex`. What **V** summons from now on. Carries the **summoner** attachment. |
-| **Summoner** | The player who summoned a Bound Vex (attachment `spellcraft:summoner`, from the Evoking spec). "You" in this document. |
+| **Summoner** | The player who summoned a Bound Vex (attachment `spellcraft:summoner`, from the Evoking I spec). "You" in this document. |
 | **Ally** | What `Allies.isAllyOf(player, entity)` says: vanilla's allies (team, pets, allays), the player's summons and owned mobs, and now villagers, wandering traders and iron golems (§2.3). |
 | **Hostile** | A mob that implements `Enemy` (every `Monster`, slimes, ghasts, phantoms, shulkers, the dragon, the wither). Creepers are hostile but Bound Vexes skip them unless provoked (§3.4), and so are another player's summons (§3.4). |
 | **Guard area** | The box around a Bound Vex in which it looks for hostiles: 8 × 8 × 7 blocks (±4 east/west, ±4 north/south, ±3.5 up/down), measured from the vex's feet. An entity is in it when its feet are, faces included. A staying vex's guard area is its **stay area** instead: 13 × 13 × 7 around its post (Part 3 spec §2.3). |

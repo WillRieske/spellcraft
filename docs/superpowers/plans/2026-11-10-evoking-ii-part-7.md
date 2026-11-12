@@ -5929,7 +5929,7 @@ git commit -m "feat(evoking): renderers for Mirror images and villager ghosts"
 
 **Files:**
 
-- Modify: `README.md`, `CLAUDE.md`, `src/main/templates/META-INF/neoforge.mods.toml`, `docs/playtest-checklist.md`, `docs/mutation-testing.md`, `docs/api-notes.md` (§26 corrections), `docs/superpowers/specs/2026-11-07-evoking-ii-design.md` (inline notes), `docs/superpowers/specs/2026-11-10-evoking-ii-parts-6-7-design.md` (as-built sentences)
+- Modify: `README.md`, `CLAUDE.md`, `src/main/templates/META-INF/neoforge.mods.toml`, `docs/playtest-checklist.md`, `docs/mutation-testing.md`, `docs/api-notes.md` (§26 corrections), `docs/superpowers/specs/evoking/2026-11-07-evoking-ii-design.md` (inline notes), `docs/superpowers/specs/evoking/2026-11-10-evoking-ii-parts-6-7-design.md` (as-built sentences)
 - Modify: `src/test/…/spell/rules/*Test.java` (the tests Step 5 adds to kill surviving mutants)
 
 - [x] **Step 1: README**

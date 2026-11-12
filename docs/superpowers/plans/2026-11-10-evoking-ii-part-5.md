@@ -1712,7 +1712,7 @@ git commit -m "feat(evoking): a Bound Vex's melee hits three times as hard in th
 **Files:**
 
 - Modify: `README.md`, `docs/playtest-checklist.md`, `docs/mutation-testing.md`, `docs/api-notes.md` (§24 corrections found on the way)
-- Modify: `docs/superpowers/specs/2026-11-09-evoking-ii-parts-4-5-design.md` (only the as-built sentences listed below)
+- Modify: `docs/superpowers/specs/evoking/2026-11-09-evoking-ii-parts-4-5-design.md` (only the as-built sentences listed below)
 
 - [x] **Step 1: README**
 

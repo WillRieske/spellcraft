@@ -1,11 +1,12 @@
-# Spellcraft: "Strength of Evoking" (design)
+# Spellcraft: Evoking I, "Strength of Evoking" (design)
 
 **Date:** 2026-11-06
 **Status:** implemented 2026-11-06 via `2026-11-06-evoking.md`
+**Current behavior in one place:** [`evoking-functional-spec.md`](evoking-functional-spec.md) (the functional spec; it merges this document with the other Evoking specs).
 **Written by:** `/one-shot`, unattended, on 2026-11-06; §10 lists the decisions Will did not state.
 **Target:** Minecraft Java 26.3, NeoForge 26.3.0.23-beta, Java 25, ModDevGradle
-**Builds on:** [`2026-09-29-infinity-design.md`](2026-09-29-infinity-design.md) (the shared spell
-framework) and [`2026-11-04-trailing-design.md`](2026-11-04-trailing-design.md) (allies). §3 of this
+**Builds on:** [`2026-09-29-infinity-design.md`](../2026-09-29-infinity-design.md) (the shared spell
+framework) and [`2026-11-04-trailing-design.md`](../2026-11-04-trailing-design.md) (allies). §3 of this
 spec changes the Trailing spec's ally rule; nothing else there is superseded.
 **Amends:** the Trailing spec's glossary row **Ally** and its §4 description of `isSpared` (both
 now defer to §3 here); `CLAUDE.md`'s "No custom packets" rule (§4).

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Minecraft 26.3, NeoForge 26.3.0.23-beta (ModDevGradle), Java 25, JUnit 5, jqwik, ArchUnit, AssertJ, Error Prone (`-Werror`), Spotless + palantir-java-format, PIT, pre-commit, gitlint, markdownlint-cli2.
 
-**Spec:** [`docs/superpowers/specs/2026-11-07-evoking-ii-design.md`](../specs/2026-11-07-evoking-ii-design.md), §3 (Part 2), with §10–§13 as cross-cutting rules. Section references below point into it. Part 1 (§2) is on branch `feat/evoking-ii-part-1` (draft PR WillRieske/spellcraft#3); this plan builds on it.
+**Spec:** [`docs/superpowers/specs/evoking/2026-11-07-evoking-ii-design.md`](../specs/evoking/2026-11-07-evoking-ii-design.md), §3 (Part 2), with §10–§13 as cross-cutting rules. Section references below point into it. Part 1 (§2) is on branch `feat/evoking-ii-part-1` (draft PR WillRieske/spellcraft#3); this plan builds on it.
 
 ## Global Constraints
 

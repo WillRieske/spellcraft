@@ -31,9 +31,9 @@ fades trails and remembers who owns each flame.
 | **Owner** | The player who laid a flame. Known for every flame the world remembers. |
 | **Orphan** | A trail fire block with no owner (placed by `/setblock`, or left after lost data). |
 | **Stale flame** | A flame whose turn to fade came while its chunk was not ready. The ledger keeps its owner and puts it out the next tick its chunk is ready (`getChunkNow` returns it). |
-| **Spared** | What a flame does for its owner and the owner's allies: `entityInside` applies no fire and no damage to them (`TrailFires.isSpared`). Iron golems are always spared, angry or not (Evoking II §2.3, [`2026-11-07-evoking-ii-design.md`](2026-11-07-evoking-ii-design.md)). |
+| **Spared** | What a flame does for its owner and the owner's allies: `entityInside` applies no fire and no damage to them (`TrailFires.isSpared`). Iron golems are always spared, angry or not (Evoking II §2.3, [`2026-11-07-evoking-ii-design.md`](evoking/2026-11-07-evoking-ii-design.md)). |
 | **Dead entry** | A flame a trail (or the stale list) still lists although the index gives its spot to another owner. Its turn is a no-op and the save drops it. |
-| **Ally** | Since 2026-11-06, what [`2026-11-06-evoking-design.md`](2026-11-06-evoking-design.md) §3 says (`Allies.isAllyOf`): vanilla's `Entity.isAlliedTo` (the same scoreboard team, a tamed animal whose owner is the player, an allay that likes the player), plus a mob the player summoned and any other `OwnableEntity` the player owns. |
+| **Ally** | Since 2026-11-06, what [`2026-11-06-evoking-i-design.md`](evoking/2026-11-06-evoking-i-design.md) §3 says (`Allies.isAllyOf`): vanilla's `Entity.isAlliedTo` (the same scoreboard team, a tamed animal whose owner is the player, an allay that likes the player), plus a mob the player summoned and any other `OwnableEntity` the player owns. |
 | **Fuse** | How a trail behaves: the oldest flame goes out first, the rest wait their turn. |
 | **Tracker** | The per-player record of where the player stood last tick and whether they were grounded there (`TrailTracker`). |
 | **Grounded** | On the ground, not riding, not a spectator: `onGround() && !isPassenger() && !isSpectator()`. |
@@ -201,7 +201,7 @@ older owner.
   chunk is ever loaded, or waited on, to put a flame out.
 - `ownerOf(BlockPos) → Optional<UUID>`; `isSpared(ServerLevel, BlockPos, Entity)`: true when
   the entity's UUID is the owner, or the owner is online in this level and
-  `Allies.isAllyOf(owner, entity)` (the Evoking spec's §3 rule, which adds the owner's summons).
+  `Allies.isAllyOf(owner, entity)` (the Evoking I spec's §3 rule, which adds the owner's summons).
   An offline owner spares only themself (their pets burn until they return: accepted). An
   entity with no team that is neither an `OwnableEntity` nor an allay nor a summoned mob (the
   summoner attachment) (vanilla allies an allay to the player it likes,
