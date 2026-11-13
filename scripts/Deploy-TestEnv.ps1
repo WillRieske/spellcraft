@@ -9,8 +9,8 @@
     verified-run record could not be cleared; 2 GameTests failed; 3 an instance had to stop and the
     user declined, could not be asked, or it did not exit or could not be stopped; 4 the client launch
     process died within 15 s.
-    The build and the GameTests are skipped when the sources (src/, the Gradle files and the Evoking
-    functional spec) and the compiled classes are identical to the last run whose checks passed; the
+    The build and the GameTests are skipped when the sources (src/, the Gradle files, .gitattributes
+    and the Evoking functional spec) and the compiled classes are identical to the last run whose checks passed; the
     record is build\deploy\verified.txt.
 .PARAMETER CheckOnly
     Print the build stamp, whether the sources match the last verified run, and the running

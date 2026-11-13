@@ -170,12 +170,13 @@ function Get-BuildStamp {
 
 # What a verified run depends on: the files Gradle compiles, tests and packages, the build setup, and
 # the one file outside src/ that a test reads (FunctionalSpecReferencesTest fails the build on a
-# functional-spec change). Other docs, the scripts and build output are deliberately not here: changing
+# functional-spec change), and .gitattributes (Spotless, run by spotlessCheck, takes its line endings
+# from it by default). Other docs, the scripts and build output are deliberately not here: changing
 # them cannot change the build or the tests. Paths use '/', as the Java tests write them: a Pester test
 # checks that every path a Java test reads is covered by this list.
 $script:FingerprintInputs = @(
     'src', 'build.gradle', 'settings.gradle', 'gradle.properties', 'gradle', 'gradlew', 'gradlew.bat',
-    'docs/superpowers/specs/evoking/evoking-functional-spec.md')
+    '.gitattributes', 'docs/superpowers/specs/evoking/evoking-functional-spec.md')
 
 <#
 .SYNOPSIS
@@ -184,30 +185,49 @@ $script:FingerprintInputs = @(
     The one place that decides which files are inputs, shared by Get-InputFingerprint and
     Get-InputWriteSignature so the two cannot disagree. Files are listed from the disk, not by git:
     Gradle packages a file under src/ whether or not git ignores it, so every file counts. Throws when
-    a file cannot be listed; callers catch it.
+    a file cannot be listed; callers catch it. A link (junction or symlink) at an input or anywhere
+    under an input directory makes it print "Could not verify the sources: <path> is a link" and give
+    up: Windows PowerShell 5.1 does not follow links when listing, Gradle does, so the files behind
+    the link would be in no hash.
 .PARAMETER RepoRoot
     The repo root.
 .OUTPUTS
-    $null when no input exists or a file lies outside the root. Otherwise an object with Root (the
+    $null when no input exists, a link is found or a file lies outside the root. Otherwise an object with Root (the
     resolved root, no trailing separator) and Files (System.IO.FileInfo, sorted by relative name
     ordinally) and Names (the relative names with '/', in the same order).
 #>
 function Get-InputFiles {
     param([Parameter(Mandatory)][string] $RepoRoot)
     $root = (Resolve-Path -LiteralPath $RepoRoot -ErrorAction Stop).ProviderPath.TrimEnd('\')
+    $prefix = $root + '\'
+    $link = [System.IO.FileAttributes]::ReparsePoint
     $files = New-Object System.Collections.Generic.List[System.IO.FileInfo]
     foreach ($entry in $script:FingerprintInputs) {
         $path = Join-Path $root $entry
-        if (Test-Path -LiteralPath $path -PathType Leaf) {
-            $files.Add((Get-Item -LiteralPath $path -Force -ErrorAction Stop))
-        } elseif (Test-Path -LiteralPath $path -PathType Container) {
-            foreach ($file in @(Get-ChildItem -LiteralPath $path -Recurse -File -Force -ErrorAction Stop)) {
-                $files.Add($file)
+        if (-not (Test-Path -LiteralPath $path)) { continue }
+        # Windows PowerShell 5.1 does not descend into a junction or symlink, but Gradle does, so
+        # files behind a link would be in neither hash. A link anywhere under the inputs: give up.
+        $item = Get-Item -LiteralPath $path -Force -ErrorAction Stop
+        if ($item.Attributes -band $link) {
+            Write-Host "Could not verify the sources: $entry is a link (junction or symlink)."
+            return $null
+        }
+        if (-not $item.PSIsContainer) {
+            $files.Add($item)
+            continue
+        }
+        foreach ($child in @(Get-ChildItem -LiteralPath $path -Recurse -Force -ErrorAction Stop)) {
+            if ($child.Attributes -band $link) {
+                $shown = if ($child.FullName.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+                    $child.FullName.Substring($prefix.Length).Replace('\', '/')
+                } else { $child.FullName }
+                Write-Host "Could not verify the sources: $shown is a link (junction or symlink)."
+                return $null
             }
+            if (-not $child.PSIsContainer) { $files.Add($child) }
         }
     }
     if ($files.Count -eq 0) { return $null }
-    $prefix = $root + '\'
     $names = New-Object System.Collections.Generic.List[string]
     foreach ($file in $files) {
         # A path that is not under the root cannot be named relative to it; give up, do not guess.
@@ -230,8 +250,9 @@ function Get-InputFiles {
 .PARAMETER RepoRoot
     The repo root.
 .OUTPUTS
-    [string] (hex), or $null when the root or every input is missing or a file cannot be listed or
-    read: callers then treat the sources as unverifiable. A read failure prints a line with the cause.
+    [string] (hex), or $null when the root or every input is missing, a file cannot be listed or
+    read, or a link (junction or symlink) lies under the inputs: callers then treat the sources as
+    unverifiable. A read failure or a link prints a line with the cause.
 #>
 function Get-InputFingerprint {
     param([Parameter(Mandatory)][string] $RepoRoot)
@@ -266,7 +287,7 @@ function Get-InputFingerprint {
     The repo root.
 .OUTPUTS
     [string] (hex), or $null in the cases where Get-InputFingerprint returns $null (a listing failure
-    prints a line with the cause).
+    or a link under the inputs prints a line with the cause).
 #>
 function Get-InputWriteSignature {
     param([Parameter(Mandatory)][string] $RepoRoot)
@@ -286,6 +307,58 @@ function Get-InputWriteSignature {
     } finally {
         $sha.Dispose()
     }
+}
+
+<#
+.SYNOPSIS
+    Where a GameTest selector is set outside the command line, if anywhere.
+.DESCRIPTION
+    build.gradle runs only the GameTests that match when the Gradle project property gameTests exists,
+    so such a run must not be recorded as a full pass. Gradle reads project properties from the
+    environment variable ORG_GRADLE_PROJECT_gameTests, from -Dorg.gradle.project.gameTests in
+    GRADLE_OPTS or JAVA_OPTS, and from gradle.properties in the repo and in the Gradle user home
+    (gameTests, org.gradle.project.gameTests or systemProp.org.gradle.project.gameTests; a line
+    starting with # or ! is a comment). A properties file that exists but cannot be read counts as
+    set: this function never answers "none" when it could not look.
+.PARAMETER RepoRoot
+    The repo root.
+.PARAMETER GradleUserHome
+    The Gradle user home; default $env:GRADLE_USER_HOME, else ~\.gradle.
+.OUTPUTS
+    [string] naming the place (an environment variable, or the full path of a properties file), or
+    $null when no selector is set.
+#>
+function Get-GameTestSelectorSource {
+    param(
+        [Parameter(Mandatory)][string] $RepoRoot,
+        [string] $GradleUserHome = ''
+    )
+    if (-not $GradleUserHome) {
+        $GradleUserHome = if ($env:GRADLE_USER_HOME) { $env:GRADLE_USER_HOME } else { Join-Path $HOME '.gradle' }
+    }
+    if ([Environment]::GetEnvironmentVariable('ORG_GRADLE_PROJECT_gameTests')) {
+        return 'the environment variable ORG_GRADLE_PROJECT_gameTests'
+    }
+    foreach ($name in 'GRADLE_OPTS', 'JAVA_OPTS') {
+        $value = [Environment]::GetEnvironmentVariable($name)
+        if ($value -and $value -match '(?<![\w.])-Dorg\.gradle\.project\.gameTests(?![\w.])') {
+            return "the environment variable $name"
+        }
+    }
+    foreach ($path in (Join-Path $RepoRoot 'gradle.properties'), (Join-Path $GradleUserHome 'gradle.properties')) {
+        if (-not (Test-Path -LiteralPath $path)) { continue }
+        try {
+            $lines = [System.IO.File]::ReadAllLines($path)
+        } catch {
+            return "$path (it could not be read: $($_.Exception.Message))"
+        }
+        foreach ($line in $lines) {
+            if ($line -match '^\s*[#!]') { continue }
+            # A properties file also allows whitespace as the separator; the name must end there.
+            if ($line -match '^\s*(systemProp\.)?(org\.gradle\.project\.)?gameTests(\s*[=:]|\s|$)') { return $path }
+        }
+    }
+    $null
 }
 
 <#
@@ -908,7 +981,10 @@ function Invoke-DeployFlow {
             $afterFingerprint = Get-InputFingerprint -RepoRoot $RepoRoot
             $afterSignature = Get-InputWriteSignature -RepoRoot $RepoRoot
             $notRecorded = 'This run is not recorded; the next run redoes the checks.'
-            if (-not $Fingerprint -or -not $WriteSignature) {
+            $selectorSource = Get-GameTestSelectorSource -RepoRoot $RepoRoot
+            if ($selectorSource) {
+                Write-Host "A GameTest selector is set in $selectorSource, so only some GameTests ran. $notRecorded"
+            } elseif (-not $Fingerprint -or -not $WriteSignature) {
                 Write-Host "The sources could not be read before the checks. $notRecorded"
             } elseif (-not $afterFingerprint -or -not $afterSignature) {
                 Write-Host "The sources could not be read after the checks. $notRecorded"

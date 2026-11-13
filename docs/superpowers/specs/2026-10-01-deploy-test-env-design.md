@@ -31,7 +31,7 @@ Pester 3.4 (built into Windows PowerShell 5.1). The script itself is the thin fl
 | **Instance** | A `java.exe` process running the dev client, the GameTest server or the dedicated server **from this checkout** (not the Gradle daemon, not another checkout or worktree). |
 | **Up to date** | The instance's start time is strictly later than the build stamp. |
 | **Stale** | Not up to date: started at or before the build stamp, or there is no build stamp. It may be running older code than what is on disk. |
-| **Input fingerprint** | A SHA-256 over the path and contents of every file on disk under `src/`, `build.gradle`, `settings.gradle`, `gradle.properties`, `gradle/`, `gradlew`, `gradlew.bat` and `docs/superpowers/specs/evoking/evoking-functional-spec.md`, as the working tree has them now, committed or not, git-ignored or not. Other docs, the scripts and build output are not inputs. |
+| **Input fingerprint** | A SHA-256 over the path and contents of every file on disk under `src/`, `build.gradle`, `settings.gradle`, `gradle.properties`, `gradle/`, `gradlew`, `gradlew.bat`, `.gitattributes` and `docs/superpowers/specs/evoking/evoking-functional-spec.md`, as the working tree has them now, committed or not, git-ignored or not. A link (junction or symlink) under an input makes the fingerprint unknown. Other docs, the scripts and build output are not inputs. |
 | **Verified run** | A run whose build and GameTests passed with the sources unchanged from start to end. `build\deploy\verified.txt` holds that run's input fingerprint and, on a second line, the build stamp (in ticks) as the GameTests left it. |
 | **Input write times** | A SHA-256 over the path, size and last write time of every input file. Never stored: it is taken at the start and at the end of one run and compared, to catch an edit that was made and reverted while the checks ran. |
 
@@ -89,13 +89,32 @@ code page for non-ASCII names in Windows PowerShell 5.1. An editor's scratch fil
 therefore costs a full run, which is the safe direction.
 
 Why one doc is an input: `FunctionalSpecReferencesTest` reads the Evoking functional spec during
-`build` and fails on a paragraph number that code and spec do not share. A Pester test reads every
-path the Java tests open (`Path.of`, `Paths.get`, `new File` with a literal) and fails when one is
-outside the input list, so the next such file cannot be forgotten.
+`build` and fails on a paragraph number that code and spec do not share. A Pester test scans every
+string literal in the Java sources and fails on one that looks like a repo path outside the input
+list (a first segment that names something at the repo root, or a `..` segment), so the next such
+file is hard to forget. It reads source text, so a path assembled at run time from pieces can still
+get past it. `.gitattributes` is an input because Spotless takes its line endings from it and
+`spotlessCheck` is part of step 1.
+
+Why a link makes the fingerprint unknown: Windows PowerShell 5.1 does not list the files behind a
+directory junction or symlink, while Gradle follows links. A file behind a link under `src/` would
+be compiled but never hashed, so the script refuses to vouch for such a tree and every run is a
+full one.
 
 What the fingerprint does not cover, where `-Force` is the remedy: anything outside the repo and
-the inputs (the JDK, `~/.gradle/gradle.properties`, Gradle's caches, a dependency whose published
-artifact changed) and the state under `run/` that the GameTest server reads.
+the inputs (the JDK, Gradle's caches, a dependency whose published artifact changed) and the state
+under `run/` that the GameTest server reads.
+
+A GameTest selector set outside the command line is the one such thing `-Force` cannot fix, so the
+script looks for it: the Gradle property `gameTests` in the environment
+(`ORG_GRADLE_PROJECT_gameTests`, or `-Dorg.gradle.project.gameTests` in `GRADLE_OPTS` or
+`JAVA_OPTS`) or in a `gradle.properties` file (the repo's or the Gradle user home's). With one set,
+only some GameTests run, so the run is never recorded and a line says where the selector is.
+
+Known limit: an edit made while the checks run and undone by a copy that keeps the file's size and
+write time (`Copy-Item`, an Explorer copy, `cp -p`) leaves both the fingerprint and the input
+write times unchanged, so that run is recorded. It needs the edit and the time-keeping restore to
+land inside one run; the wrong skip happens once, because the next build moves the build stamp.
 
 The record sits under `build\`, so `gradlew clean` deletes it and the next run is a full one. The
 comparison is exact (case-sensitive), and uses file contents, not times, so touching a source file
