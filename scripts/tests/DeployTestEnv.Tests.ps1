@@ -1,5 +1,5 @@
 # Pester 3.4 (built into Windows PowerShell 5.1). Run:
-#   powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Path scripts/tests -EnableExit"
+#   powershell -NoProfile -ExecutionPolicy Bypass -Command "Import-Module Pester -RequiredVersion 3.4.0; Invoke-Pester -Path scripts/tests -EnableExit"
 # ASCII only.
 
 Import-Module (Join-Path $PSScriptRoot '..\DeployTestEnv.psm1') -Force
@@ -962,25 +962,21 @@ Describe 'Invoke-DeployFlow' {
 }
 
 Describe 'Get-InputFingerprint' {
-    function New-GitRepo([string] $Name) {
-        $repo = Join-Path $TestDrive $Name
-        New-Item -ItemType Directory -Path $repo | Out-Null
-        git -C $repo init -q 2>$null | Out-Null
-        $repo
-    }
     function Set-Text([string] $Repo, [string] $Relative, [string] $Text) {
         $path = Join-Path $Repo $Relative
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path) | Out-Null
         Set-Content -LiteralPath $path -Value $Text -Encoding ASCII
     }
     function New-InputRepo([string] $Name) {
-        $repo = New-GitRepo $Name
+        $repo = Join-Path $TestDrive $Name
+        New-Item -ItemType Directory -Path $repo | Out-Null
         Set-Text $repo 'src\main\A.java' 'class A {}'
         Set-Text $repo 'build.gradle' 'plugins {}'
         Set-Text $repo 'gradle.properties' 'a=1'
         Set-Text $repo 'docs\notes.md' 'notes'
         $repo
     }
+    $FunctionalSpec = 'docs\superpowers\specs\evoking\evoking-functional-spec.md'
 
     It 'is the same for the same contents' {
         $repo = New-InputRepo 'same'
@@ -1012,10 +1008,9 @@ Describe 'Get-InputFingerprint' {
         Set-Text $repo 'src\main\B.java' 'class B {}'
         Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
     }
-    It 'changes when a tracked source file is deleted' {
+    It 'changes when a source file is deleted' {
         $repo = New-InputRepo 'src-delete'
         Set-Text $repo 'src\main\B.java' 'class B {}'
-        git -C $repo add -A 2>$null | Out-Null
         $before = Get-InputFingerprint -RepoRoot $repo
         Remove-Item -LiteralPath (Join-Path $repo 'src\main\B.java')
         Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
@@ -1027,55 +1022,143 @@ Describe 'Get-InputFingerprint' {
         Move-Item -LiteralPath (Join-Path $repo 'src\main\A.java') -Destination (Join-Path $repo 'src\other\A.java')
         Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
     }
-    It 'ignores docs, build output and git-ignored files under src' {
+    foreach ($file in 'settings.gradle', 'gradlew', 'gradlew.bat') {
+        It "changes when $file changes" {
+            $repo = New-InputRepo "edit-$file"
+            Set-Text $repo $file 'one'
+            $before = Get-InputFingerprint -RepoRoot $repo
+            Set-Text $repo $file 'two'
+            Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+        }
+    }
+    It 'changes when the Evoking functional spec changes (FunctionalSpecReferencesTest reads it in the build)' {
+        $repo = New-InputRepo 'spec-edit'
+        Set-Text $repo $FunctionalSpec '3.4 one'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        Set-Text $repo $FunctionalSpec '3.4 one 3.5 two'
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'ignores other docs, scripts and build output' {
         $repo = New-InputRepo 'ignored'
-        Set-Text $repo '.gitignore' "*.tmp`nbuild/"
-        Set-Text $repo 'src\main\keep.txt' 'k'
+        Set-Text $repo 'scripts\tool.ps1' 'a'
         $before = Get-InputFingerprint -RepoRoot $repo
         Set-Text $repo 'docs\notes.md' 'other notes'
+        Set-Text $repo 'scripts\tool.ps1' 'b'
         Set-Text $repo 'build\classes\X.class' 'x'
-        Set-Text $repo 'src\main\scratch.tmp' 'scratch'
         Get-InputFingerprint -RepoRoot $repo | Should Be $before
     }
-    It 'is null outside a git repository' {
-        $dir = Join-Path $TestDrive 'not-a-repo'
+    It 'counts a git-ignored file under src (Gradle packages it whatever git thinks)' {
+        $repo = New-InputRepo 'git-ignored'
+        git -C $repo init -q 2>$null | Out-Null
+        Set-Text $repo '.gitignore' '*.tmp'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        Set-Text $repo 'src\main\resources\scratch.tmp' 'scratch'
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'sees an edit to a file with a non-ASCII name' {
+        $repo = New-InputRepo 'non-ascii'
+        $name = 'src\main\caf' + [char]0xE9 + '.txt'
+        Set-Text $repo $name 'one'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        $before | Should Not BeNullOrEmpty
+        Set-Text $repo $name 'two'
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'does not depend on the form of the root (trailing separator)' {
+        $repo = New-InputRepo 'root-form'
+        Get-InputFingerprint -RepoRoot ($repo + '\') | Should Be (Get-InputFingerprint -RepoRoot $repo)
+    }
+    It 'is null when a source file cannot be read' {
+        $repo = New-InputRepo 'locked'
+        $lock = [System.IO.File]::Open((Join-Path $repo 'src\main\A.java'), 'Open', 'ReadWrite', 'None')
+        try {
+            Get-InputFingerprint -RepoRoot $repo | Should BeNullOrEmpty
+        } finally {
+            $lock.Dispose()
+        }
+    }
+    It 'is null when none of the inputs exist' {
+        $dir = Join-Path $TestDrive 'no-inputs'
         New-Item -ItemType Directory -Path $dir | Out-Null
         Get-InputFingerprint -RepoRoot $dir | Should BeNullOrEmpty
     }
+    It 'is null when the root does not exist' {
+        Get-InputFingerprint -RepoRoot (Join-Path $TestDrive 'missing-root') | Should BeNullOrEmpty
+    }
+    It 'covers every path outside src that a Java test reads' {
+        # A test that reads a file is a build input: FunctionalSpecReferencesTest fails the build when the
+        # functional spec changes. A new path of that kind must join $script:FingerprintInputs.
+        $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
+        $inputs = InModuleScope DeployTestEnv { $script:FingerprintInputs }
+        $read = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\test') -Recurse -File -Filter '*.java' |
+            ForEach-Object { [regex]::Matches([System.IO.File]::ReadAllText($_.FullName), '(?:Path\.of|Paths\.get|new File)\(\s*"([^"]+)"') } |
+            ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
+        $read | Should Not BeNullOrEmpty
+        $uncovered = @($read | Where-Object {
+                $path = $_
+                -not ($inputs | Where-Object { $path -ceq $_ -or $path.StartsWith($_ + '/', [StringComparison]::Ordinal) })
+            })
+        ($uncovered -join ', ') | Should Be ''
+    }
 }
 
-Describe 'Get-VerifiedState and Save-VerifiedFingerprint' {
+Describe 'Get-VerifiedState, Save-VerifiedFingerprint and Clear-VerifiedFingerprint' {
+    $Stamp = [datetime]::SpecifyKind([datetime]'2026-10-01 12:00:00', 'Utc')
+
     It 'is None when nothing has been recorded' {
-        Get-VerifiedState -Fingerprint 'abc' -VerifiedPath (Join-Path $TestDrive 'v1\verified.txt') | Should Be 'None'
+        Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath (Join-Path $TestDrive 'v1\verified.txt') | Should Be 'None'
     }
     It 'is None when the record is empty' {
         $path = Join-Path $TestDrive 'v2\verified.txt'
         New-Item -ItemType Directory -Path (Split-Path -Parent $path) | Out-Null
         Set-Content -LiteralPath $path -Value '' -Encoding ASCII
-        Get-VerifiedState -Fingerprint 'abc' -VerifiedPath $path | Should Be 'None'
+        Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'None'
     }
-    It 'is Current after saving the same fingerprint, creating the directory' {
+    It 'is Current after saving the same fingerprint and build stamp, creating the directory' {
         $path = Join-Path $TestDrive 'v3\build\deploy\verified.txt'
-        Save-VerifiedFingerprint -Fingerprint 'abc' -VerifiedPath $path
-        Get-VerifiedState -Fingerprint 'abc' -VerifiedPath $path | Should Be 'Current'
+        Save-VerifiedFingerprint -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'Current'
     }
     It 'is Changed for a different fingerprint, and Current again once saved over' {
         $path = Join-Path $TestDrive 'v4\verified.txt'
-        Save-VerifiedFingerprint -Fingerprint 'abc' -VerifiedPath $path
-        Get-VerifiedState -Fingerprint 'def' -VerifiedPath $path | Should Be 'Changed'
-        Save-VerifiedFingerprint -Fingerprint 'def' -VerifiedPath $path
-        Get-VerifiedState -Fingerprint 'def' -VerifiedPath $path | Should Be 'Current'
+        Save-VerifiedFingerprint -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'def' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'Changed'
+        Save-VerifiedFingerprint -Fingerprint 'def' -BuildStampUtc $Stamp -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'def' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'Current'
     }
     It 'is Unknown when the fingerprint could not be computed, even with a record' {
         $path = Join-Path $TestDrive 'v5\verified.txt'
-        Save-VerifiedFingerprint -Fingerprint 'abc' -VerifiedPath $path
-        Get-VerifiedState -Fingerprint $null -VerifiedPath $path | Should Be 'Unknown'
+        Save-VerifiedFingerprint -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path
+        Get-VerifiedState -Fingerprint $null -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'Unknown'
     }
     It 'compares exactly, not by prefix or case' {
         $path = Join-Path $TestDrive 'v6\verified.txt'
-        Save-VerifiedFingerprint -Fingerprint 'abc123' -VerifiedPath $path
-        Get-VerifiedState -Fingerprint 'abc' -VerifiedPath $path | Should Be 'Changed'
-        Get-VerifiedState -Fingerprint 'ABC123' -VerifiedPath $path | Should Be 'Changed'
+        Save-VerifiedFingerprint -Fingerprint 'abc123' -BuildStampUtc $Stamp -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'Changed'
+        Get-VerifiedState -Fingerprint 'ABC123' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'Changed'
+    }
+    It 'is ClassesDiffer when the sources match but the classes were built since' {
+        $path = Join-Path $TestDrive 'v7\verified.txt'
+        Save-VerifiedFingerprint -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $Stamp.AddTicks(1) -VerifiedPath $path | Should Be 'ClassesDiffer'
+    }
+    It 'is ClassesDiffer when the sources match but nothing is built' {
+        $path = Join-Path $TestDrive 'v8\verified.txt'
+        Save-VerifiedFingerprint -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $null -VerifiedPath $path | Should Be 'ClassesDiffer'
+    }
+    It 'is ClassesDiffer for a record without a build stamp (the first format)' {
+        $path = Join-Path $TestDrive 'v9\verified.txt'
+        New-Item -ItemType Directory -Path (Split-Path -Parent $path) | Out-Null
+        Set-Content -LiteralPath $path -Value 'abc' -Encoding ASCII
+        Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'ClassesDiffer'
+    }
+    It 'is None after clearing, and clearing a missing record is quiet' {
+        $path = Join-Path $TestDrive 'v10\verified.txt'
+        Save-VerifiedFingerprint -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path
+        Clear-VerifiedFingerprint -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'None'
+        { Clear-VerifiedFingerprint -VerifiedPath $path } | Should Not Throw
     }
 }
 
@@ -1087,6 +1170,8 @@ Describe 'Invoke-DeployFlow with a verified record' {
     Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }
     Mock -ModuleName DeployTestEnv Get-Instances { }
     Mock -ModuleName DeployTestEnv Save-VerifiedFingerprint { }
+    Mock -ModuleName DeployTestEnv Clear-VerifiedFingerprint { $true }
+    Mock -ModuleName DeployTestEnv Get-InputFingerprint { 'fp1' }
 
     function New-Flow([int] $BuildExit = 0, [int] $TestsExit = 0) {
         $calls = New-Object System.Collections.ArrayList
@@ -1110,6 +1195,14 @@ Describe 'Invoke-DeployFlow with a verified record' {
             Invoke-Flow $f | Should Be 0
             ($f.Calls -join ',') | Should Be 'launch'
             Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+            Assert-MockCalled Clear-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+        It 'asks for the state of these sources and this build stamp' {
+            Invoke-Flow (New-Flow) | Out-Null
+            Assert-MockCalled Get-VerifiedState -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter {
+                $Fingerprint -eq 'fp1' -and $VerifiedPath -eq 'C:\v\verified.txt' -and
+                $BuildStampUtc -eq [datetime]::SpecifyKind([datetime]'2026-10-01 12:00:00', 'Utc')
+            }
         }
         It 'says why it skipped' {
             $f = New-Flow
@@ -1152,7 +1245,7 @@ Describe 'Invoke-DeployFlow with a verified record' {
             ($f.Calls -join ',') | Should Be 'build,tests,launch'
         }
     }
-    foreach ($state in 'Changed', 'None', 'Unknown') {
+    foreach ($state in 'Changed', 'None', 'Unknown', 'ClassesDiffer') {
         Context "the verified state is $state" {
             Mock -ModuleName DeployTestEnv Get-VerifiedState { $state }.GetNewClosure()
 
@@ -1173,9 +1266,10 @@ Describe 'Invoke-DeployFlow with a verified record' {
     Context 'a run that does not pass' {
         Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Changed' }
 
-        It 'records nothing after a failed build' {
+        It 'records nothing after a failed build, and the old record is gone' {
             Invoke-Flow (New-Flow -BuildExit 1) | Should Be 1
             Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+            Assert-MockCalled Clear-VerifiedFingerprint -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $VerifiedPath -eq 'C:\v\verified.txt' }
         }
         It 'records nothing after failed GameTests' {
             Invoke-Flow (New-Flow -TestsExit 1) | Should Be 2
@@ -1191,6 +1285,38 @@ Describe 'Invoke-DeployFlow with a verified record' {
         }
     }
 
+    # Pester 3.4 keeps a Mock made in an It for the rest of its Context, so each of these has its own.
+    Context 'the old record cannot be cleared' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Changed' }
+        Mock -ModuleName DeployTestEnv Clear-VerifiedFingerprint { $false }
+
+        It 'exits 1 without building' {
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 1
+            ($f.Calls -join ',') | Should Be ''
+        }
+    }
+    Context 'the sources changed while the checks ran' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Changed' }
+        Mock -ModuleName DeployTestEnv Get-InputFingerprint { 'fp2' }
+
+        It 'launches but records nothing' {
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 0
+            ($f.Calls -join ',') | Should Be 'build,tests,launch'
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+    }
+    Context 'the sources cannot be read after the checks' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Changed' }
+        Mock -ModuleName DeployTestEnv Get-InputFingerprint { $null }
+
+        It 'launches but records nothing' {
+            Invoke-Flow (New-Flow) | Should Be 0
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+    }
+
     Context 'no verified path is given (the feature is off)' {
         It 'runs everything and records nothing' {
             Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Current' }
@@ -1202,11 +1328,95 @@ Describe 'Invoke-DeployFlow with a verified record' {
     }
 }
 
+Describe 'Invoke-DeployFlow with a real record, real sources and real class files' {
+    Mock -ModuleName DeployTestEnv Write-Host { }
+    Mock -ModuleName DeployTestEnv Get-Instances { }
+
+    function Set-Text([string] $Repo, [string] $Relative, [string] $Text) {
+        $path = Join-Path $Repo $Relative
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path) | Out-Null
+        Set-Content -LiteralPath $path -Value $Text -Encoding ASCII
+    }
+    function New-BuiltRepo([string] $Name) {
+        $repo = Join-Path $TestDrive $Name
+        New-Item -ItemType Directory -Path $repo | Out-Null
+        Set-Text $repo 'src\main\A.java' 'class A {}'
+        Set-Text $repo 'build\classes\java\main\A.class' 'a'
+        $repo
+    }
+    # One deploy run: returns the exit code and the steps that ran. The fingerprint is taken first, as the script does.
+    function Invoke-Run([string] $Repo, [int] $BuildExit = 0, [int] $TestsExit = 0, [scriptblock] $DuringTests = { }, [switch] $Force) {
+        $calls = New-Object System.Collections.ArrayList
+        $code = Invoke-DeployFlow -RepoRoot $Repo `
+            -Build { [void]$calls.Add('build'); $BuildExit }.GetNewClosure() `
+            -RunGameTests { [void]$calls.Add('tests'); & $DuringTests; $TestsExit }.GetNewClosure() `
+            -LaunchClient { [void]$calls.Add('launch'); [pscustomobject]@{ Started = $true; ProcessId = 1; Log = 'x' } }.GetNewClosure() `
+            -Fingerprint (Get-InputFingerprint -RepoRoot $Repo) -VerifiedPath (Join-Path $Repo 'build\deploy\verified.txt') -Force:$Force
+        "$code`:" + ($calls -join ',')
+    }
+
+    It 'runs everything once, then only launches while nothing changes' {
+        $repo = New-BuiltRepo 'round-trip'
+        Invoke-Run $repo | Should Be '0:build,tests,launch'
+        Invoke-Run $repo | Should Be '0:launch'
+        Invoke-Run $repo | Should Be '0:launch'
+    }
+    It 'runs everything again after a source edit, and skips again after that passes' {
+        $repo = New-BuiltRepo 'edit'
+        Invoke-Run $repo | Out-Null
+        Set-Text $repo 'src\main\A.java' 'class A { int x; }'
+        Invoke-Run $repo | Should Be '0:build,tests,launch'
+        Invoke-Run $repo | Should Be '0:launch'
+    }
+    It 'runs everything again when the classes were rebuilt since the verified run' {
+        $repo = New-BuiltRepo 'rebuilt'
+        Invoke-Run $repo | Out-Null
+        Set-Text $repo 'build\classes\java\main\B.class' 'b'
+        (Get-Item -LiteralPath (Join-Path $repo 'build\classes\java\main\B.class')).LastWriteTimeUtc = [datetime]::UtcNow.AddMinutes(5)
+        Invoke-Run $repo | Should Be '0:build,tests,launch'
+    }
+    It 'forgets the record when a forced run fails the build, so the next run does not skip' {
+        $repo = New-BuiltRepo 'forced-build-fail'
+        Invoke-Run $repo | Out-Null
+        Invoke-Run $repo -Force -BuildExit 1 | Should Be '1:build'
+        Invoke-Run $repo | Should Be '0:build,tests,launch'
+    }
+    It 'forgets the record when a forced run fails the GameTests, so the next run does not skip' {
+        $repo = New-BuiltRepo 'forced-tests-fail'
+        Invoke-Run $repo | Out-Null
+        Invoke-Run $repo -Force -TestsExit 1 | Should Be '2:build,tests'
+        Invoke-Run $repo | Should Be '0:build,tests,launch'
+    }
+    It 'does not record a run whose sources were edited while the checks ran, even after the edit is reverted' {
+        $repo = New-BuiltRepo 'edit-during'
+        $file = Join-Path $repo 'src\main\A.java'
+        Invoke-Run $repo -DuringTests { Set-Content -LiteralPath $file -Value 'class A { int y; }' -Encoding ASCII }.GetNewClosure() |
+            Should Be '0:build,tests,launch'
+        Set-Content -LiteralPath $file -Value 'class A {}' -Encoding ASCII
+        Invoke-Run $repo | Should Be '0:build,tests,launch'
+    }
+}
+
 Describe 'Format-VerifiedLine' {
     It 'says what the next run will do for each state' {
         Format-VerifiedLine -State 'Current' | Should Match 'skips'
         Format-VerifiedLine -State 'Changed' | Should Match 'changed'
         Format-VerifiedLine -State 'None' | Should Match 'no passing run'
         Format-VerifiedLine -State 'Unknown' | Should Match 'cannot tell'
+        Format-VerifiedLine -State 'ClassesDiffer' | Should Match 'classes'
+    }
+    It 'promises a skip only for Current' {
+        foreach ($state in 'Changed', 'None', 'Unknown', 'ClassesDiffer') {
+            Format-VerifiedLine -State $state | Should Not Match 'skips'
+        }
+    }
+}
+
+Describe 'Deploy-TestEnv.ps1 -CheckOnly (the real script on this checkout; read-only)' {
+    It 'exits 0 and prints the verified line' {
+        $script = Join-Path $PSScriptRoot '..\Deploy-TestEnv.ps1'
+        $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -CheckOnly
+        $LASTEXITCODE | Should Be 0
+        (@($out) -join "`n") | Should Match 'Verified: '
     }
 }

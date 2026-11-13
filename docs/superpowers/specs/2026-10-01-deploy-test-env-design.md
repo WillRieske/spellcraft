@@ -1,7 +1,7 @@
 # Spellcraft: test-environment deploy script (design)
 
 **Date:** 2026-10-01
-**Status:** Reviewed 2026-10-01 (fixes applied); skip-if-unchanged added 2026-11-12 (not part of that review); plan: [`2026-10-01-deploy-test-env.md`](../plans/2026-10-01-deploy-test-env.md)
+**Status:** Reviewed 2026-10-01 (fixes applied); skip-if-unchanged added and reviewed 2026-11-12 (fixes applied); plan: [`2026-10-01-deploy-test-env.md`](../plans/2026-10-01-deploy-test-env.md)
 **Target:** Windows 11, Windows PowerShell 5.1, Java 25 (Temurin), Gradle wrapper
 
 ## Summary
@@ -31,8 +31,8 @@ Pester 3.4 (built into Windows PowerShell 5.1). The script itself is the thin fl
 | **Instance** | A `java.exe` process running the dev client, the GameTest server or the dedicated server **from this checkout** (not the Gradle daemon, not another checkout or worktree). |
 | **Up to date** | The instance's start time is strictly later than the build stamp. |
 | **Stale** | Not up to date: started at or before the build stamp, or there is no build stamp. It may be running older code than what is on disk. |
-| **Input fingerprint** | A SHA-256 over the path and contents of every file git tracks or could track (untracked counts, git-ignored does not) under `src/`, `build.gradle`, `settings.gradle`, `gradle.properties`, `gradle/`, `gradlew` and `gradlew.bat`, as the working tree has them now, committed or not. Docs, scripts and build output are not inputs. |
-| **Verified run** | A run whose build and GameTests passed. `build\deploy\verified.txt` holds the input fingerprint taken before that run's build. |
+| **Input fingerprint** | A SHA-256 over the path and contents of every file on disk under `src/`, `build.gradle`, `settings.gradle`, `gradle.properties`, `gradle/`, `gradlew`, `gradlew.bat` and `docs/superpowers/specs/evoking/evoking-functional-spec.md`, as the working tree has them now, committed or not, git-ignored or not. Other docs, the scripts and build output are not inputs. |
+| **Verified run** | A run whose build and GameTests passed with the sources unchanged from start to end. `build\deploy\verified.txt` holds that run's input fingerprint and, on a second line, the build stamp (in ticks) as the GameTests left it. |
 
 ## Why the build stamp is not the jar
 
@@ -56,19 +56,49 @@ The GameTests take minutes and never count as up to date to Gradle, so the scrip
 record. Before anything runs it takes the input fingerprint and compares it with
 `build\deploy\verified.txt`:
 
-- **Current** (identical), `-Force` not given, and the build stamp exists (classes are on disk):
+- **Current** (the fingerprint and the build stamp both equal the record) and `-Force` not given:
   steps 1 and 2 are skipped, with a line saying so. Step 3 runs as usual: stale clients still need
   the prompt, and `runClient` itself recompiles anything missing.
-- Anything else (**Changed**, **None** because no record exists or it is empty, **Unknown**
-  because git could not list or read the sources, `-Force`, or no classes): steps 1 and 2 run.
-- After step 2 passes, the fingerprint taken at the start is written to the record. It is not
-  written after a failed build, failed GameTests or a declined stop, and not when the fingerprint
-  is unknown. Because it was taken before the build, an edit made while the checks ran is not
-  covered and the next run redoes them. A write failure only prints a line.
+- Anything else (**Changed**; **ClassesDiffer** because the sources match but the classes are
+  missing or were built since; **None** because no record exists or it is empty; **Unknown**
+  because the sources could not be listed or read; `-Force`): steps 1 and 2 run.
+- Before step 1 runs, the record is deleted, so a failed or interrupted run never leaves an older
+  pass standing for the same sources (a forced run that fails, a flaky GameTest). If it can be
+  neither deleted nor emptied, the run stops with exit code 1 and a line naming the file.
+- After step 2 passes, the fingerprint is taken again. If it equals the one taken at the start,
+  it is written to the record with the build stamp read at that moment. If it differs, an edit
+  was made while the checks ran and nobody knows which version Gradle checked: nothing is
+  written, a line says so, and the next run redoes the checks. Nothing is written after a failed
+  build, failed GameTests or a declined stop, or when the fingerprint is unknown. A write failure
+  only prints a line.
+
+Why the build stamp is in the record: step 3 calls a running client current when it started after
+the stamp. Without the stamp in the record, this sequence would pass unverified code: a verified
+run at sources A; an edit to B and a `gradlew build` (the commit gate does one); a client started
+on B's classes; the edit reverted. The fingerprint is A again, but the classes and the client are
+B's. With the stamp, that is **ClassesDiffer**: the build runs, the stamp moves, and the client is
+stale. A no-op build does not move the stamp (see above), so commit-gate builds of unchanged
+sources do not defeat the skip.
+
+Why the files are listed from the disk and not by git: Gradle packages every file under
+`src/main/resources` whether or not git ignores it, and git's file listing depends on the console
+code page for non-ASCII names in Windows PowerShell 5.1. An editor's scratch file under `src/`
+therefore costs a full run, which is the safe direction.
+
+Why one doc is an input: `FunctionalSpecReferencesTest` reads the Evoking functional spec during
+`build` and fails on a paragraph number that code and spec do not share. A Pester test reads every
+path the Java tests open (`Path.of`, `Paths.get`, `new File` with a literal) and fails when one is
+outside the input list, so the next such file cannot be forgotten.
+
+What the fingerprint does not cover, where `-Force` is the remedy: anything outside the repo and
+the inputs (the JDK, `~/.gradle/gradle.properties`, Gradle's caches, a dependency whose published
+artifact changed) and the state under `run/` that the GameTest server reads.
 
 The record sits under `build\`, so `gradlew clean` deletes it and the next run is a full one. The
-comparison is exact (case-sensitive), and uses file contents, not times, so touching a file
-without changing it does not defeat the skip and a reverted edit matches the old record again.
+comparison is exact (case-sensitive), and uses file contents, not times, so touching a source file
+without changing it does not defeat the skip and a reverted edit matches the old record again
+(unless something was compiled in between, as above). A record in the first format (one line) reads
+as **ClassesDiffer**, so the first run after this change is a full one.
 
 The dev client still runs from the class directories, not the jar (see the section above), so a
 saved jar would not be what is launched; the fingerprint stands in for it.
@@ -154,8 +184,9 @@ step 1) and goes back to Will.
 
 ## `-CheckOnly`
 
-Prints the build stamp, whether the sources match the last verified run (and so whether the next
-run skips steps 1 and 2), and each running instance (type, PID, start time, up-to-date or stale
+Prints the build stamp, whether the sources and the build stamp match the last verified run (and
+so whether the next run skips steps 1 and 2; it uses the same state function as the flow, so the
+line cannot promise a skip the flow would not make), and each running instance (type, PID, start time, up-to-date or stale
 verdict), then exits 0 without building, stopping or launching anything. This is how detection
 is tested without a 15-minute build, and it is a useful read-only status command.
 
@@ -164,7 +195,7 @@ is tested without a 15-minute build, and it is a useful read-only status command
 | Code | Meaning |
 |---|---|
 | 0 | Everything passed; client launched or already current |
-| 1 | Not in a repo, or step 1 failed |
+| 1 | Not in a repo, step 1 failed, or the verified-run record could not be cleared |
 | 2 | GameTests failed |
 | 3 | An instance that must stop was found and the user declined (or could not be asked), or it did not exit after being stopped, or it could not be stopped (an error, or its identity could not be checked) |
 | 4 | The client launch process died within 15 s |
@@ -185,9 +216,12 @@ is tested without a 15-minute build, and it is a useful read-only status command
 
 Pester 3.4 unit tests (`scripts/tests/DeployTestEnv.Tests.ps1`) cover the pure parts:
 command-line classification, the build stamp, the verdict, which instances must stop, the
-prompt decision and the status formatting. The input fingerprint is tested on real throwaway git
-repos (edit, add, delete, move, ignored files, not a repo); the skip decision with a mocked
-verified state; the record with real files. Each skip guard (exact compare, build stamp, `-Force`,
+prompt decision and the status formatting. The input fingerprint is tested on real throwaway
+directories (edit, add, delete, move, each Gradle file, the functional spec, a git-ignored file,
+a non-ASCII name, a locked file, no inputs); the skip decision with a mocked verified state; the
+record with real files; and the whole flow against a real record, real sources and real class
+files (run, skip, edit, rebuilt classes, a forced run that fails, an edit during the checks). One
+test runs the real script with `-CheckOnly`. Each skip guard (exact compare, build stamp, `-Force`,
 path in the hash, save only after the GameTests pass) has a test that fails when it is broken
 (hand-made mutations, 2026-11-12). Process discovery is tested with mocked
 `Get-CimInstance` and `Get-Process`; the repo-root forms use real junctions and 8.3 names; and

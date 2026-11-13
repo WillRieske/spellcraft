@@ -168,37 +168,59 @@ function Get-BuildStamp {
     ($items | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).LastWriteTimeUtc
 }
 
-# What a verified run depends on: the files Gradle compiles, tests and packages, and the build setup.
-# Docs, scripts and build output are deliberately not here: changing them cannot change the build or the tests.
-$script:FingerprintInputs = @('src', 'build.gradle', 'settings.gradle', 'gradle.properties', 'gradle', 'gradlew', 'gradlew.bat')
+# What a verified run depends on: the files Gradle compiles, tests and packages, the build setup, and
+# the one file outside src/ that a test reads (FunctionalSpecReferencesTest fails the build on a
+# functional-spec change). Other docs, the scripts and build output are deliberately not here: changing
+# them cannot change the build or the tests. Paths use '/', as the Java tests write them: a Pester test
+# checks that every path a Java test reads is covered by this list.
+$script:FingerprintInputs = @(
+    'src', 'build.gradle', 'settings.gradle', 'gradle.properties', 'gradle', 'gradlew', 'gradlew.bat',
+    'docs/superpowers/specs/evoking/evoking-functional-spec.md')
 
 <#
 .SYNOPSIS
     A hash of everything the build and the GameTests depend on, as the working tree has it now.
 .DESCRIPTION
-    Hashes the contents of every file under the build inputs that git tracks or could track (untracked
-    files count, git-ignored ones do not), with its path, so an edit, an addition, a deletion and a
-    move each change the result, committed or not.
+    Hashes the contents of every file on disk under the build inputs, with its path, so an edit, an
+    addition, a deletion and a move each change the result, committed or not. The files are listed from
+    the disk, not by git: Gradle packages a file under src/ whether or not git ignores it, so every
+    file counts.
 .PARAMETER RepoRoot
     The repo root.
 .OUTPUTS
-    [string] (hex), or $null when git cannot list the files or a file cannot be read: callers then treat
-    the sources as unverifiable.
+    [string] (hex), or $null when the root or every input is missing or a file cannot be listed or
+    read: callers then treat the sources as unverifiable.
 #>
 function Get-InputFingerprint {
     param([Parameter(Mandatory)][string] $RepoRoot)
     $sha = [System.Security.Cryptography.SHA256]::Create()
     try {
-        $listed = & git -C $RepoRoot -c core.quotepath=off ls-files --cached --others --exclude-standard -- $script:FingerprintInputs 2>$null
-        if ($LASTEXITCODE -ne 0) { return $null }
-        $names = [string[]]@($listed | Where-Object { $_ } | Select-Object -Unique)
-        [Array]::Sort($names, [StringComparer]::Ordinal)
+        $root = (Resolve-Path -LiteralPath $RepoRoot -ErrorAction Stop).ProviderPath.TrimEnd('\')
+        $paths = New-Object System.Collections.Generic.List[string]
+        foreach ($entry in $script:FingerprintInputs) {
+            $path = Join-Path $root $entry
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+                $paths.Add((Get-Item -LiteralPath $path -Force -ErrorAction Stop).FullName)
+            } elseif (Test-Path -LiteralPath $path -PathType Container) {
+                foreach ($file in @(Get-ChildItem -LiteralPath $path -Recurse -File -Force -ErrorAction Stop)) {
+                    $paths.Add($file.FullName)
+                }
+            }
+        }
+        if ($paths.Count -eq 0) { return $null }
+        $prefix = $root + '\'
+        $names = New-Object System.Collections.Generic.List[string]
+        foreach ($path in $paths) {
+            # A path that is not under the root cannot be named relative to it; give up, do not guess.
+            if (-not $path.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { return $null }
+            $names.Add($path.Substring($prefix.Length).Replace('\', '/'))
+        }
+        $sorted = $names.ToArray()
+        [Array]::Sort($sorted, [StringComparer]::Ordinal)
         $text = New-Object System.Text.StringBuilder
-        foreach ($name in $names) {
-            $path = Join-Path $RepoRoot $name
-            # Listed by the index but gone from disk: a deletion, which the missing line records.
-            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
-            $hash = [BitConverter]::ToString($sha.ComputeHash([System.IO.File]::ReadAllBytes($path))).Replace('-', '')
+        foreach ($name in $sorted) {
+            $bytes = [System.IO.File]::ReadAllBytes((Join-Path $root $name))
+            $hash = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-', '')
             [void]$text.Append($name).Append(':').Append($hash).Append("`n")
         }
         [BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($text.ToString()))).Replace('-', '')
@@ -209,54 +231,73 @@ function Get-InputFingerprint {
     }
 }
 
-<#
-.SYNOPSIS
-    Whether the sources match the last run whose build and GameTests passed.
-.PARAMETER Fingerprint
-    Get-InputFingerprint's result for the sources now; $null or empty means it could not be computed.
-.PARAMETER VerifiedPath
-    The file Save-VerifiedFingerprint writes.
-.OUTPUTS
-    'Current' (identical), 'Changed' (a record exists and differs), 'None' (no usable record) or
-    'Unknown' (no fingerprint to compare).
-#>
-function Get-VerifiedState {
-    param(
-        [AllowNull()][AllowEmptyString()][string] $Fingerprint,
-        [Parameter(Mandatory)][string] $VerifiedPath
-    )
-    if ([string]::IsNullOrEmpty($Fingerprint)) { return 'Unknown' }
-    $saved = $null
-    try {
-        if (Test-Path -LiteralPath $VerifiedPath -PathType Leaf) {
-            $saved = [System.IO.File]::ReadAllText($VerifiedPath).Trim()
-        }
-    } catch {
-        $saved = $null
-    }
-    if ([string]::IsNullOrEmpty($saved)) { return 'None' }
-    if ($saved -ceq $Fingerprint) { 'Current' } else { 'Changed' }
+# The build stamp as the record stores it: ticks, so the comparison is exact and culture-free.
+function ConvertTo-StampToken {
+    param([Parameter(Mandatory)][datetime] $BuildStampUtc)
+    $BuildStampUtc.Ticks.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 }
 
 <#
 .SYNOPSIS
-    Record that the build and the GameTests passed for these sources.
-.DESCRIPTION
-    A write failure only prints a line: the record is an optimization, and its absence makes the next
-    run do the full work.
+    Whether the sources and the compiled classes match the last run whose build and GameTests passed.
 .PARAMETER Fingerprint
-    Get-InputFingerprint's result, taken before the build.
+    Get-InputFingerprint's result for the sources now; $null or empty means it could not be computed.
+.PARAMETER BuildStampUtc
+    Get-BuildStamp's result now; $null means nothing is built.
+.PARAMETER VerifiedPath
+    The file Save-VerifiedFingerprint writes.
+.OUTPUTS
+    'Current' (sources and build stamp identical), 'Changed' (a record exists and the sources differ),
+    'ClassesDiffer' (the sources match, but the classes on disk are missing or are not the ones that
+    run checked: something compiled other sources since), 'None' (no usable record) or 'Unknown' (no
+    fingerprint to compare).
+#>
+function Get-VerifiedState {
+    param(
+        [AllowNull()][AllowEmptyString()][string] $Fingerprint,
+        [Nullable[datetime]] $BuildStampUtc,
+        [Parameter(Mandatory)][string] $VerifiedPath
+    )
+    if ([string]::IsNullOrEmpty($Fingerprint)) { return 'Unknown' }
+    $lines = @()
+    try {
+        if (Test-Path -LiteralPath $VerifiedPath -PathType Leaf) {
+            $lines = @([System.IO.File]::ReadAllText($VerifiedPath) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+        }
+    } catch {
+        $lines = @()
+    }
+    if ($lines.Count -eq 0) { return 'None' }
+    if ($lines[0] -cne $Fingerprint) { return 'Changed' }
+    if ($null -eq $BuildStampUtc -or $lines.Count -lt 2 -or $lines[1] -cne (ConvertTo-StampToken -BuildStampUtc $BuildStampUtc)) {
+        return 'ClassesDiffer'
+    }
+    'Current'
+}
+
+<#
+.SYNOPSIS
+    Record that the build and the GameTests passed for these sources and these compiled classes.
+.DESCRIPTION
+    Two lines: the fingerprint, then the build stamp in ticks. A write failure only prints a line: the
+    record is an optimization, and its absence makes the next run do the full work.
+.PARAMETER Fingerprint
+    Get-InputFingerprint's result, taken before the build and unchanged after the GameTests.
+.PARAMETER BuildStampUtc
+    Get-BuildStamp's result after the GameTests.
 .PARAMETER VerifiedPath
     The file to write; its directory is created.
 #>
 function Save-VerifiedFingerprint {
     param(
         [Parameter(Mandatory)][string] $Fingerprint,
+        [Parameter(Mandatory)][datetime] $BuildStampUtc,
         [Parameter(Mandatory)][string] $VerifiedPath
     )
     try {
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $VerifiedPath) | Out-Null
-        [System.IO.File]::WriteAllText($VerifiedPath, $Fingerprint + "`n", [System.Text.Encoding]::ASCII)
+        $text = $Fingerprint + "`n" + (ConvertTo-StampToken -BuildStampUtc $BuildStampUtc) + "`n"
+        [System.IO.File]::WriteAllText($VerifiedPath, $text, [System.Text.Encoding]::ASCII)
     } catch {
         Write-Host "Could not record the verified run ($($_.Exception.Message)); the next run will redo the checks."
     }
@@ -264,19 +305,48 @@ function Save-VerifiedFingerprint {
 
 <#
 .SYNOPSIS
+    Forget the verified run, before a run that may fail.
+.DESCRIPTION
+    A failed or interrupted run must not leave an older pass standing for the same sources. If the file
+    cannot be deleted it is emptied; if that fails too a line says so.
+.PARAMETER VerifiedPath
+    The file Save-VerifiedFingerprint writes.
+.OUTPUTS
+    [bool] $true when no record is left.
+#>
+function Clear-VerifiedFingerprint {
+    param([Parameter(Mandatory)][string] $VerifiedPath)
+    if (-not (Test-Path -LiteralPath $VerifiedPath)) { return $true }
+    try {
+        Remove-Item -LiteralPath $VerifiedPath -Force -ErrorAction Stop
+        return $true
+    } catch {
+        try {
+            [System.IO.File]::WriteAllText($VerifiedPath, '', [System.Text.Encoding]::ASCII)
+            return $true
+        } catch {
+            Write-Host "Could not clear the verified-run record $VerifiedPath ($($_.Exception.Message)). Delete it by hand."
+            return $false
+        }
+    }
+}
+
+<#
+.SYNOPSIS
     One status line for a Get-VerifiedState result.
 .PARAMETER State
-    'Current', 'Changed', 'None' or 'Unknown'.
+    'Current', 'Changed', 'ClassesDiffer', 'None' or 'Unknown'.
 .OUTPUTS
     [string]
 #>
 function Format-VerifiedLine {
-    param([Parameter(Mandatory)][ValidateSet('Current', 'Changed', 'None', 'Unknown')][string] $State)
+    param([Parameter(Mandatory)][ValidateSet('Current', 'Changed', 'ClassesDiffer', 'None', 'Unknown')][string] $State)
     switch ($State) {
-        'Current' { 'Verified: the sources match the last passing build and GameTests; the next run skips them.' }
+        'Current' { 'Verified: the sources and the compiled classes match the last passing build and GameTests; the next run skips them (unless -Force).' }
         'Changed' { 'Verified: the sources changed since the last passing run; the next run builds and runs the GameTests.' }
+        'ClassesDiffer' { 'Verified: the sources match the last passing run, but the compiled classes are missing or were built since; the next run builds and runs the GameTests.' }
         'None' { 'Verified: no passing run is recorded; the next run builds and runs the GameTests.' }
-        'Unknown' { 'Verified: cannot tell (git could not list or read the sources); the next run builds and runs the GameTests.' }
+        'Unknown' { 'Verified: cannot tell (the sources could not be listed or read); the next run builds and runs the GameTests.' }
     }
 }
 
@@ -677,8 +747,10 @@ function Write-InstanceList {
     The deploy flow: build checks, server GameTests, then the dev client.
 .DESCRIPTION
     Step 1 runs the commit-gate checks. Step 2 runs the GameTests (stopping any GameTest
-    server and any stale dedicated server first, after y). Both are skipped when the sources
-    match the last run whose checks passed (see Get-InputFingerprint). Step 3 stops stale clients (after y)
+    server and any stale dedicated server first, after y). Both are skipped when the sources and
+    the compiled classes match the last run whose checks passed (see Get-VerifiedState); otherwise
+    the record is cleared before the build and written again only after the GameTests pass with
+    the sources unchanged. Step 3 stops stale clients (after y)
     and launches a client unless an up-to-date one already runs. Stopping is all-or-nothing: if
     an instance is declined or does not exit, the flow stops, because all runs share run/.
 .PARAMETER RepoRoot
@@ -697,7 +769,8 @@ function Write-InstanceList {
 .PARAMETER Force
     Run steps 1-2 even when the sources match the record.
 .OUTPUTS
-    [int] exit code: 0 ok, 1 build failed, 2 GameTests failed, 3 stop declined or failed, 4 client died.
+    [int] exit code: 0 ok, 1 build failed (or the verified-run record could not be cleared), 2 GameTests
+    failed, 3 stop declined or failed, 4 client died.
 #>
 function Invoke-DeployFlow {
     param(
@@ -710,14 +783,23 @@ function Invoke-DeployFlow {
         [switch] $Force
     )
     # Steps 1-2 are skipped only when the sources are byte-for-byte what the last passing run checked
-    # and classes exist to launch from (runClient recompiles anything missing). A running server is
-    # never evidence that tests pass, so nothing else skips the GameTests.
+    # and the classes on disk are the ones it left (same build stamp): step 3 judges a running client
+    # by the stamp, so classes compiled from other sources since must not pass as verified. A running
+    # server is never evidence that tests pass, so nothing else skips the GameTests.
     $stamp = Get-BuildStamp -RepoRoot $RepoRoot
-    $verified = if ($VerifiedPath) { Get-VerifiedState -Fingerprint $Fingerprint -VerifiedPath $VerifiedPath } else { 'Off' }
+    $verified = if ($VerifiedPath) {
+        Get-VerifiedState -Fingerprint $Fingerprint -BuildStampUtc $stamp -VerifiedPath $VerifiedPath
+    } else { 'Off' }
     if ($verified -eq 'Current' -and -not $Force -and $null -ne $stamp) {
         Write-Host '== Steps 1-2 skipped: the sources match the last verified run (build and GameTests passed). Use -Force to run them anyway.'
         Write-Host (Format-BuildStamp -BuildStampUtc $stamp)
     } else {
+        # Forget the old pass first: if this run fails or is interrupted, the newest evidence about
+        # these sources is not a pass, and the next run must not skip on the older one.
+        # A record that cannot be cleared stops the run (exit 1): it could outlive a failure.
+        if ($VerifiedPath -and -not (Clear-VerifiedFingerprint -VerifiedPath $VerifiedPath)) {
+            return $script:ExitBuildFailed
+        }
         # Step 1: automated checks (the commit gate). No timeout: a cold run takes 5-15 min.
         Write-Host '== Step 1: spotlessCheck build'
         $code = & $Build
@@ -742,10 +824,17 @@ function Invoke-DeployFlow {
             Write-Host "GameTests failed (gradlew exit $code). Not launching the client."
             return $script:ExitGameTestsFailed
         }
-        # The fingerprint was taken before the build, so an edit made while the checks ran is not
-        # covered by this record and the next run redoes them.
+        # Record the pass only if the sources are still what they were before the build: after an
+        # edit made while the checks ran, nobody knows which version Gradle checked. The stamp is read
+        # again because it is the classes as the GameTests left them that the record vouches for.
         if ($VerifiedPath -and $Fingerprint) {
-            Save-VerifiedFingerprint -Fingerprint $Fingerprint -VerifiedPath $VerifiedPath
+            $stamp = Get-BuildStamp -RepoRoot $RepoRoot
+            $after = Get-InputFingerprint -RepoRoot $RepoRoot
+            if ($after -and $after -ceq $Fingerprint -and $null -ne $stamp) {
+                Save-VerifiedFingerprint -Fingerprint $Fingerprint -BuildStampUtc $stamp -VerifiedPath $VerifiedPath
+            } else {
+                Write-Host 'The sources changed (or could not be read) while the checks ran: this run is not recorded, so the next run redoes them.'
+            }
         }
     }
 

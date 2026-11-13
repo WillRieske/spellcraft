@@ -5,11 +5,13 @@
     Spec: docs/superpowers/specs/2026-10-01-deploy-test-env-design.md
     The flow lives in Invoke-DeployFlow (scripts/DeployTestEnv.psm1); this script supplies the real
     Gradle steps. Running instances that must stop are stopped only after a y; non-interactive runs answer N.
-    Exit codes: 0 ok (client launched or already current); 1 not in a repo or the build failed;
-    2 GameTests failed; 3 an instance had to stop and the user declined, could not be asked, or it did
-    not exit or could not be stopped; 4 the client launch process died within 15 s.
-    The build and the GameTests are skipped when the sources (src/ and the Gradle files) are
-    identical to the last run whose checks passed; the record is build\deploy\verified.txt.
+    Exit codes: 0 ok (client launched or already current); 1 not in a repo, the build failed, or the
+    verified-run record could not be cleared; 2 GameTests failed; 3 an instance had to stop and the
+    user declined, could not be asked, or it did not exit or could not be stopped; 4 the client launch
+    process died within 15 s.
+    The build and the GameTests are skipped when the sources (src/, the Gradle files and the Evoking
+    functional spec) and the compiled classes are identical to the last run whose checks passed; the
+    record is build\deploy\verified.txt.
 .PARAMETER CheckOnly
     Print the build stamp, whether the sources match the last verified run, and the running
     instances with their verdicts, then exit 0. Builds, stops and launches nothing.
@@ -35,14 +37,15 @@ if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'gradlew.bat') -PathType L
 }
 Set-Location -LiteralPath $repoRoot
 
-# Taken before any build, so an edit made while the checks run is not covered by the record.
+# Taken before any build; the flow takes it again after the GameTests and records the run only if
+# the two are equal, so an edit made while the checks run is never recorded as verified.
 $fingerprint = Get-InputFingerprint -RepoRoot $repoRoot
 $verifiedPath = Join-Path $repoRoot 'build\deploy\verified.txt'
 
 if ($CheckOnly) {
     $stamp = Get-BuildStamp -RepoRoot $repoRoot
     Write-Host (Format-BuildStamp -BuildStampUtc $stamp)
-    Write-Host (Format-VerifiedLine -State (Get-VerifiedState -Fingerprint $fingerprint -VerifiedPath $verifiedPath))
+    Write-Host (Format-VerifiedLine -State (Get-VerifiedState -Fingerprint $fingerprint -BuildStampUtc $stamp -VerifiedPath $verifiedPath))
     Write-InstanceList -Instances @(Get-Instances -RepoRoot $repoRoot) -BuildStampUtc $stamp -What 'instances'
     exit 0
 }
