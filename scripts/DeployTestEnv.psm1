@@ -168,6 +168,118 @@ function Get-BuildStamp {
     ($items | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).LastWriteTimeUtc
 }
 
+# What a verified run depends on: the files Gradle compiles, tests and packages, and the build setup.
+# Docs, scripts and build output are deliberately not here: changing them cannot change the build or the tests.
+$script:FingerprintInputs = @('src', 'build.gradle', 'settings.gradle', 'gradle.properties', 'gradle', 'gradlew', 'gradlew.bat')
+
+<#
+.SYNOPSIS
+    A hash of everything the build and the GameTests depend on, as the working tree has it now.
+.DESCRIPTION
+    Hashes the contents of every file under the build inputs that git tracks or could track (untracked
+    files count, git-ignored ones do not), with its path, so an edit, an addition, a deletion and a
+    move each change the result, committed or not.
+.PARAMETER RepoRoot
+    The repo root.
+.OUTPUTS
+    [string] (hex), or $null when git cannot list the files or a file cannot be read: callers then treat
+    the sources as unverifiable.
+#>
+function Get-InputFingerprint {
+    param([Parameter(Mandatory)][string] $RepoRoot)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $listed = & git -C $RepoRoot -c core.quotepath=off ls-files --cached --others --exclude-standard -- $script:FingerprintInputs 2>$null
+        if ($LASTEXITCODE -ne 0) { return $null }
+        $names = [string[]]@($listed | Where-Object { $_ } | Select-Object -Unique)
+        [Array]::Sort($names, [StringComparer]::Ordinal)
+        $text = New-Object System.Text.StringBuilder
+        foreach ($name in $names) {
+            $path = Join-Path $RepoRoot $name
+            # Listed by the index but gone from disk: a deletion, which the missing line records.
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+            $hash = [BitConverter]::ToString($sha.ComputeHash([System.IO.File]::ReadAllBytes($path))).Replace('-', '')
+            [void]$text.Append($name).Append(':').Append($hash).Append("`n")
+        }
+        [BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($text.ToString()))).Replace('-', '')
+    } catch {
+        $null
+    } finally {
+        $sha.Dispose()
+    }
+}
+
+<#
+.SYNOPSIS
+    Whether the sources match the last run whose build and GameTests passed.
+.PARAMETER Fingerprint
+    Get-InputFingerprint's result for the sources now; $null or empty means it could not be computed.
+.PARAMETER VerifiedPath
+    The file Save-VerifiedFingerprint writes.
+.OUTPUTS
+    'Current' (identical), 'Changed' (a record exists and differs), 'None' (no usable record) or
+    'Unknown' (no fingerprint to compare).
+#>
+function Get-VerifiedState {
+    param(
+        [AllowNull()][AllowEmptyString()][string] $Fingerprint,
+        [Parameter(Mandatory)][string] $VerifiedPath
+    )
+    if ([string]::IsNullOrEmpty($Fingerprint)) { return 'Unknown' }
+    $saved = $null
+    try {
+        if (Test-Path -LiteralPath $VerifiedPath -PathType Leaf) {
+            $saved = [System.IO.File]::ReadAllText($VerifiedPath).Trim()
+        }
+    } catch {
+        $saved = $null
+    }
+    if ([string]::IsNullOrEmpty($saved)) { return 'None' }
+    if ($saved -ceq $Fingerprint) { 'Current' } else { 'Changed' }
+}
+
+<#
+.SYNOPSIS
+    Record that the build and the GameTests passed for these sources.
+.DESCRIPTION
+    A write failure only prints a line: the record is an optimization, and its absence makes the next
+    run do the full work.
+.PARAMETER Fingerprint
+    Get-InputFingerprint's result, taken before the build.
+.PARAMETER VerifiedPath
+    The file to write; its directory is created.
+#>
+function Save-VerifiedFingerprint {
+    param(
+        [Parameter(Mandatory)][string] $Fingerprint,
+        [Parameter(Mandatory)][string] $VerifiedPath
+    )
+    try {
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $VerifiedPath) | Out-Null
+        [System.IO.File]::WriteAllText($VerifiedPath, $Fingerprint + "`n", [System.Text.Encoding]::ASCII)
+    } catch {
+        Write-Host "Could not record the verified run ($($_.Exception.Message)); the next run will redo the checks."
+    }
+}
+
+<#
+.SYNOPSIS
+    One status line for a Get-VerifiedState result.
+.PARAMETER State
+    'Current', 'Changed', 'None' or 'Unknown'.
+.OUTPUTS
+    [string]
+#>
+function Format-VerifiedLine {
+    param([Parameter(Mandatory)][ValidateSet('Current', 'Changed', 'None', 'Unknown')][string] $State)
+    switch ($State) {
+        'Current' { 'Verified: the sources match the last passing build and GameTests; the next run skips them.' }
+        'Changed' { 'Verified: the sources changed since the last passing run; the next run builds and runs the GameTests.' }
+        'None' { 'Verified: no passing run is recorded; the next run builds and runs the GameTests.' }
+        'Unknown' { 'Verified: cannot tell (git could not list or read the sources); the next run builds and runs the GameTests.' }
+    }
+}
+
 <#
 .SYNOPSIS
     Whether an instance started strictly after the build stamp.
@@ -564,8 +676,9 @@ function Write-InstanceList {
 .SYNOPSIS
     The deploy flow: build checks, server GameTests, then the dev client.
 .DESCRIPTION
-    Step 1 runs the commit-gate checks. Step 2 always runs the GameTests (stopping any GameTest
-    server and any stale dedicated server first, after y). Step 3 stops stale clients (after y)
+    Step 1 runs the commit-gate checks. Step 2 runs the GameTests (stopping any GameTest
+    server and any stale dedicated server first, after y). Both are skipped when the sources
+    match the last run whose checks passed (see Get-InputFingerprint). Step 3 stops stale clients (after y)
     and launches a client unless an up-to-date one already runs. Stopping is all-or-nothing: if
     an instance is declined or does not exit, the flow stops, because all runs share run/.
 .PARAMETER RepoRoot
@@ -576,6 +689,13 @@ function Write-InstanceList {
     Runs the GameTests; returns only the Gradle exit code.
 .PARAMETER LaunchClient
     Starts the client; returns a Start-DevClient result.
+.PARAMETER Fingerprint
+    Get-InputFingerprint's result, taken before the flow starts; $null when it could not be computed.
+.PARAMETER VerifiedPath
+    Where the verified-run record lives. Empty turns the skip-if-unchanged feature off: steps 1-2 always
+    run and nothing is recorded.
+.PARAMETER Force
+    Run steps 1-2 even when the sources match the record.
 .OUTPUTS
     [int] exit code: 0 ok, 1 build failed, 2 GameTests failed, 3 stop declined or failed, 4 client died.
 #>
@@ -584,31 +704,49 @@ function Invoke-DeployFlow {
         [Parameter(Mandatory)][string] $RepoRoot,
         [Parameter(Mandatory)][scriptblock] $Build,
         [Parameter(Mandatory)][scriptblock] $RunGameTests,
-        [Parameter(Mandatory)][scriptblock] $LaunchClient
+        [Parameter(Mandatory)][scriptblock] $LaunchClient,
+        [AllowNull()][AllowEmptyString()][string] $Fingerprint = $null,
+        [string] $VerifiedPath = '',
+        [switch] $Force
     )
-    # Step 1: automated checks (the commit gate). No timeout: a cold run takes 5-15 min.
-    Write-Host '== Step 1: spotlessCheck build'
-    $code = & $Build
-    if ($code -ne 0) {
-        Write-Host "Build failed (gradlew exit $code)."
-        return $script:ExitBuildFailed
-    }
+    # Steps 1-2 are skipped only when the sources are byte-for-byte what the last passing run checked
+    # and classes exist to launch from (runClient recompiles anything missing). A running server is
+    # never evidence that tests pass, so nothing else skips the GameTests.
     $stamp = Get-BuildStamp -RepoRoot $RepoRoot
-    Write-Host (Format-BuildStamp -BuildStampUtc $stamp)
+    $verified = if ($VerifiedPath) { Get-VerifiedState -Fingerprint $Fingerprint -VerifiedPath $VerifiedPath } else { 'Off' }
+    if ($verified -eq 'Current' -and -not $Force -and $null -ne $stamp) {
+        Write-Host '== Steps 1-2 skipped: the sources match the last verified run (build and GameTests passed). Use -Force to run them anyway.'
+        Write-Host (Format-BuildStamp -BuildStampUtc $stamp)
+    } else {
+        # Step 1: automated checks (the commit gate). No timeout: a cold run takes 5-15 min.
+        Write-Host '== Step 1: spotlessCheck build'
+        $code = & $Build
+        if ($code -ne 0) {
+            Write-Host "Build failed (gradlew exit $code)."
+            return $script:ExitBuildFailed
+        }
+        $stamp = Get-BuildStamp -RepoRoot $RepoRoot
+        Write-Host (Format-BuildStamp -BuildStampUtc $stamp)
 
-    # Step 2: server GameTests. Always run; a running server is not a passing test run.
-    Write-Host '== Step 2: server GameTests'
-    $servers = @(Get-Instances -RepoRoot $RepoRoot | Where-Object { $_.Kind -ne 'Client' })
-    Write-InstanceList -Instances $servers -BuildStampUtc $stamp -What 'servers'
-    $toStop = @(Select-InstancesToStop -Instances $servers -BuildStampUtc $stamp -Step Servers)
-    if (-not (Invoke-StopStep -ToStop $toStop -BuildStampUtc $stamp)) {
-        Write-Host 'Stopping here: an instance was declined or did not exit.'
-        return $script:ExitDeclined
-    }
-    $code = & $RunGameTests
-    if ($code -ne 0) {
-        Write-Host "GameTests failed (gradlew exit $code). Not launching the client."
-        return $script:ExitGameTestsFailed
+        # Step 2: server GameTests.
+        Write-Host '== Step 2: server GameTests'
+        $servers = @(Get-Instances -RepoRoot $RepoRoot | Where-Object { $_.Kind -ne 'Client' })
+        Write-InstanceList -Instances $servers -BuildStampUtc $stamp -What 'servers'
+        $toStop = @(Select-InstancesToStop -Instances $servers -BuildStampUtc $stamp -Step Servers)
+        if (-not (Invoke-StopStep -ToStop $toStop -BuildStampUtc $stamp)) {
+            Write-Host 'Stopping here: an instance was declined or did not exit.'
+            return $script:ExitDeclined
+        }
+        $code = & $RunGameTests
+        if ($code -ne 0) {
+            Write-Host "GameTests failed (gradlew exit $code). Not launching the client."
+            return $script:ExitGameTestsFailed
+        }
+        # The fingerprint was taken before the build, so an edit made while the checks ran is not
+        # covered by this record and the next run redoes them.
+        if ($VerifiedPath -and $Fingerprint) {
+            Save-VerifiedFingerprint -Fingerprint $Fingerprint -VerifiedPath $VerifiedPath
+        }
     }
 
     # Step 3: dev client.

@@ -8,14 +8,18 @@
     Exit codes: 0 ok (client launched or already current); 1 not in a repo or the build failed;
     2 GameTests failed; 3 an instance had to stop and the user declined, could not be asked, or it did
     not exit or could not be stopped; 4 the client launch process died within 15 s.
+    The build and the GameTests are skipped when the sources (src/ and the Gradle files) are
+    identical to the last run whose checks passed; the record is build\deploy\verified.txt.
 .PARAMETER CheckOnly
-    Print the build stamp and the running instances with their verdicts, then exit 0.
-    Builds, stops and launches nothing.
+    Print the build stamp, whether the sources match the last verified run, and the running
+    instances with their verdicts, then exit 0. Builds, stops and launches nothing.
+.PARAMETER Force
+    Run the build and the GameTests even when the sources match the last verified run.
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File scripts\Deploy-TestEnv.ps1
 #>
 [CmdletBinding()]
-param([switch] $CheckOnly)
+param([switch] $CheckOnly, [switch] $Force)
 
 Set-StrictMode -Version 2.0
 # No global $ErrorActionPreference = 'Stop': when this script's output is redirected, Windows
@@ -31,9 +35,14 @@ if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'gradlew.bat') -PathType L
 }
 Set-Location -LiteralPath $repoRoot
 
+# Taken before any build, so an edit made while the checks run is not covered by the record.
+$fingerprint = Get-InputFingerprint -RepoRoot $repoRoot
+$verifiedPath = Join-Path $repoRoot 'build\deploy\verified.txt'
+
 if ($CheckOnly) {
     $stamp = Get-BuildStamp -RepoRoot $repoRoot
     Write-Host (Format-BuildStamp -BuildStampUtc $stamp)
+    Write-Host (Format-VerifiedLine -State (Get-VerifiedState -Fingerprint $fingerprint -VerifiedPath $verifiedPath))
     Write-InstanceList -Instances @(Get-Instances -RepoRoot $repoRoot) -BuildStampUtc $stamp -What 'instances'
     exit 0
 }
@@ -42,5 +51,6 @@ if ($CheckOnly) {
 $exitCode = Invoke-DeployFlow -RepoRoot $repoRoot `
     -Build { & .\gradlew.bat spotlessCheck build | Out-Host; $LASTEXITCODE } `
     -RunGameTests { & .\gradlew.bat runGameTestServer | Out-Host; $LASTEXITCODE } `
-    -LaunchClient ({ Start-DevClient -RepoRoot $repoRoot }.GetNewClosure())
+    -LaunchClient ({ Start-DevClient -RepoRoot $repoRoot }.GetNewClosure()) `
+    -Fingerprint $fingerprint -VerifiedPath $verifiedPath -Force:$Force
 exit $exitCode

@@ -1,7 +1,7 @@
 # Spellcraft: test-environment deploy script (design)
 
 **Date:** 2026-10-01
-**Status:** Reviewed 2026-10-01 (fixes applied); plan: [`2026-10-01-deploy-test-env.md`](../plans/2026-10-01-deploy-test-env.md)
+**Status:** Reviewed 2026-10-01 (fixes applied); skip-if-unchanged added 2026-11-12 (not part of that review); plan: [`2026-10-01-deploy-test-env.md`](../plans/2026-10-01-deploy-test-env.md)
 **Target:** Windows 11, Windows PowerShell 5.1, Java 25 (Temurin), Gradle wrapper
 
 ## Summary
@@ -31,6 +31,8 @@ Pester 3.4 (built into Windows PowerShell 5.1). The script itself is the thin fl
 | **Instance** | A `java.exe` process running the dev client, the GameTest server or the dedicated server **from this checkout** (not the Gradle daemon, not another checkout or worktree). |
 | **Up to date** | The instance's start time is strictly later than the build stamp. |
 | **Stale** | Not up to date: started at or before the build stamp, or there is no build stamp. It may be running older code than what is on disk. |
+| **Input fingerprint** | A SHA-256 over the path and contents of every file git tracks or could track (untracked counts, git-ignored does not) under `src/`, `build.gradle`, `settings.gradle`, `gradle.properties`, `gradle/`, `gradlew` and `gradlew.bat`, as the working tree has them now, committed or not. Docs, scripts and build output are not inputs. |
+| **Verified run** | A run whose build and GameTests passed. `build\deploy\verified.txt` holds the input fingerprint taken before that run's build. |
 
 ## Why the build stamp is not the jar
 
@@ -48,6 +50,29 @@ not move the stamp, and a running instance stays up to date.
 
 The stamp is computed after step 1, because the build is what changes it.
 
+### Skipping unchanged runs (steps 1 and 2)
+
+The GameTests take minutes and never count as up to date to Gradle, so the script keeps its own
+record. Before anything runs it takes the input fingerprint and compares it with
+`build\deploy\verified.txt`:
+
+- **Current** (identical), `-Force` not given, and the build stamp exists (classes are on disk):
+  steps 1 and 2 are skipped, with a line saying so. Step 3 runs as usual: stale clients still need
+  the prompt, and `runClient` itself recompiles anything missing.
+- Anything else (**Changed**, **None** because no record exists or it is empty, **Unknown**
+  because git could not list or read the sources, `-Force`, or no classes): steps 1 and 2 run.
+- After step 2 passes, the fingerprint taken at the start is written to the record. It is not
+  written after a failed build, failed GameTests or a declined stop, and not when the fingerprint
+  is unknown. Because it was taken before the build, an edit made while the checks ran is not
+  covered and the next run redoes them. A write failure only prints a line.
+
+The record sits under `build\`, so `gradlew clean` deletes it and the next run is a full one. The
+comparison is exact (case-sensitive), and uses file contents, not times, so touching a file
+without changing it does not defeat the skip and a reverted edit matches the old record again.
+
+The dev client still runs from the class directories, not the jar (see the section above), so a
+saved jar would not be what is launched; the fingerprint stands in for it.
+
 ### Step 0: locate the repo
 
 `Set-Location` to the repo root. Fail with exit code 1 and a message if `gradlew.bat` is not
@@ -61,8 +86,8 @@ Non-zero exit: stop, exit 1.
 
 ### Step 2: server GameTests
 
-GameTests always run. A running server is not evidence that the tests pass, so an up-to-date
-instance never skips them.
+Unless skipped (see above), the GameTests run. A running server is not evidence that the tests
+pass, so an up-to-date instance never skips them; only a matching verified run does.
 
 1. Find server instances and print them.
 2. Instances that must stop first (an up-to-date dedicated server is left running):
@@ -129,7 +154,8 @@ step 1) and goes back to Will.
 
 ## `-CheckOnly`
 
-Prints the build stamp and each running instance (type, PID, start time, up-to-date or stale
+Prints the build stamp, whether the sources match the last verified run (and so whether the next
+run skips steps 1 and 2), and each running instance (type, PID, start time, up-to-date or stale
 verdict), then exits 0 without building, stopping or launching anything. This is how detection
 is tested without a 15-minute build, and it is a useful read-only status command.
 
@@ -147,8 +173,10 @@ is tested without a 15-minute build, and it is a useful read-only status command
 
 - Playtesting. The script launches the client; whether the game looks and feels right is
   Will's, via `docs/playtest-checklist.md`.
-- Build caching, retries, parallelism and any CI integration (the Pester tests run by hand; CI
-  is Linux).
+- Retries, parallelism and any CI integration (the Pester tests run by hand; CI is Linux).
+- Caching the build itself: Gradle does that. Only the skip of a whole passing run is the script's
+  (see "Skipping unchanged runs").
+- Launching from a saved jar (the dev client loads class directories).
 - Stopping Gradle daemons.
 - Launching a dedicated server.
 - A `.bat` wrapper.
@@ -157,7 +185,11 @@ is tested without a 15-minute build, and it is a useful read-only status command
 
 Pester 3.4 unit tests (`scripts/tests/DeployTestEnv.Tests.ps1`) cover the pure parts:
 command-line classification, the build stamp, the verdict, which instances must stop, the
-prompt decision and the status formatting. Process discovery is tested with mocked
+prompt decision and the status formatting. The input fingerprint is tested on real throwaway git
+repos (edit, add, delete, move, ignored files, not a repo); the skip decision with a mocked
+verified state; the record with real files. Each skip guard (exact compare, build stamp, `-Force`,
+path in the hash, save only after the GameTests pass) has a test that fails when it is broken
+(hand-made mutations, 2026-11-12). Process discovery is tested with mocked
 `Get-CimInstance` and `Get-Process`; the repo-root forms use real junctions and 8.3 names; and
 the stop guard is also run against real throwaway `ping.exe` processes. Each guard on the stop
 path has a test that fails when the guard is broken (checked by hand-made mutations,

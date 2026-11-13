@@ -960,3 +960,253 @@ Describe 'Invoke-DeployFlow' {
         }
     }
 }
+
+Describe 'Get-InputFingerprint' {
+    function New-GitRepo([string] $Name) {
+        $repo = Join-Path $TestDrive $Name
+        New-Item -ItemType Directory -Path $repo | Out-Null
+        git -C $repo init -q 2>$null | Out-Null
+        $repo
+    }
+    function Set-Text([string] $Repo, [string] $Relative, [string] $Text) {
+        $path = Join-Path $Repo $Relative
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path) | Out-Null
+        Set-Content -LiteralPath $path -Value $Text -Encoding ASCII
+    }
+    function New-InputRepo([string] $Name) {
+        $repo = New-GitRepo $Name
+        Set-Text $repo 'src\main\A.java' 'class A {}'
+        Set-Text $repo 'build.gradle' 'plugins {}'
+        Set-Text $repo 'gradle.properties' 'a=1'
+        Set-Text $repo 'docs\notes.md' 'notes'
+        $repo
+    }
+
+    It 'is the same for the same contents' {
+        $repo = New-InputRepo 'same'
+        Get-InputFingerprint -RepoRoot $repo | Should Be (Get-InputFingerprint -RepoRoot $repo)
+        Get-InputFingerprint -RepoRoot $repo | Should Not BeNullOrEmpty
+    }
+    It 'changes when a source file changes' {
+        $repo = New-InputRepo 'src-edit'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        Set-Text $repo 'src\main\A.java' 'class A { int x; }'
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'changes when a build file changes' {
+        $repo = New-InputRepo 'build-edit'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        Set-Text $repo 'gradle.properties' 'a=2'
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'changes when a Gradle wrapper file changes' {
+        $repo = New-InputRepo 'wrapper-edit'
+        Set-Text $repo 'gradle\wrapper\gradle-wrapper.properties' 'v=1'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        Set-Text $repo 'gradle\wrapper\gradle-wrapper.properties' 'v=2'
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'changes when a new file appears under src, tracked or not' {
+        $repo = New-InputRepo 'src-new'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        Set-Text $repo 'src\main\B.java' 'class B {}'
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'changes when a tracked source file is deleted' {
+        $repo = New-InputRepo 'src-delete'
+        Set-Text $repo 'src\main\B.java' 'class B {}'
+        git -C $repo add -A 2>$null | Out-Null
+        $before = Get-InputFingerprint -RepoRoot $repo
+        Remove-Item -LiteralPath (Join-Path $repo 'src\main\B.java')
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'changes when a file moves without changing its contents' {
+        $repo = New-InputRepo 'src-move'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        New-Item -ItemType Directory -Force -Path (Join-Path $repo 'src\other') | Out-Null
+        Move-Item -LiteralPath (Join-Path $repo 'src\main\A.java') -Destination (Join-Path $repo 'src\other\A.java')
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'ignores docs, build output and git-ignored files under src' {
+        $repo = New-InputRepo 'ignored'
+        Set-Text $repo '.gitignore' "*.tmp`nbuild/"
+        Set-Text $repo 'src\main\keep.txt' 'k'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        Set-Text $repo 'docs\notes.md' 'other notes'
+        Set-Text $repo 'build\classes\X.class' 'x'
+        Set-Text $repo 'src\main\scratch.tmp' 'scratch'
+        Get-InputFingerprint -RepoRoot $repo | Should Be $before
+    }
+    It 'is null outside a git repository' {
+        $dir = Join-Path $TestDrive 'not-a-repo'
+        New-Item -ItemType Directory -Path $dir | Out-Null
+        Get-InputFingerprint -RepoRoot $dir | Should BeNullOrEmpty
+    }
+}
+
+Describe 'Get-VerifiedState and Save-VerifiedFingerprint' {
+    It 'is None when nothing has been recorded' {
+        Get-VerifiedState -Fingerprint 'abc' -VerifiedPath (Join-Path $TestDrive 'v1\verified.txt') | Should Be 'None'
+    }
+    It 'is None when the record is empty' {
+        $path = Join-Path $TestDrive 'v2\verified.txt'
+        New-Item -ItemType Directory -Path (Split-Path -Parent $path) | Out-Null
+        Set-Content -LiteralPath $path -Value '' -Encoding ASCII
+        Get-VerifiedState -Fingerprint 'abc' -VerifiedPath $path | Should Be 'None'
+    }
+    It 'is Current after saving the same fingerprint, creating the directory' {
+        $path = Join-Path $TestDrive 'v3\build\deploy\verified.txt'
+        Save-VerifiedFingerprint -Fingerprint 'abc' -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'abc' -VerifiedPath $path | Should Be 'Current'
+    }
+    It 'is Changed for a different fingerprint, and Current again once saved over' {
+        $path = Join-Path $TestDrive 'v4\verified.txt'
+        Save-VerifiedFingerprint -Fingerprint 'abc' -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'def' -VerifiedPath $path | Should Be 'Changed'
+        Save-VerifiedFingerprint -Fingerprint 'def' -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'def' -VerifiedPath $path | Should Be 'Current'
+    }
+    It 'is Unknown when the fingerprint could not be computed, even with a record' {
+        $path = Join-Path $TestDrive 'v5\verified.txt'
+        Save-VerifiedFingerprint -Fingerprint 'abc' -VerifiedPath $path
+        Get-VerifiedState -Fingerprint $null -VerifiedPath $path | Should Be 'Unknown'
+    }
+    It 'compares exactly, not by prefix or case' {
+        $path = Join-Path $TestDrive 'v6\verified.txt'
+        Save-VerifiedFingerprint -Fingerprint 'abc123' -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'abc' -VerifiedPath $path | Should Be 'Changed'
+        Get-VerifiedState -Fingerprint 'ABC123' -VerifiedPath $path | Should Be 'Changed'
+    }
+}
+
+Describe 'Invoke-DeployFlow with a verified record' {
+    Mock -ModuleName DeployTestEnv Write-Host { }
+    Mock -ModuleName DeployTestEnv Get-Content { 'last log line' }
+    Mock -ModuleName DeployTestEnv Get-BuildStamp { [datetime]::SpecifyKind([datetime]'2026-10-01 12:00:00', 'Utc') }
+    Mock -ModuleName DeployTestEnv Stop-Instance { $true }
+    Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }
+    Mock -ModuleName DeployTestEnv Get-Instances { }
+    Mock -ModuleName DeployTestEnv Save-VerifiedFingerprint { }
+
+    function New-Flow([int] $BuildExit = 0, [int] $TestsExit = 0) {
+        $calls = New-Object System.Collections.ArrayList
+        @{
+            Calls        = $calls
+            Build        = { [void]$calls.Add('build'); $BuildExit }.GetNewClosure()
+            RunGameTests = { [void]$calls.Add('tests'); $TestsExit }.GetNewClosure()
+            LaunchClient = { [void]$calls.Add('launch'); [pscustomobject]@{ Started = $true; ProcessId = 1; Log = 'x' } }.GetNewClosure()
+        }
+    }
+    function Invoke-Flow($Flow, [string] $Fingerprint = 'fp1', [switch] $Force) {
+        Invoke-DeployFlow -RepoRoot 'C:\dev\spellcraft' -Build $Flow.Build -RunGameTests $Flow.RunGameTests `
+            -LaunchClient $Flow.LaunchClient -Fingerprint $Fingerprint -VerifiedPath 'C:\v\verified.txt' -Force:$Force
+    }
+
+    Context 'the sources match the last verified run' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Current' }
+
+        It 'skips the build and the GameTests and launches' {
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 0
+            ($f.Calls -join ',') | Should Be 'launch'
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+        It 'says why it skipped' {
+            $f = New-Flow
+            Invoke-Flow $f | Out-Null
+            Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Scope It -ParameterFilter { "$Object" -like '*verified*' }
+        }
+        It 'runs everything under -Force and records the result' {
+            $f = New-Flow
+            Invoke-Flow $f -Force | Should Be 0
+            ($f.Calls -join ',') | Should Be 'build,tests,launch'
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $Fingerprint -eq 'fp1' }
+        }
+        It 'still stops a stale client after y, then launches' {
+            Mock -ModuleName DeployTestEnv Get-Instances {
+                [pscustomobject]@{ Kind = 'Client'; ProcessId = 9; StartTimeUtc = [datetime]::SpecifyKind([datetime]'2026-10-01 11:00:00', 'Utc') }
+            }
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 0
+            ($f.Calls -join ',') | Should Be 'launch'
+            Assert-MockCalled Stop-Instance -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $Instance.ProcessId -eq 9 }
+        }
+        It 'exits 3 without launching when the stale client is not stopped' {
+            Mock -ModuleName DeployTestEnv Confirm-StopInstances { $false }
+            Mock -ModuleName DeployTestEnv Get-Instances {
+                [pscustomobject]@{ Kind = 'Client'; ProcessId = 9; StartTimeUtc = [datetime]::SpecifyKind([datetime]'2026-10-01 11:00:00', 'Utc') }
+            }
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 3
+            ($f.Calls -join ',') | Should Be ''
+        }
+    }
+
+    Context 'the sources match but nothing has been built (no build stamp)' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Current' }
+        Mock -ModuleName DeployTestEnv Get-BuildStamp { $null }
+
+        It 'runs everything' {
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 0
+            ($f.Calls -join ',') | Should Be 'build,tests,launch'
+        }
+    }
+    foreach ($state in 'Changed', 'None', 'Unknown') {
+        Context "the verified state is $state" {
+            Mock -ModuleName DeployTestEnv Get-VerifiedState { $state }.GetNewClosure()
+
+            It 'runs everything and records the fingerprint after the GameTests pass' {
+                $f = New-Flow
+                $fp = if ($state -eq 'Unknown') { '' } else { 'fp1' }
+                Invoke-Flow $f -Fingerprint $fp | Should Be 0
+                ($f.Calls -join ',') | Should Be 'build,tests,launch'
+                if ($state -eq 'Unknown') {
+                    Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+                } else {
+                    Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $Fingerprint -eq 'fp1' -and $VerifiedPath -eq 'C:\v\verified.txt' }
+                }
+            }
+        }
+    }
+
+    Context 'a run that does not pass' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Changed' }
+
+        It 'records nothing after a failed build' {
+            Invoke-Flow (New-Flow -BuildExit 1) | Should Be 1
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+        It 'records nothing after failed GameTests' {
+            Invoke-Flow (New-Flow -TestsExit 1) | Should Be 2
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+        It 'records nothing when a GameTest server was not stopped' {
+            Mock -ModuleName DeployTestEnv Confirm-StopInstances { $false }
+            Mock -ModuleName DeployTestEnv Get-Instances {
+                [pscustomobject]@{ Kind = 'GameTestServer'; ProcessId = 8; StartTimeUtc = [datetime]::SpecifyKind([datetime]'2026-10-01 13:00:00', 'Utc') }
+            }
+            Invoke-Flow (New-Flow) | Should Be 3
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+    }
+
+    Context 'no verified path is given (the feature is off)' {
+        It 'runs everything and records nothing' {
+            Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Current' }
+            $f = New-Flow
+            Invoke-DeployFlow -RepoRoot 'C:\dev\spellcraft' -Build $f.Build -RunGameTests $f.RunGameTests -LaunchClient $f.LaunchClient | Should Be 0
+            ($f.Calls -join ',') | Should Be 'build,tests,launch'
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+    }
+}
+
+Describe 'Format-VerifiedLine' {
+    It 'says what the next run will do for each state' {
+        Format-VerifiedLine -State 'Current' | Should Match 'skips'
+        Format-VerifiedLine -State 'Changed' | Should Match 'changed'
+        Format-VerifiedLine -State 'None' | Should Match 'no passing run'
+        Format-VerifiedLine -State 'Unknown' | Should Match 'cannot tell'
+    }
+}
