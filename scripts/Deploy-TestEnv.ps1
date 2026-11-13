@@ -5,17 +5,23 @@
     Spec: docs/superpowers/specs/2026-10-01-deploy-test-env-design.md
     The flow lives in Invoke-DeployFlow (scripts/DeployTestEnv.psm1); this script supplies the real
     Gradle steps. Running instances that must stop are stopped only after a y; non-interactive runs answer N.
-    Exit codes: 0 ok (client launched or already current); 1 not in a repo or the build failed;
-    2 GameTests failed; 3 an instance had to stop and the user declined, could not be asked, or it did
-    not exit or could not be stopped; 4 the client launch process died within 15 s.
+    Exit codes: 0 ok (client launched or already current); 1 not in a repo, the build failed, or the
+    verified-run record could not be cleared; 2 GameTests failed; 3 an instance had to stop and the
+    user declined, could not be asked, or it did not exit or could not be stopped; 4 the client launch
+    process died within 15 s.
+    The build and the GameTests are skipped when the sources (src/, the Gradle files, .gitattributes
+    and the Evoking functional spec) and the compiled classes are identical to the last run whose checks passed; the
+    record is build\deploy\verified.txt.
 .PARAMETER CheckOnly
-    Print the build stamp and the running instances with their verdicts, then exit 0.
-    Builds, stops and launches nothing.
+    Print the build stamp, whether the sources match the last verified run, and the running
+    instances with their verdicts, then exit 0. Builds, stops and launches nothing.
+.PARAMETER Force
+    Run the build and the GameTests even when the sources match the last verified run.
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File scripts\Deploy-TestEnv.ps1
 #>
 [CmdletBinding()]
-param([switch] $CheckOnly)
+param([switch] $CheckOnly, [switch] $Force)
 
 Set-StrictMode -Version 2.0
 # No global $ErrorActionPreference = 'Stop': when this script's output is redirected, Windows
@@ -31,9 +37,20 @@ if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'gradlew.bat') -PathType L
 }
 Set-Location -LiteralPath $repoRoot
 
+# Both are taken before any build; the flow takes them again after the GameTests (fingerprint first,
+# write signature second) and records the run only if both are unchanged, so an edit made while the
+# checks run is never recorded as verified. The write signature (sizes and write times) catches an
+# edit that was reverted, which the content fingerprint cannot. It is taken first so the two
+# signatures bracket the two fingerprints: a file written while the fingerprint is being computed
+# changes a signature on one side or the other.
+$writeSignature = Get-InputWriteSignature -RepoRoot $repoRoot
+$fingerprint = Get-InputFingerprint -RepoRoot $repoRoot
+$verifiedPath = Join-Path $repoRoot 'build\deploy\verified.txt'
+
 if ($CheckOnly) {
     $stamp = Get-BuildStamp -RepoRoot $repoRoot
     Write-Host (Format-BuildStamp -BuildStampUtc $stamp)
+    Write-Host (Format-VerifiedLine -State (Get-VerifiedState -Fingerprint $fingerprint -BuildStampUtc $stamp -VerifiedPath $verifiedPath))
     Write-InstanceList -Instances @(Get-Instances -RepoRoot $repoRoot) -BuildStampUtc $stamp -What 'instances'
     exit 0
 }
@@ -42,5 +59,6 @@ if ($CheckOnly) {
 $exitCode = Invoke-DeployFlow -RepoRoot $repoRoot `
     -Build { & .\gradlew.bat spotlessCheck build | Out-Host; $LASTEXITCODE } `
     -RunGameTests { & .\gradlew.bat runGameTestServer | Out-Host; $LASTEXITCODE } `
-    -LaunchClient ({ Start-DevClient -RepoRoot $repoRoot }.GetNewClosure())
+    -LaunchClient ({ Start-DevClient -RepoRoot $repoRoot }.GetNewClosure()) `
+    -WriteSignature $writeSignature -Fingerprint $fingerprint -VerifiedPath $verifiedPath -Force:$Force
 exit $exitCode

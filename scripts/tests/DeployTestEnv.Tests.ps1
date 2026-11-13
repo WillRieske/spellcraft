@@ -1,5 +1,5 @@
 # Pester 3.4 (built into Windows PowerShell 5.1). Run:
-#   powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Path scripts/tests -EnableExit"
+#   powershell -NoProfile -ExecutionPolicy Bypass -Command "Import-Module Pester -RequiredVersion 3.4.0; Invoke-Pester -Path scripts/tests -EnableExit"
 # ASCII only.
 
 Import-Module (Join-Path $PSScriptRoot '..\DeployTestEnv.psm1') -Force
@@ -45,6 +45,58 @@ function global:New-FakeProcess {
     $p | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value ({ param($ms) $global:WaitMs += $ms; $Exits }.GetNewClosure())
     $p | Add-Member -MemberType ScriptMethod -Name Kill -Value $OnKill
     $p
+}
+
+# A fixed UTC instant for tests that need a build stamp or a write time. Mock bodies and
+# -ParameterFilter blocks run in the module's scope and cannot see it; they keep the literal.
+$Utc20261001 = [datetime]::SpecifyKind([datetime]'2026-10-01 12:00:00', 'Utc')
+
+# Writes a text file under a repo, creating its directories.
+function Set-Text([string] $Repo, [string] $Relative, [string] $Text) {
+    $path = Join-Path $Repo $Relative
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path) | Out-Null
+    Set-Content -LiteralPath $path -Value $Text -Encoding ASCII
+}
+
+# Returns the path of a new repo under $TestDrive holding a few inputs and one ignored doc;
+# -Built adds a compiled class.
+function New-InputRepo([string] $Name, [switch] $Built) {
+    $repo = Join-Path $TestDrive $Name
+    New-Item -ItemType Directory -Path $repo | Out-Null
+    Set-Text $repo 'src\main\A.java' 'class A {}'
+    Set-Text $repo 'build.gradle' 'plugins {}'
+    Set-Text $repo 'gradle.properties' 'a=1'
+    Set-Text $repo 'docs\notes.md' 'notes'
+    if ($Built) { Set-Text $repo 'build\classes\java\main\A.class' 'a' }
+    $repo
+}
+
+# Creates a directory junction (needs no privilege). Remove it with Remove-Junction before the test
+# ends: rmdir on a junction removes only the link, so $TestDrive cleanup never follows it.
+function New-Junction([string] $Link, [string] $Target) {
+    cmd /c mklink /J "$Link" "$Target" | Out-Null
+}
+function Remove-Junction([string] $Link) {
+    cmd /c rmdir "$Link" | Out-Null
+}
+
+# Classifies Java string literals (as written in the source, escapes included) that may name a file
+# outside what the build is known to read. Returns the ones to worry about:
+#   (a) a parent-directory segment ('../', '..\\' or exactly '..'), or
+#   (b) a '/' or a backslash, and a first path segment that names something at the repo root
+#       ($RootNames), and the path is neither an input nor under an input directory ($Inputs, '/' form).
+# Conservative on purpose: a false positive is cheap (an allow-list entry), a miss is a stale skip.
+function Get-UncoveredJavaPaths([string[]] $Literals, [string[]] $RootNames, [string[]] $Inputs) {
+    foreach ($literal in $Literals) {
+        if ($literal.IndexOf('/') -lt 0 -and $literal.IndexOf([char]92) -lt 0 -and $literal -ne '..') { continue }
+        if ($literal -match '(^|[/\\])\.\.([/\\]|$)') { $literal; continue }
+        $segments = @($literal -split '[/\\]+' | Where-Object { $_ })
+        if ($segments.Count -eq 0) { continue }
+        $first = $segments[0]
+        if (-not ($RootNames | Where-Object { $first -ieq $_ })) { continue }
+        $normal = $segments -join '/'
+        if (-not ($Inputs | Where-Object { $normal -ceq $_ -or $normal.StartsWith($_ + '/', [StringComparison]::Ordinal) })) { $literal }
+    }
 }
 
 $ClientLine = New-RunLine $Root 'clientRun'
@@ -958,5 +1010,841 @@ Describe 'Invoke-DeployFlow' {
             Invoke-Flow $f | Should Be 0
             ($f.Calls -join ',') | Should Be 'build,tests'
         }
+    }
+}
+
+Describe 'Get-InputFingerprint' {
+    $FunctionalSpec = 'docs\superpowers\specs\evoking\evoking-functional-spec.md'
+    # Java string literals the path scan flags that are not file reads. Each entry needs a comment saying why.
+    $JavaPathAllowList = @()
+
+    It 'is the same for the same contents' {
+        $repo = New-InputRepo 'same'
+        Get-InputFingerprint -RepoRoot $repo | Should Be (Get-InputFingerprint -RepoRoot $repo)
+        Get-InputFingerprint -RepoRoot $repo | Should Not BeNullOrEmpty
+    }
+    It 'changes when a source file changes' {
+        $repo = New-InputRepo 'src-edit'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        Set-Text $repo 'src\main\A.java' 'class A { int x; }'
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'changes when a build file changes' {
+        $repo = New-InputRepo 'build-edit'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        Set-Text $repo 'gradle.properties' 'a=2'
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'changes when a Gradle wrapper file changes' {
+        $repo = New-InputRepo 'wrapper-edit'
+        Set-Text $repo 'gradle\wrapper\gradle-wrapper.properties' 'v=1'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        Set-Text $repo 'gradle\wrapper\gradle-wrapper.properties' 'v=2'
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'changes when a new file appears under src, tracked or not' {
+        $repo = New-InputRepo 'src-new'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        Set-Text $repo 'src\main\B.java' 'class B {}'
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'changes when a source file is deleted' {
+        $repo = New-InputRepo 'src-delete'
+        Set-Text $repo 'src\main\B.java' 'class B {}'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        Remove-Item -LiteralPath (Join-Path $repo 'src\main\B.java')
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'changes when a file moves without changing its contents' {
+        $repo = New-InputRepo 'src-move'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        New-Item -ItemType Directory -Force -Path (Join-Path $repo 'src\other') | Out-Null
+        Move-Item -LiteralPath (Join-Path $repo 'src\main\A.java') -Destination (Join-Path $repo 'src\other\A.java')
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    foreach ($file in 'settings.gradle', 'gradlew', 'gradlew.bat', '.gitattributes') {
+        It "changes when $file changes" {
+            $repo = New-InputRepo "edit-$file"
+            Set-Text $repo $file 'one'
+            $before = Get-InputFingerprint -RepoRoot $repo
+            Set-Text $repo $file 'two'
+            Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+        }
+    }
+    It 'changes when the Evoking functional spec changes (FunctionalSpecReferencesTest reads it in the build)' {
+        $repo = New-InputRepo 'spec-edit'
+        Set-Text $repo $FunctionalSpec '3.4 one'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        Set-Text $repo $FunctionalSpec '3.4 one 3.5 two'
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'ignores other docs, scripts and build output' {
+        $repo = New-InputRepo 'ignored'
+        Set-Text $repo 'scripts\tool.ps1' 'a'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        Set-Text $repo 'docs\notes.md' 'other notes'
+        Set-Text $repo 'scripts\tool.ps1' 'b'
+        Set-Text $repo 'build\classes\X.class' 'x'
+        Get-InputFingerprint -RepoRoot $repo | Should Be $before
+    }
+    It 'counts a git-ignored file under src (Gradle packages it whatever git thinks)' {
+        $repo = New-InputRepo 'git-ignored'
+        git -C $repo init -q 2>$null | Out-Null
+        Set-Text $repo '.gitignore' '*.tmp'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        Set-Text $repo 'src\main\resources\scratch.tmp' 'scratch'
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'sees an edit to a file with a non-ASCII name' {
+        $repo = New-InputRepo 'non-ascii'
+        $name = 'src\main\caf' + [char]0xE9 + '.txt'
+        Set-Text $repo $name 'one'
+        $before = Get-InputFingerprint -RepoRoot $repo
+        $before | Should Not BeNullOrEmpty
+        Set-Text $repo $name 'two'
+        Get-InputFingerprint -RepoRoot $repo | Should Not Be $before
+    }
+    It 'does not depend on the form of the root (trailing separator)' {
+        $repo = New-InputRepo 'root-form'
+        Get-InputFingerprint -RepoRoot ($repo + '\') | Should Be (Get-InputFingerprint -RepoRoot $repo)
+    }
+    It 'is null when a source file cannot be read, and says why' {
+        Mock -ModuleName DeployTestEnv Write-Host { }
+        $repo = New-InputRepo 'locked'
+        $lock = [System.IO.File]::Open((Join-Path $repo 'src\main\A.java'), 'Open', 'ReadWrite', 'None')
+        try {
+            Get-InputFingerprint -RepoRoot $repo | Should BeNullOrEmpty
+            Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { "$Object" -like '*Could not read the sources*A.java*' }
+        } finally {
+            $lock.Dispose()
+        }
+    }
+    It 'is null when none of the inputs exist' {
+        $dir = Join-Path $TestDrive 'no-inputs'
+        New-Item -ItemType Directory -Path $dir | Out-Null
+        Get-InputFingerprint -RepoRoot $dir | Should BeNullOrEmpty
+    }
+    It 'is null when the root does not exist' {
+        Get-InputFingerprint -RepoRoot (Join-Path $TestDrive 'missing-root') | Should BeNullOrEmpty
+    }
+    It 'is null when a directory under src is denied to the lister, and says why' {
+        # A mock cannot tell -ErrorAction Stop from SilentlyContinue, so this one uses a real denied directory.
+        Mock -ModuleName DeployTestEnv Write-Host { }
+        $repo = New-InputRepo 'denied-real'
+        Set-Text $repo 'src\main\sub\B.java' 'class B {}'
+        $dir = Join-Path $repo 'src\main\sub'
+        icacls $dir /deny '*S-1-1-0:(RD)' | Out-Null
+        try {
+            Get-InputFingerprint -RepoRoot $repo | Should BeNullOrEmpty
+            Get-InputWriteSignature -RepoRoot $repo | Should BeNullOrEmpty
+            Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Times 2 -Exactly -Scope It -ParameterFilter { "$Object" -like '*Could not read the sources*' }
+        } finally {
+            icacls $dir /remove:d '*S-1-1-0' | Out-Null
+        }
+    }
+    Context 'the listing of a directory throws' {
+        Mock -ModuleName DeployTestEnv Write-Host { }
+        Mock -ModuleName DeployTestEnv Get-ChildItem { throw (New-Object System.UnauthorizedAccessException 'Access to the path is denied.') }
+
+        It 'is null, and says the sources could not be read' {
+            $repo = New-InputRepo 'denied-mock'
+            Get-InputFingerprint -RepoRoot $repo | Should BeNullOrEmpty
+            Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { "$Object" -like '*Could not read the sources*denied*' }
+        }
+    }
+    Context 'a listed file lies outside the root' {
+        Mock -ModuleName DeployTestEnv Get-ChildItem { New-Object System.IO.FileInfo (Join-Path $env:windir 'win.ini') }
+
+        It 'is null' {
+            $repo = New-InputRepo 'outside-root'
+            Get-InputFingerprint -RepoRoot $repo | Should BeNullOrEmpty
+        }
+    }
+    It 'is null for a junction under src, and names it, because Gradle follows links and the lister does not' {
+        Mock -ModuleName DeployTestEnv Write-Host { }
+        $repo = New-InputRepo 'junction'
+        $outside = Join-Path $TestDrive 'junction-outside'
+        Set-Text $outside 'X.java' 'class X {}'
+        $link = Join-Path $repo 'src\linked'
+        New-Junction $link $outside
+        try {
+            Get-InputFingerprint -RepoRoot $repo | Should BeNullOrEmpty
+            Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { "$Object" -eq 'Could not verify the sources: src/linked is a link (junction or symlink).' }
+        } finally {
+            Remove-Junction $link
+        }
+    }
+    It 'is null for a junction deeper under src' {
+        $repo = New-InputRepo 'junction-deep'
+        $outside = Join-Path $TestDrive 'junction-deep-outside'
+        Set-Text $outside 'X.java' 'class X {}'
+        $link = Join-Path $repo 'src\main\linked'
+        New-Junction $link $outside
+        try {
+            Get-InputFingerprint -RepoRoot $repo | Should BeNullOrEmpty
+        } finally {
+            Remove-Junction $link
+        }
+    }
+    It 'is null when an input directory is itself a junction' {
+        $repo = New-InputRepo 'junction-input'
+        $outside = Join-Path $TestDrive 'junction-input-outside'
+        Set-Text $outside 'wrapper.properties' 'v=1'
+        $link = Join-Path $repo 'gradle'
+        New-Junction $link $outside
+        try {
+            Get-InputFingerprint -RepoRoot $repo | Should BeNullOrEmpty
+        } finally {
+            Remove-Junction $link
+        }
+    }
+    It 'classifies Java string literals: flags paths that may leave the inputs, ignores the rest' {
+        $rootNames = 'docs', 'scripts', 'run', 'build', 'gradle', 'config', '.claude', 'src'
+        $inputs = 'src', 'gradle', 'docs/superpowers/specs/evoking/evoking-functional-spec.md'
+        $literals = 'docs/api-notes.md', '../docs/x.md', 'run/config/x.toml', 'scripts\\x.ps1', '..\\docs\\x.md', '..',
+        'src/main/resources/x.json', 'docs/superpowers/specs/evoking/evoking-functional-spec.md',
+        'textures/entity/vex.png', 'spellcraft:mirror', 'run', 'a/b'
+        $flagged = @(Get-UncoveredJavaPaths $literals $rootNames $inputs)
+        ($flagged -join '|') | Should Be 'docs/api-notes.md|../docs/x.md|run/config/x.toml|scripts\\x.ps1|..\\docs\\x.md|..'
+    }
+    It 'finds no path in any Java string under src that may be read from outside the build inputs' {
+        # A test that reads a file is a build input: FunctionalSpecReferencesTest fails the build when the
+        # functional spec changes. A new path of that kind must join $script:FingerprintInputs. Every
+        # string literal is checked, not only the first argument of Path.of, Paths.get or new File, so a
+        # path held in a constant, resolve("../docs/x") or new FileReader("...") is seen too.
+        $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
+        $inputs = InModuleScope DeployTestEnv { $script:FingerprintInputs }
+        $rootNames = @(Get-ChildItem -LiteralPath $repoRoot -Force | ForEach-Object { $_.Name })
+        $texts = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src') -Recurse -File -Filter '*.java' |
+                ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) })
+        $texts | Should Not BeNullOrEmpty
+        $firstArgument = $texts | ForEach-Object { [regex]::Matches($_, '(?:Path\.of|Paths\.get|new File)\(\s*"([^"]+)"') } |
+            ForEach-Object { $_.Groups[1].Value }
+        $everyLiteral = $texts | ForEach-Object { [regex]::Matches($_, '"((?:[^"\\\r\n]|\\.)*)"') } |
+            ForEach-Object { $_.Groups[1].Value }
+        $notInputs = @($firstArgument | Where-Object {
+                $path = $_
+                -not ($inputs | Where-Object { $path -ceq $_ -or $path.StartsWith($_ + '/', [StringComparison]::Ordinal) })
+            })
+        $found = $notInputs + @(Get-UncoveredJavaPaths @($everyLiteral) $rootNames $inputs)
+        $uncovered = @($found | Sort-Object -Unique | Where-Object { $JavaPathAllowList -notcontains $_ })
+        ($uncovered -join ', ') | Should Be ''
+    }
+}
+
+Describe 'Get-InputWriteSignature' {
+    $FunctionalSpec = 'docs\superpowers\specs\evoking\evoking-functional-spec.md'
+
+    It 'is the same for an untouched tree' {
+        $repo = New-InputRepo 'ws-same'
+        Get-InputWriteSignature -RepoRoot $repo | Should Not BeNullOrEmpty
+        Get-InputWriteSignature -RepoRoot $repo | Should Be (Get-InputWriteSignature -RepoRoot $repo)
+    }
+    It 'does not depend on the form of the root (trailing separator)' {
+        $repo = New-InputRepo 'ws-root-form'
+        Get-InputWriteSignature -RepoRoot ($repo + '\') | Should Be (Get-InputWriteSignature -RepoRoot $repo)
+    }
+    It 'changes when a file changes content' {
+        $repo = New-InputRepo 'ws-edit'
+        $before = Get-InputWriteSignature -RepoRoot $repo
+        Set-Text $repo 'src\main\A.java' 'class A { int x; }'
+        Get-InputWriteSignature -RepoRoot $repo | Should Not Be $before
+    }
+    It 'changes when a file is rewritten with the same content and a new write time' {
+        $repo = New-InputRepo 'ws-rewrite'
+        $file = Join-Path $repo 'src\main\A.java'
+        (Get-Item -LiteralPath $file).LastWriteTimeUtc = $Utc20261001
+        $before = Get-InputWriteSignature -RepoRoot $repo
+        $content = [System.IO.File]::ReadAllBytes($file)
+        [System.IO.File]::WriteAllBytes($file, $content)
+        (Get-Item -LiteralPath $file).LastWriteTimeUtc = $Utc20261001.AddMinutes(7)
+        Get-InputWriteSignature -RepoRoot $repo | Should Not Be $before
+    }
+    It 'changes when a file is added' {
+        $repo = New-InputRepo 'ws-add'
+        $before = Get-InputWriteSignature -RepoRoot $repo
+        Set-Text $repo 'src\main\B.java' 'class B {}'
+        Get-InputWriteSignature -RepoRoot $repo | Should Not Be $before
+    }
+    It 'changes when a file is deleted' {
+        $repo = New-InputRepo 'ws-delete'
+        Set-Text $repo 'src\main\B.java' 'class B {}'
+        $before = Get-InputWriteSignature -RepoRoot $repo
+        Remove-Item -LiteralPath (Join-Path $repo 'src\main\B.java')
+        Get-InputWriteSignature -RepoRoot $repo | Should Not Be $before
+    }
+    It 'changes when a file moves without changing' {
+        $repo = New-InputRepo 'ws-move'
+        $before = Get-InputWriteSignature -RepoRoot $repo
+        New-Item -ItemType Directory -Force -Path (Join-Path $repo 'src\other') | Out-Null
+        Move-Item -LiteralPath (Join-Path $repo 'src\main\A.java') -Destination (Join-Path $repo 'src\other\A.java')
+        Get-InputWriteSignature -RepoRoot $repo | Should Not Be $before
+    }
+    It 'changes when the Evoking functional spec changes' {
+        $repo = New-InputRepo 'ws-spec'
+        Set-Text $repo $FunctionalSpec '3.4 one'
+        $before = Get-InputWriteSignature -RepoRoot $repo
+        Set-Text $repo $FunctionalSpec '3.4 one 3.5 two'
+        Get-InputWriteSignature -RepoRoot $repo | Should Not Be $before
+    }
+    It 'ignores other docs, scripts and build output' {
+        $repo = New-InputRepo 'ws-ignored'
+        Set-Text $repo 'scripts\tool.ps1' 'a'
+        $before = Get-InputWriteSignature -RepoRoot $repo
+        Set-Text $repo 'docs\notes.md' 'other notes'
+        Set-Text $repo 'scripts\tool.ps1' 'b'
+        Set-Text $repo 'build\classes\X.class' 'x'
+        Get-InputWriteSignature -RepoRoot $repo | Should Be $before
+    }
+    It 'is null when none of the inputs exist' {
+        $dir = Join-Path $TestDrive 'ws-no-inputs'
+        New-Item -ItemType Directory -Path $dir | Out-Null
+        Get-InputWriteSignature -RepoRoot $dir | Should BeNullOrEmpty
+    }
+    It 'is null when the root does not exist' {
+        Get-InputWriteSignature -RepoRoot (Join-Path $TestDrive 'ws-missing-root') | Should BeNullOrEmpty
+    }
+    Context 'the listing of a directory throws' {
+        Mock -ModuleName DeployTestEnv Write-Host { }
+        Mock -ModuleName DeployTestEnv Get-ChildItem { throw (New-Object System.UnauthorizedAccessException 'Access to the path is denied.') }
+
+        It 'is null, and says the sources could not be read' {
+            $repo = New-InputRepo 'ws-denied-mock'
+            Get-InputWriteSignature -RepoRoot $repo | Should BeNullOrEmpty
+            Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { "$Object" -like '*Could not read the sources*denied*' }
+        }
+    }
+    It 'is null for a junction under src, and names it' {
+        Mock -ModuleName DeployTestEnv Write-Host { }
+        $repo = New-InputRepo 'ws-junction'
+        $outside = Join-Path $TestDrive 'ws-junction-outside'
+        Set-Text $outside 'X.java' 'class X {}'
+        $link = Join-Path $repo 'src\linked'
+        New-Junction $link $outside
+        try {
+            Get-InputWriteSignature -RepoRoot $repo | Should BeNullOrEmpty
+            Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { "$Object" -eq 'Could not verify the sources: src/linked is a link (junction or symlink).' }
+        } finally {
+            Remove-Junction $link
+        }
+    }
+}
+
+# Runs $Body with the given environment variables set (a $null value removes the variable), then
+# restores the old values.
+function Invoke-WithEnv([hashtable] $Vars, [scriptblock] $Body) {
+    $old = @{}
+    foreach ($name in $Vars.Keys) { $old[$name] = [Environment]::GetEnvironmentVariable($name) }
+    try {
+        foreach ($name in $Vars.Keys) { [Environment]::SetEnvironmentVariable($name, $Vars[$name]) }
+        & $Body
+    } finally {
+        foreach ($name in $old.Keys) { [Environment]::SetEnvironmentVariable($name, $old[$name]) }
+    }
+}
+
+Describe 'Get-GameTestSelectorSource' {
+    $Clear = @{ ORG_GRADLE_PROJECT_gameTests = $null; GRADLE_OPTS = $null; JAVA_OPTS = $null; GRADLE_USER_HOME = $null }
+
+    # A repo root and a Gradle user home, each a directory under $TestDrive, with no properties files.
+    function New-Dirs([string] $Name) {
+        $repo = Join-Path $TestDrive "$Name-repo"
+        $home1 = Join-Path $TestDrive "$Name-home"
+        New-Item -ItemType Directory -Path $repo, $home1 | Out-Null
+        @{ Repo = $repo; Home = $home1 }
+    }
+
+    It 'is null when nothing is set' {
+        $d = New-Dirs 'none'
+        Set-Text $d.Repo 'gradle.properties' "org.gradle.jvmargs=-Xmx2g`r`nfoo=bar"
+        Set-Text $d.Home 'gradle.properties' 'org.gradle.daemon=true'
+        $r = Invoke-WithEnv $Clear { Get-GameTestSelectorSource -RepoRoot $d.Repo -GradleUserHome $d.Home }
+        $r | Should BeNullOrEmpty
+    }
+    It 'is null when neither properties file exists' {
+        $d = New-Dirs 'nofiles'
+        $r = Invoke-WithEnv $Clear { Get-GameTestSelectorSource -RepoRoot $d.Repo -GradleUserHome $d.Home }
+        $r | Should BeNullOrEmpty
+    }
+    It 'names the environment variable ORG_GRADLE_PROJECT_gameTests' {
+        $d = New-Dirs 'env-project'
+        $vars = $Clear.Clone()
+        $vars.ORG_GRADLE_PROJECT_gameTests = 'spellcraft:x'
+        $r = Invoke-WithEnv $vars { Get-GameTestSelectorSource -RepoRoot $d.Repo -GradleUserHome $d.Home }
+        $r | Should Match 'ORG_GRADLE_PROJECT_gameTests'
+    }
+    foreach ($name in 'GRADLE_OPTS', 'JAVA_OPTS') {
+        It "names $name when it carries -Dorg.gradle.project.gameTests" {
+            $d = New-Dirs "env-$name"
+            $vars = $Clear.Clone()
+            $vars[$name] = '-Xmx1g -Dorg.gradle.project.gameTests=spellcraft:x -Dfoo=bar'
+            $r = Invoke-WithEnv $vars { Get-GameTestSelectorSource -RepoRoot $d.Repo -GradleUserHome $d.Home }
+            $r | Should Match $name
+        }
+        It "ignores $name without the property" {
+            $d = New-Dirs "env-other-$name"
+            $vars = $Clear.Clone()
+            $vars[$name] = '-Xmx1g -Dorg.gradle.project.otherGameTests=1 -DgameTests=1'
+            $r = Invoke-WithEnv $vars { Get-GameTestSelectorSource -RepoRoot $d.Repo -GradleUserHome $d.Home }
+            $r | Should BeNullOrEmpty
+        }
+    }
+    foreach ($line in 'gameTests=spellcraft:x', 'gameTests = spellcraft:x', 'gameTests:spellcraft:x', 'gameTests spellcraft:x',
+        'org.gradle.project.gameTests=spellcraft:x', 'systemProp.org.gradle.project.gameTests=spellcraft:x', '  gameTests=x') {
+        It "finds '$line' in the repo's gradle.properties and names the file" {
+            $d = New-Dirs "repo-$($line.GetHashCode())"
+            Set-Text $d.Repo 'gradle.properties' "a=1`r`n$line`r`nb=2"
+            $r = Invoke-WithEnv $Clear { Get-GameTestSelectorSource -RepoRoot $d.Repo -GradleUserHome $d.Home }
+            $r | Should Match ([regex]::Escape((Join-Path $d.Repo 'gradle.properties')))
+        }
+        It "finds '$line' in the Gradle user home's gradle.properties and names the file" {
+            $d = New-Dirs "home-$($line.GetHashCode())"
+            Set-Text $d.Home 'gradle.properties' "a=1`r`n$line`r`nb=2"
+            $r = Invoke-WithEnv $Clear { Get-GameTestSelectorSource -RepoRoot $d.Repo -GradleUserHome $d.Home }
+            $r | Should Match ([regex]::Escape((Join-Path $d.Home 'gradle.properties')))
+        }
+    }
+    foreach ($line in '#gameTests=spellcraft:x', '  # gameTests=x', '!gameTests=x', 'myGameTestsFlag=1', 'gameTestsExtra=1',
+        'gameTests.other=1', 'org.gradle.project.gameTestsExtra=1', 'xgameTests=1', 'a=gameTests=1') {
+        It "does not take '$line' for a selector" {
+            $d = New-Dirs "not-$($line.GetHashCode())"
+            Set-Text $d.Repo 'gradle.properties' "a=1`r`n$line"
+            Set-Text $d.Home 'gradle.properties' $line
+            $r = Invoke-WithEnv $Clear { Get-GameTestSelectorSource -RepoRoot $d.Repo -GradleUserHome $d.Home }
+            $r | Should BeNullOrEmpty
+        }
+    }
+    It 'reads the Gradle user home from GRADLE_USER_HOME when none is passed' {
+        $d = New-Dirs 'userhome-env'
+        Set-Text $d.Home 'gradle.properties' 'gameTests=x'
+        $vars = $Clear.Clone()
+        $vars.GRADLE_USER_HOME = $d.Home
+        $r = Invoke-WithEnv $vars { Get-GameTestSelectorSource -RepoRoot $d.Repo }
+        $r | Should Match ([regex]::Escape((Join-Path $d.Home 'gradle.properties')))
+    }
+    It 'counts a properties file it cannot read as set, and says so' {
+        $d = New-Dirs 'locked'
+        Set-Text $d.Repo 'gradle.properties' 'a=1'
+        $path = Join-Path $d.Repo 'gradle.properties'
+        $lock = [System.IO.File]::Open($path, 'Open', 'ReadWrite', 'None')
+        try {
+            $r = Invoke-WithEnv $Clear { Get-GameTestSelectorSource -RepoRoot $d.Repo -GradleUserHome $d.Home }
+        } finally {
+            $lock.Dispose()
+        }
+        $r | Should Match ([regex]::Escape($path))
+        $r | Should Match 'could not be read'
+    }
+}
+
+Describe 'Get-VerifiedState, Save-VerifiedFingerprint and Clear-VerifiedFingerprint' {
+    $Stamp = $Utc20261001
+
+    It 'is None when nothing has been recorded' {
+        Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath (Join-Path $TestDrive 'v1\verified.txt') | Should Be 'None'
+    }
+    It 'is None when the record is empty' {
+        $path = Join-Path $TestDrive 'v2\verified.txt'
+        New-Item -ItemType Directory -Path (Split-Path -Parent $path) | Out-Null
+        Set-Content -LiteralPath $path -Value '' -Encoding ASCII
+        Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'None'
+    }
+    It 'is Current after saving the same fingerprint and build stamp, creating the directory' {
+        $path = Join-Path $TestDrive 'v3\build\deploy\verified.txt'
+        Save-VerifiedFingerprint -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'Current'
+    }
+    It 'is Changed for a different fingerprint, and Current again once saved over' {
+        $path = Join-Path $TestDrive 'v4\verified.txt'
+        Save-VerifiedFingerprint -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'def' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'Changed'
+        Save-VerifiedFingerprint -Fingerprint 'def' -BuildStampUtc $Stamp -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'def' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'Current'
+    }
+    It 'is Unknown when the fingerprint could not be computed, even with a record' {
+        $path = Join-Path $TestDrive 'v5\verified.txt'
+        Save-VerifiedFingerprint -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path
+        Get-VerifiedState -Fingerprint $null -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'Unknown'
+    }
+    It 'compares exactly, not by prefix or case' {
+        $path = Join-Path $TestDrive 'v6\verified.txt'
+        Save-VerifiedFingerprint -Fingerprint 'abc123' -BuildStampUtc $Stamp -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'Changed'
+        Get-VerifiedState -Fingerprint 'ABC123' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'Changed'
+    }
+    It 'is ClassesDiffer when the sources match but the classes were built since' {
+        $path = Join-Path $TestDrive 'v7\verified.txt'
+        Save-VerifiedFingerprint -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $Stamp.AddTicks(1) -VerifiedPath $path | Should Be 'ClassesDiffer'
+    }
+    It 'is ClassesDiffer when the sources match but nothing is built' {
+        $path = Join-Path $TestDrive 'v8\verified.txt'
+        Save-VerifiedFingerprint -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $null -VerifiedPath $path | Should Be 'ClassesDiffer'
+    }
+    It 'is ClassesDiffer for a record without a build stamp (the first format)' {
+        $path = Join-Path $TestDrive 'v9\verified.txt'
+        New-Item -ItemType Directory -Path (Split-Path -Parent $path) | Out-Null
+        Set-Content -LiteralPath $path -Value 'abc' -Encoding ASCII
+        Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'ClassesDiffer'
+    }
+    It 'is None after clearing, and clearing a missing record is quiet' {
+        $path = Join-Path $TestDrive 'v10\verified.txt'
+        Save-VerifiedFingerprint -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path
+        Clear-VerifiedFingerprint -VerifiedPath $path
+        Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'None'
+        { Clear-VerifiedFingerprint -VerifiedPath $path } | Should Not Throw
+    }
+
+    Context 'the record is locked' {
+        Mock -ModuleName DeployTestEnv Write-Host { }
+
+        It 'is None, and says the record could not be read' {
+            $path = Join-Path $TestDrive 'v11\verified.txt'
+            Save-VerifiedFingerprint -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path
+            $lock = [System.IO.File]::Open($path, 'Open', 'ReadWrite', 'None')
+            try {
+                Get-VerifiedState -Fingerprint 'abc' -BuildStampUtc $Stamp -VerifiedPath $path | Should Be 'None'
+                Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { "$Object" -like '*Could not read the verified-run record*verified.txt*' }
+            } finally {
+                $lock.Dispose()
+            }
+        }
+    }
+}
+
+Describe 'Invoke-DeployFlow with a verified record' {
+    Mock -ModuleName DeployTestEnv Write-Host { }
+    Mock -ModuleName DeployTestEnv Get-Content { 'last log line' }
+    Mock -ModuleName DeployTestEnv Get-BuildStamp { [datetime]::SpecifyKind([datetime]'2026-10-01 12:00:00', 'Utc') }
+    Mock -ModuleName DeployTestEnv Stop-Instance { $true }
+    Mock -ModuleName DeployTestEnv Confirm-StopInstances { $true }
+    Mock -ModuleName DeployTestEnv Get-Instances { }
+    Mock -ModuleName DeployTestEnv Save-VerifiedFingerprint { }
+    Mock -ModuleName DeployTestEnv Clear-VerifiedFingerprint { $true }
+    Mock -ModuleName DeployTestEnv Get-InputFingerprint { 'fp1' }
+    Mock -ModuleName DeployTestEnv Get-InputWriteSignature { 'ws1' }
+    Mock -ModuleName DeployTestEnv Get-GameTestSelectorSource { $null }
+
+    # Returns a hashtable: Calls (the steps that ran) plus the Build, RunGameTests and LaunchClient blocks.
+    function New-Flow([int] $BuildExit = 0, [int] $TestsExit = 0) {
+        $calls = New-Object System.Collections.ArrayList
+        @{
+            Calls        = $calls
+            Build        = { [void]$calls.Add('build'); $BuildExit }.GetNewClosure()
+            RunGameTests = { [void]$calls.Add('tests'); $TestsExit }.GetNewClosure()
+            LaunchClient = { [void]$calls.Add('launch'); [pscustomobject]@{ Started = $true; ProcessId = 1; Log = 'x' } }.GetNewClosure()
+        }
+    }
+    # Runs the flow with the fingerprint 'fp1' and the write signature 'ws1' and returns its exit code.
+    function Invoke-Flow($Flow, [string] $Fingerprint = 'fp1', [switch] $NoWriteSignature, [switch] $Force) {
+        $extra = @{}
+        if (-not $NoWriteSignature) { $extra.WriteSignature = 'ws1' }
+        Invoke-DeployFlow -RepoRoot 'C:\dev\spellcraft' -Build $Flow.Build -RunGameTests $Flow.RunGameTests `
+            -LaunchClient $Flow.LaunchClient -Fingerprint $Fingerprint -VerifiedPath 'C:\v\verified.txt' -Force:$Force @extra
+    }
+
+    Context 'the sources match the last verified run' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Current' }
+
+        It 'skips the build and the GameTests and launches' {
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 0
+            ($f.Calls -join ',') | Should Be 'launch'
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+            Assert-MockCalled Clear-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+        It 'asks for the state of these sources and this build stamp' {
+            Invoke-Flow (New-Flow) | Out-Null
+            Assert-MockCalled Get-VerifiedState -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter {
+                $Fingerprint -eq 'fp1' -and $VerifiedPath -eq 'C:\v\verified.txt' -and
+                $BuildStampUtc -eq [datetime]::SpecifyKind([datetime]'2026-10-01 12:00:00', 'Utc')
+            }
+        }
+        It 'says why it skipped' {
+            $f = New-Flow
+            Invoke-Flow $f | Out-Null
+            Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Scope It -ParameterFilter { "$Object" -like '*verified*' }
+        }
+        It 'runs everything under -Force and records the result' {
+            $f = New-Flow
+            Invoke-Flow $f -Force | Should Be 0
+            ($f.Calls -join ',') | Should Be 'build,tests,launch'
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $Fingerprint -eq 'fp1' }
+        }
+        It 'still stops a stale client after y, then launches' {
+            Mock -ModuleName DeployTestEnv Get-Instances {
+                [pscustomobject]@{ Kind = 'Client'; ProcessId = 9; StartTimeUtc = [datetime]::SpecifyKind([datetime]'2026-10-01 11:00:00', 'Utc') }
+            }
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 0
+            ($f.Calls -join ',') | Should Be 'launch'
+            Assert-MockCalled Stop-Instance -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $Instance.ProcessId -eq 9 }
+        }
+        It 'exits 3 without launching when the stale client is not stopped' {
+            Mock -ModuleName DeployTestEnv Confirm-StopInstances { $false }
+            Mock -ModuleName DeployTestEnv Get-Instances {
+                [pscustomobject]@{ Kind = 'Client'; ProcessId = 9; StartTimeUtc = [datetime]::SpecifyKind([datetime]'2026-10-01 11:00:00', 'Utc') }
+            }
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 3
+            ($f.Calls -join ',') | Should Be ''
+        }
+    }
+
+    Context 'the sources match but nothing has been built (no build stamp)' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Current' }
+        Mock -ModuleName DeployTestEnv Get-BuildStamp { $null }
+
+        It 'runs everything' {
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 0
+            ($f.Calls -join ',') | Should Be 'build,tests,launch'
+        }
+    }
+    foreach ($state in 'Changed', 'None', 'ClassesDiffer') {
+        Context "the verified state is $state" {
+            Mock -ModuleName DeployTestEnv Get-VerifiedState { $state }.GetNewClosure()
+
+            It 'runs everything and records the fingerprint after the GameTests pass' {
+                $f = New-Flow
+                Invoke-Flow $f | Should Be 0
+                ($f.Calls -join ',') | Should Be 'build,tests,launch'
+                Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $Fingerprint -eq 'fp1' -and $VerifiedPath -eq 'C:\v\verified.txt' }
+            }
+        }
+    }
+    Context 'the verified state is Unknown (no fingerprint)' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Unknown' }
+
+        It 'runs everything and records nothing, and says the sources could not be read before the checks' {
+            $f = New-Flow
+            Invoke-Flow $f -Fingerprint '' | Should Be 0
+            ($f.Calls -join ',') | Should Be 'build,tests,launch'
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+            Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Scope It -ParameterFilter { "$Object" -like '*could not be read before the checks*not recorded*' }
+        }
+    }
+
+    Context 'a run that does not pass' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Changed' }
+
+        It 'records nothing after a failed build, and the old record is gone' {
+            Invoke-Flow (New-Flow -BuildExit 1) | Should Be 1
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+            Assert-MockCalled Clear-VerifiedFingerprint -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $VerifiedPath -eq 'C:\v\verified.txt' }
+        }
+        It 'records nothing after failed GameTests' {
+            Invoke-Flow (New-Flow -TestsExit 1) | Should Be 2
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+        It 'records nothing when a GameTest server was not stopped' {
+            Mock -ModuleName DeployTestEnv Confirm-StopInstances { $false }
+            Mock -ModuleName DeployTestEnv Get-Instances {
+                [pscustomobject]@{ Kind = 'GameTestServer'; ProcessId = 8; StartTimeUtc = [datetime]::SpecifyKind([datetime]'2026-10-01 13:00:00', 'Utc') }
+            }
+            Invoke-Flow (New-Flow) | Should Be 3
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+    }
+
+    # Pester 3.4 keeps a Mock made in an It for the rest of its Context, so each of these has its own.
+    Context 'the old record cannot be cleared' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Changed' }
+        Mock -ModuleName DeployTestEnv Clear-VerifiedFingerprint { $false }
+
+        It 'exits 1 without building' {
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 1
+            ($f.Calls -join ',') | Should Be ''
+        }
+    }
+    Context 'the sources changed while the checks ran' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Changed' }
+        Mock -ModuleName DeployTestEnv Get-InputFingerprint { 'fp2' }
+
+        It 'launches but records nothing' {
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 0
+            ($f.Calls -join ',') | Should Be 'build,tests,launch'
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+    }
+    Context 'the sources cannot be read after the checks' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Changed' }
+        Mock -ModuleName DeployTestEnv Get-InputFingerprint { $null }
+
+        It 'launches but records nothing' {
+            Invoke-Flow (New-Flow) | Should Be 0
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+    }
+    Context 'a source file was written while the checks ran (the write signature changed)' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Changed' }
+        Mock -ModuleName DeployTestEnv Get-InputWriteSignature { 'ws2' }
+
+        It 'launches but records nothing, and says why' {
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 0
+            ($f.Calls -join ',') | Should Be 'build,tests,launch'
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+            Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Scope It -ParameterFilter { "$Object" -like '*written while the checks ran*not recorded*' }
+        }
+    }
+    Context 'the write signature cannot be read after the checks' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Changed' }
+        Mock -ModuleName DeployTestEnv Get-InputWriteSignature { $null }
+
+        It 'launches but records nothing' {
+            Invoke-Flow (New-Flow) | Should Be 0
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+    }
+    Context 'no write signature is given' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Changed' }
+
+        It 'launches but records nothing, and says the sources could not be read before the checks' {
+            $f = New-Flow
+            Invoke-Flow $f -NoWriteSignature | Should Be 0
+            ($f.Calls -join ',') | Should Be 'build,tests,launch'
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+            Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Scope It -ParameterFilter { "$Object" -like '*could not be read before the checks*not recorded*' }
+        }
+    }
+    Context 'a GameTest selector is set outside the command line' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Changed' }
+        Mock -ModuleName DeployTestEnv Get-GameTestSelectorSource { 'the environment variable ORG_GRADLE_PROJECT_gameTests' }
+
+        It 'launches but records nothing, and says where the selector is set' {
+            $f = New-Flow
+            Invoke-Flow $f | Should Be 0
+            ($f.Calls -join ',') | Should Be 'build,tests,launch'
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+            Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter {
+                "$Object" -eq 'A GameTest selector is set in the environment variable ORG_GRADLE_PROJECT_gameTests, so only some GameTests ran. This run is not recorded; the next run redoes the checks.'
+            }
+        }
+        It 'asks about this repo root' {
+            Invoke-Flow (New-Flow) | Out-Null
+            Assert-MockCalled Get-GameTestSelectorSource -ModuleName DeployTestEnv -Times 1 -Exactly -Scope It -ParameterFilter { $RepoRoot -eq 'C:\dev\spellcraft' }
+        }
+    }
+    Context 'no compiled classes are found after the checks' {
+        Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Changed' }
+        Mock -ModuleName DeployTestEnv Get-BuildStamp { $null }
+
+        It 'launches but records nothing, and says why' {
+            Invoke-Flow (New-Flow) | Should Be 0
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+            Assert-MockCalled Write-Host -ModuleName DeployTestEnv -Scope It -ParameterFilter { "$Object" -like '*no compiled classes*not recorded*' }
+        }
+    }
+
+    Context 'no verified path is given (the feature is off)' {
+        It 'runs everything and records nothing' {
+            Mock -ModuleName DeployTestEnv Get-VerifiedState { 'Current' }
+            $f = New-Flow
+            Invoke-DeployFlow -RepoRoot 'C:\dev\spellcraft' -Build $f.Build -RunGameTests $f.RunGameTests -LaunchClient $f.LaunchClient | Should Be 0
+            ($f.Calls -join ',') | Should Be 'build,tests,launch'
+            Assert-MockCalled Save-VerifiedFingerprint -ModuleName DeployTestEnv -Times 0 -Exactly -Scope It
+        }
+    }
+}
+
+Describe 'Invoke-DeployFlow with a real record, real sources and real class files' {
+    Mock -ModuleName DeployTestEnv Write-Host { }
+    Mock -ModuleName DeployTestEnv Get-Instances { }
+    Mock -ModuleName DeployTestEnv Get-GameTestSelectorSource { $null }
+
+    # Runs one deploy run and returns "<exit code>:<steps that ran>". The write signature is taken first,
+    # then the fingerprint, as the script does.
+    function Invoke-Run([string] $Repo, [int] $BuildExit = 0, [int] $TestsExit = 0, [scriptblock] $DuringTests = { }, [switch] $Force) {
+        $calls = New-Object System.Collections.ArrayList
+        $writeSignature = Get-InputWriteSignature -RepoRoot $Repo
+        $code = Invoke-DeployFlow -RepoRoot $Repo `
+            -Build { [void]$calls.Add('build'); $BuildExit }.GetNewClosure() `
+            -RunGameTests { [void]$calls.Add('tests'); & $DuringTests; $TestsExit }.GetNewClosure() `
+            -LaunchClient { [void]$calls.Add('launch'); [pscustomobject]@{ Started = $true; ProcessId = 1; Log = 'x' } }.GetNewClosure() `
+            -WriteSignature $writeSignature -Fingerprint (Get-InputFingerprint -RepoRoot $Repo) `
+            -VerifiedPath (Join-Path $Repo 'build\deploy\verified.txt') -Force:$Force
+        "$code`:" + ($calls -join ',')
+    }
+
+    It 'runs everything once, then only launches while nothing changes' {
+        $repo = New-InputRepo 'round-trip' -Built
+        Invoke-Run $repo | Should Be '0:build,tests,launch'
+        Invoke-Run $repo | Should Be '0:launch'
+        Invoke-Run $repo | Should Be '0:launch'
+    }
+    It 'runs everything again after a source edit, and skips again after that passes' {
+        $repo = New-InputRepo 'edit' -Built
+        Invoke-Run $repo | Out-Null
+        Set-Text $repo 'src\main\A.java' 'class A { int x; }'
+        Invoke-Run $repo | Should Be '0:build,tests,launch'
+        Invoke-Run $repo | Should Be '0:launch'
+    }
+    It 'runs everything again when the classes were rebuilt since the verified run' {
+        $repo = New-InputRepo 'rebuilt' -Built
+        Invoke-Run $repo | Out-Null
+        Set-Text $repo 'build\classes\java\main\B.class' 'b'
+        (Get-Item -LiteralPath (Join-Path $repo 'build\classes\java\main\B.class')).LastWriteTimeUtc = [datetime]::UtcNow.AddMinutes(5)
+        Invoke-Run $repo | Should Be '0:build,tests,launch'
+    }
+    It 'forgets the record when a forced run fails the build, so the next run does not skip' {
+        $repo = New-InputRepo 'forced-build-fail' -Built
+        Invoke-Run $repo | Out-Null
+        Invoke-Run $repo -Force -BuildExit 1 | Should Be '1:build'
+        Invoke-Run $repo | Should Be '0:build,tests,launch'
+    }
+    It 'forgets the record when a forced run fails the GameTests, so the next run does not skip' {
+        $repo = New-InputRepo 'forced-tests-fail' -Built
+        Invoke-Run $repo | Out-Null
+        Invoke-Run $repo -Force -TestsExit 1 | Should Be '2:build,tests'
+        Invoke-Run $repo | Should Be '0:build,tests,launch'
+    }
+    It 'does not record a run whose sources were edited while the checks ran, even after the edit is reverted' {
+        $repo = New-InputRepo 'edit-during' -Built
+        $file = Join-Path $repo 'src\main\A.java'
+        Invoke-Run $repo -DuringTests { Set-Content -LiteralPath $file -Value 'class A { int y; }' -Encoding ASCII }.GetNewClosure() |
+            Should Be '0:build,tests,launch'
+        Set-Content -LiteralPath $file -Value 'class A {}' -Encoding ASCII
+        Invoke-Run $repo | Should Be '0:build,tests,launch'
+    }
+    It 'does not record a run whose sources were edited and reverted while the checks ran' {
+        $repo = New-InputRepo 'edit-revert-during' -Built
+        $file = Join-Path $repo 'src\main\A.java'
+        $later = $Utc20261001.AddDays(30)
+        $during = {
+            Set-Content -LiteralPath $file -Value 'class A { int y; }' -Encoding ASCII
+            Set-Content -LiteralPath $file -Value 'class A {}' -Encoding ASCII
+            (Get-Item -LiteralPath $file).LastWriteTimeUtc = $later
+        }.GetNewClosure()
+        Invoke-Run $repo -DuringTests $during | Should Be '0:build,tests,launch'
+        Invoke-Run $repo | Should Be '0:build,tests,launch'
+        Invoke-Run $repo | Should Be '0:launch'
+    }
+}
+
+Describe 'Format-VerifiedLine' {
+    It 'says what the next run will do for each state' {
+        Format-VerifiedLine -State 'Current' | Should Match 'skips'
+        Format-VerifiedLine -State 'Changed' | Should Match 'changed'
+        Format-VerifiedLine -State 'None' | Should Match 'no passing run'
+        Format-VerifiedLine -State 'Unknown' | Should Match 'cannot tell'
+        Format-VerifiedLine -State 'ClassesDiffer' | Should Match 'classes'
+    }
+    It 'promises a skip only for Current' {
+        foreach ($state in 'Changed', 'None', 'Unknown', 'ClassesDiffer') {
+            Format-VerifiedLine -State $state | Should Not Match 'skips'
+        }
+    }
+}
+
+Describe 'Deploy-TestEnv.ps1 -CheckOnly (the real script on this checkout; read-only)' {
+    It 'exits 0 and prints the verified line' {
+        $script = Join-Path $PSScriptRoot '..\Deploy-TestEnv.ps1'
+        $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -CheckOnly
+        $LASTEXITCODE | Should Be 0
+        (@($out) -join "`n") | Should Match 'Verified: '
     }
 }
