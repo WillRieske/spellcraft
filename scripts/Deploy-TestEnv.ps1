@@ -37,8 +37,13 @@ if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'gradlew.bat') -PathType L
 }
 Set-Location -LiteralPath $repoRoot
 
-# Taken before any build; the flow takes it again after the GameTests and records the run only if
-# the two are equal, so an edit made while the checks run is never recorded as verified.
+# Both are taken before any build; the flow takes them again after the GameTests (fingerprint first,
+# write signature second) and records the run only if both are unchanged, so an edit made while the
+# checks run is never recorded as verified. The write signature (sizes and write times) catches an
+# edit that was reverted, which the content fingerprint cannot. It is taken first so the two
+# signatures bracket the two fingerprints: a file written while the fingerprint is being computed
+# changes a signature on one side or the other.
+$writeSignature = Get-InputWriteSignature -RepoRoot $repoRoot
 $fingerprint = Get-InputFingerprint -RepoRoot $repoRoot
 $verifiedPath = Join-Path $repoRoot 'build\deploy\verified.txt'
 
@@ -55,5 +60,5 @@ $exitCode = Invoke-DeployFlow -RepoRoot $repoRoot `
     -Build { & .\gradlew.bat spotlessCheck build | Out-Host; $LASTEXITCODE } `
     -RunGameTests { & .\gradlew.bat runGameTestServer | Out-Host; $LASTEXITCODE } `
     -LaunchClient ({ Start-DevClient -RepoRoot $repoRoot }.GetNewClosure()) `
-    -Fingerprint $fingerprint -VerifiedPath $verifiedPath -Force:$Force
+    -WriteSignature $writeSignature -Fingerprint $fingerprint -VerifiedPath $verifiedPath -Force:$Force
 exit $exitCode

@@ -37,6 +37,13 @@ repos:
         language: system
         pass_filenames: false
         files: ^(scripts/(spell_icons|test_spell_icons)\.py|src/main/resources/assets/spellcraft/textures/)
+      # The Java files are in scope because one test checks that every path a Java file reads is a fingerprint input.
+      - id: deploy-script-tests
+        name: deploy script tests (Pester)
+        entry: sh scripts/pester-hook.sh
+        language: system
+        pass_filenames: false
+        files: ^(scripts/(Deploy-TestEnv\.ps1|DeployTestEnv\.psm1|pester-hook\.sh|tests/.*)|src/.*\.java)$
       - id: gametests
         name: runGameTestServer
         entry: sh ./gradlew

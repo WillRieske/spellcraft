@@ -179,59 +179,123 @@ $script:FingerprintInputs = @(
 
 <#
 .SYNOPSIS
+    The files the build and the GameTests depend on, as the disk has them now.
+.DESCRIPTION
+    The one place that decides which files are inputs, shared by Get-InputFingerprint and
+    Get-InputWriteSignature so the two cannot disagree. Files are listed from the disk, not by git:
+    Gradle packages a file under src/ whether or not git ignores it, so every file counts. Throws when
+    a file cannot be listed; callers catch it.
+.PARAMETER RepoRoot
+    The repo root.
+.OUTPUTS
+    $null when no input exists or a file lies outside the root. Otherwise an object with Root (the
+    resolved root, no trailing separator) and Files (System.IO.FileInfo, sorted by relative name
+    ordinally) and Names (the relative names with '/', in the same order).
+#>
+function Get-InputFiles {
+    param([Parameter(Mandatory)][string] $RepoRoot)
+    $root = (Resolve-Path -LiteralPath $RepoRoot -ErrorAction Stop).ProviderPath.TrimEnd('\')
+    $files = New-Object System.Collections.Generic.List[System.IO.FileInfo]
+    foreach ($entry in $script:FingerprintInputs) {
+        $path = Join-Path $root $entry
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            $files.Add((Get-Item -LiteralPath $path -Force -ErrorAction Stop))
+        } elseif (Test-Path -LiteralPath $path -PathType Container) {
+            foreach ($file in @(Get-ChildItem -LiteralPath $path -Recurse -File -Force -ErrorAction Stop)) {
+                $files.Add($file)
+            }
+        }
+    }
+    if ($files.Count -eq 0) { return $null }
+    $prefix = $root + '\'
+    $names = New-Object System.Collections.Generic.List[string]
+    foreach ($file in $files) {
+        # A path that is not under the root cannot be named relative to it; give up, do not guess.
+        if (-not $file.FullName.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { return $null }
+        $names.Add($file.FullName.Substring($prefix.Length).Replace('\', '/'))
+    }
+    $nameArray = $names.ToArray()
+    $fileArray = $files.ToArray()
+    [Array]::Sort($nameArray, $fileArray, [StringComparer]::Ordinal)
+    [pscustomobject]@{ Root = $root; Files = $fileArray; Names = $nameArray }
+}
+
+<#
+.SYNOPSIS
     A hash of everything the build and the GameTests depend on, as the working tree has it now.
 .DESCRIPTION
     Hashes the contents of every file on disk under the build inputs, with its path, so an edit, an
-    addition, a deletion and a move each change the result, committed or not. The files are listed from
-    the disk, not by git: Gradle packages a file under src/ whether or not git ignores it, so every
-    file counts.
+    addition, a deletion and a move each change the result, committed or not (the files come from
+    Get-InputFiles).
 .PARAMETER RepoRoot
     The repo root.
 .OUTPUTS
     [string] (hex), or $null when the root or every input is missing or a file cannot be listed or
-    read: callers then treat the sources as unverifiable.
+    read: callers then treat the sources as unverifiable. A read failure prints a line with the cause.
 #>
 function Get-InputFingerprint {
     param([Parameter(Mandatory)][string] $RepoRoot)
     $sha = [System.Security.Cryptography.SHA256]::Create()
     try {
-        $root = (Resolve-Path -LiteralPath $RepoRoot -ErrorAction Stop).ProviderPath.TrimEnd('\')
-        $paths = New-Object System.Collections.Generic.List[string]
-        foreach ($entry in $script:FingerprintInputs) {
-            $path = Join-Path $root $entry
-            if (Test-Path -LiteralPath $path -PathType Leaf) {
-                $paths.Add((Get-Item -LiteralPath $path -Force -ErrorAction Stop).FullName)
-            } elseif (Test-Path -LiteralPath $path -PathType Container) {
-                foreach ($file in @(Get-ChildItem -LiteralPath $path -Recurse -File -Force -ErrorAction Stop)) {
-                    $paths.Add($file.FullName)
-                }
-            }
-        }
-        if ($paths.Count -eq 0) { return $null }
-        $prefix = $root + '\'
-        $names = New-Object System.Collections.Generic.List[string]
-        foreach ($path in $paths) {
-            # A path that is not under the root cannot be named relative to it; give up, do not guess.
-            if (-not $path.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { return $null }
-            $names.Add($path.Substring($prefix.Length).Replace('\', '/'))
-        }
-        $sorted = $names.ToArray()
-        [Array]::Sort($sorted, [StringComparer]::Ordinal)
+        $inputs = Get-InputFiles -RepoRoot $RepoRoot
+        if ($null -eq $inputs) { return $null }
         $text = New-Object System.Text.StringBuilder
-        foreach ($name in $sorted) {
-            $bytes = [System.IO.File]::ReadAllBytes((Join-Path $root $name))
+        for ($i = 0; $i -lt $inputs.Names.Count; $i++) {
+            $bytes = [System.IO.File]::ReadAllBytes($inputs.Files[$i].FullName)
             $hash = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-', '')
-            [void]$text.Append($name).Append(':').Append($hash).Append("`n")
+            [void]$text.Append($inputs.Names[$i]).Append(':').Append($hash).Append("`n")
         }
         [BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($text.ToString()))).Replace('-', '')
     } catch {
+        Write-Host "Could not read the sources ($($_.Exception.Message))."
         $null
     } finally {
         $sha.Dispose()
     }
 }
 
-# The build stamp as the record stores it: ticks, so the comparison is exact and culture-free.
+<#
+.SYNOPSIS
+    A hash of the size and write time of every build input, without reading any file.
+.DESCRIPTION
+    One line per file, "<relative name>:<Length>:<LastWriteTimeUtc ticks>", names sorted ordinally, then
+    SHA-256 over the lines. Taken before and after the checks it catches a file that was written in
+    between even when its content ended up the same (an edit that was reverted), which the content
+    fingerprint cannot see. The files come from Get-InputFiles.
+.PARAMETER RepoRoot
+    The repo root.
+.OUTPUTS
+    [string] (hex), or $null in the cases where Get-InputFingerprint returns $null (a listing failure
+    prints a line with the cause).
+#>
+function Get-InputWriteSignature {
+    param([Parameter(Mandatory)][string] $RepoRoot)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $inputs = Get-InputFiles -RepoRoot $RepoRoot
+        if ($null -eq $inputs) { return $null }
+        $text = New-Object System.Text.StringBuilder
+        for ($i = 0; $i -lt $inputs.Names.Count; $i++) {
+            $file = $inputs.Files[$i]
+            [void]$text.Append($inputs.Names[$i]).Append(':').Append($file.Length.ToString([System.Globalization.CultureInfo]::InvariantCulture)).Append(':').Append($file.LastWriteTimeUtc.Ticks.ToString([System.Globalization.CultureInfo]::InvariantCulture)).Append("`n")
+        }
+        [BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($text.ToString()))).Replace('-', '')
+    } catch {
+        Write-Host "Could not read the sources ($($_.Exception.Message))."
+        $null
+    } finally {
+        $sha.Dispose()
+    }
+}
+
+<#
+.SYNOPSIS
+    The build stamp as the record stores it: ticks, so the comparison is exact and culture-free.
+.PARAMETER BuildStampUtc
+    The build stamp (UTC).
+.OUTPUTS
+    [string]
+#>
 function ConvertTo-StampToken {
     param([Parameter(Mandatory)][datetime] $BuildStampUtc)
     $BuildStampUtc.Ticks.ToString([System.Globalization.CultureInfo]::InvariantCulture)
@@ -265,6 +329,9 @@ function Get-VerifiedState {
             $lines = @([System.IO.File]::ReadAllText($VerifiedPath) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
         }
     } catch {
+        # Safe direction: an unreadable record never allows a skip. But say so, because 'no passing
+        # run is recorded' (the line printed for None) would be false.
+        Write-Host "Could not read the verified-run record $VerifiedPath ($($_.Exception.Message)); treating it as absent."
         $lines = @()
     }
     if ($lines.Count -eq 0) { return 'None' }
@@ -763,6 +830,10 @@ function Write-InstanceList {
     Starts the client; returns a Start-DevClient result.
 .PARAMETER Fingerprint
     Get-InputFingerprint's result, taken before the flow starts; $null when it could not be computed.
+.PARAMETER WriteSignature
+    Get-InputWriteSignature's result, taken before the fingerprint and before the flow starts; $null
+    when it could not be computed. The flow takes both again after the GameTests and records the run
+    only if neither changed. When -VerifiedPath is given but this is empty, nothing is ever recorded.
 .PARAMETER VerifiedPath
     Where the verified-run record lives. Empty turns the skip-if-unchanged feature off: steps 1-2 always
     run and nothing is recorded.
@@ -779,6 +850,7 @@ function Invoke-DeployFlow {
         [Parameter(Mandatory)][scriptblock] $RunGameTests,
         [Parameter(Mandatory)][scriptblock] $LaunchClient,
         [AllowNull()][AllowEmptyString()][string] $Fingerprint = $null,
+        [AllowNull()][AllowEmptyString()][string] $WriteSignature = $null,
         [string] $VerifiedPath = '',
         [switch] $Force
     )
@@ -825,15 +897,29 @@ function Invoke-DeployFlow {
             return $script:ExitGameTestsFailed
         }
         # Record the pass only if the sources are still what they were before the build: after an
-        # edit made while the checks ran, nobody knows which version Gradle checked. The stamp is read
-        # again because it is the classes as the GameTests left them that the record vouches for.
-        if ($VerifiedPath -and $Fingerprint) {
+        # edit made while the checks ran, nobody knows which version Gradle checked. The content
+        # fingerprint cannot see an edit that was reverted, so the write signature (sizes and write
+        # times) must match too. Fingerprint first, signature second: the two signatures then bracket
+        # the two fingerprints, so a write during the second hash shows up in the second signature.
+        # The stamp is read again because it is the classes as the GameTests left them that the
+        # record vouches for.
+        if ($VerifiedPath) {
             $stamp = Get-BuildStamp -RepoRoot $RepoRoot
-            $after = Get-InputFingerprint -RepoRoot $RepoRoot
-            if ($after -and $after -ceq $Fingerprint -and $null -ne $stamp) {
-                Save-VerifiedFingerprint -Fingerprint $Fingerprint -BuildStampUtc $stamp -VerifiedPath $VerifiedPath
+            $afterFingerprint = Get-InputFingerprint -RepoRoot $RepoRoot
+            $afterSignature = Get-InputWriteSignature -RepoRoot $RepoRoot
+            $notRecorded = 'This run is not recorded; the next run redoes the checks.'
+            if (-not $Fingerprint -or -not $WriteSignature) {
+                Write-Host "The sources could not be read before the checks. $notRecorded"
+            } elseif (-not $afterFingerprint -or -not $afterSignature) {
+                Write-Host "The sources could not be read after the checks. $notRecorded"
+            } elseif ($afterFingerprint -cne $Fingerprint) {
+                Write-Host "The sources changed while the checks ran. $notRecorded"
+            } elseif ($afterSignature -cne $WriteSignature) {
+                Write-Host "A source file was written while the checks ran (an edit that was reverted, or a tool that rewrote it). $notRecorded"
+            } elseif ($null -eq $stamp) {
+                Write-Host "No compiled classes were found after the checks. $notRecorded"
             } else {
-                Write-Host 'The sources changed (or could not be read) while the checks ran: this run is not recorded, so the next run redoes them.'
+                Save-VerifiedFingerprint -Fingerprint $Fingerprint -BuildStampUtc $stamp -VerifiedPath $VerifiedPath
             }
         }
     }
