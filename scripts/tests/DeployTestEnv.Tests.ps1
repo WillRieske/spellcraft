@@ -2,6 +2,18 @@
 #   powershell -NoProfile -ExecutionPolicy Bypass -Command "Import-Module Pester -RequiredVersion 3.4.0; Invoke-Pester -Path scripts/tests -EnableExit"
 # ASCII only.
 
+# Before anything else: clear the variables that point git at a repository (GIT_DIR, GIT_INDEX_FILE
+# and the rest), for this process and the ones it starts. Git sets them for a hook when the commit is
+# made in a linked worktree, and a git command a test aims at a temp folder would then act on the
+# repository being committed to (see 'Tests run from a git hook in a linked worktree' at the end).
+# scripts/pester-hook.sh clears them too; this covers the tests run any other way. Without the list
+# of them no test runs.
+$gitRepoVars = @(git rev-parse --local-env-vars)
+if ($LASTEXITCODE -ne 0 -or $gitRepoVars.Count -eq 0) {
+    throw 'git did not list its repository variables, so they cannot be cleared; no test was run.'
+}
+foreach ($name in $gitRepoVars) { [Environment]::SetEnvironmentVariable($name, $null) }
+
 Import-Module (Join-Path $PSScriptRoot '..\DeployTestEnv.psm1') -Force
 
 $Root = 'C:\dev\spellcraft'
@@ -78,6 +90,41 @@ function New-Junction([string] $Link, [string] $Target) {
 }
 function Remove-Junction([string] $Link) {
     cmd /c rmdir "$Link" | Out-Null
+}
+
+# Makes a throwaway repository with one linked worktree under $TestDrive. Returns GitDir (the linked
+# worktree's git directory, which is what git puts in GIT_DIR for a hook run there) and Config (the
+# config file the repository's worktrees share).
+function New-DecoyWorktree([string] $Name) {
+    $main = Join-Path $TestDrive "$Name\main"
+    New-Item -ItemType Directory -Path $main | Out-Null
+    git -C $main init -q 2>$null | Out-Null
+    git -C $main -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false commit -q --no-verify --allow-empty -m init 2>$null | Out-Null
+    git -C $main worktree add -q -b linked (Join-Path $TestDrive "$Name\linked") 2>$null | Out-Null
+    [pscustomobject]@{
+        GitDir = Join-Path $main '.git\worktrees\linked'
+        Config = Join-Path $main '.git\config'
+    }
+}
+
+# Runs $Body with the variables git gives a hook for a commit made in the decoy's linked worktree.
+function Invoke-AsHookIn($Decoy, [scriptblock] $Body) {
+    $env:GIT_DIR = $Decoy.GitDir.Replace('\', '/')
+    $env:GIT_INDEX_FILE = $env:GIT_DIR + '/index'
+    try { & $Body } finally { Remove-Item Env:\GIT_DIR, Env:\GIT_INDEX_FILE }
+}
+
+# The path of sh.exe. Git for Windows puts git on PATH but sh only inside its own shell, so off PATH
+# it is looked up beside git (<Git>\mingw64\libexec\git-core is git's exec path).
+function Get-ShPath {
+    $onPath = Get-Command sh.exe -ErrorAction SilentlyContinue
+    if ($onPath) { return $onPath.Path }
+    $gitHome = Split-Path (Split-Path (Split-Path (git --exec-path)))
+    foreach ($relative in 'bin\sh.exe', 'usr\bin\sh.exe') {
+        $candidate = Join-Path $gitHome $relative
+        if (Test-Path -LiteralPath $candidate) { return $candidate }
+    }
+    throw "sh.exe is not on PATH and not under $gitHome."
 }
 
 # Classifies Java string literals (as written in the source, escapes included) that may name a file
@@ -1846,5 +1893,57 @@ Describe 'Deploy-TestEnv.ps1 -CheckOnly (the real script on this checkout; read-
         $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -CheckOnly
         $LASTEXITCODE | Should Be 0
         (@($out) -join "`n") | Should Match 'Verified: '
+    }
+}
+
+# Git gives a hook GIT_DIR and GIT_INDEX_FILE when the commit is made in a linked worktree. A git
+# command a test aims at a temp folder then acts on the repository being committed to instead:
+# 'git init' re-initialized it and wrote core.bare = true into the config all its worktrees share
+# (2026-11-23), which broke every worktree. Both ways of running the tests are checked here against
+# a throwaway repository standing in for the real one.
+Describe 'Tests run from a git hook in a linked worktree' {
+    It 'leave the repository config alone when Pester runs this file' {
+        $decoy = New-DecoyWorktree 'direct'
+        $before = Get-Content -Raw -LiteralPath $decoy.Config
+        # A child powershell, so this file starts again with the hook's variables set. -TestName picks
+        # the Describe whose test calls git; it leaves this Describe out, so the child starts no child.
+        $testFile = Join-Path $PSScriptRoot 'DeployTestEnv.Tests.ps1'
+        $out = Invoke-AsHookIn $decoy {
+            & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Import-Module Pester -RequiredVersion 3.4.0; Invoke-Pester -Path '$testFile' -TestName 'Get-InputFingerprint' -EnableExit"
+        }
+        $LASTEXITCODE | Should Be 0
+        # The test that calls git ran: a renamed Describe would otherwise pass this test by running nothing.
+        (@($out) -join "`n") | Should Match '\[\+\] counts a git-ignored file under src'
+        Get-Content -Raw -LiteralPath $decoy.Config | Should Be $before
+    }
+    It 'leave the repository config alone when scripts/pester-hook.sh runs a test that calls git' {
+        $decoy = New-DecoyWorktree 'hook'
+        $before = Get-Content -Raw -LiteralPath $decoy.Config
+        # A stand-in test file that clears nothing itself, so only the hook script protects the decoy.
+        $target = Join-Path $TestDrive 'hook-target'
+        $probes = Join-Path $TestDrive 'hook-probes'
+        New-Item -ItemType Directory -Path $target, $probes | Out-Null
+        Set-Content -LiteralPath (Join-Path $probes 'Probe.Tests.ps1') -Encoding ASCII -Value @"
+Describe 'probe' {
+    It 'makes a repository in a temp folder' {
+        git -C '$target' init -q
+        `$LASTEXITCODE | Should Be 0
+    }
+}
+"@
+        $sh = Get-ShPath
+        $hook = (Resolve-Path (Join-Path $PSScriptRoot '..\pester-hook.sh')).Path.Replace('\', '/')
+        # Run from a folder with no scripts/tests: a hook script that ignored its argument would find
+        # no tests there instead of starting this whole suite again.
+        Push-Location $TestDrive
+        try {
+            $out = Invoke-AsHookIn $decoy { & $sh $hook $probes.Replace('\', '/') }
+        } finally {
+            Pop-Location
+        }
+        $LASTEXITCODE | Should Be 0
+        (@($out) -join "`n") | Should Match '\[\+\] makes a repository in a temp folder'
+        Test-Path -LiteralPath (Join-Path $target '.git') | Should Be $true
+        Get-Content -Raw -LiteralPath $decoy.Config | Should Be $before
     }
 }
